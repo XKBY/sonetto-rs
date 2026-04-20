@@ -492,8 +492,6 @@ fn dispatch(
             } else {
                 consume
             };
-            if matches!(skill_id, 31140151) {
-            }
             managers
                 .ex_point_mgr
                 .set_recent_decr_ex_point(caster_uid, consume);

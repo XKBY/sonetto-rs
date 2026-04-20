@@ -353,16 +353,19 @@ impl BloodtitheState {
                     continue;
                 }
 
-                let is_rubuska_slave = {
+                let is_shadow_cloak_slave = {
                     let cfg = config::configs::get();
                     cfg.skill_buff
                         .iter()
                         .find(|b| b.id == instance.buff_id)
-                        .map(|b| b.type_id == 31250151)
+                        .map(|b| {
+                            b.type_id
+                                == crate::state::battle::mechanics::shadowcloak::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID
+                        })
                         .unwrap_or(false)
                 };
 
-                if is_rubuska_slave && shadow_cloak.is_active() {
+                if is_shadow_cloak_slave && shadow_cloak.is_active() {
                     shadow_cloak.add(uid, damage);
                 }
 

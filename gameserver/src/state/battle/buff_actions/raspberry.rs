@@ -49,7 +49,10 @@ pub fn add_count(
             cfg.skill_buff
                 .iter()
                 .find(|sb| sb.id == b.buff_id)
-                .map(|sb| sb.type_id == 31250151)
+                .map(|sb| {
+                    sb.type_id
+                        == crate::state::battle::mechanics::shadowcloak::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID
+                })
                 .unwrap_or(false)
         })
         .map(|b| b.uid)

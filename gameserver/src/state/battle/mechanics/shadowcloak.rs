@@ -14,6 +14,11 @@ use std::{
 
 use crate::state::battle::utils::{buff_get_raspberry_params, moxie_change};
 
+/// Shadow Cloak accumulator buff id. Applied to the carrier; its stored value
+/// is the currently-accumulated Shadow Friend points feeding Shadow Cloak
+/// thresholds. Unique per config (skill_buff.json).
+pub const SHADOW_CLOAK_ACCUMULATOR_BUFF_ID: i32 = 31250151;
+
 static SEEDED_RASPBERRY_MAX: Lazy<Mutex<HashMap<i32, i32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 static SHADOW_CLOAK_FULL_CAP_GRANTED: Lazy<Mutex<HashSet<(i32, i64)>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
@@ -119,7 +124,7 @@ impl ShadowCloakState {
             let buff_uid = buff_mgr
                 .get(uid)
                 .iter()
-                .find(|b| b.buff_id == 31250151)
+                .find(|b| b.buff_id == SHADOW_CLOAK_ACCUMULATOR_BUFF_ID)
                 .map(|b| b.uid)
                 .unwrap_or(0);
 

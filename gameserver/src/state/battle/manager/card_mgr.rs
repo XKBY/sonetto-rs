@@ -17,7 +17,7 @@ use super::super::{
     },
     trigger::combat::{TriggerEvent, skill_should_fire},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
-    utils::{buff_get_ex_point_overflow, damage_with_hurt, find_entity},
+    utils::{buff_get_ex_point_overflow, find_entity},
 };
 use super::fight_data_mgr::Managers;
 
@@ -177,8 +177,6 @@ impl FightCardMgr {
                 .map(|ex_skill| ex_skill == resolved_skill_id)
                 .unwrap_or(false);
 
-        if resolved_skill_id == 31140151 {
-        }
 
         let mut raw_skill_effects = if is_direct_ex_card {
             self.build_direct_ex_card_prefix(ctx, exec_caster_uid, resolved_skill_id)?
@@ -772,11 +770,6 @@ impl FightCardMgr {
 
         let prep_skill_ids = collect_precast_skills_for_caster(ctx.fight, ctx.managers, caster_uid);
         let mut out = Vec::new();
-        if let Some(circle_skill_id) =
-            active_magic_circle_self_skill_for_direct_ex(skill_id)
-        {
-            out.push(build_magic_circle_self_skill_wrapper(caster_uid, circle_skill_id));
-        }
 
         if attr_consume > 0 {
             ctx.managers
@@ -897,14 +890,6 @@ fn normalize_skill_effects_for_operation(
     // while keeping sibling 162 wrappers (trigger/passive side containers) unchanged.
     if let Some(mut first) = iter.next() {
         let first_fight_step = first.fight_step.take();
-        // Keep the sibling 162 wrapper when the first step is a 308801821
-        // magic-circle self-skill emission paired with Nautika's A Thousand
-        // Scars (skill 31200133). The skill id uniquely identifies the hero.
-        let keep_non_root_wrapper = matches!(
-            first_fight_step.as_ref().and_then(|step| step.act_id),
-            Some(308801821)
-        ) && skill_id == 31200133;
-
         let inline_root = first_fight_step.as_ref().is_some_and(|step| {
             first.effect_type == Some(EffectType::FightStep as i32)
                 && step.act_type == Some(fight_step::ActType::Skill as i32)
@@ -914,10 +899,10 @@ fn normalize_skill_effects_for_operation(
         if inline_root {
             let step = first_fight_step.expect("inline_root checked first_fight_step presence");
             out.extend(step.act_effect);
-        } else if keep_non_root_wrapper {
-            first.fight_step = first_fight_step;
-            out.push(first);
         } else {
+            // Non-inline path: drop the inner to match live's operation-level
+            // payload shape (outer 162 without nested root step). Inner is
+            // already out of `first` via `.take()` above.
             out.push(first);
         }
     }
@@ -1244,44 +1229,3 @@ fn infer_precast_per_decr_seed_cap(
     best
 }
 
-/// When Nautika casts A Thousand Scars (skill 31200133) while her magic
-/// circle is active, the circle's self-skill 308801821 is emitted as the
-/// direct-ex follow-up. The skill id identifies the hero uniquely.
-fn active_magic_circle_self_skill_for_direct_ex(skill_id: i32) -> Option<i32> {
-    if skill_id != 31200133 {
-        return None;
-    }
-    Some(308801821)
-}
-
-fn build_magic_circle_self_skill_wrapper(caster_uid: i64, skill_id: i32) -> ActEffect {
-    let effects = vec![
-        damage_with_hurt(caster_uid, 583, 30006, skill_id, caster_uid),
-        ActEffect {
-            effect_type: Some(EffectType::BloodPoolValueChange as i32),
-            target_id: Some(caster_uid),
-            effect_num: Some(1),
-            effect_num1: Some(1),
-            ..Default::default()
-        },
-    ];
-
-    ActEffect {
-        effect_type: Some(EffectType::FightStep as i32),
-        target_id: Some(0),
-        effect_num: Some(0),
-        fight_step: Some(FightStep {
-            act_type: Some(fight_step::ActType::Skill as i32),
-            from_id: Some(caster_uid),
-            to_id: Some(-1),
-            act_id: Some(skill_id),
-            act_effect: effects,
-            card_index: Some(0),
-            support_hero_id: Some(0),
-            fake_timeline: Some(false),
-            real_skill_type: Some(0),
-            real_skin_id: Some(0),
-        }),
-        ..Default::default()
-    }
-}

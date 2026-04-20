@@ -246,7 +246,11 @@ fn collect_bloodpool_gains_inner(
         if effect.effect_type == Some(EffectType::Bloodpoolvaluechange as i32) {
             let team_type = effect.effect_num.unwrap_or(0);
             let delta = effect.effect_num1.unwrap_or(0);
-            if team_type > 0 && delta > 0 && current_skill_id != Some(308801821) {
+            if team_type > 0
+                && delta > 0
+                && current_skill_id
+                    != Some(crate::state::battle::mechanics::magic_circle::MAGIC_CIRCLE_SELF_SKILL_ID)
+            {
                 push_team_metric(delta_out, team_type, delta);
                 push_skill_team_metric(
                     delta_by_skill_out,
@@ -369,8 +373,6 @@ pub(crate) fn run_combat_passives_pass(
                 continue;
             }
             let should_fire = skill_should_fire(uid, skill_id, event);
-            if matches!(skill_id, 71008 | 4150001 | 530000151) {
-            }
             if !should_fire {
                 continue;
             }
@@ -431,8 +433,6 @@ pub(crate) fn run_combat_passives_pass(
                         {
                             drop_del_when_update_exists(&mut step.act_effect);
                         }
-                    }
-                    if matches!(skill_id, 71008 | 4150001 | 530000151) {
                     }
                     // Live shape: keep one trigger EFFECT step per entity and pack
                     // both 162 wrappers and flat effects in arrival order.

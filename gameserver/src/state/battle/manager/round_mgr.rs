@@ -1312,10 +1312,6 @@ impl FightRoundMgr {
                             }
                         }
                     }
-                    if matches!(config.step_shape, PhaseStepShape::FlatIfAllUpdate) {
-                    }
-                    if uid < 0 && stop_at_first {
-                    }
                     for skill_id in skill_ids {
                         if matches!(config.skill_set, PhaseSkillSet::CombatReactive)
                             && !has_combat_reactive_condition(
@@ -1332,8 +1328,6 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
                         {
-                            if matches!(config.step_shape, PhaseStepShape::FlatIfAllUpdate) {
-                            }
                             if matches!(config.skill_set, PhaseSkillSet::CombatReactive) {
                                 let post_sweep_effects = effects
                                     .iter()
@@ -1354,8 +1348,6 @@ impl FightRoundMgr {
                                             .unwrap_or((e.effect_type.unwrap_or(-1), 0, 0, vec![]))
                                     })
                                     .collect::<Vec<_>>();
-                            }
-                            if uid < 0 && stop_at_first {
                             }
                             per_entity_effects.extend(effects);
                             if stop_at_first {

@@ -17,6 +17,10 @@ use crate::state::battle::fight_step::wrap_step;
 use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::types::effects::EffectType;
 
+/// Channel-output pattern used by NuoDiKa rank-3; live emits a split 350-permille
+/// replacement when a matching `AttrReplace` buff drives the output.
+pub const NUODIKA_RANK3_OUTPUT_SKILL_ID: i32 = 31200173;
+
 pub(crate) fn build_nuodika_channel_steps(
     _mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
@@ -339,7 +343,7 @@ pub(crate) fn rewrite_nuodika_channel_body(
     }
 
     let random_target = primary_target_uid;
-    let use_live_rank3_pattern = output_skill_id == 31200173
+    let use_live_rank3_pattern = output_skill_id == NUODIKA_RANK3_OUTPUT_SKILL_ID
         && primary_permille == 350
         && primary_rate == 1000
         && secondary_permille == 500

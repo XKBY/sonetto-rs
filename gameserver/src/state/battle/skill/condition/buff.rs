@@ -46,8 +46,6 @@ pub fn deleted_matches(deleted_buff_ids: &[i32], wanted_ids: &[i32]) -> bool {
         .filter_map(|id| resolve_buff_category(*id))
         .any(|wanted_category| deleted_categories.contains(&wanted_category));
 
-    if wanted_ids.contains(&4150003) {
-    }
 
     category_match
 }
