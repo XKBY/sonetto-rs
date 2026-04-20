@@ -359,17 +359,6 @@ pub(crate) fn run_combat_passives_pass(
             }
         }
         skill_ids.sort_unstable();
-        tracing::warn!(
-            "[PARITY][TRIGGER-UID] uid={} event_skill={} event_caster={} skills={:?}",
-            uid,
-            event.skill_id,
-            event.caster_uid,
-            skill_ids
-        );
-        eprintln!(
-            "[PARITY][TRIGGER-UID] uid={} event_skill={} event_caster={} skills={:?}",
-            uid, event.skill_id, event.caster_uid, skill_ids
-        );
         let mut entity_step_effects: Vec<ActEffect> = Vec::new();
 
         for skill_id in skill_ids {
@@ -381,17 +370,6 @@ pub(crate) fn run_combat_passives_pass(
             }
             let should_fire = skill_should_fire(uid, skill_id, event);
             if matches!(skill_id, 71008 | 4150001 | 530000151) {
-                tracing::warn!(
-                    "[PARITY][TRIGGER-CAND] uid={} skill={} should_fire={} deleted_buff_ids={:?}",
-                    uid,
-                    skill_id,
-                    should_fire,
-                    event.deleted_buff_ids
-                );
-                eprintln!(
-                    "[PARITY][TRIGGER-CAND] uid={} skill={} should_fire={} deleted_buff_ids={:?}",
-                    uid, skill_id, should_fire, event.deleted_buff_ids
-                );
             }
             if !should_fire {
                 continue;
@@ -455,24 +433,6 @@ pub(crate) fn run_combat_passives_pass(
                         }
                     }
                     if matches!(skill_id, 71008 | 4150001 | 530000151) {
-                        tracing::warn!(
-                            "[PARITY][TRIGGER-FIRE] uid={} skill={} effects={:?}",
-                            uid,
-                            skill_id,
-                            skill_effects
-                                .iter()
-                                .map(|e| e.effect_type.unwrap_or(-1))
-                                .collect::<Vec<_>>()
-                        );
-                        eprintln!(
-                            "[PARITY][TRIGGER-FIRE] uid={} skill={} effects={:?}",
-                            uid,
-                            skill_id,
-                            skill_effects
-                                .iter()
-                                .map(|e| e.effect_type.unwrap_or(-1))
-                                .collect::<Vec<_>>()
-                        );
                     }
                     // Live shape: keep one trigger EFFECT step per entity and pack
                     // both 162 wrappers and flat effects in arrival order.
@@ -486,22 +446,6 @@ pub(crate) fn run_combat_passives_pass(
         }
 
         if !entity_step_effects.is_empty() {
-            tracing::warn!(
-                "[PARITY][TRIGGER-STEP] uid={} packed={:?}",
-                uid,
-                entity_step_effects
-                    .iter()
-                    .map(|e| e.effect_type.unwrap_or(-1))
-                    .collect::<Vec<_>>()
-            );
-            eprintln!(
-                "[PARITY][TRIGGER-STEP] uid={} packed={:?}",
-                uid,
-                entity_step_effects
-                    .iter()
-                    .map(|e| e.effect_type.unwrap_or(-1))
-                    .collect::<Vec<_>>()
-            );
             steps.push(build_effect_step(entity_step_effects));
         }
     }

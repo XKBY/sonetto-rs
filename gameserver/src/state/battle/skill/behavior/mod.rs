@@ -493,18 +493,6 @@ fn dispatch(
                 consume
             };
             if matches!(skill_id, 31140151) {
-                eprintln!(
-                    "[PARITY][WRAP-CONSUME] skill={} caster={} current_ex={} need_ex={} initial_consume={} seeded_cap={:?} consume={} refund={} prep_skill_ids={:?}",
-                    skill_id,
-                    caster_uid,
-                    current_ex,
-                    need_ex,
-                    initial_consume,
-                    seeded_cap,
-                    consume,
-                    refund,
-                    prep_skill_ids
-                );
             }
             managers
                 .ex_point_mgr

@@ -47,20 +47,6 @@ pub fn deleted_matches(deleted_buff_ids: &[i32], wanted_ids: &[i32]) -> bool {
         .any(|wanted_category| deleted_categories.contains(&wanted_category));
 
     if wanted_ids.contains(&4150003) {
-        tracing::warn!(
-            "[PARITY][BUFFIDDEL-MATCH] deleted={:?} wanted={:?} deleted_categories={:?} category_match={}",
-            deleted_buff_ids,
-            wanted_ids,
-            deleted_categories,
-            category_match
-        );
-        eprintln!(
-            "[PARITY][BUFFIDDEL-MATCH] deleted={:?} wanted={:?} deleted_categories={:?} category_match={}",
-            deleted_buff_ids,
-            wanted_ids,
-            deleted_categories,
-            category_match
-        );
     }
 
     category_match

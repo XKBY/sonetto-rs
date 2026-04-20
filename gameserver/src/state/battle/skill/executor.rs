@@ -180,17 +180,6 @@ impl SkillExecutor {
                 | 30630122
         );
         if trace_focus_skill {
-            tracing::warn!(
-                "[PARITY][EXEC-ENTER] skill={} caster={} target={} behaviors={}",
-                skill_id,
-                caster_uid,
-                target_uid,
-                behaviors.len()
-            );
-            eprintln!(
-                "[PARITY][EXEC-ENTER] skill={} caster={} target={} behaviors={}",
-                skill_id, caster_uid, target_uid, behaviors.len()
-            );
         }
         let mut all_effects: Vec<ActEffect> = Vec::new();
         let mut force_effect_step = false;
@@ -199,42 +188,6 @@ impl SkillExecutor {
         let mut sim_buff_mgr = managers.buff_mgr.clone();
         let clones_done = Instant::now();
         if skill_id == 30630122 {
-            tracing::warn!(
-                "[PARITY][30630122-ENTRY] caster={} target={} mgr_has_caster_8178={} mgr_has_type_caster_8178={} mgr_has_caster_111={} mgr_has_-2_111={} mgr_has_-3_111={} sim_has_-2_111={} sim_has_-3_111={} caster_buffs={:?}",
-                caster_uid,
-                target_uid,
-                managers.buff_mgr.has(caster_uid, 8178),
-                managers.buff_mgr.has_type(caster_uid, 8178),
-                managers.buff_mgr.has(caster_uid, 530000111),
-                managers.buff_mgr.has(-2, 530000111),
-                managers.buff_mgr.has(-3, 530000111),
-                sim_buff_mgr.has(-2, 530000111),
-                sim_buff_mgr.has(-3, 530000111),
-                managers
-                    .buff_mgr
-                    .get(caster_uid)
-                    .iter()
-                    .map(|b| (b.buff_id, b.type_id, b.stacks, b.layer, b.uid))
-                    .collect::<Vec<_>>(),
-            );
-            eprintln!(
-                "[PARITY][30630122-ENTRY] caster={} target={} mgr_has_caster_8178={} mgr_has_type_caster_8178={} mgr_has_caster_111={} mgr_has_-2_111={} mgr_has_-3_111={} sim_has_-2_111={} sim_has_-3_111={} caster_buffs={:?}",
-                caster_uid,
-                target_uid,
-                managers.buff_mgr.has(caster_uid, 8178),
-                managers.buff_mgr.has_type(caster_uid, 8178),
-                managers.buff_mgr.has(caster_uid, 530000111),
-                managers.buff_mgr.has(-2, 530000111),
-                managers.buff_mgr.has(-3, 530000111),
-                sim_buff_mgr.has(-2, 530000111),
-                sim_buff_mgr.has(-3, 530000111),
-                managers
-                    .buff_mgr
-                    .get(caster_uid)
-                    .iter()
-                    .map(|b| (b.buff_id, b.type_id, b.stacks, b.layer, b.uid))
-                    .collect::<Vec<_>>(),
-            );
         }
 
         // Conditions should see evolving buff state produced by prior behavior slots.
@@ -252,24 +205,6 @@ impl SkillExecutor {
                 b.logic_target
             );
             if trace_focus_skill {
-                tracing::warn!(
-                    "[PARITY][EXEC-COND-RAW] skill={} slot={} condition={:?} condition_target={} behavior_target={} logic_target={}",
-                    skill_id,
-                    i + 1,
-                    b.condition,
-                    b.condition_target,
-                    b.behavior_target,
-                    b.logic_target
-                );
-                eprintln!(
-                    "[PARITY][EXEC-COND-RAW] skill={} slot={} condition={:?} condition_target={} behavior_target={} logic_target={}",
-                    skill_id,
-                    i + 1,
-                    b.condition,
-                    b.condition_target,
-                    b.behavior_target,
-                    b.logic_target
-                );
             }
             if let PhaseFilter::Combat(event) = phase
                 && event.event_driven_only
@@ -472,17 +407,6 @@ impl SkillExecutor {
                 if cond_pass { "PASS" } else { "FAIL" }
             );
             if trace_focus_skill {
-                tracing::warn!(
-                    "[PARITY][EXEC-COND] skill={} slot={} condition={:?} pass={}",
-                    skill_id,
-                    i + 1,
-                    b.condition,
-                    cond_pass
-                );
-                eprintln!(
-                    "[PARITY][EXEC-COND] skill={} slot={} condition={:?} pass={}",
-                    skill_id, i + 1, b.condition, cond_pass
-                );
             }
             if !cond_pass {
                 continue;
@@ -516,24 +440,6 @@ impl SkillExecutor {
                 );
             }
             if trace_focus_skill {
-                tracing::warn!(
-                    "[PARITY][EXEC-EFFECTS] skill={} slot={} effects={:?}",
-                    skill_id,
-                    i + 1,
-                    behavior_effects
-                        .iter()
-                        .map(|e| e.effect_type.unwrap_or(-1))
-                        .collect::<Vec<_>>()
-                );
-                eprintln!(
-                    "[PARITY][EXEC-EFFECTS] skill={} slot={} effects={:?}",
-                    skill_id,
-                    i + 1,
-                    behavior_effects
-                        .iter()
-                        .map(|e| e.effect_type.unwrap_or(-1))
-                        .collect::<Vec<_>>()
-                );
             }
             apply_preview_effects_to_sim_fight(&mut sim_fight, &behavior_effects);
             apply_preview_effects_to_sim_buffs(&mut sim_buff_mgr, &behavior_effects);
@@ -542,30 +448,6 @@ impl SkillExecutor {
             // behavior slots see the same buff state as this skill chain.
             apply_preview_effects_to_sim_buffs(&mut managers.buff_mgr, &behavior_effects);
             if skill_id == 30630122 {
-                tracing::warn!(
-                    "[PARITY][30630122-SLOT] slot={} effects={:?} mgr_has_-2_111={} mgr_has_-3_111={} sim_has_-2_111={} sim_has_-3_111={}",
-                    i + 1,
-                    behavior_effects
-                        .iter()
-                        .map(|e| e.effect_type.unwrap_or(-1))
-                        .collect::<Vec<_>>(),
-                    managers.buff_mgr.has(-2, 530000111),
-                    managers.buff_mgr.has(-3, 530000111),
-                    sim_buff_mgr.has(-2, 530000111),
-                    sim_buff_mgr.has(-3, 530000111),
-                );
-                eprintln!(
-                    "[PARITY][30630122-SLOT] slot={} effects={:?} mgr_has_-2_111={} mgr_has_-3_111={} sim_has_-2_111={} sim_has_-3_111={}",
-                    i + 1,
-                    behavior_effects
-                        .iter()
-                        .map(|e| e.effect_type.unwrap_or(-1))
-                        .collect::<Vec<_>>(),
-                    managers.buff_mgr.has(-2, 530000111),
-                    managers.buff_mgr.has(-3, 530000111),
-                    sim_buff_mgr.has(-2, 530000111),
-                    sim_buff_mgr.has(-3, 530000111),
-                );
             }
             all_effects.extend(behavior_effects);
         }
@@ -798,60 +680,6 @@ impl SkillExecutor {
             result.len()
         );
         if trace_focus_skill {
-            tracing::warn!(
-                "[PARITY][EXEC-EXIT] skill={} out={:?}",
-                skill_id,
-                result
-                    .iter()
-                    .map(|e| e
-                        .fight_step
-                        .as_ref()
-                        .map(|s| {
-                            (
-                                e.effect_type.unwrap_or(-1),
-                                s.act_type.unwrap_or(-1),
-                                s.act_id.unwrap_or(0),
-                                s.act_effect
-                                    .iter()
-                                    .map(|ie| ie.effect_type.unwrap_or(-1))
-                                    .collect::<Vec<_>>(),
-                            )
-                        })
-                        .unwrap_or((
-                            e.effect_type.unwrap_or(-1),
-                            0,
-                            0,
-                            vec![]
-                        )))
-                    .collect::<Vec<_>>()
-            );
-            eprintln!(
-                "[PARITY][EXEC-EXIT] skill={} out={:?}",
-                skill_id,
-                result
-                    .iter()
-                    .map(|e| e
-                        .fight_step
-                        .as_ref()
-                        .map(|s| {
-                            (
-                                e.effect_type.unwrap_or(-1),
-                                s.act_type.unwrap_or(-1),
-                                s.act_id.unwrap_or(0),
-                                s.act_effect
-                                    .iter()
-                                    .map(|ie| ie.effect_type.unwrap_or(-1))
-                                    .collect::<Vec<_>>(),
-                            )
-                        })
-                        .unwrap_or((
-                            e.effect_type.unwrap_or(-1),
-                            0,
-                            0,
-                            vec![]
-                        )))
-                    .collect::<Vec<_>>()
-            );
         }
 
         Ok(result)

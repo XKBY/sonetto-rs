@@ -127,7 +127,6 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
 
     for pass in passes {
         let pass_label = pass_name(&pass);
-        eprintln!("[DBG][BATTLE-START-PASS] enter={}", pass_label);
         match pass {
             Pass::BattleRulesAttacker => {
                 let battle_skills: Vec<i32> = collected
@@ -138,7 +137,6 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                     .filter(|&sid| !is_unconditional_battle_rule_skill(sid))
                     .collect();
                 for skill_id in battle_skills {
-                    eprintln!("[DBG][BATTLE-START-PASS] BattleRulesAttacker skill={}", skill_id);
                     let inner = build_battle_rule_step(
                         ctx,
                         &collected.attacker_uids(),
@@ -166,7 +164,6 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                     .filter(|&sid| !is_unconditional_battle_rule_skill(sid))
                     .collect();
                 for skill_id in battle_skills {
-                    eprintln!("[DBG][BATTLE-START-PASS] BattleRulesDefender skill={}", skill_id);
                     let inner = build_battle_rule_step(
                         ctx,
                         &collected.defender_uids(),
@@ -193,10 +190,6 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                     .filter(|&sid| is_unconditional_battle_rule_skill(sid))
                     .collect();
                 for skill_id in battle_skills {
-                    eprintln!(
-                        "[DBG][BATTLE-START-PASS] BattleRulesUnconditionalAttacker skill={}",
-                        skill_id
-                    );
                     let inner = build_battle_rule_step(
                         ctx,
                         &collected.attacker_uids(),
@@ -210,17 +203,11 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                 }
             }
             Pass::Passive { side, phase } => {
-                eprintln!("[DBG][BATTLE-START-PASS] Passive phase={:?}", phase);
                 let uids = match side {
                     Side::Attacker => collected.attacker_uids(),
                     Side::Defender => collected.defender_uids(),
                 };
-                eprintln!("[DBG][BATTLE-START-PASS] Passive uids={:?}", uids);
                 let inner = build_passive_step(ctx, &uids, &collected, &phase);
-                eprintln!(
-                    "[DBG][BATTLE-START-PASS] Passive built inner_steps={}",
-                    inner.len()
-                );
                 if !inner.is_empty() {
                     let outer_effects = inner.into_iter().map(wrap_step).collect();
                     steps.push(FightStepBuilder::effect().with_many(outer_effects).build());
@@ -300,11 +287,6 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                 ));
             }
         }
-        eprintln!(
-            "[DBG][BATTLE-START-PASS] exit={} total_steps={}",
-            pass_label,
-            steps.len()
-        );
     }
 
     steps

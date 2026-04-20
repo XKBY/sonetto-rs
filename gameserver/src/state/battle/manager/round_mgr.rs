@@ -20,7 +20,6 @@ use super::super::{
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
     },
-    steps::{broadcast, ex_gain, step_normalize, trigger_embed},
     passives::collector::collect,
     passives::steps::build_passive_step,
     passives::steps::skill::execute_skill as execute_passive_skill,
@@ -29,21 +28,22 @@ use super::super::{
         step_shape::{build_effect_step, split_updates_and_wrap_rest},
         steps::{refresh::build_refresh_step, transitions::build_pre_enemy_transition_steps},
     },
+    steps::{broadcast, ex_gain, step_normalize, trigger_embed},
     trigger::combat::{event_from_step, fire_combat_triggers},
     trigger::passes::{build_belief_gain_step, sync_blood_value_baseline},
-};
-use crate::state::battle::{
-    ConditionType,
-    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, round_end},
-    utils::{
-        build_blood_pool_ex_point_step, build_blood_pool_gain_ex_point_step,
-        buff_get_use_skill_to_enemy_params,
-    },
 };
 use crate::state::battle::skill::{
     cache::resolve_skill_effect_id,
     classification::{CombatPassiveScanMode, has_combat_reactive_condition},
     condition::parser::parse_condition,
+};
+use crate::state::battle::{
+    ConditionType,
+    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, round_end},
+    utils::{
+        buff_get_use_skill_to_enemy_params, build_blood_pool_ex_point_step,
+        build_blood_pool_gain_ex_point_step,
+    },
 };
 
 enum BattleEndState {
@@ -182,18 +182,7 @@ impl FightRoundMgr {
         injury_counter::sync_round_injury_index(battle_id, 1, round_ctx.round_index);
         injury_counter::sync_round_injury_index(battle_id, 2, round_ctx.round_index);
         seed_entry_max_hp_from_fight(ctx.fight);
-        eprintln!(
-            "[PARITY][ROUND-OPEN-EX] pre_sync mgr_ex_230618810={} fight_ex_230618810={}",
-            ctx.managers.ex_point_mgr.get_ex_point(230618810),
-            crate::state::battle::skill::targets::get_entity(ctx.fight, 230618810)
-                .and_then(|e| e.ex_point)
-                .unwrap_or(0)
-        );
         sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
-        eprintln!(
-            "[PARITY][ROUND-OPEN-EX] post_sync mgr_ex_230618810={}",
-            ctx.managers.ex_point_mgr.get_ex_point(230618810)
-        );
         sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
         sync_buff_uid_counters_from_fight(ctx.fight);
 
@@ -414,56 +403,10 @@ impl FightRoundMgr {
             .flat_map(split_step_by_effect_limit)
             .collect();
         let log_step = |idx: usize, step: &FightStep| {
-            tracing::warn!(
-                "[PARITY][ROUND-STEP] idx={} act={:?} id={:?} effects={:?}",
-                idx + 1,
-                step.act_type,
-                step.act_id,
-                step.act_effect
-                    .iter()
-                    .map(|e| e.effect_type.unwrap_or(-1))
-                    .collect::<Vec<_>>()
-            );
-            eprintln!(
-                "[PARITY][ROUND-STEP] idx={} act={:?} id={:?} effects={:?}",
-                idx + 1,
-                step.act_type,
-                step.act_id,
-                step.act_effect
-                    .iter()
-                    .map(|e| e.effect_type.unwrap_or(-1))
-                    .collect::<Vec<_>>()
-            );
             for (i, e) in step.act_effect.iter().enumerate() {
                 if e.effect_type == Some(162)
                     && let Some(fs) = &e.fight_step
                 {
-                    tracing::warn!(
-                        "[PARITY][ROUND-NESTED] idx={} eff={} act={:?} id={:?} from={:?} to={:?} effects={:?}",
-                        idx + 1,
-                        i,
-                        fs.act_type,
-                        fs.act_id,
-                        fs.from_id,
-                        fs.to_id,
-                        fs.act_effect
-                            .iter()
-                            .map(|ie| ie.effect_type.unwrap_or(-1))
-                            .collect::<Vec<_>>()
-                    );
-                    eprintln!(
-                        "[PARITY][ROUND-NESTED] idx={} eff={} act={:?} id={:?} from={:?} to={:?} effects={:?}",
-                        idx + 1,
-                        i,
-                        fs.act_type,
-                        fs.act_id,
-                        fs.from_id,
-                        fs.to_id,
-                        fs.act_effect
-                            .iter()
-                            .map(|ie| ie.effect_type.unwrap_or(-1))
-                            .collect::<Vec<_>>()
-                    );
                 }
             }
         };
@@ -559,9 +502,7 @@ impl FightRoundMgr {
 
             let suppress_pre_op_ex =
                 ex_gain::skill_suppresses_pre_operation_ex(step.act_id.unwrap_or(0));
-            if !suppress_pre_op_ex
-                && let Some(ex_step) = ex_step_after_op.clone()
-            {
+            if !suppress_pre_op_ex && let Some(ex_step) = ex_step_after_op.clone() {
                 steps.push(ex_step);
             }
             let mut host_step = step.clone();
@@ -603,8 +544,7 @@ impl FightRoundMgr {
                     let mut top_level_prefix: Vec<ActEffect> = Vec::new();
                     let mut nested_embedded: Vec<ActEffect> = Vec::new();
                     for trigger_step in expanded_steps.into_iter().skip(1) {
-                        let embedded =
-                            trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                        let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
                         let is_prep_prefix = embedded
                             .fight_step
                             .as_ref()
@@ -657,13 +597,11 @@ impl FightRoundMgr {
             } else {
                 let mut embedded_steps: Vec<ActEffect> = Vec::new();
                 for trigger_step in expanded_steps.into_iter().skip(1) {
-                    let embedded =
-                        trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                    let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at =
-                        trigger_embed::find_trigger_insert_index(&host_step.act_effect);
+                    let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
@@ -767,8 +705,7 @@ impl FightRoundMgr {
                     let mut top_level_prefix: Vec<ActEffect> = Vec::new();
                     let mut nested_embedded: Vec<ActEffect> = Vec::new();
                     for trigger_step in expanded_steps.into_iter().skip(1) {
-                        let embedded =
-                            trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                        let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
                         let is_prep_prefix = embedded
                             .fight_step
                             .as_ref()
@@ -821,13 +758,11 @@ impl FightRoundMgr {
             } else {
                 let mut embedded_steps: Vec<ActEffect> = Vec::new();
                 for trigger_step in expanded_steps.into_iter().skip(1) {
-                    let embedded =
-                        trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                    let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at =
-                        trigger_embed::find_trigger_insert_index(&host_step.act_effect);
+                    let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
@@ -869,11 +804,7 @@ impl FightRoundMgr {
     ) -> Result<()> {
         if state.is_finish {
             for step in bloodtithe::build_round_transition_bloodtithe_steps(self, ctx, collected) {
-                let before_pool = ctx.mechanics.bloodtithe.get_value(1);
                 self.apply_step_and_maybe_sync(ctx, &step, true)?;
-                let after_pool = ctx.mechanics.bloodtithe.get_value(1);
-                if before_pool != after_pool {
-                }
                 steps.push(step);
             }
             return Ok(());
@@ -1071,11 +1002,7 @@ impl FightRoundMgr {
         // Battle2 bloodtithe parity: live re-runs the same blood-pool pipeline
         // here that battle start uses before the next-round attacker sweep.
         for step in bloodtithe::build_round_transition_bloodtithe_steps(self, ctx, collected) {
-            let before_pool = ctx.mechanics.bloodtithe.get_value(1);
             self.apply_step_and_maybe_sync(ctx, &step, true)?;
-            let after_pool = ctx.mechanics.bloodtithe.get_value(1);
-            if before_pool != after_pool {
-            }
             steps.push(step);
         }
 
@@ -1138,7 +1065,9 @@ impl FightRoundMgr {
                         !s.act_effect.is_empty()
                             && s.act_effect.iter().all(|e| {
                                 e.effect_type
-                                    == Some(super::super::types::effects::EffectType::BuffUpdate as i32)
+                                    == Some(
+                                        super::super::types::effects::EffectType::BuffUpdate as i32,
+                                    )
                             })
                     })
                     .map(|off| attacker_sweep_start + off)
@@ -1283,7 +1212,10 @@ impl FightRoundMgr {
                     }
                 }
             }
-            let gains = [(1, ts_event.bloodpool_gain(1)), (2, ts_event.bloodpool_gain(2))];
+            let gains = [
+                (1, ts_event.bloodpool_gain(1)),
+                (2, ts_event.bloodpool_gain(2)),
+            ];
             if let Some(sync_step) = build_blood_pool_gain_ex_point_step(
                 &ctx.mechanics.bloodtithe,
                 ctx.fight,
@@ -1381,29 +1313,8 @@ impl FightRoundMgr {
                         }
                     }
                     if matches!(config.step_shape, PhaseStepShape::FlatIfAllUpdate) {
-                        tracing::warn!(
-                            "[PARITY][FLAT-SWEEP-UID] uid={} attacker={} skills={:?}",
-                            uid,
-                            is_attacker_uid,
-                            skill_ids
-                        );
-                        eprintln!(
-                            "[PARITY][FLAT-SWEEP-UID] uid={} attacker={} skills={:?}",
-                            uid, is_attacker_uid, skill_ids
-                        );
                     }
                     if uid < 0 && stop_at_first {
-                        tracing::warn!(
-                            "[PARITY][SWEEP-UID] set={:?} uid={} attacker={} skills={:?}",
-                            config.skill_set,
-                            uid,
-                            is_attacker_uid,
-                            skill_ids
-                        );
-                        eprintln!(
-                            "[PARITY][SWEEP-UID] set={:?} uid={} attacker={} skills={:?}",
-                            config.skill_set, uid, is_attacker_uid, skill_ids
-                        );
                     }
                     for skill_id in skill_ids {
                         if matches!(config.skill_set, PhaseSkillSet::CombatReactive)
@@ -1417,85 +1328,34 @@ impl FightRoundMgr {
                         if is_attacker_uid && battle_rule_skills.contains(&skill_id) {
                             continue;
                         }
-                        if let Ok(effects) = execute_passive_skill(
-                            ctx,
-                            uid,
-                            uid,
-                            skill_id,
-                            &passive_phase,
-                        ) && !effects.is_empty()
+                        if let Ok(effects) =
+                            execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
+                            && !effects.is_empty()
                         {
                             if matches!(config.step_shape, PhaseStepShape::FlatIfAllUpdate) {
-                                tracing::warn!(
-                                    "[PARITY][FLAT-SWEEP-HIT] uid={} skill={} effects={:?}",
-                                    uid,
-                                    skill_id,
-                                    effects
-                                        .iter()
-                                        .map(|e| e.effect_type.unwrap_or(-1))
-                                        .collect::<Vec<_>>()
-                                );
-                                eprintln!(
-                                    "[PARITY][FLAT-SWEEP-HIT] uid={} skill={} effects={:?}",
-                                    uid,
-                                    skill_id,
-                                    effects
-                                        .iter()
-                                        .map(|e| e.effect_type.unwrap_or(-1))
-                                        .collect::<Vec<_>>()
-                                );
                             }
                             if matches!(config.skill_set, PhaseSkillSet::CombatReactive) {
                                 let post_sweep_effects = effects
                                     .iter()
-                                    .map(|e| e
-                                        .fight_step
-                                        .as_ref()
-                                        .map(|s| {
-                                            (
-                                                e.effect_type.unwrap_or(-1),
-                                                s.act_type.unwrap_or(-1),
-                                                s.act_id.unwrap_or(0),
-                                                s.act_effect
-                                                    .iter()
-                                                    .map(|ie| ie.effect_type.unwrap_or(-1))
-                                                    .collect::<Vec<_>>(),
-                                            )
-                                        })
-                                        .unwrap_or((e.effect_type.unwrap_or(-1), 0, 0, vec![])))
+                                    .map(|e| {
+                                        e.fight_step
+                                            .as_ref()
+                                            .map(|s| {
+                                                (
+                                                    e.effect_type.unwrap_or(-1),
+                                                    s.act_type.unwrap_or(-1),
+                                                    s.act_id.unwrap_or(0),
+                                                    s.act_effect
+                                                        .iter()
+                                                        .map(|ie| ie.effect_type.unwrap_or(-1))
+                                                        .collect::<Vec<_>>(),
+                                                )
+                                            })
+                                            .unwrap_or((e.effect_type.unwrap_or(-1), 0, 0, vec![]))
+                                    })
                                     .collect::<Vec<_>>();
-                                tracing::warn!(
-                                    "[PARITY][POST-SWEEP] uid={} skill={} effects={:?}",
-                                    uid,
-                                    skill_id,
-                                    post_sweep_effects
-                                );
-                                eprintln!(
-                                    "[PARITY][POST-SWEEP] uid={} skill={} effects={:?}",
-                                    uid, skill_id, post_sweep_effects
-                                );
                             }
                             if uid < 0 && stop_at_first {
-                                tracing::warn!(
-                                    "[PARITY][SWEEP-HIT] set={:?} uid={} skill={} effects={:?}",
-                                    config.skill_set,
-                                    uid,
-                                    skill_id,
-                                    effects
-                                        .iter()
-                                        .map(|e| e.effect_type.unwrap_or(-1))
-                                        .collect::<Vec<_>>()
-                                );
-                                eprintln!(
-                                    "[PARITY][SWEEP-HIT] set={:?} uid={} skill={} effects={:?}",
-                                    config.skill_set,
-                                    uid,
-                                    skill_id,
-                                    effects
-                                        .iter()
-                                        .map(|e| e.effect_type.unwrap_or(-1))
-                                        .collect::<Vec<_>>()
-                                );
                             }
                             per_entity_effects.extend(effects);
                             if stop_at_first {
@@ -1672,26 +1532,29 @@ impl FightRoundMgr {
         skill_ids: &mut Vec<i32>,
     ) {
         for instance in ctx.managers.buff_mgr.get(uid) {
-            crate::state::battle::utils::for_each_buff_feature_chain(instance.buff_id, |act_type, parts| {
-                let value_start_idx = match act_type {
-                    "AddPassiveSkills" => 1,
-                    "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => 2,
-                    _ => 0,
-                };
-                if value_start_idx == 0 {
-                    return;
-                }
-                for raw in parts.iter().skip(value_start_idx) {
-                    for piece in raw.split(',') {
-                        if let Ok(skill_id) = piece.trim().parse::<i32>()
-                            && skill_id > 0
-                            && !skill_ids.contains(&skill_id)
-                        {
-                            skill_ids.push(skill_id);
+            crate::state::battle::utils::for_each_buff_feature_chain(
+                instance.buff_id,
+                |act_type, parts| {
+                    let value_start_idx = match act_type {
+                        "AddPassiveSkills" => 1,
+                        "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => 2,
+                        _ => 0,
+                    };
+                    if value_start_idx == 0 {
+                        return;
+                    }
+                    for raw in parts.iter().skip(value_start_idx) {
+                        for piece in raw.split(',') {
+                            if let Ok(skill_id) = piece.trim().parse::<i32>()
+                                && skill_id > 0
+                                && !skill_ids.contains(&skill_id)
+                            {
+                                skill_ids.push(skill_id);
+                            }
                         }
                     }
-                }
-            });
+                },
+            );
         }
     }
 
@@ -1774,5 +1637,4 @@ impl FightRoundMgr {
             && skill.behavior_target1.trim() == "103"
             && skill.behavior1.trim().starts_with("1#")
     }
-
 }

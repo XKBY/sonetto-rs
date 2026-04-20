@@ -70,19 +70,8 @@ fn execute_skills_for_entity(
     let mut effects = Vec::new();
 
     for skill_id in skill_ids {
-        eprintln!(
-            "[DBG][PASSIVE-EXEC] uid={} phase={:?} skill={} enter",
-            uid, phase, skill_id
-        );
         match execute_skill(ctx, uid, uid, skill_id, phase) {
             Ok(skill_effects) => {
-                eprintln!(
-                    "[DBG][PASSIVE-EXEC] uid={} phase={:?} skill={} exit effects={}",
-                    uid,
-                    phase,
-                    skill_id,
-                    skill_effects.len()
-                );
                 effects.extend(skill_effects)
             }
             Err(e) => tracing::warn!("passive {} uid {} phase {:?}: {}", skill_id, uid, phase, e),

@@ -38,19 +38,12 @@ pub fn execute_skill(
 
     if let Some(step) = act_effect.fight_step.as_mut() {
         if matches!(skill_id, 530000151 | 434415) {
-            eprintln!(
-                "[DBG][PASSIVE-SYNC-ENTER] skill={} uid={} effects={}",
-                skill_id,
-                uid,
-                step.act_effect.len()
-            );
         }
         sync_buff_state(ctx, uid, &step.act_effect);
         if should_mirror_ex {
             sync_ex_point_state(ctx, uid, &step.act_effect);
         }
         if matches!(skill_id, 530000151 | 434415) {
-            eprintln!("[DBG][PASSIVE-SYNC-EXIT] skill={} uid={}", skill_id, uid);
         }
     }
 

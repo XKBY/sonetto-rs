@@ -178,18 +178,6 @@ impl FightCardMgr {
                 .unwrap_or(false);
 
         if resolved_skill_id == 31140151 {
-            eprintln!(
-                "[PARITY][PLAY-CARD] skill={} exec_caster={} target={} caster141610985_buffs={:?}",
-                resolved_skill_id,
-                exec_caster_uid,
-                target_uid,
-                ctx.managers
-                    .buff_mgr
-                    .get(141610985)
-                    .iter()
-                    .map(|b| (b.buff_id, b.type_id, b.stacks, b.layer, b.uid))
-                    .collect::<Vec<_>>()
-            );
         }
 
         let mut raw_skill_effects = if is_direct_ex_card {
