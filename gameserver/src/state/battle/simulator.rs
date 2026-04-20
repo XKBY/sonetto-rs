@@ -1,20 +1,24 @@
+use crate::state::battle::context::RoundContext;
+use crate::state::battle::manager::{
+    card_mgr::FightCardMgr, fight_data_mgr::FightDataMgr, round_mgr::FightRoundMgr,
+};
 use anyhow::Result;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
-use sonettobuf::{BeginRoundOper, CardInfo, FightRound};
-
-use crate::state::battle::manager::fight_data_mgr::FightDataMgr;
+use sonettobuf::{BeginRoundOper, CardInfo, FightRound, FightStep};
 
 pub struct BattleSimulator {
     rng: StdRng,
     data: FightDataMgr,
+    round_mgr: FightRoundMgr,
+    card_mgr: FightCardMgr,
 }
 
 impl BattleSimulator {
     pub fn new(data: FightDataMgr) -> Self {
-        let seed = chrono::Utc::now().timestamp_millis() as u64;
+        let fight = data.get_fight();
+        let seed = fight.cur_round.unwrap_or(0) as u64;
 
-        let fight = data.get_fight_snapshot();
         tracing::info!(
             "Initialized battle with {} player entities, {} enemy entities",
             fight
@@ -32,6 +36,8 @@ impl BattleSimulator {
         Self {
             rng: StdRng::seed_from_u64(seed),
             data,
+            round_mgr: FightRoundMgr::new(),
+            card_mgr: FightCardMgr::new(),
         }
     }
 
@@ -40,27 +46,27 @@ impl BattleSimulator {
         operations: Vec<BeginRoundOper>,
         current_deck: Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
+        ai_override_steps: Option<Vec<FightStep>>,
     ) -> Result<FightRound> {
-        let round = {
-            let (round_mgr, card_mgr, calc, fight, bloodtithe, buff_mgr) =
-                self.data.split_all_mut();
-
-            round_mgr
-                .process_round(
-                    &mut self.rng,
-                    card_mgr,
-                    calc,
-                    fight,
-                    bloodtithe,
-                    operations,
-                    current_deck,
-                    ai_deck,
-                    buff_mgr,
-                )
-                .await?
-        };
-
-        self.data.update_managers();
+        let mut fight_ctx = self.data.ctx();
+        let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
+        let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
+        let round = self
+            .round_mgr
+            .process_round(
+                &mut self.rng,
+                &mut round_ctx,
+                &mut self.card_mgr,
+                operations,
+                current_deck,
+                ai_deck,
+                ai_override_steps,
+            )
+            .await?;
         Ok(round)
+    }
+
+    pub fn into_data(self) -> FightDataMgr {
+        self.data
     }
 }

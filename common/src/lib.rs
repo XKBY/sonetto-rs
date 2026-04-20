@@ -2,6 +2,7 @@ use once_cell::sync::OnceCell;
 use std::path::PathBuf;
 
 pub mod config;
+
 pub mod time;
 
 static CONFIG: OnceCell<config::ServerConfig> = OnceCell::new();

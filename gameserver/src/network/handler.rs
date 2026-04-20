@@ -230,6 +230,11 @@ pub async fn dispatch_command(
         CmdId::GetAct208InfoCmd => events::on_get_act208_info,
         CmdId::GetAct209InfoCmd => events::on_get_act209_info,
         CmdId::GetAct212InfoCmd => events::on_act212_get_info,
+
+        CmdId::TowerComposeGetInfoCmd => tower::on_tower_compose_get_info,
+
+        // === Party ===
+        CmdId::PartyServerListCmd => misc::on_party_server_list,
     });
 
     Ok(())

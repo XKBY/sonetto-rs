@@ -1,303 +1,464 @@
-use std::sync::Arc;
+use super::super::{
+    context::FightContext,
+    fight_step::split_step_by_effect_limit,
+    manager::{
+        buff_mgr::BuffMgr,
+        calculate_mgr::FightCalculateDataMgr,
+        entity_mgr::FightEntityDataMgr,
+        ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_to_fight},
+    },
+    mechanics::Mechanics,
+    passives::run_battle_start,
+};
+use super::round_mgr::seed_entry_max_hp_from_fight;
+
+use anyhow::Result;
+use sonettobuf::{BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightStep};
 
 use crate::state::battle::{
-    effects::effect_types::EffectType, manager::{
-        blood_pool_mgr::FightBloodPoolDataMgr, buff_mgr::BuffMgr,
-        calculate_mgr::FightCalculateDataMgr, card_mgr::FightCardMgr,
-        entity_mgr::FightEntityDataMgr, round_mgr::FightRoundMgr,
-    }, mechanics::{
-        Mechanics,
-        bloodtithe::{BloodtitheState, fight_enables_bloodtithe},
-    }, passives, step_builder::FightStepBuilder
+    mechanics::{bloodtithe::BloodtitheState, shadowcloak::seed_replay_raspberry_max},
+    types::effects::EffectType,
+    utils::seed_blood_pool_ex_tracker,
 };
-use anyhow::Result;
-use sonettobuf::{ActEffect, CardInfo, Fight, FightRound, FightStep};
 
-#[derive(Default, Debug, Clone)]
-pub struct FightDataMgr {
-    fight: Arc<Fight>,
-    mechanics: Mechanics,
+#[derive(Debug, Clone, Default)]
+pub struct Managers {
     pub entity_mgr: FightEntityDataMgr,
-    blood_pool_mgr: FightBloodPoolDataMgr,
     pub calculate_mgr: FightCalculateDataMgr,
-    pub card_mgr: FightCardMgr,
-    pub round_mgr: FightRoundMgr,
     pub buff_mgr: BuffMgr,
+    pub ex_point_mgr: ExPointMgr,
+}
+
+impl Managers {
+    pub fn new(fight: &Fight) -> Self {
+        Self {
+            entity_mgr: FightEntityDataMgr::new(fight),
+            calculate_mgr: FightCalculateDataMgr::new(fight),
+            buff_mgr: BuffMgr::new(),
+            ex_point_mgr: ExPointMgr::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FightDataMgr {
+    fight: Fight,
+    pub pre_fight: Option<Fight>,
+    mechanics: Mechanics,
+    pub managers: Managers,
 }
 
 impl FightDataMgr {
     pub fn new(fight: Fight) -> Self {
-        let fight_arc = Arc::new(fight);
-
-        let mut mechanics = Mechanics::new();
-
-        let mut blood_pool_mgr = FightBloodPoolDataMgr::new(fight_arc.clone());
-        blood_pool_mgr.initialize(&mut mechanics.bloodtithe);
-
+        seed_entry_max_hp_from_fight(&fight);
+        let mechanics = Mechanics::new();
+        let pre_fight = Some(fight.clone());
         Self {
-            fight: fight_arc.clone(),
+            managers: Managers::new(&fight),
+            pre_fight,
+            fight,
             mechanics,
-            entity_mgr: FightEntityDataMgr::new(fight_arc.clone()),
-            blood_pool_mgr,
-            card_mgr: FightCardMgr::new(fight_arc.clone()),
-            round_mgr: FightRoundMgr::new(fight_arc.clone()),
-            calculate_mgr: FightCalculateDataMgr::new(fight_arc),
-            buff_mgr: BuffMgr::new(),
         }
     }
 
-    pub fn build_initial_round(
-            &mut self,
-            player_deck: Vec<CardInfo>,
-            ai_deck: Vec<CardInfo>,
-        ) -> Result<FightRound> {
-            let mut batch: Vec<ActEffect> = vec![];
-            let mut steps: Vec<FightStep> = vec![];
-    
-            let round_result = {
-                let fight = Arc::make_mut(&mut self.fight);
-    
-                // Bootstrap effects (activity buffs with protected wrapping)
-                let bootstrap_effects: Vec<ActEffect> = if let Some(attacker) = &fight.attacker {
-                    let mut all = Vec::new();
-                    for entity in &attacker.entitys {
-                        all.extend(passives::build_bootstrap(entity)?);
-                    }
-                    all
-                } else {
-                    Vec::new()
-                };
-    
-                if !bootstrap_effects.is_empty() {
-                    let effs = process_effects(
-                        bootstrap_effects,
-                        fight,
-                        &mut self.calculate_mgr,
-                        &mut self.mechanics.bloodtithe,
-                        &mut self.buff_mgr,
-                    )?;
-    
-                    steps.push(FightStepBuilder::new_effect().add_effects(effs).build());
-                }
-    
-                // Battle start effects (normal battle containers)
-                let battle_start_effects: Vec<ActEffect> = if let Some(attacker) = &fight.attacker {
-                    let mut all = Vec::new();
-                    for entity in &attacker.entitys {
-                        all.extend(passives::build_battle_start_passives(
-                            entity,
-                            fight,
-                            &mut self.mechanics.bloodtithe,
-                        )?);
-                    }
-                    all
-                } else {
-                    Vec::new()
-                };
-    
-                if !battle_start_effects.is_empty() {
-                    let effs = process_effects(
-                        battle_start_effects,
-                        fight,
-                        &mut self.calculate_mgr,
-                        &mut self.mechanics.bloodtithe,
-                        &mut self.buff_mgr,
-                    )?;
-    
-                    steps.push(FightStepBuilder::new_effect().add_effects(effs).build());
-                }
-    
-                // Bloodtithe UI sync
-                if fight_enables_bloodtithe(fight) {
-                    let team = 1;
-                    let bloodtithe_value = self.mechanics.bloodtithe.get_value(team);
-                    let bloodtithe_max = self.mechanics.bloodtithe.get_max(team);
-    
-                    let display_uid = fight
-                        .attacker
-                        .as_ref()
-                        .and_then(|a| a.entitys.iter().find(|e| e.team_type == Some(team)))
-                        .and_then(|e| e.uid)
-                        .unwrap_or(0);
-    
-                    let ui_step = FightStepBuilder::new_effect()
-                        .add_bloodtithe_ui_sync(team, display_uid, bloodtithe_value, bloodtithe_max)
-                        .build();
-    
-                    batch.extend(ui_step.act_effect);
-                }
-    
-                // Round start effects
-                let round_start_effects: Vec<ActEffect> = if let Some(attacker) = &fight.attacker {
-                    let mut all = Vec::new();
-                    for entity in &attacker.entitys {
-                        all.extend(passives::build_round_start_passives(
-                            entity,
-                            fight,
-                            &mut self.mechanics.bloodtithe,
-                        )?);
-                    }
-                    all
-                } else {
-                    Vec::new()
-                };
-    
-                if !round_start_effects.is_empty() {
-                    batch.extend(round_start_effects);
-                }
-    
-                // Enter fight deal
-                batch.push(ActEffect {
-                    effect_type: Some(EffectType::EnterFightDeal as i32), // 233
-                    target_id: Some(0),
-                    ..Default::default()
-                });
-    
-                // Card deck num updates
-                batch.push(ActEffect {
-                    effect_type: Some(EffectType::CardDeckNum as i32), // 310
-                    target_id: Some(0),
-                    team_type: Some(1),
-                    effect_num: Some(48),
-                    ..Default::default()
-                });
-    
-                batch.push(ActEffect {
-                    effect_type: Some(EffectType::CardDeckNum as i32), // 310
-                    target_id: Some(0),
-                    team_type: Some(1),
-                    effect_num: Some(48),
-                    ..Default::default()
-                });
-    
-                // Post power effects
-                let post_power_effects: Vec<ActEffect> = if let Some(attacker) = &fight.attacker {
-                    let mut all = Vec::new();
-                    for entity in &attacker.entitys {
-                        all.extend(passives::build_post_power_passives(entity, fight)?);
-                    }
-                    all
-                } else {
-                    Vec::new()
-                };
-    
-                if !post_power_effects.is_empty() {
-                    batch.extend(post_power_effects);
-                }
-    
-                batch.push(ActEffect {
-                    effect_type: Some(EffectType::CardDeckNum as i32), // 310
-                    target_id: Some(0),
-                    team_type: Some(1),
-                    effect_num: Some(48),
-                    ..Default::default()
-                });
-    
-                steps.push(FightStepBuilder::new_effect().add_effects(batch).build());
-    
-                FightRound {
-                    fight_step: steps,
-                    act_point: Some(3),
-                    is_finish: Some(false),
-                    move_num: Some(0),
-                    ex_point_info: self.calculate_mgr.build_ex_point_info(fight),
-                    ai_use_cards: ai_deck,
-                    power: Some(20),
-                    skill_infos: self.calculate_mgr.build_player_skills(),
-                    before_cards1: vec![],
-                    team_a_cards1: player_deck,
-                    before_cards2: vec![],
-                    team_a_cards2: vec![],
-                    next_round_begin_step: vec![],
-                    use_card_list: vec![],
-                    cur_round: Some(1),
-                    hero_sp_attributes: self.calculate_mgr.build_hero_sp_attributes(fight),
-                    last_change_hero_uid: Some(0),
-                }
-            };
-    
-            self.update_managers();
-            Ok(round_result)
-        }
-
-    pub fn update_managers(&mut self) {
-        let fight_arc = self.get_fight();
-
-        self.entity_mgr.update_fight(fight_arc.clone());
-        self.calculate_mgr.update_fight(fight_arc.clone());
-        self.blood_pool_mgr.update_fight(fight_arc.clone());
-        self.card_mgr.update_fight(fight_arc.clone());
-        self.round_mgr.update_fight(fight_arc.clone());
-    }
-
-    pub fn get_fight(&self) -> Arc<Fight> {
-        self.fight.clone()
-    }
-
-    pub fn get_fight_owned(&self) -> Fight {
-        (*self.fight).clone()
-    }
-
-    pub fn get_fight_snapshot(&self) -> Arc<Fight> {
-        self.get_fight()
-    }
-}
-
-#[allow(dead_code)]
-impl FightDataMgr {
+    #[inline]
     pub fn fight(&self) -> &Fight {
         &self.fight
     }
 
+    #[inline]
+    pub fn get_fight(&self) -> &Fight {
+        &self.fight
+    }
+
+    #[inline]
     pub fn fight_mut(&mut self) -> &mut Fight {
-        Arc::make_mut(&mut self.fight)
+        &mut self.fight
     }
 
-    pub fn bloodtithe(&self) -> &BloodtitheState {
-        &self.mechanics.bloodtithe
+    pub fn ctx(&mut self) -> FightContext<'_> {
+        FightContext {
+            fight: &mut self.fight,
+            managers: &mut self.managers,
+            mechanics: &mut self.mechanics,
+        }
     }
 
-    pub fn bloodtithe_mut(&mut self) -> &mut BloodtitheState {
-        &mut self.mechanics.bloodtithe
-    }
-}
-
-fn process_effects(
-    effects: Vec<ActEffect>,
-    fight: &mut Fight,
-    calculate_mgr: &mut FightCalculateDataMgr,
-    bloodtithe: &mut BloodtitheState,
-    buff_mgr: &mut BuffMgr,
-) -> Result<Vec<ActEffect>> {
-    for effect in &effects {
-        calculate_mgr
-            .play_act_effect_data(effect, fight, bloodtithe, buff_mgr)
-            .map_err(|e| anyhow::anyhow!(e))?;
-    }
-
-    Ok(effects)
-}
-
-impl FightDataMgr {
-    pub fn split_all_mut(
+    pub fn build_initial_round(
         &mut self,
-    ) -> (
-        &FightRoundMgr,
-        &FightCardMgr,
-        &mut FightCalculateDataMgr,
-        &mut Fight,
-        &mut BloodtitheState,
-        &mut BuffMgr,
-    ) {
-        let fight = Arc::make_mut(&mut self.fight);
+        battle_id: i32,
+        player_deck: Vec<CardInfo>,
+        ai_deck: Vec<CardInfo>,
+    ) -> Result<FightRound> {
+        // init ex_point_mgr from fight state
+        self.managers.ex_point_mgr.init(&self.fight);
 
-        (
-            &self.round_mgr,
-            &self.card_mgr,
-            &mut self.calculate_mgr,
-            fight,
-            &mut self.mechanics.bloodtithe,
-            &mut self.buff_mgr,
-        )
+        let mut steps: Vec<FightStep> = Vec::new();
+        let passive_steps = {
+            let mut ctx = self.ctx();
+            run_battle_start(&mut ctx, battle_id)
+        };
+        steps.extend(passive_steps);
+        steps = steps
+            .into_iter()
+            .flat_map(split_step_by_effect_limit)
+            .collect();
+
+        for (uid, hp) in &self.managers.ex_point_mgr.current_hp {
+            tracing::warn!("post-passive hp: uid={} hp={}", uid, hp);
+        }
+
+        sync_to_fight(&mut self.fight, &self.managers.ex_point_mgr);
+
+        // sync HP into pre_fight so fight.entity.current_hp matches ex_point_info.current_hp
+        // other fields (ex_point, moxie) stay at original values for client initialization
+        if let Some(pre) = self.pre_fight.as_mut() {
+            for side in [pre.attacker.as_mut(), pre.defender.as_mut()]
+                .into_iter()
+                .flatten()
+            {
+                for e in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
+                    if let Some(uid) = e.uid {
+                        e.current_hp = Some(self.managers.ex_point_mgr.get_hp(uid));
+                    }
+                }
+            }
+        }
+
+        self.managers.entity_mgr.rebuild_cache(&self.fight);
+        self.managers.calculate_mgr.update_cache(&self.fight);
+
+        let act_point = self
+            .fight
+            .attacker
+            .as_ref()
+            .map_or(3, |a| a.entitys.len() as i32);
+
+        // build ex_point_info before moving fields
+        for e in self.fight.attacker.iter().flat_map(|t| t.entitys.iter()) {
+            let uid = e.uid.unwrap_or(0);
+            tracing::warn!(
+                "pre-build uid={} mgr_hp={}",
+                uid,
+                self.managers.ex_point_mgr.get_hp(uid)
+            );
+        }
+
+        let ex_point_info = build_ex_point_info(&self.fight, &self.managers.ex_point_mgr);
+
+        let hero_sp_attributes = self
+            .managers
+            .calculate_mgr
+            .build_hero_sp_attributes(&self.fight);
+
+        let skill_infos = self
+            .fight
+            .attacker
+            .as_ref()
+            .map(|a| a.skill_infos.clone())
+            .unwrap_or_default();
+
+        let team_a_cards1 = player_deck;
+
+        Ok(FightRound {
+            fight_step: steps,
+            act_point: Some(act_point),
+            is_finish: Some(false),
+            move_num: Some(0),
+            ex_point_info,
+            ai_use_cards: ai_deck,
+            power: Some(20),
+            skill_infos,
+            before_cards1: vec![],
+            team_a_cards1,
+            before_cards2: vec![],
+            team_a_cards2: vec![],
+            next_round_begin_step: vec![],
+            use_card_list: vec![],
+            cur_round: Some(1),
+            hero_sp_attributes,
+            last_change_hero_uid: Some(0),
+        })
+    }
+
+    pub fn seed_replay_state(
+        &mut self,
+        initial_round: &FightRound,
+        ex_point_info: &[FightExPointInfo],
+    ) -> Result<()> {
+        self.managers.ex_point_mgr.init(&self.fight);
+        self.mechanics.init(&self.fight);
+
+        for step in &initial_round.fight_step {
+            self.managers
+                .calculate_mgr
+                .play_step_data(
+                    step,
+                    &mut self.fight,
+                    &mut self.mechanics.bloodtithe,
+                    &mut self.managers.buff_mgr,
+                    &mut self.managers.ex_point_mgr,
+                )
+                .map_err(anyhow::Error::msg)?;
+        }
+
+        if !ex_point_info.is_empty() {
+            let by_uid: std::collections::HashMap<i64, &FightExPointInfo> = ex_point_info
+                .iter()
+                .filter_map(|info| info.uid.map(|uid| (uid, info)))
+                .collect();
+
+            for team in [&mut self.fight.attacker, &mut self.fight.defender] {
+                if let Some(side) = team {
+                    for entity in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
+                        let uid = entity.uid.unwrap_or(0);
+                        let Some(info) = by_uid.get(&uid) else { continue };
+
+                        let ex_point = info.ex_point.unwrap_or(0);
+                        entity.ex_point = Some(ex_point);
+                        self.managers.ex_point_mgr.set_ex_point(uid, ex_point);
+
+                        if let Some(current_hp) = info.current_hp {
+                            entity.current_hp = Some(current_hp);
+                            self.managers.ex_point_mgr.set_hp(uid, current_hp);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.managers.entity_mgr.rebuild_cache(&self.fight);
+        self.managers.calculate_mgr.update_cache(&self.fight);
+        // Replay seeding mutates max HP during initial-round step playback.
+        // Refresh mechanics after that replay so Rubuska Shadow Cloak reads
+        // the effective post-bootstrap baseline rather than the raw fight payload.
+        self.mechanics.init(&self.fight);
+        self.reseed_bloodtithe_from_round(initial_round);
+        self.reseed_shadow_cloak_from_round(initial_round);
+        seed_blood_pool_ex_tracker(
+            &self.mechanics.bloodtithe,
+            &self.fight,
+            &self.managers.buff_mgr,
+        );
+        Ok(())
+    }
+
+    pub fn seed_replay_bloodtithe_from_effects(
+        &mut self,
+        effects: &[(i32, i32, i32)],
+    ) {
+        let mut rebuilt = BloodtitheState::new();
+        for &(effect_type, team_type, amount) in effects {
+            match EffectType::from(effect_type) {
+                EffectType::BloodPoolMaxCreate => {
+                    rebuilt.initialized = true;
+                }
+                EffectType::BloodPoolMaxChange => {
+                    rebuilt.initialized = true;
+                    let current_max = rebuilt.get_max(team_type);
+                    if amount > current_max {
+                        rebuilt.set_max(team_type, amount);
+                    }
+                }
+                EffectType::BloodPoolValueChange => {
+                    rebuilt.initialized = true;
+                    let current = rebuilt.get_value(team_type);
+                    rebuilt.set_value(team_type, (current + amount).max(0));
+                }
+                _ => {}
+            }
+        }
+        if rebuilt.initialized {
+            self.mechanics.bloodtithe = rebuilt;
+            seed_blood_pool_ex_tracker(
+                &self.mechanics.bloodtithe,
+                &self.fight,
+                &self.managers.buff_mgr,
+            );
+        }
+    }
+
+    pub fn seed_replay_buffs_from_effects(
+        &mut self,
+        effects: &[(i32, i64, i64, i32, i32, i64, i32)],
+    ) {
+        if effects.is_empty() {
+            return;
+        }
+
+        for &(buff_id, target_uid, from_uid, count, layer, buff_uid, duration) in effects {
+            if buff_id <= 0 || target_uid == 0 || buff_uid <= 0 {
+                continue;
+            }
+
+            self.managers
+                .buff_mgr
+                .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+            let _ = self
+                .managers
+                .buff_mgr
+                .set_instance_duration(target_uid, buff_uid, duration);
+
+            let mut seeded = false;
+            for side in [&mut self.fight.attacker, &mut self.fight.defender]
+                .into_iter()
+                .flatten()
+            {
+                for entity in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
+                    if entity.uid != Some(target_uid) {
+                        continue;
+                    }
+
+                    if let Some(existing) = entity
+                        .buffs
+                        .iter_mut()
+                        .find(|b| b.uid == Some(buff_uid))
+                    {
+                        existing.buff_id = Some(buff_id);
+                        existing.from_uid = Some(from_uid);
+                        existing.count = Some(count);
+                        existing.layer = Some(layer);
+                        existing.duration = Some(duration);
+                    } else {
+                        entity.buffs.push(BuffInfo {
+                            uid: Some(buff_uid),
+                            buff_id: Some(buff_id),
+                            from_uid: Some(from_uid),
+                            count: Some(count),
+                            layer: Some(layer),
+                            duration: Some(duration),
+                            ..Default::default()
+                        });
+                    }
+                    seeded = true;
+                    break;
+                }
+                if seeded {
+                    break;
+                }
+            }
+        }
+    }
+
+    fn reseed_bloodtithe_from_round(&mut self, round: &FightRound) {
+        #[derive(Clone, Copy)]
+        struct Frame<'a> {
+            step: &'a FightStep,
+            next_effect: usize,
+        }
+
+        let mut rebuilt = BloodtitheState::new();
+        let mut stack: Vec<Frame<'_>> = round
+            .fight_step
+            .iter()
+            .rev()
+            .map(|step| Frame {
+                step,
+                next_effect: 0,
+            })
+            .collect();
+
+        while let Some(frame) = stack.last_mut() {
+            if frame.next_effect >= frame.step.act_effect.len() {
+                stack.pop();
+                continue;
+            }
+
+            let effect = &frame.step.act_effect[frame.next_effect];
+            frame.next_effect += 1;
+
+            if let Some(nested) = effect.fight_step.as_ref() {
+                stack.push(Frame {
+                    step: nested,
+                    next_effect: 0,
+                });
+                continue;
+            }
+
+            let team_type = effect.effect_num.or(effect.team_type).unwrap_or(1);
+            match EffectType::from(effect.effect_type.unwrap_or(0)) {
+                EffectType::BloodPoolMaxCreate => {
+                    rebuilt.initialized = true;
+                }
+                EffectType::BloodPoolMaxChange => {
+                    rebuilt.initialized = true;
+                    let next_max = effect.effect_num1.unwrap_or(0);
+                    let current_max = rebuilt.get_max(team_type);
+                    if next_max > current_max {
+                        rebuilt.set_max(team_type, next_max);
+                    }
+                }
+                EffectType::BloodPoolValueChange => {
+                    rebuilt.initialized = true;
+                    let delta = effect.effect_num1.unwrap_or(0);
+                    let current = rebuilt.get_value(team_type);
+                    rebuilt.set_value(team_type, (current + delta).max(0));
+                }
+                _ => {}
+            }
+        }
+
+        if rebuilt.initialized {
+            self.mechanics.bloodtithe = rebuilt;
+        }
+    }
+
+    fn reseed_shadow_cloak_from_round(&mut self, round: &FightRound) {
+        #[derive(Clone, Copy)]
+        struct Frame<'a> {
+            step: &'a FightStep,
+            next_effect: usize,
+        }
+
+        let mut seeded_max = 0;
+        let mut stack: Vec<Frame<'_>> = round
+            .fight_step
+            .iter()
+            .rev()
+            .map(|step| Frame {
+                step,
+                next_effect: 0,
+            })
+            .collect();
+
+        while let Some(frame) = stack.last_mut() {
+            if frame.next_effect >= frame.step.act_effect.len() {
+                stack.pop();
+                continue;
+            }
+
+            let effect = &frame.step.act_effect[frame.next_effect];
+            frame.next_effect += 1;
+
+            if let Some(nested) = effect.fight_step.as_ref() {
+                stack.push(Frame {
+                    step: nested,
+                    next_effect: 0,
+                });
+                continue;
+            }
+
+            if EffectType::from(effect.effect_type.unwrap_or(0)) != EffectType::BuffActInfoUpdate {
+                continue;
+            }
+            let Some(info) = effect.buff_act_info.as_ref() else {
+                continue;
+            };
+            if info.act_id != Some(1042) {
+                continue;
+            }
+            let Some(max_cap) = info.param.get(1).copied() else {
+                continue;
+            };
+            if max_cap > seeded_max {
+                seeded_max = max_cap;
+            }
+        }
+
+        if seeded_max > 0 {
+            seed_replay_raspberry_max(&self.fight, seeded_max);
+            self.mechanics.shadow_cloak.raspberry_max = seeded_max;
+            self.mechanics.shadow_cloak.rubuska_entry_max_hp = seeded_max * 1000 / 150;
+        }
     }
 }

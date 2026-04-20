@@ -85,7 +85,7 @@ pub async fn add_currency(
     .bind(user_id)
     .bind(currency_id)
     .bind(amount)
-    .bind(timestamp as i64)
+    .bind(timestamp)
     .execute(pool)
     .await?;
     Ok(())
@@ -115,7 +115,7 @@ pub async fn remove_currency(
          WHERE user_id = ? AND currency_id = ?",
     )
     .bind(amount)
-    .bind(timestamp as i64)
+    .bind(timestamp)
     .bind(user_id)
     .bind(currency_id)
     .execute(pool)
@@ -142,7 +142,7 @@ pub async fn set_currency(
     .bind(user_id)
     .bind(currency_id)
     .bind(quantity)
-    .bind(timestamp as i64)
+    .bind(timestamp)
     .execute(pool)
     .await?;
     Ok(())

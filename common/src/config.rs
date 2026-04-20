@@ -8,8 +8,6 @@ pub struct ServerConfig {
     pub server: ServerSettings,
     pub paths: PathConfig,
     pub database: DatabaseConfig,
-    #[serde(rename = "banners")]
-    pub banners: Vec<Banner>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,13 +23,6 @@ pub struct PathConfig {
     pub data_dir: PathBuf,
     pub excel_data: PathBuf,
     pub static_data: PathBuf,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Banner {
-    pub id: i32,
-    pub open_time: String,
-    pub close_time: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +99,7 @@ impl ServerConfig {
         if self.paths.static_data.is_relative() {
             self.paths.static_data = config_dir.join(&self.paths.static_data);
         }
+
         Ok(())
     }
 
@@ -131,17 +123,10 @@ impl ServerConfig {
             );
         }
 
-        // Create database directory if needed
         if let Some(parent) = self.database.path.parent()
             && !parent.exists()
         {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to create database directory {}: {}",
-                    parent.display(),
-                    e
-                )
-            })?;
+            std::fs::create_dir_all(parent)?;
         }
 
         Ok(())

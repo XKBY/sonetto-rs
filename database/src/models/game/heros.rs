@@ -161,6 +161,7 @@ pub struct HeroSpAttribute {
     pub reuse_dmg: i32,
     pub big_skill_rate: i32,
     pub clutch_dmg: i32,
+    pub nowmal_dmg: i32,
 }
 
 impl From<HeroSpAttribute> for sonettobuf::HeroSpAttribute {
@@ -195,6 +196,7 @@ impl From<HeroSpAttribute> for sonettobuf::HeroSpAttribute {
             reuse_dmg: Some(sp.reuse_dmg),
             big_skill_rate: Some(sp.big_skill_rate),
             clutch_dmg: Some(sp.clutch_dmg),
+            nowmal_dmg: Some(sp.nowmal_dmg),
         }
     }
 }

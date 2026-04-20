@@ -1,12 +1,10 @@
 use crate::{
     network::client::handle_client,
-    state::{AppState, ConnectionContext},
+    state::{AppState, ConnectionContext, init_skill_cache},
 };
 use ::config::configs;
 use common::{config, excel_data_directory, game_port, host, init_config, init_tracing};
-use database::{
-    DatabaseSettings, connect_to, db::game::summon::sync_banner_schedule, run_migrations,
-};
+use database::{DatabaseSettings, migrate_or_rescue};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -48,14 +46,16 @@ async fn main() -> anyhow::Result<()> {
         db_name: config().database.path.to_string_lossy().to_string(),
     };
 
-    let db = connect_to(&db_settings).await?;
-    run_migrations(&db).await?;
-
-    sync_banner_schedule(&db, &cfg.banners).await?;
+    let db = migrate_or_rescue(&db_settings).await?;
 
     info!("Loading game data...");
     configs::init(excel_data_directory().to_str().unwrap())?;
     info!("Game data loaded");
+
+    // Sync banner schedule from store_recommend config
+    util::schedules::init(&db).await?;
+
+    init_skill_cache();
 
     let state = Arc::new(AppState::new(db));
     let addr = format!("{}:{}", host(), game_port());

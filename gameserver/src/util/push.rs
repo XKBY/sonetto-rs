@@ -76,6 +76,9 @@ pub async fn send_item_change_push(
             items: items_list.into_iter().map(Into::into).collect(),
             power_items: power_items_list.into_iter().map(Into::into).collect(),
             insight_items: insight_items_list.into_iter().map(Into::into).collect(),
+            // TODO: Update expire_items and talent_items add db entry
+            expire_items: Vec::new(),
+            talent_items: Vec::new(),
         };
         conn.notify(CmdId::ItemChangePushCmd, push.clone()).await?;
 

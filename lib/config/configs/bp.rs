@@ -43,7 +43,9 @@ pub struct Bp {
     #[serde(rename = "showBonusDate")]
     pub show_bonus_date: String,
     #[serde(rename = "specialBonus")]
-    pub special_bonus: String,
+    pub special_bonus: i32,
+    #[serde(rename = "specialPropDesc")]
+    pub special_prop_desc: String,
     #[serde(rename = "weekLimitTimes")]
     pub week_limit_times: i32,
 }

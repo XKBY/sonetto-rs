@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS user_mails (
     expire_time INTEGER NOT NULL,
     sender_type INTEGER NOT NULL DEFAULT 0,
     jump_title TEXT NOT NULL DEFAULT '',
-    jump TEXT NOT NULL DEFAULT ''
+    jump TEXT NOT NULL DEFAULT '',
+    is_lock BOOLEAN NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_mails_user ON user_mails(user_id);

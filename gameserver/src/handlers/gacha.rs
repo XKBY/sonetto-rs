@@ -65,6 +65,12 @@ pub async fn on_choose_enhanced_pool_hero(
     let pool_id = request.pool_id.ok_or(AppError::InvalidRequest)?;
     let hero_id = request.hero_id.ok_or(AppError::InvalidRequest)?;
 
+    tracing::info!(
+        "ChooseEnhancedPoolHero: pool_id={}, hero_id={}",
+        pool_id,
+        hero_id
+    );
+
     let (player_id, pool) = {
         let conn = ctx.lock().await;
         let player_id = conn.player_id.ok_or(AppError::NotLoggedIn)?;
@@ -351,6 +357,24 @@ pub async fn on_summon(
     }
 
     save_gacha_state(&db, user_id, pool_id, &gacha).await?;
+
+    // special currency for limited summon
+    if summon_pool.ticket_id != 0 {
+        let ticket_id = summon_pool.ticket_id as u32;
+        let ticket_amount = count; // 1 or 10
+
+        tracing::info!(
+            "Granting summon ticket reward: item {} x{}",
+            ticket_id,
+            ticket_amount
+        );
+
+        let item_rewards = vec![(ticket_id, ticket_amount)];
+
+        let created_item_ids = item.create_items(&item_rewards).await?;
+
+        all_changed_item_ids.extend(created_item_ids.iter().map(|id| *id as u32));
+    }
 
     if is_discounted {
         database::db::game::summon::use_discount(&db, user_id, pool_id).await?;

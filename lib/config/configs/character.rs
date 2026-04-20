@@ -22,6 +22,8 @@ pub struct Character {
     pub duplicate_item: String,
     #[serde(rename = "duplicateItem2")]
     pub duplicate_item2: String,
+    #[serde(rename = "duplicateItemSpecial")]
+    pub duplicate_item_special: String,
     #[serde(rename = "equipRec")]
     pub equip_rec: String,
     #[serde(rename = "exSkill")]

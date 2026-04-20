@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "database", "gameserver", "protocol", "sdkserver", "lib/*"]
+members = ["battle_gen", "common", "database", "gameserver", "protocol", "sdkserver", "lib/*"]
 resolver = "2"
 
 [workspace.package]

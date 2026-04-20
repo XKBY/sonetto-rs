@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS hero_sp_attrs (
     reuse_dmg INTEGER NOT NULL DEFAULT 0,
     big_skill_rate INTEGER NOT NULL DEFAULT 0,
     clutch_dmg INTEGER NOT NULL DEFAULT 0,
+    nowmal_dmg INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (hero_uid) REFERENCES heroes(uid) ON DELETE CASCADE
 );
 

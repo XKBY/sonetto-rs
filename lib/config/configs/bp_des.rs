@@ -13,6 +13,10 @@ pub struct BpDes {
     pub icon_type: i32,
     pub id: i32,
     pub items: String,
+    #[serde(rename = "tagTxt")]
+    pub tag_txt: String,
+    #[serde(rename = "tagType")]
+    pub tag_type: i32,
     #[serde(rename = "type")]
     pub r#type: i32,
 }

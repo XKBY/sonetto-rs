@@ -8,3 +8,8 @@ assets/*
 !assets/starter/**
 !assets/static/
 !assets/static/**
+/tests/
+/lua/
+/docs/
+/.claude/
+CLAUDE.md

@@ -24,5 +24,6 @@ CREATE TABLE user_player_card_info (
     weekwalk_ver2_platinum_cup INTEGER NOT NULL DEFAULT 0,
     hero_count INTEGER NOT NULL DEFAULT 0,
     tower_layer_metre INTEGER NOT NULL DEFAULT 0,
+    act128_level INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

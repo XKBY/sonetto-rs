@@ -26,6 +26,7 @@ pub async fn on_get_sign_in_info(
         month_card_history: month_card_history.into_iter().map(Into::into).collect(),
         birthday_hero_ids: birthday_heroes,
         reward_mark: Some(info.reward_mark),
+        supplement_month_card_days: Some(0),
     };
 
     let mut conn = ctx.lock().await;

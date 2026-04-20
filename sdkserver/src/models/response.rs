@@ -346,7 +346,7 @@ impl SummonQueryRsp {
         SummonQueryRsp {
             code: 200,
             msg: "成功".to_string(),
-            data: data,
+            data,
         }
     }
 }

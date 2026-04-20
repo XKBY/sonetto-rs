@@ -37,6 +37,8 @@ pub async fn on_sign_in(
     let data = SignInReply {
         day,
         birthday_hero_ids: birthday_heroes,
+        sign_in_reward: vec![],
+        month_reward: vec![],
     };
 
     let mut conn = ctx.lock().await;

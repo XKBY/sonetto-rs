@@ -18,6 +18,7 @@ pub struct PlayerInfo {
     pub hero_rare_r_count: i32,
     pub hero_rare_sr_count: i32,
     pub hero_rare_ssr_count: i32,
+    pub tower_layer_metre: i32,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -87,6 +88,7 @@ impl From<PlayerInfoData> for sonettobuf::PlayerInfo {
             show_achievement: Some(data.player_info.show_achievement),
             bg: Some(data.player_info.bg),
             total_login_days: Some(data.player_info.total_login_days),
+            tower_layer_metre: Some(data.player_info.tower_layer_metre),
         }
     }
 }

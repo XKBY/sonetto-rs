@@ -35,6 +35,7 @@ pub async fn get_player_card_info(pool: &SqlitePool, user_id: i64) -> Result<Pla
         weekwalk_ver2_platinum_cup: 0,
         hero_count: 0,
         tower_layer_metre: 0,
+        act128_level: 0,
     });
 
     Ok(info)

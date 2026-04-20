@@ -1,34 +1,37 @@
 mod auto;
-mod cards;
+mod card;
 mod passives;
 
-pub mod effects;
+pub mod context;
 pub mod end_fight;
-pub mod entity_builder;
-pub mod fight_builder;
+pub mod types;
+
 pub mod manager;
 pub mod mechanics;
 pub mod rewards;
 pub mod round;
-pub mod round_builder;
 pub mod simulator;
-pub mod skill_executor;
-pub mod step_builder;
+pub mod steps;
+
 pub mod utils;
+
+pub mod buff;
+pub mod buff_actions;
+pub mod entity;
+pub mod fight;
+pub mod fight_step;
+pub mod skill;
+pub mod trigger;
 
 use anyhow::Result;
 use sonettobuf::CardInfo;
-use sonettobuf::Fight;
 use sonettobuf::FightRound;
 use sqlx::SqlitePool;
 
-use std::sync::atomic::AtomicI64;
-
-pub static BUFF_UID_COUNTER: AtomicI64 = AtomicI64::new(2);
-
 pub use auto::generate_auto_opers;
-
-pub use cards::{default_max_ap, generate_ai_initial_deck, generate_initial_deck};
+pub use card::apply_opening_deck;
+pub use card::{default_max_ap, generate_ai_deck, generate_initial_deck};
+pub use types::{behavior::BehaviorType, condition::ConditionType};
 
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;
 
@@ -45,15 +48,17 @@ pub async fn create_battle(
     pool: &SqlitePool,
     ctx: BattleContext,
     fight_group: &sonettobuf::FightGroup,
-    player_deck: Vec<sonettobuf::CardInfo>,
-) -> Result<(Fight, FightRound, FightDataMgr, Vec<CardInfo>)> {
-    let fight = fight_builder::build_fight(pool, &ctx, fight_group).await?;
+    player_deck: Vec<CardInfo>,
+) -> Result<(FightRound, FightDataMgr, Vec<CardInfo>)> {
+    let built = fight::builder::build_fight(pool, &ctx, fight_group).await?;
 
     let seed = (ctx.player_id as u64) ^ (ctx.episode_id as u64) ^ 0xA11C;
-    let ai_deck = generate_ai_initial_deck(&fight, seed).await;
 
-    let (initial_round, modified_fight, fight_data_mgr) =
-        round_builder::build_initial_round(fight, player_deck, ai_deck.clone()).await?;
+    let ai_deck = generate_ai_deck(&built.fight, seed).await;
 
-    Ok((modified_fight, initial_round, fight_data_mgr, ai_deck))
+    let (initial_round, fight_data_mgr) =
+        round::build_initial_round(built.fight, player_deck, ai_deck.clone(), ctx.battle_id)
+            .await?;
+
+    Ok((initial_round, fight_data_mgr, ai_deck))
 }

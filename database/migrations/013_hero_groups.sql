@@ -6,6 +6,7 @@ CREATE TABLE hero_groups_common (
     name TEXT NOT NULL DEFAULT '',
     cloth_id INTEGER NOT NULL DEFAULT 1,
     assist_boss_id INTEGER NOT NULL DEFAULT 0,
+    params TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

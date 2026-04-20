@@ -149,8 +149,8 @@ impl ItemModel<Item> for UserItemModel {
                  WHERE user_id = ? AND item_id = ?",
         )
         .bind(delta)
-        .bind(timestamp as i64)
-        .bind(timestamp as i64)
+        .bind(timestamp)
+        .bind(timestamp)
         .bind(self.user_id)
         .bind(item_id as i64)
         .execute(&self.pool)
@@ -218,7 +218,7 @@ impl ItemModel<PowerItem> for UserItemModel {
         let expire_time = if let Some(config) = power_item_config {
             match config.expire_type {
                 0 => 0,
-                1 | 2 | 3 => (now / 1000) + (10 * 24 * 60 * 60),
+                1..=3 => (now / 1000) + (10 * 24 * 60 * 60),
                 _ => 0,
             }
         } else {

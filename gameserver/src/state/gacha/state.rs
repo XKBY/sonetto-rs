@@ -8,6 +8,7 @@ pub enum BannerType {
     RateUp,
     Ripple,
     Standard,
+    Limited,
 }
 
 impl BannerType {
@@ -15,6 +16,7 @@ impl BannerType {
         match t {
             202 => BannerType::Yearning,
             12 => BannerType::Ripple,
+            6 => BannerType::Limited,
             2 => BannerType::Standard,
             _ => BannerType::RateUp,
         }
@@ -44,7 +46,7 @@ impl GachaState {
             self.pity_6 = 0;
 
             let (hero_id, is_up) = match banner_type {
-                BannerType::RateUp | BannerType::Standard => {
+                BannerType::RateUp | BannerType::Standard | BannerType::Limited => {
                     let has_up = !pool.six_up.is_empty();
 
                     let is_up = if has_up {

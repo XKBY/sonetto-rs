@@ -71,6 +71,7 @@ pub async fn on_set_hero_group_snapshot(
             })
             .collect(),
         assist_boss_id: fight_group.assist_boss_id.unwrap_or(0),
+        params: fight_group.params.unwrap_or_default(),
     };
 
     hero_group_snapshots::save_hero_group_snapshot(

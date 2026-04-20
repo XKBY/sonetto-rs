@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
-    generate_initial_deck,
+    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, create_battle,
+    default_max_ap, generate_initial_deck,
 };
 use config::configs;
 use database::db::game::dungeons::{get_user_dungeon, update_dungeon_progress};
@@ -58,12 +58,29 @@ pub async fn on_start_dungeon(
         max_ap,
     };
 
-    let card_push = generate_initial_deck(&pool, player_id, &fight_group, max_ap).await?;
+    let mut card_push = generate_initial_deck(&pool, player_id, &fight_group, max_ap).await?;
 
-    let card_deck = card_push.card_group.clone();
+    // Initial round should use raw dealt cards.
+    let card_deck = card_push.deal_card_group.clone();
 
-    let (modified_fight, initial_round, fight_data_mgr, ai_deck) =
+    let (initial_round, fight_data_mgr, ai_deck) =
         create_battle(&pool, battle_ctx, &fight_group, card_deck.clone()).await?;
+    // Authoritative post-start deck = pushed opening hand + opening temp/special additions.
+    let mut push_round = initial_round.clone();
+    push_round.team_a_cards1 = card_push.card_group.clone();
+    let final_cards = apply_opening_deck(&mut push_round);
+    card_push.card_group = final_cards.clone();
+
+    // weird visual bugs if we don't split
+    // ig fight steps apply damage then second object applies. but we can't do that in the intial object
+    let fight_snapshot = fight_data_mgr
+        .pre_fight
+        .clone()
+        .unwrap_or_else(|| fight_data_mgr.fight().clone()); // pre-sync fight
+    // intial fight object with no passive changes
+
+    let fight_for_battle = fight_data_mgr.fight().clone(); // post-sync fight
+    // final fight object with passive changes applied
 
     {
         let mut conn = ctx.lock().await;
@@ -75,11 +92,11 @@ pub async fn on_start_dungeon(
             chapter_id,
             difficulty: None,
             talent_plan_id: None,
-            fight: Some(modified_fight.clone()),
+            fight: Some(fight_for_battle),
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            current_deck: card_deck,
+            current_deck: final_cards,
             fight_group: Some(fight_group.clone()),
             is_replay: Some(use_record),
             replay_episode_id: Some(episode_id),
@@ -90,7 +107,7 @@ pub async fn on_start_dungeon(
         });
     }
 
-    let updated_dungeon = get_user_dungeon(&pool, player_id, chapter_id, episode_id).await?;
+    /*  let updated_dungeon = get_user_dungeon(&pool, player_id, chapter_id, episode_id).await?;
 
     let chapter_type = game_data
         .chapter
@@ -117,22 +134,34 @@ pub async fn on_start_dungeon(
             today_total_num: Some(0),
         }),
         chapter_type_nums,
-    };
+    };*/
 
     let reply = StartDungeonReply {
-        fight: Some(modified_fight),
+        fight: Some(fight_snapshot),
         round: Some(initial_round),
     };
 
     let mut conn = ctx.lock().await;
 
-    conn.notify(CmdId::CardInfoPushCmd, card_push).await?;
+    // weird this doesn't belong here lol
 
-    conn.notify(CmdId::DungeonUpdatePushCmd, dungeon_push)
-        .await?;
+    //conn.notify(CmdId::DungeonUpdatePushCmd, dungeon_push).await?;
+    //
+
+    tracing::warn!(
+        "reply round ex_point_info[0] current_hp={:?}",
+        reply
+            .round
+            .as_ref()
+            .and_then(|r| r.ex_point_info.first())
+            .and_then(|e| e.current_hp)
+    );
 
     conn.send_reply(CmdId::StartDungeonCmd, reply, 0, req.up_tag)
         .await?;
+
+    // This needs to be sent after the reply else client bugs out
+    conn.notify(CmdId::CardInfoPushCmd, card_push).await?;
 
     Ok(())
 }

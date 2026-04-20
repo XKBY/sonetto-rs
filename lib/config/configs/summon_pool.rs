@@ -21,6 +21,8 @@ pub struct SummonPool {
     pub cost10: String,
     #[serde(rename = "customClz")]
     pub custom_clz: String,
+    #[serde(rename = "dailyFreeSummon10Count")]
+    pub daily_free_summon10_count: i32,
     pub desc: String,
     #[serde(rename = "discountCost10")]
     pub discount_cost10: String,
@@ -28,11 +30,19 @@ pub struct SummonPool {
     pub discount_time10: i32,
     #[serde(rename = "doubleSsrUpRates")]
     pub double_ssr_up_rates: String,
+    #[serde(rename = "free10MaxUseCount")]
+    pub free10_max_use_count: i32,
     #[serde(rename = "guaranteeSRParam")]
     pub guarantee_srparam: String,
     #[serde(rename = "historyShowType")]
     pub history_show_type: i32,
     pub id: i32,
+    #[serde(rename = "infallibleItemId")]
+    pub infallible_item_id: i32,
+    #[serde(rename = "infallibleItemMaxUseCount")]
+    pub infallible_item_max_use_count: i32,
+    #[serde(rename = "infallibleMailIds")]
+    pub infallible_mail_ids: String,
     #[serde(rename = "initWeight")]
     pub init_weight: String,
     #[serde(rename = "jumpGroupId")]
@@ -48,6 +58,7 @@ pub struct SummonPool {
     #[serde(rename = "ornamentName")]
     pub ornament_name: String,
     pub param: String,
+    pub param2: String,
     #[serde(rename = "poolDetail")]
     pub pool_detail: i32,
     #[serde(rename = "prefabPath")]
@@ -61,6 +72,10 @@ pub struct SummonPool {
     pub progress_reward_prefab: String,
     #[serde(rename = "progressRewards")]
     pub progress_rewards: String,
+    #[serde(rename = "spinePrefab")]
+    pub spine_prefab: String,
+    #[serde(rename = "subType")]
+    pub sub_type: i32,
     #[serde(rename = "ticketId")]
     pub ticket_id: i32,
     #[serde(rename = "totalFreeCount")]

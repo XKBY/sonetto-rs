@@ -80,6 +80,7 @@ async fn build_snapshot_group_info(
         equips,
         activity104_equips,
         assist_boss_id: group.assist_boss_id,
+        params: String::new(), //TODO: Update db
     })
 }
 

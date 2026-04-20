@@ -43,10 +43,15 @@ pub async fn on_auto_round(
         ai_deck,
         fight_data_mgr,
     ) = {
-        let conn = ctx.lock().await;
+        let mut conn = ctx.lock().await;
         let battle = conn
             .active_battle
-            .as_ref()
+            .as_mut()
+            .ok_or(AppError::InvalidRequest)?;
+
+        let mgr = battle
+            .fight_data_mgr
+            .take()
             .ok_or(AppError::InvalidRequest)?;
 
         (
@@ -59,7 +64,7 @@ pub async fn on_auto_round(
             battle.current_round,
             battle.multiplication.unwrap_or(1),
             battle.ai_deck.clone(),
-            battle.fight_data_mgr.clone().unwrap_or_default(),
+            mgr,
         )
     };
 
@@ -72,15 +77,28 @@ pub async fn on_auto_round(
     };
 
     let auto_opers = generate_auto_opers(&current_deck);
-
     tracing::info!("AutoRound server selected {} ops", auto_opers.len());
 
     let mut simulator = BattleSimulator::new(fight_data_mgr);
+
     let mut round = simulator
-        .process_round(auto_opers.clone(), current_deck, ai_deck)
+        .process_round(auto_opers.clone(), current_deck, ai_deck, None)
         .await?;
 
     round.is_finish = Some(true);
+
+    let fight_data_mgr = simulator.into_data();
+
+    {
+        let mut conn = ctx.lock().await;
+        let battle = conn
+            .active_battle
+            .as_mut()
+            .ok_or(AppError::InvalidRequest)?;
+
+        battle.fight_data_mgr = Some(fight_data_mgr);
+    }
+
     let record_round = round.cur_round.unwrap_or(1);
 
     tracing::info!(

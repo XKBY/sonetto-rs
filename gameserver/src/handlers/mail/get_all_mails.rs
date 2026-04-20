@@ -63,10 +63,11 @@ pub async fn on_get_all_mails(
             i32,
             String,
             String,
+            bool,
         )> = sqlx::query_as(
             "SELECT incr_id, mail_id, params, attachment, state, create_time,
                     sender, title, content, copy, expire_time, sender_type,
-                    jump_title, jump
+                    jump_title, jump, is_lock
              FROM user_mails
              WHERE user_id = ?
              ORDER BY create_time DESC",
@@ -93,6 +94,7 @@ pub async fn on_get_all_mails(
                     sender_type,
                     jump_title,
                     jump,
+                    is_lock,
                 )| Mail {
                     incr_id: Some(incr_id as u64),
                     mail_id: Some(mail_id as u32),
@@ -108,6 +110,7 @@ pub async fn on_get_all_mails(
                     sender_type: Some(sender_type),
                     jump_title: Some(jump_title),
                     jump: Some(jump),
+                    is_lock: Some(is_lock),
                 },
             )
             .collect();

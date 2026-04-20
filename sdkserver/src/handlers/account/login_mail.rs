@@ -9,7 +9,7 @@ pub async fn post(
     State(state): State<AppState>,
     axum::Json(req): axum::Json<AccountLoginMailReq>,
 ) -> Json<AccountLoginRsp> {
-    let now = ServerTime::now_ms() as i64;
+    let now = ServerTime::now_ms();
 
     tracing::info!(
         "Login attempt - Email: {}, Device: {}, OS: {}",

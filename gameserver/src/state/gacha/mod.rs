@@ -40,7 +40,7 @@ pub async fn build_gacha(pool_id: i32, sp_pool_info: Option<&SpPoolInfo>) -> Res
             (six_up, five_up, weighted)
         }
 
-        BannerType::RateUp => {
+        BannerType::RateUp | BannerType::Limited => {
             let (six_up, five_up) = parse_up_heroes(pool_cfg.up_weight.as_str());
 
             (six_up, five_up, Vec::new())

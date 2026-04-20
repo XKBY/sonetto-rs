@@ -82,8 +82,8 @@ pub async fn remove_item_quantity(
     let timestamp = ServerTime::now_ms();
     sqlx::query("UPDATE items SET quantity = quantity - ?, last_use_time = ?, last_update_time = ? WHERE user_id = ? AND item_id = ?")
         .bind(amount)
-        .bind(timestamp as i64)
-        .bind(timestamp as i64)
+        .bind(timestamp)
+        .bind(timestamp)
         .bind(user_id)
         .bind(item_id as i64)
         .execute(pool)

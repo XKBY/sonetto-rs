@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Open {
     #[serde(rename = "bindActivityId")]
     pub bind_activity_id: i32,
+    #[serde(rename = "dailyOpenTime")]
+    pub daily_open_time: String,
     pub dec: i32,
     #[serde(rename = "elementId")]
     pub element_id: i32,

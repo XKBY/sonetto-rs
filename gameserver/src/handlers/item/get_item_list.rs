@@ -10,7 +10,7 @@ pub async fn on_get_item_list(
     ctx: Arc<Mutex<ConnectionContext>>,
     req: ClientPacket,
 ) -> Result<(), AppError> {
-    let (items_data, power_items_data, insight_items_data) = {
+    let (items_data, power_items_data, insight_items_data, expire_items_data, talent_items_data) = {
         let conn = ctx.lock().await;
         let user_id = conn.player_id.ok_or(AppError::NotLoggedIn)?;
         let pool = conn.state.db.clone();
@@ -21,13 +21,24 @@ pub async fn on_get_item_list(
         let power_items: Vec<PowerItem> = item.get_all_power_items().await?;
         let insight_items: Vec<InsightItem> = item.get_all_insight_items().await?;
 
-        (items, power_items, insight_items)
+        let expire_items: Vec<_> = vec![];
+        let talent_items: Vec<_> = vec![];
+
+        (
+            items,
+            power_items,
+            insight_items,
+            expire_items,
+            talent_items,
+        )
     };
 
     let reply = GetItemListReply {
         items: items_data.into_iter().map(Into::into).collect(),
         power_items: power_items_data.into_iter().map(Into::into).collect(),
         insight_items: insight_items_data.into_iter().map(Into::into).collect(),
+        expire_items: expire_items_data,
+        talent_items: talent_items_data,
     };
 
     let mut conn = ctx.lock().await;

@@ -1,6 +1,6 @@
 use ::config::configs;
 use common::{config, excel_data_directory, host, http_port, init_config, init_tracing};
-use database::{DatabaseSettings, connect_to, run_migrations};
+use database::{DatabaseSettings, migrate_or_rescue};
 use gameserver::state::AppState as GameState;
 use reqwest::Client;
 use std::net::SocketAddr;
@@ -52,11 +52,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_settings = DatabaseSettings {
         db_name: config().database.path.to_string_lossy().to_string(),
-        ..Default::default()
     };
 
-    let db = connect_to(&db_settings).await?;
-    run_migrations(&db).await?;
+    let db = migrate_or_rescue(&db_settings).await?;
 
     info!("Loading game data...");
     configs::init(excel_data_directory().to_str().unwrap())?;

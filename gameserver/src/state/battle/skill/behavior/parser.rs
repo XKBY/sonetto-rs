@@ -1,0 +1,214 @@
+use super::super::super::BehaviorType;
+use config::configs;
+
+pub fn parse_behavior(raw: &str) -> BehaviorType {
+    let cfg = configs::get();
+    if raw.is_empty() {
+        return BehaviorType::Unknown {
+            raw: raw.to_string(),
+        };
+    }
+
+    let parts: Vec<&str> = raw.split('#').collect();
+    let id: i32 = parts[0].parse().unwrap_or(0);
+    let p1: i32 = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+    let p2: i32 = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+
+    // Recoleta temp-card behavior in live captures.
+    // Keep this ID-based fallback stable even if behavior type rows drift across data bundles.
+    if id == 60175 {
+        return BehaviorType::DirectUseBigSkill;
+    }
+    // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
+    // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
+    if id == 20021 && p1 >= 10000 {
+        return BehaviorType::DirectUseGroupAndStarSkill {
+            group: p1,
+            rank: p2,
+        };
+    }
+    let behavior_type = cfg
+        .skill_behavior
+        .iter()
+        .find(|b| b.id == id)
+        .map(|b| b.r#type.as_str())
+        .unwrap_or("");
+
+    match behavior_type {
+        "Damage" | "Damage2" | "Detonate" | "Detonate2" | "OriginDamage" | "OriginDamage2" => {
+            BehaviorType::Damage { rate: p1 }
+        }
+        "Heal" | "HealCantCrit" => BehaviorType::Heal { rate: p1 },
+        "HealByTwoAttr" => BehaviorType::HealByTwoAttr {
+            missing_percent: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            caster_hp_percent: parts.get(6).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        "AddBuff" | "AddBuffRound" | "AddBuffRound2" => BehaviorType::AddBuff {
+            buff_id: p1,
+            count: p2,
+        },
+        "CreateAdditionalDamageAddBuff" => BehaviorType::AddBuff {
+            buff_id: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
+            count: 0,
+        },
+        "ConsumeBloodAddBuff" => BehaviorType::ConsumeBloodAddBuff {
+            consume: p1,
+            buff_id: p2,
+            count: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        "ConsumeBloodAddBuff2" => BehaviorType::ConsumeBloodAddBuff2 {
+            consume: p1,
+            buff_id: p2,
+            count: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        "AddExPoint" | "AttrFixExPoint" => {
+            if id == 20002 {
+                BehaviorType::AddExPointWithMax { amount: p1 }
+            } else {
+                BehaviorType::AddExPoint { amount: p1 }
+            }
+        }
+        "LostLife" => BehaviorType::LostLife {
+            mode: p1,
+            attr_id: p2,
+            permille: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            behavior_id: id,
+        },
+        "Bloodlust" => BehaviorType::Bloodlust { amount: p1 },
+        "AverageLife" => BehaviorType::AverageLife,
+        "BloodPoolValueChange" => BehaviorType::BloodPoolValueChange { amount: p1 },
+        "BloodPoolMaxChange" => BehaviorType::BloodPoolMaxChange { amount: p1 },
+        "AttrModify" => BehaviorType::AttrModify {
+            attr_id: p1,
+            amount: p2,
+        },
+        "BeAttackedAssassinate" => BehaviorType::BeAttackedAssassinate {
+            attr_id: p1,
+            amount: p2,
+        },
+        "ConsumeBuffByTypeId" => BehaviorType::ConsumeBuffByTypeId {
+            type_id: p1,
+            count: p2,
+        },
+        t if t.starts_with("DisperseForce") => BehaviorType::DisperseForce { buff_id: p1 },
+        t if t.starts_with("Disperse") => BehaviorType::Disperse,
+        t if t.starts_with("Purify") => BehaviorType::Purify,
+        "ChangePower" => BehaviorType::ChangePower { amount: p1 },
+        t if t.starts_with("AttrFix") => {
+            // Most AttrFix-like behaviors are encoded as:
+            //   behavior_id#attr_id#amount
+            // Keep the parser permissive because some variants append extra params.
+            let attr_id = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(p1);
+            let amount = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(p2);
+            BehaviorType::AttrFix { attr_id, amount }
+        }
+        "SkillRateUp" => BehaviorType::SkillRateUp { rate: p1 },
+        "ConsumePowerDirectUseSkill" => BehaviorType::ConsumePowerDirectUseSkill {
+            count: p1,
+            skill_id: p2,
+        },
+        "DirectUseSkill" => BehaviorType::DirectUseSkill { skill_id: p1 },
+        "DirectUseBigSkill" => BehaviorType::DirectUseBigSkill,
+        "ConsumeExPointAddAttr" => BehaviorType::ConsumeExPointAddAttr {
+            min_consume: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            max_consume: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        "SkillRateUpBySelfBuffType" => BehaviorType::SkillRateUpBySelfBuffType {
+            buff_type_id: p1,
+            rate: p2,
+        },
+        "SkillRateUpBuffType" => BehaviorType::SkillRateUpByBuffType {
+            rate: p1,
+            buff_types: parts
+                .iter()
+                .skip(3)
+                .filter_map(|v| v.parse().ok())
+                .collect(),
+        },
+        "RandomUseSkill" => BehaviorType::RandomUseSkill {
+            raw: raw.to_string(),
+        },
+        "MonsterChange" => BehaviorType::MonsterChange,
+        "Kill" => BehaviorType::Kill,
+        "Summon" => BehaviorType::Summon { skill_id: p1 },
+        "RaspberryAddCount" => BehaviorType::RaspberryAddCount {
+            attr_id: p1,
+            rate: p2,
+        },
+        "AddBuffRanId" => BehaviorType::AddBuffRanId {
+            pool_buff_id: p1,
+            count: p2,
+        },
+        "AddMagicCircle" | "MagicCircleAddRound" => BehaviorType::AddMagicCircle {
+            circle_id: p1,
+        },
+        "MagicCircleAttr" => {
+            let mut modifiers = Vec::new();
+            let mut i = 1;
+            while i + 2 < parts.len() {
+                let attr_id: i32 = parts.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(0);
+                let value: i32 = parts.get(i + 2).and_then(|v| v.parse().ok()).unwrap_or(0);
+                if attr_id != 0 {
+                    modifiers.push((attr_id, value));
+                }
+                i += 3;
+            }
+            BehaviorType::MagicCircleAttr { modifiers }
+        }
+        "DirectUseGroupAndStarSkill" => BehaviorType::DirectUseGroupAndStarSkill {
+            group: p1,
+            rank: p2,
+        },
+        "ReplaceBuff2" => BehaviorType::ReplaceBuff2 {
+            source_buff_ids: parts
+                .get(1)
+                .map(|p| p.split(',').filter_map(|v| v.parse().ok()).collect())
+                .unwrap_or_default(),
+            replacement_buff_id: parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0),
+            duration: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            count: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(1),
+        },
+        "CrystalAddCard" => BehaviorType::CrystalAddCard,
+
+        "ShellUseSkill" => BehaviorType::ShellUseSkill {
+            group: p1,
+            skill_id: p2,
+        },
+        "ShellAssign" => BehaviorType::ShellAssign {
+            slot: p1,
+            skill_id: p2,
+        },
+        "PurifyX" => BehaviorType::PurifyX {
+            type_ids: parts[1..].iter().filter_map(|v| v.parse().ok()).collect(),
+        },
+        "IgnoreSkillConfigDamageRate" => BehaviorType::IgnoreSkillConfigDamageRate,
+
+        "LostAllLifeByAttr" => BehaviorType::LostAllLifeByAttr {
+            caster_attr: p1,
+            caster_amount: p2,
+            target_attr: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            target_amount: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+
+        "DamageRealLostLife" => BehaviorType::DamageRealLostLife {
+            buff_id: p1,
+            duration: p2,
+            rate: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        "NuoDiKaDamage" => BehaviorType::NuoDiKaDamage {
+            primary_buff_id: p1,
+            primary_rate: p2,
+            secondary_buff_id: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            secondary_rate: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
+            self_loss_param: parts.get(5).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
+        _ => {
+            if !behavior_type.is_empty() {
+                tracing::warn!("Unhandled behavior type: {} (id={})", behavior_type, id);
+            }
+            BehaviorType::Unknown {
+                raw: raw.to_string(),
+            }
+        }
+    }
+}

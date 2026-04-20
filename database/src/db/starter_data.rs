@@ -87,11 +87,12 @@ pub async fn load_critter_info(tx: &mut Transaction<'_, Sqlite>, uid: i64) -> sq
         .await?;
 
         // Insert skill tags
-        if let Some(skill_info) = entry.get("skillInfo").and_then(|v| v.as_object()) {
-            if let Some(tags) = skill_info.get("tags").and_then(|v| v.as_array()) {
-                for (i, tag) in tags.iter().enumerate() {
-                    if let Some(tag_str) = tag.as_str() {
-                        sqlx::query(
+        if let Some(skill_info) = entry.get("skillInfo").and_then(|v| v.as_object())
+            && let Some(tags) = skill_info.get("tags").and_then(|v| v.as_array())
+        {
+            for (i, tag) in tags.iter().enumerate() {
+                if let Some(tag_str) = tag.as_str() {
+                    sqlx::query(
                             "INSERT INTO critter_skills (critter_uid, tag, sort_order) VALUES (?, ?, ?)"
                         )
                         .bind(critter_uid)
@@ -99,7 +100,6 @@ pub async fn load_critter_info(tx: &mut Transaction<'_, Sqlite>, uid: i64) -> sq
                         .bind(i as i32)
                         .execute(&mut **tx)
                         .await?;
-                    }
                 }
             }
         }
@@ -388,12 +388,12 @@ pub async fn load_hero_list(
                 destiny_rank, destiny_level, destiny_stone, red_dot, extra_str,
                 base_hp, base_attack, base_defense, base_mdefense, base_technic,
                 base_multi_hp_idx, base_multi_hp_num,
-                ex_cri, ex_recri, ex_cri_dmg, ex_cri_def, ex_add_dmg, ex_drop_dmg
+                ex_cri, ex_recri, ex_cri_dmg, ex_cri_def, ex_add_dmg, ex_drop_dmg, nowmal_dmg
             ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                 ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
                 ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,
-                ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38
+                ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39
             )
             "#,
         )
@@ -437,6 +437,7 @@ pub async fn load_hero_list(
         .bind(final_cri_def)
         .bind(final_add_dmg)
         .bind(final_drop_dmg)
+        .bind(0) // normal_dmg
         .execute(&mut **tx)
         .await?;
 
@@ -4190,8 +4191,8 @@ pub async fn load_starter_mail(tx: &mut Transaction<'_, Sqlite>, uid: i64) -> sq
         "INSERT INTO user_mails (
             incr_id, user_id, mail_id, params, attachment, state, create_time,
             sender, title, content, copy, expire_time, sender_type,
-            jump_title, jump
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            jump_title, jump, is_lock
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(base_incr_id)           // 1
     .bind(uid)                     // 2
@@ -4208,6 +4209,8 @@ pub async fn load_starter_mail(tx: &mut Transaction<'_, Sqlite>, uid: i64) -> sq
     .bind(2)                       // 13 - sender_type
     .bind("")                      // 14 - jump_title
     .bind("")                      // 15 - jump
+    .bind(0)                       // 16 - is_lock
+
     .execute(&mut **tx)
     .await?;
 

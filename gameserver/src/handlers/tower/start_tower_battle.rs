@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
-    generate_initial_deck,
+    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, create_battle,
+    default_max_ap, generate_initial_deck,
 };
 use config::configs;
 use prost::Message;
@@ -78,12 +78,27 @@ pub async fn on_start_tower_battle(
         max_ap,
     };
 
-    let card_push = generate_initial_deck(&pool, player_id, &fight_group, max_ap).await?;
+    let mut card_push = generate_initial_deck(&pool, player_id, &fight_group, max_ap).await?;
 
-    let card_deck = card_push.card_group.clone();
+    // Initial round should use raw dealt cards.
+    let card_deck = card_push.deal_card_group.clone();
 
-    let (modified_fight, initial_round, fight_data_mgr, ai_deck) =
+    let (initial_round, fight_data_mgr, ai_deck) =
         create_battle(&pool, battle_ctx, &fight_group, card_deck.clone()).await?;
+    // Authoritative post-start deck = pushed opening hand + opening temp/special additions.
+    let mut push_round = initial_round.clone();
+    push_round.team_a_cards1 = card_push.card_group.clone();
+    let final_cards = apply_opening_deck(&mut push_round);
+    card_push.card_group = final_cards.clone();
+
+    let fight_snapshot = fight_data_mgr
+        .pre_fight
+        .clone()
+        .unwrap_or_else(|| fight_data_mgr.fight().clone()); // pre-sync fight
+    // intial fight object with no passive changes
+
+    let fight_for_battle = fight_data_mgr.fight().clone(); // post-sync fight
+    // final fight object with passive changes applied
 
     {
         let mut conn = ctx.lock().await;
@@ -95,11 +110,11 @@ pub async fn on_start_tower_battle(
             chapter_id,
             difficulty: Some(difficulty),
             talent_plan_id: Some(talent_plan_id),
-            fight: Some(modified_fight.clone()),
+            fight: Some(fight_for_battle),
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            current_deck: card_deck,
+            current_deck: final_cards,
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,
@@ -110,14 +125,9 @@ pub async fn on_start_tower_battle(
         });
     }
 
-    {
-        let mut conn = ctx.lock().await;
-        conn.notify(CmdId::CardInfoPushCmd, card_push).await?;
-    }
-
     let start_reply = StartTowerBattleReply {
         start_dungeon_reply: Some(StartDungeonReply {
-            fight: Some(modified_fight),
+            fight: Some(fight_snapshot),
             round: Some(initial_round),
         }),
         r#type: Some(dungeon_type),
@@ -148,6 +158,11 @@ pub async fn on_start_tower_battle(
 
     conn.send_reply(CmdId::StartTowerBattleCmd, start_reply, 0, req.up_tag)
         .await?;
+
+    {
+        let mut conn = ctx.lock().await;
+        conn.notify(CmdId::CardInfoPushCmd, card_push).await?;
+    }
 
     Ok(())
 }

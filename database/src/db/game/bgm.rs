@@ -57,14 +57,14 @@ pub async fn set_active_bgm(pool: &SqlitePool, player_id: i64, bgm_id: i32) -> a
             .fetch_optional(&mut *tx)
             .await?;
 
-    if let Some(old) = old_bgm {
-        if old != bgm_id {
-            sqlx::query("UPDATE user_bgm SET is_favorite = 0 WHERE player_id = ? AND bgm_id = ?")
-                .bind(player_id)
-                .bind(old)
-                .execute(&mut *tx)
-                .await?;
-        }
+    if let Some(old) = old_bgm
+        && old != bgm_id
+    {
+        sqlx::query("UPDATE user_bgm SET is_favorite = 0 WHERE player_id = ? AND bgm_id = ?")
+            .bind(player_id)
+            .bind(old)
+            .execute(&mut *tx)
+            .await?;
     }
 
     sqlx::query(

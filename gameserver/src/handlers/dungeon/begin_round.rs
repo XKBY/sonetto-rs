@@ -41,10 +41,15 @@ pub async fn on_begin_round(
         ai_deck,
         fight_data_mgr,
     ) = {
-        let conn = ctx.lock().await;
+        let mut conn = ctx.lock().await;
         let battle = conn
             .active_battle
-            .as_ref()
+            .as_mut()
+            .ok_or(AppError::InvalidRequest)?;
+
+        let mgr = battle
+            .fight_data_mgr
+            .take()
             .ok_or(AppError::InvalidRequest)?;
 
         (
@@ -57,7 +62,7 @@ pub async fn on_begin_round(
             battle.current_round,
             battle.multiplication.unwrap_or(1),
             battle.ai_deck.clone(),
-            battle.fight_data_mgr.clone().unwrap_or_default(),
+            mgr,
         )
     };
 
@@ -70,25 +75,38 @@ pub async fn on_begin_round(
     };
 
     let mut simulator = BattleSimulator::new(fight_data_mgr);
-    let mut round = simulator
-        .process_round(request.opers.clone(), current_deck, ai_deck)
-        .await?;
 
-    // Auto-complete battle for now
-    round.is_finish = Some(true);
+    let round_num_played = round_num;
+    let round = simulator
+        .process_round(request.opers.clone(), current_deck, ai_deck, None)
+        .await?;
+    let fight_data_mgr = simulator.into_data();
+    let is_finish = round.is_finish.unwrap_or(false);
+    let simulator_next_round = round
+        .cur_round
+        .unwrap_or(round_num_played.saturating_add(1));
+    let next_round_num = simulator_next_round.max(round_num_played.saturating_add(1));
     let record_round = round.cur_round.unwrap_or(1);
+
+    {
+        let mut conn = ctx.lock().await;
+        let battle = conn
+            .active_battle
+            .as_mut()
+            .ok_or(AppError::InvalidRequest)?;
+        battle.fight_data_mgr = Some(fight_data_mgr);
+        battle.current_round = next_round_num;
+    }
 
     tracing::info!(
         "Round result: {} steps, {} cards, round={}, finish={}",
         round.fight_step.len(),
         round.team_a_cards1.len(),
         record_round,
-        round.is_finish.unwrap_or(false)
+        is_finish
     );
 
-    let reply = BeginRoundReply {
-        round: Some(round.clone()),
-    };
+    let reply = BeginRoundReply { round: Some(round) };
 
     {
         let mut conn = ctx.lock().await;
@@ -103,12 +121,24 @@ pub async fn on_begin_round(
             player_id,
             episode_id,
             battle_id,
-            round_num,
+            round_num_played,
             vec![], // TODO: Extract cloth_skill_opers from request
             request.opers,
         )
         .await?;
+    }
 
+    if !is_finish {
+        tracing::info!(
+            "Round ongoing: episode={}, played_round={}, next_round={}",
+            episode_id,
+            round_num_played,
+            next_round_num
+        );
+        return Ok(());
+    }
+
+    if !is_replay {
         // Update player's dungeon progress
         let stars_earned = 2; // TODO: Calculate based on performance
         update_dungeon_progress(&pool, player_id, chapter_id, episode_id, stars_earned).await?;

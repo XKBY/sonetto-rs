@@ -24,6 +24,7 @@ pub async fn on_get_command_post_info(
         gain_bonus,
         paper: Some(info.paper),
         catch_num: Some(info.catch_num),
+        character_state: Vec::new(),
     };
 
     let mut conn = ctx.lock().await;

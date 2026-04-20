@@ -124,10 +124,11 @@ pub async fn on_login(
             i32,
             String,
             String,
+            bool,
         )> = sqlx::query_as(
             "SELECT incr_id, mail_id, params, attachment, state, create_time,
                     sender, title, content, copy, expire_time, sender_type,
-                    jump_title, jump
+                    jump_title, jump, is_lock
              FROM user_mails
              WHERE user_id = ? AND state = 0 AND (expire_time = 0 OR expire_time > ?)",
         )
@@ -153,6 +154,7 @@ pub async fn on_login(
             sender_type,
             jump_title,
             jump,
+            is_lock,
         ) in new_mails.clone()
         {
             let mail = Mail {
@@ -170,6 +172,7 @@ pub async fn on_login(
                 sender_type: Some(sender_type),
                 jump_title: Some(jump_title),
                 jump: Some(jump),
+                is_lock: Some(is_lock),
             };
 
             let mut conn = ctx.lock().await;

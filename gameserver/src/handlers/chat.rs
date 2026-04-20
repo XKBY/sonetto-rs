@@ -4,9 +4,9 @@ use crate::state::ConnectionContext;
 use database::db::game::{friends, player_infos::get_player_info_data};
 use prost::Message;
 use sonettobuf::{
-    ChatMsg, ChatMsgPush, CmdId, DeleteOfflineMsgReply, FriendInfo, GetApplyListReply,
-    GetBlacklistReply, GetFriendInfoListReply, GetRecommendedFriendsReply, LoadFriendInfosReply,
-    SendMsgReply, SendMsgRequest,
+    ChatMsg, ChatMsgPush, CmdId, DeleteOfflineMsgReply, FriendExtInfo, FriendInfo,
+    GetApplyListReply, GetBlacklistReply, GetFriendInfoListReply, GetRecommendedFriendsReply,
+    LoadFriendInfosReply, SendMsgReply, SendMsgRequest,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -163,13 +163,7 @@ pub async fn on_get_friend_info_list(
 
     let friends = vec![FriendInfo {
         user_id: Some(1337),
-        level: Some(80),
-        time: None, //setting a time actually makes you appear offline
-        name: Some("Sonetto Bot".to_string()),
-        portrait: Some(171805),
-        desc: Some("".to_string()),
-        infos: vec![], //this is where you friends hero profile would appear but we don't need that for a bot
-        bg: None,      // ig this is the background
+        state: None,
     }];
 
     let reply = GetFriendInfoListReply { info: friends };
@@ -242,16 +236,12 @@ pub async fn on_get_recommended_friends(
     ctx: Arc<Mutex<ConnectionContext>>,
     req: ClientPacket,
 ) -> Result<(), AppError> {
-    let now = common::time::ServerTime::now_ms();
-    let friends = vec![FriendInfo {
-        user_id: Some(1337),
-        level: Some(80),
-        time: Some(now as u64),
-        name: Some("Sonetto Bot".to_string()),
-        portrait: Some(171603),
-        desc: Some("Server commands sent here".to_string()),
-        infos: vec![],
-        bg: None,
+    let friends = vec![FriendExtInfo {
+        friend_info: Some(FriendInfo {
+            user_id: Some(1337),
+            state: None,
+        }),
+        player_card_ext_info: None,
     }];
 
     let reply = GetRecommendedFriendsReply {

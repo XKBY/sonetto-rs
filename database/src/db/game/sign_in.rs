@@ -488,12 +488,12 @@ pub async fn get_birthday_heroes_today(pool: &SqlitePool, user_id: i64) -> Resul
 
     for character in &characters.clone() {
         // Parse roleBirthday format "10/23" -> month=10, day=23
-        if let Some((month_str, day_str)) = character.role_birthday.split_once('/') {
-            if let (Ok(month), Ok(day)) = (month_str.parse::<u32>(), day_str.parse::<u32>()) {
-                if month == current_month && day == current_day {
-                    birthday_hero_ids.push(character.id);
-                }
-            }
+        if let Some((month_str, day_str)) = character.role_birthday.split_once('/')
+            && let (Ok(month), Ok(day)) = (month_str.parse::<u32>(), day_str.parse::<u32>())
+            && month == current_month
+            && day == current_day
+        {
+            birthday_hero_ids.push(character.id);
         }
     }
 

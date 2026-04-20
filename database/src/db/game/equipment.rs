@@ -142,7 +142,7 @@ pub async fn add_equipment(
         is_lock = false;
     }
 
-    let is_stackable = matches!(equip_id, 1002 | 1003 | 1004 | 1005);
+    let is_stackable = matches!(equip_id, 1002..=1005);
 
     let mut uids = Vec::new();
 
@@ -292,7 +292,7 @@ pub async fn add_equipments(
     let mut changed_uids = Vec::new();
 
     for (equip_id, count) in equips {
-        let is_stackable = matches!(*equip_id, 1002 | 1003 | 1004 | 1005);
+        let is_stackable = matches!(*equip_id, 1002..=1005);
 
         if is_stackable {
             if let Some(uid) = sqlx::query_scalar::<_, i64>(

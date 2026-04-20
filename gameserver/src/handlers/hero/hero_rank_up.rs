@@ -274,7 +274,7 @@ pub async fn on_hero_rank_up(
         conn.notify(
             CmdId::HeroHeroUpdatePushCmd,
             HeroUpdatePush {
-                hero_updates: vec![updated_hero_info.into()],
+                hero_updates: vec![updated_hero_info],
             },
         )
         .await?;

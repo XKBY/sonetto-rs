@@ -28,6 +28,7 @@ pub struct PlayerCardInfo {
     pub weekwalk_ver2_platinum_cup: i32,
     pub hero_count: i32,
     pub tower_layer_metre: i32,
+    pub act128_level: i32,
 }
 
 impl From<PlayerCardInfo> for sonettobuf::PlayerCardInfo {
@@ -64,6 +65,7 @@ impl From<PlayerCardInfo> for sonettobuf::PlayerCardInfo {
             weekwalk_ver2_platinum_cup: Some(p.weekwalk_ver2_platinum_cup),
             hero_count: Some(p.hero_count),
             tower_layer_metre: Some(p.tower_layer_metre),
+            act128_level: Some(p.act128_level),
         }
     }
 }

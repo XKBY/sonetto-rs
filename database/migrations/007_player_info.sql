@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS player_info (
     hero_rare_sr_count INTEGER NOT NULL DEFAULT 0,
     hero_rare_ssr_count INTEGER NOT NULL DEFAULT 0,
 
+    tower_layer_metre INTEGER NOT NULL DEFAULT 0,
+
     -- Timestamps
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

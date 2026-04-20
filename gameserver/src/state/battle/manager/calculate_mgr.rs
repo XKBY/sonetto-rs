@@ -1,32 +1,45 @@
 use sonettobuf::{
-    ActEffect, Fight, FightExPointInfo, FightHeroSpAttributeInfo, FightStep, HeroSpAttribute,
-    PlayerSkillInfo,
+    ActEffect, Fight, FightHeroSpAttributeInfo, FightStep, HeroSpAttribute, PlayerSkillInfo,
 };
-use std::sync::Arc;
 
-use crate::state::battle::{
-    effects::effect_types::EffectType,
+use super::super::{
     manager::{
         buff_mgr::BuffMgr,
         entity_mgr::{FightEntityDataMgr, get_entity_mut_by_location},
+        ex_point_mgr::ExPointMgr,
     },
     mechanics::bloodtithe::BloodtitheState,
+    types::{buff::BuffLayerType, effects::EffectType},
+    utils::buff_get_ex_point_overflow,
 };
+
+use super::traits::Manager;
 
 #[derive(Default, Debug, Clone)]
 pub struct FightCalculateDataMgr {
-    fight: Arc<Fight>,
     entity_mgr: FightEntityDataMgr,
     buff_mgr: BuffMgr,
+    pub pending_effects: Vec<ActEffect>,
 }
 
 impl FightCalculateDataMgr {
-    pub fn new(fight: Arc<Fight>) -> Self {
+    const MAX_NESTED_STEP_DEPTH: usize = 256;
+
+    pub fn new(fight: &Fight) -> Self {
         Self {
-            fight: fight.clone(),
-            entity_mgr: FightEntityDataMgr::new(fight.clone()),
+            entity_mgr: FightEntityDataMgr::new(fight),
             buff_mgr: BuffMgr::new(),
+            pending_effects: Vec::new(),
         }
+    }
+
+    pub fn update_cache(&mut self, fight: &Fight) {
+        self.entity_mgr.rebuild_cache(fight);
+    }
+
+    #[allow(dead_code)]
+    pub fn take_pending_effects(&mut self) -> Vec<ActEffect> {
+        std::mem::take(&mut self.pending_effects)
     }
 
     pub fn play_step_data(
@@ -35,22 +48,48 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
+        ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
-        for effect in &step.act_effect {
-            self.play_act_effect_data(effect, fight, bloodtithe, buff_mgr)?;
-        }
-        Ok(())
-    }
-
-    pub fn play_step_data_list(
-        &mut self,
-        steps: &[FightStep],
-        fight: &mut Fight,
-        bloodtithe: &mut BloodtitheState,
-        buff_mgr: &mut BuffMgr,
-    ) -> Result<(), String> {
-        for step in steps {
-            self.play_step_data(step, fight, bloodtithe, buff_mgr)?;
+        let mut stack: Vec<(&FightStep, usize)> = vec![(step, 0)];
+        while let Some((current, depth)) = stack.pop() {
+            for effect in current.act_effect.iter().rev() {
+                if let Some(nested) = effect.fight_step.as_ref() {
+                    if depth >= Self::MAX_NESTED_STEP_DEPTH {
+                        tracing::warn!(
+                            "play_step_data nested depth limit reached (depth={} effect_type={:?})",
+                            depth,
+                            effect.effect_type
+                        );
+                        continue;
+                    }
+                    stack.push((nested, depth + 1));
+                    continue;
+                }
+                let is_bloodpool_delta =
+                    effect.effect_type == Some(EffectType::BloodPoolValueChange as i32);
+                let use_accumulator_only_bloodtithe_sync = current.act_effect.iter().any(|sibling| {
+                    sibling.effect_type == Some(EffectType::BloodPoolValueChange as i32)
+                        && sibling.effect_num1.unwrap_or(0) > 0
+                });
+                let pre_pool = is_bloodpool_delta.then(|| {
+                    let team_type = effect.team_type.or(effect.effect_num).unwrap_or(1);
+                    (
+                        team_type,
+                        bloodtithe.get_value(team_type),
+                        bloodtithe.get_max(team_type),
+                        bloodtithe.get_acc(team_type),
+                    )
+                });
+                self.play_non_nested_effect_data(
+                    effect,
+                    fight,
+                    bloodtithe,
+                    buff_mgr,
+                    ex_point_mgr,
+                    use_accumulator_only_bloodtithe_sync,
+                )?;
+                let _ = pre_pool;
+            }
         }
         Ok(())
     }
@@ -61,16 +100,45 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
+        ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
         if let Some(ref nested) = effect.fight_step {
-            return self.play_step_data(nested, fight, bloodtithe, buff_mgr);
+            return self.play_step_data(nested, fight, bloodtithe, buff_mgr, ex_point_mgr);
         }
 
+        self.play_non_nested_effect_data(
+            effect,
+            fight,
+            bloodtithe,
+            buff_mgr,
+            ex_point_mgr,
+            false,
+        )
+    }
+
+    fn play_non_nested_effect_data(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+        bloodtithe: &mut BloodtitheState,
+        buff_mgr: &mut BuffMgr,
+        ex_point_mgr: &mut ExPointMgr,
+        use_accumulator_only_bloodtithe_sync: bool,
+    ) -> Result<(), String> {
         let effect_type = EffectType::from(effect.effect_type.unwrap_or(0));
 
         match effect_type {
             // Just ignore
-            EffectType::None | EffectType::FightStep | EffectType::MasterHalo => Ok(()),
+            EffectType::None
+            | EffectType::FightStep
+            | EffectType::MasterHalo
+            | EffectType::SlaveHalo
+            | EffectType::Attr
+            | EffectType::Cure
+            | EffectType::CureUpByLostHp
+            | EffectType::MonsterLabelBuff
+            | EffectType::TeammateInjuryCount
+            | EffectType::ExPointOverflowBank => Ok(()),
 
             EffectType::Damage
             | EffectType::Crit
@@ -87,41 +155,63 @@ impl FightCalculateDataMgr {
             | EffectType::AdditionalDamageCrit
             | EffectType::ShareHurt
             | EffectType::EnchantDepresseDamage => {
-                self.play_effect_damage(effect, fight, bloodtithe)
+                self.play_effect_damage(
+                    effect,
+                    fight,
+                    bloodtithe,
+                    buff_mgr,
+                    ex_point_mgr,
+                    use_accumulator_only_bloodtithe_sync,
+                )
             }
 
             EffectType::Heal
             | EffectType::Bloodlust
             | EffectType::InjuryBankHeal
-            | EffectType::SubHeroLifeChange => self.play_effect_heal(effect, fight),
+            | EffectType::SubHeroLifeChange => self.play_effect_heal(effect, fight, ex_point_mgr),
 
-            EffectType::BuffAdd => self.play_effect_add_buff(effect),
+            EffectType::BuffAdd => self.play_effect_add_buff(effect, buff_mgr),
 
             EffectType::Dead => self.play_effect_death(effect, fight),
             EffectType::Kill => self.play_effect_kill(effect, fight),
 
             EffectType::Shield => self.play_effect_shield(effect, fight),
+            EffectType::ShieldDel => self.play_effect_shield_del(effect, fight),
 
             EffectType::AverageLife => self.play_effect_set_hp(effect, fight),
-            EffectType::MaxHpChange => self.play_effect_set_max_hp(effect, fight),
-            EffectType::CurrentHpChange => self.play_effect_set_current_hp(effect, fight),
-
-            EffectType::AddExPoint | EffectType::ExPointChange => {
-                self.play_effect_add_ex_point(effect, fight)
+            EffectType::MaxHpChange => self.play_effect_set_max_hp(effect, fight, ex_point_mgr),
+            EffectType::CurrentHpChange => {
+                self.play_effect_set_current_hp(effect, fight, bloodtithe, ex_point_mgr)
             }
 
-            EffectType::BloodPoolMaxCreate => self.play_effect_bloodtithe_enable(effect),
-            EffectType::BloodPoolMaxChange => self.play_effect_bloodtithe_max(effect),
-            EffectType::BloodPoolValueChange => self.play_effect_bloodtithe_value(effect),
+            EffectType::AddExPoint | EffectType::ExPointChange => {
+                self.play_effect_add_ex_point(effect, fight, buff_mgr, ex_point_mgr)
+            }
+
+            EffectType::ExPointDel => self.play_effect_del_ex_point(effect, fight, ex_point_mgr),
+
+            EffectType::BloodPoolMaxCreate => {
+                self.play_effect_bloodtithe_enable(effect, bloodtithe)
+            }
+            EffectType::BloodPoolMaxChange => self.play_effect_bloodtithe_max(effect, bloodtithe),
+            EffectType::BloodPoolValueChange => {
+                self.play_effect_bloodtithe_value(effect, bloodtithe)
+            }
+            EffectType::MagicCircleAdd => self.play_effect_magic_circle_add(effect, fight),
+            EffectType::MagicCircleDelete => self.play_effect_magic_circle_delete(effect, fight),
 
             EffectType::FightHurtDetail => self.play_effect_fight_hurt_detail(effect, fight),
 
-            // TODO
-            EffectType::EnterFightDeal
-            | EffectType::Attr
-            | EffectType::TeammateInjuryCount
-            | EffectType::ExPointOverflowBank
-            | EffectType::Cure
+            EffectType::BuffDel | EffectType::BuffDelNoEffect => {
+                self.play_effect_del_buff(effect, buff_mgr)
+            }
+            EffectType::BuffUpdate => self.play_effect_update_buff(effect, buff_mgr),
+            EffectType::PowerChange => self.play_effect_power_change(effect, fight),
+
+            // Client-only display effects — no server state change needed
+            EffectType::BuffAddNoEffect
+            | EffectType::UseCards
+            | EffectType::EnterFightDeal
             | EffectType::CardsPush
             | EffectType::CardDeckNum => Ok(()),
 
@@ -137,6 +227,9 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
+        buff_mgr: &mut BuffMgr,
+        ex_point_mgr: &mut ExPointMgr,
+        use_accumulator_only_bloodtithe_sync: bool,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let damage = effect.effect_num.ok_or("No damage amount")?;
@@ -145,24 +238,57 @@ impl FightCalculateDataMgr {
             .entity_mgr
             .get_location(target_id)
             .ok_or_else(|| format!("Entity {} not found", target_id))?;
-
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
-        let current_hp = entity.current_hp.unwrap_or(0);
-        entity.current_hp = Some((current_hp - damage).max(0));
+        let shield = entity.shield_value.unwrap_or(0);
+        let shield_absorbed = damage.min(shield);
+        let hp_damage = damage - shield_absorbed;
 
-        if let Some(team_type) = entity.team_type
-            && damage > 0
+        entity.shield_value = Some(shield - shield_absorbed);
+
+        let current_hp = entity.current_hp.unwrap_or(0);
+        entity.current_hp = Some((current_hp - hp_damage).max(0));
+
+        // sync to ex_point_mgr
+        ex_point_mgr.apply_damage(target_id, hp_damage);
+
+        if hp_damage > 0
+            && bloodtithe.initialized
+            && let Some(team_type) = entity.team_type
         {
-            bloodtithe.on_hp_lost(target_id, team_type, damage);
+            if use_accumulator_only_bloodtithe_sync {
+                let previous_value = bloodtithe.get_value(team_type);
+                let _ = bloodtithe.on_hp_lost(target_id, team_type, hp_damage);
+                bloodtithe.set_value(team_type, previous_value);
+            } else {
+                let _ = bloodtithe.on_hp_lost(target_id, team_type, hp_damage);
+            }
         }
 
-        tracing::trace!("Damage applied: target={}, damage={}", target_id, damage);
+        tracing::trace!(
+            "Damage applied: target={} damage={} shield_absorbed={} hp_damage={}",
+            target_id,
+            damage,
+            shield_absorbed,
+            hp_damage
+        );
+
+        // NOTE:
+        // Drop-damage stack decay is driven by passive/effect skills in live flow
+        // (e.g. wrapper-triggered consume behaviors), not by a generic damage hook.
+        // Applying it here causes double-consume and diverges update-vs-delete order.
+        let _ = (buff_mgr, target_id);
+
         Ok(())
     }
 
-    fn play_effect_heal(&mut self, effect: &ActEffect, fight: &mut Fight) -> Result<(), String> {
+    fn play_effect_heal(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+        ex_point_mgr: &mut ExPointMgr,
+    ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let heal = effect.effect_num.ok_or("No heal amount")?;
 
@@ -180,20 +306,58 @@ impl FightCalculateDataMgr {
             .as_ref()
             .and_then(|a| a.hp)
             .unwrap_or(current_hp);
-        entity.current_hp = Some((current_hp + heal).min(max_hp));
+        let new_hp = (current_hp + heal).min(max_hp);
+        entity.current_hp = Some(new_hp);
 
-        tracing::trace!("Heal applied: target={}, heal={}", target_id, heal);
+        // sync to ex_point_mgr
+        ex_point_mgr.set_hp(target_id, new_hp);
+
+        tracing::trace!(
+            "Heal applied: target={}, heal={}, new_hp={}",
+            target_id,
+            heal,
+            new_hp
+        );
         Ok(())
     }
 
-    fn play_effect_add_buff(&mut self, effect: &ActEffect) -> Result<(), String> {
+    fn play_effect_add_buff(
+        &mut self,
+        effect: &ActEffect,
+        buff_mgr: &mut BuffMgr,
+    ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
+
         let buff_id = effect.effect_num.ok_or("No buff ID")?;
 
         let from_uid = effect.buff.as_ref().and_then(|b| b.from_uid).unwrap_or(0);
 
-        self.buff_mgr.add_buff(target_id, buff_id, from_uid);
+        let count = effect.buff.as_ref().and_then(|b| b.count).unwrap_or(0);
+        let layer = effect.buff.as_ref().and_then(|b| b.layer).unwrap_or(0);
+        let buff_uid = effect.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
 
+        if buff_uid != 0 {
+            buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+        } else {
+            buff_mgr.add(target_id, buff_id, from_uid, count, layer);
+        }
+        Ok(())
+    }
+
+    fn play_effect_update_buff(
+        &mut self,
+        effect: &ActEffect,
+        buff_mgr: &mut BuffMgr,
+    ) -> Result<(), String> {
+        let target_id = effect.target_id.ok_or("No target ID")?;
+        let buff = effect.buff.as_ref().ok_or("No buff data")?;
+        let buff_id = buff.buff_id.ok_or("No buff ID")?;
+        let buff_uid = buff.uid.ok_or("No buff UID")?;
+        let from_uid = buff.from_uid.unwrap_or(0);
+        let count = buff.count.unwrap_or(0);
+        let layer = buff.layer.unwrap_or(0);
+
+        buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
         Ok(())
     }
 
@@ -209,7 +373,7 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
         entity.current_hp = Some(0);
-        self.buff_mgr.clear_dead(target_id);
+        self.buff_mgr.clear(target_id);
 
         tracing::trace!("Entity died: target={}", target_id);
         Ok(())
@@ -227,18 +391,49 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
         entity.current_hp = Some(0);
-        self.buff_mgr.clear_dead(target_id);
+        self.buff_mgr.clear(target_id);
 
         tracing::trace!("Entity killed: target={}", target_id);
         Ok(())
     }
 
-    fn play_effect_shield(&mut self, effect: &ActEffect, _fight: &mut Fight) -> Result<(), String> {
+    fn play_effect_shield(&mut self, effect: &ActEffect, fight: &mut Fight) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let shield = effect.effect_num.ok_or("No shield amount")?;
 
-        tracing::trace!("Shield applied: target={}, shield={}", target_id, shield);
-        // TODO: Add shield to entity
+        let location = self
+            .entity_mgr
+            .get_location(target_id)
+            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let entity = get_entity_mut_by_location(fight, location)
+            .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
+
+        let current = entity.shield_value.unwrap_or(0);
+        entity.shield_value = Some(current + shield);
+
+        tracing::trace!(
+            "Shield applied: target={} +{} => {}",
+            target_id,
+            shield,
+            current + shield
+        );
+        Ok(())
+    }
+
+    fn play_effect_shield_del(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+    ) -> Result<(), String> {
+        let target_id = effect.target_id.ok_or("No target ID")?;
+        let location = self
+            .entity_mgr
+            .get_location(target_id)
+            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let entity = get_entity_mut_by_location(fight, location)
+            .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
+        entity.shield_value = Some(0);
+        tracing::trace!("Shield removed: target={}", target_id);
         Ok(())
     }
 
@@ -263,6 +458,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
+        ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let max_hp = effect.effect_num.ok_or("No max HP amount")?;
@@ -278,12 +474,11 @@ impl FightCalculateDataMgr {
         if let Some(attr) = entity.attr.as_mut() {
             attr.hp = Some(max_hp);
         }
-
         if let Some(base) = entity.base_attr.as_mut() {
             base.hp = Some(max_hp);
         }
 
-        tracing::trace!("Max HP set: target={}, max_hp={}", target_id, max_hp);
+        ex_point_mgr.set_max_hp(target_id, max_hp);
         Ok(())
     }
 
@@ -291,20 +486,109 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
+        bloodtithe: &mut BloodtitheState,
+        ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
-        self.play_effect_set_hp(effect, fight)
+        let target_id = effect.target_id.ok_or("No target ID")?;
+        let hp = effect.effect_num.ok_or("No HP amount")?;
+        let location = self
+            .entity_mgr
+            .get_location(target_id)
+            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let entity = get_entity_mut_by_location(fight, location)
+            .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
+        let current_hp = entity.current_hp.unwrap_or(0);
+        entity.current_hp = Some(hp);
+        ex_point_mgr.set_hp(target_id, hp);
+        if bloodtithe.initialized
+            && hp < current_hp
+            && let Some(team_type) = entity.team_type
+        {
+            let _ = bloodtithe.on_hp_lost(target_id, team_type, current_hp - hp);
+        }
+        Ok(())
     }
 
     fn play_effect_add_ex_point(
         &mut self,
         effect: &ActEffect,
-        _fight: &mut Fight,
+        fight: &mut Fight,
+        buff_mgr: &BuffMgr,
+        ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
-        let ex_point = effect.effect_num.unwrap_or(0);
+        let offset = effect.effect_num.unwrap_or(0);
 
-        tracing::trace!("EX point added: target={}, amount={}", target_id, ex_point);
-        // TODO: Add EX points to entity
+        let overflow_bonus = buff_mgr
+            .get(target_id)
+            .iter()
+            .find_map(|b| buff_get_ex_point_overflow(b.buff_id))
+            .unwrap_or(0);
+
+        let location = self
+            .entity_mgr
+            .get_location(target_id)
+            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let entity = get_entity_mut_by_location(fight, location)
+            .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
+
+        let base_max = match entity.ex_point_type.unwrap_or(0) {
+            0 => 5,
+            1 => 8,
+            _ => 0,
+        };
+        let max_ex = base_max + overflow_bonus;
+        let old = entity.ex_point.unwrap_or(0);
+        let new = if base_max > 0 {
+            (old + offset).min(max_ex)
+        } else {
+            old + offset
+        };
+        entity.ex_point = Some(new);
+
+        // sync to ex_point_mgr
+        ex_point_mgr.add_ex_point(target_id, new - old);
+
+        tracing::info!(
+            "EX changed: uid={} {} -> {} (offset={} max={})",
+            target_id,
+            old,
+            new,
+            offset,
+            max_ex
+        );
+        Ok(())
+    }
+
+    fn play_effect_del_ex_point(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+        ex_point_mgr: &mut ExPointMgr,
+    ) -> Result<(), String> {
+        let target_id = effect.target_id.ok_or("No target ID")?;
+        let amount = effect.effect_num.unwrap_or(0);
+
+        let location = self
+            .entity_mgr
+            .get_location(target_id)
+            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let entity = get_entity_mut_by_location(fight, location)
+            .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
+
+        let old = entity.ex_point.unwrap_or(0);
+        let new = (old - amount).max(0);
+        entity.ex_point = Some(new);
+
+        ex_point_mgr.set_ex_point(target_id, new);
+
+        tracing::info!(
+            "EX consumed: uid={} {} -> {} (amount={})",
+            target_id,
+            old,
+            new,
+            amount
+        );
         Ok(())
     }
 
@@ -321,85 +605,168 @@ impl FightCalculateDataMgr {
         Ok(())
     }
 
-    fn play_effect_bloodtithe_enable(&mut self, effect: &ActEffect) -> Result<(), String> {
+    fn play_effect_bloodtithe_enable(
+        &mut self,
+        effect: &ActEffect,
+        bloodtithe: &mut BloodtitheState,
+    ) -> Result<(), String> {
         let team_type = effect.team_type.unwrap_or(1);
+        bloodtithe.initialized = true;
         tracing::trace!("Bloodtithe enabled: team={}", team_type);
         Ok(())
     }
 
-    fn play_effect_bloodtithe_max(&mut self, effect: &ActEffect) -> Result<(), String> {
+    fn play_effect_bloodtithe_max(
+        &mut self,
+        effect: &ActEffect,
+        bloodtithe: &mut BloodtitheState,
+    ) -> Result<(), String> {
         let team_type = effect.team_type.unwrap_or(1);
         let max = effect.effect_num1.unwrap_or(0);
-        tracing::trace!("Bloodtithe max: team={}, max={}", team_type, max);
+        bloodtithe.set_max(team_type, bloodtithe.get_max(team_type).max(max));
+        tracing::trace!("Bloodtithe max set: team={}, max={}", team_type, max);
         Ok(())
     }
 
-    fn play_effect_bloodtithe_value(&mut self, effect: &ActEffect) -> Result<(), String> {
-        let target_id = effect.target_id.unwrap_or(0);
-        let value = effect.effect_num.unwrap_or(0);
-        tracing::trace!("Bloodtithe value: target={}, value={}", target_id, value);
+    fn play_effect_bloodtithe_value(
+        &mut self,
+        effect: &ActEffect,
+        bloodtithe: &mut BloodtitheState,
+    ) -> Result<(), String> {
+        let team_type = effect.team_type.unwrap_or(1);
+        let effect_num = effect.effect_num.unwrap_or(0);
+        let effect_num1 = effect.effect_num1.unwrap_or(0);
+
+        // effectNum=team_type, effectNum1=delta (gain or consume)
+        // legacy absolute-set packets encode the value in effectNum with effectNum1=0
+        if effect_num == 1 && effect_num1 != 0 {
+            let current = bloodtithe.get_value(team_type);
+            let next = (current + effect_num1).max(0);
+            if effect_num1 > 0 && next > bloodtithe.get_max(team_type) {
+                bloodtithe.set_max(team_type, next);
+            }
+            bloodtithe.set_value(team_type, next);
+        } else {
+            // legacy absolute set
+            bloodtithe.set_value(team_type, effect_num);
+        }
         Ok(())
     }
 
-    pub fn update_fight(&mut self, fight: Arc<Fight>) {
-        self.fight = fight.clone();
-        self.entity_mgr.update_fight(fight);
+    fn play_effect_magic_circle_add(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+    ) -> Result<(), String> {
+        let magic_circle = effect
+            .magic_circle
+            .clone()
+            .ok_or("No magic circle info")?;
+        fight.magic_circle = Some(magic_circle);
+        Ok(())
+    }
+
+    fn play_effect_magic_circle_delete(
+        &mut self,
+        _effect: &ActEffect,
+        fight: &mut Fight,
+    ) -> Result<(), String> {
+        fight.magic_circle = None;
+        Ok(())
+    }
+
+    fn play_effect_del_buff(
+        &mut self,
+        effect: &ActEffect,
+        buff_mgr: &mut BuffMgr,
+    ) -> Result<(), String> {
+        let target_id = effect.target_id.ok_or("No target ID")?;
+        let buff_uid = effect.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
+        buff_mgr.remove_by_uid(target_id, buff_uid);
+        Ok(())
+    }
+
+    fn play_effect_power_change(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+    ) -> Result<(), String> {
+        let amount = effect.effect_num.unwrap_or(0);
+        if let Some(attacker) = fight.attacker.as_mut() {
+            let current = attacker.power.unwrap_or(0);
+            attacker.power = Some((current + amount).max(0));
+            tracing::trace!("Power change: {} -> {}", current, attacker.power.unwrap());
+        }
+        Ok(())
     }
 }
 
 impl FightCalculateDataMgr {
-    pub fn build_ex_point_info(&mut self, fight: &Fight) -> Vec<FightExPointInfo> {
-        let mut info = Vec::new();
-
-        if let Some(ref attacker) = fight.attacker {
-            for entity in &attacker.entitys {
-                info.push(FightExPointInfo {
-                    uid: entity.uid,
-                    ex_point: entity.ex_point,
-                    power_infos: vec![],
-                    current_hp: entity.current_hp,
-                    ex_point_type: if entity.model_id == Some(3120) {
-                        Some(1)
-                    } else {
-                        Some(0)
-                    },
-                });
-            }
-
-            for entity in &attacker.sub_entitys {
-                info.push(FightExPointInfo {
-                    uid: entity.uid,
-                    ex_point: entity.ex_point,
-                    power_infos: vec![],
-                    current_hp: entity.current_hp,
-                    ex_point_type: Some(0),
-                });
-            }
+    fn zero_hero_sp_attribute() -> HeroSpAttribute {
+        HeroSpAttribute {
+            revive: Some(0),
+            heal: Some(0),
+            absorb: Some(0),
+            defense_ignore: Some(0),
+            clutch: Some(0),
+            final_add_dmg: Some(0),
+            final_drop_dmg: Some(0),
+            normal_skill_rate: Some(0),
+            play_add_rate: Some(0),
+            play_drop_rate: Some(0),
+            dizzy_resistances: Some(0),
+            sleep_resistances: Some(0),
+            petrified_resistances: Some(0),
+            frozen_resistances: Some(0),
+            disarm_resistances: Some(0),
+            forbid_resistances: Some(0),
+            seal_resistances: Some(0),
+            cant_get_exskill_resistances: Some(0),
+            del_ex_point_resistances: Some(0),
+            stress_up_resistances: Some(0),
+            control_resilience: Some(0),
+            del_ex_point_resilience: Some(0),
+            stress_up_resilience: Some(0),
+            charm_resistances: Some(0),
+            rebound_dmg: Some(0),
+            extra_dmg: Some(0),
+            reuse_dmg: Some(0),
+            big_skill_rate: Some(0),
+            clutch_dmg: Some(0),
+            nowmal_dmg: Some(0),
         }
-
-        if let Some(ref defender) = fight.defender {
-            for entity in &defender.entitys {
-                info.push(FightExPointInfo {
-                    uid: entity.uid,
-                    ex_point: entity.ex_point,
-                    power_infos: vec![],
-                    current_hp: entity.current_hp,
-                    ex_point_type: Some(0),
-                });
-            }
-        }
-
-        info
     }
 
     pub fn build_hero_sp_attributes(&mut self, fight: &Fight) -> Vec<FightHeroSpAttributeInfo> {
+        let cfg = config::configs::get();
         let mut attrs = vec![];
-
         if let Some(ref defender) = fight.defender {
-            for entity in &defender.entitys {
-                attrs.push(FightHeroSpAttributeInfo {
-                    uid: entity.uid,
-                    attribute: Some(HeroSpAttribute {
+            for entity in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
+                let attribute = entity
+                    .model_id
+                    .and_then(|model_id| {
+                        cfg.monster_skill_template.iter().find(|m| m.id == model_id)
+                    })
+                    .and_then(|m| {
+                        cfg.resistances_attribute
+                            .iter()
+                            .find(|r| r.id == m.resistance)
+                    })
+                    .map(|r| HeroSpAttribute {
+                        dizzy_resistances: Some(r.dizzy),
+                        sleep_resistances: Some(r.sleep),
+                        petrified_resistances: Some(r.petrified),
+                        frozen_resistances: Some(r.frozen),
+                        disarm_resistances: Some(r.disarm),
+                        forbid_resistances: Some(r.forbid),
+                        seal_resistances: Some(r.seal),
+                        cant_get_exskill_resistances: Some(r.cant_get_exskill),
+                        charm_resistances: Some(r.charm),
+                        del_ex_point_resistances: Some(r.del_ex_point),
+                        stress_up_resistances: Some(r.stress_up),
+                        control_resilience: Some(r.control_resilience),
+                        del_ex_point_resilience: Some(r.del_ex_point_resilience),
+                        stress_up_resilience: Some(r.stress_up_resilience),
                         revive: Some(0),
                         heal: Some(0),
                         absorb: Some(0),
@@ -410,30 +777,20 @@ impl FightCalculateDataMgr {
                         normal_skill_rate: Some(0),
                         play_add_rate: Some(0),
                         play_drop_rate: Some(0),
-                        dizzy_resistances: Some(0),
-                        sleep_resistances: Some(0),
-                        petrified_resistances: Some(0),
-                        frozen_resistances: Some(0),
-                        disarm_resistances: Some(0),
-                        forbid_resistances: Some(0),
-                        seal_resistances: Some(0),
-                        cant_get_exskill_resistances: Some(0),
-                        del_ex_point_resistances: Some(0),
-                        stress_up_resistances: Some(0),
-                        control_resilience: Some(0),
-                        del_ex_point_resilience: Some(0),
-                        stress_up_resilience: Some(0),
-                        charm_resistances: Some(0),
                         rebound_dmg: Some(0),
                         extra_dmg: Some(0),
                         reuse_dmg: Some(0),
                         big_skill_rate: Some(0),
                         clutch_dmg: Some(0),
-                    }),
+                        nowmal_dmg: Some(0),
+                    })
+                    .unwrap_or_else(Self::zero_hero_sp_attribute);
+                attrs.push(FightHeroSpAttributeInfo {
+                    uid: entity.uid,
+                    attribute: Some(attribute),
                 });
             }
         }
-
         attrs
     }
 
@@ -443,13 +800,13 @@ impl FightCalculateDataMgr {
                 skill_id: Some(30010201),
                 cd: Some(0),
                 need_power: Some(40),
-                r#type: Some(0),
+                r#type: Some(BuffLayerType::Normal as i32),
             },
             PlayerSkillInfo {
                 skill_id: Some(30010202),
                 cd: Some(0),
                 need_power: Some(25),
-                r#type: Some(0),
+                r#type: Some(BuffLayerType::Normal as i32),
             },
         ]
     }

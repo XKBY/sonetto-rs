@@ -7,8 +7,9 @@ use database::{
 };
 use prost::Message;
 use sonettobuf::{
-    CmdId, GetBgmInfoReply, HeroUpdatePush, SetFavoriteBgmReply, SetFavoriteBgmRequest,
-    SetPortraitRequest, SetUseBgmReply, SetUseBgmRequest, UseSkinReply, UseSkinRequest,
+    CmdId, GetBgmInfoReply, HeroUpdatePush, PartyServerListReply, SetFavoriteBgmReply,
+    SetFavoriteBgmRequest, SetPortraitRequest, SetUseBgmReply, SetUseBgmRequest, UseSkinReply,
+    UseSkinRequest,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -181,5 +182,20 @@ pub async fn on_mark_main_thumbnail(
     conn.send_empty_reply(CmdId::MarkMainThumbnailCmd, Vec::new(), 0, req.up_tag)
         .await?;
 
+    Ok(())
+}
+
+pub async fn on_party_server_list(
+    ctx: Arc<Mutex<ConnectionContext>>,
+    req: ClientPacket,
+) -> Result<(), AppError> {
+    let mut conn = ctx.lock().await;
+    conn.send_reply(
+        CmdId::PartyServerListCmd,
+        PartyServerListReply { party_servers: vec![] },
+        0,
+        req.up_tag,
+    )
+    .await?;
     Ok(())
 }

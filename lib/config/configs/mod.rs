@@ -11,6 +11,7 @@ pub mod bp;
 pub mod bp_des;
 pub mod bp_lv_bonus;
 pub mod bp_task;
+pub mod buff_act;
 pub mod chapter;
 pub mod character;
 pub mod character_cosume;
@@ -29,26 +30,36 @@ pub mod equip_break_cost;
 pub mod equip_skill;
 pub mod equip_strengthen;
 pub mod equip_strengthen_cost;
+pub mod fight_card_choice;
+pub mod fight_const;
 pub mod guide;
 pub mod hero_trial;
 pub mod insight_item;
 pub mod item;
+pub mod magic_circle;
 pub mod monster;
+pub mod monster_group;
 pub mod monster_skill_template;
 pub mod monster_template;
 pub mod month_card;
 pub mod open;
 pub mod power_item;
+pub mod resistances_attribute;
+pub mod rule;
 pub mod skill;
 pub mod skill_behavior;
+pub mod skill_behavior_condition;
 pub mod skill_buff;
+pub mod skill_bufftype;
 pub mod skill_effect;
 pub mod skill_ex_level;
+pub mod skill_next;
 pub mod skill_passive_level;
 pub mod skin;
 pub mod store_charge_goods;
 pub mod store_charge_optional;
 pub mod store_goods;
+pub mod store_recommend;
 pub mod summon;
 pub mod summon_pool;
 pub mod talent_scheme;
@@ -68,6 +79,7 @@ pub struct GameDB {
     pub bp_des: bp_des::BpDesTable,
     pub bp_lv_bonus: bp_lv_bonus::BpLvBonusTable,
     pub bp_task: bp_task::BpTaskTable,
+    pub buff_act: buff_act::BuffActTable,
     pub chapter: chapter::ChapterTable,
     pub character: character::CharacterTable,
     pub character_cosume: character_cosume::CharacterCosumeTable,
@@ -86,26 +98,36 @@ pub struct GameDB {
     pub equip_skill: equip_skill::EquipSkillTable,
     pub equip_strengthen: equip_strengthen::EquipStrengthenTable,
     pub equip_strengthen_cost: equip_strengthen_cost::EquipStrengthenCostTable,
+    pub fight_card_choice: fight_card_choice::FightCardChoiceTable,
+    pub fight_const: fight_const::FightConstTable,
     pub guide: guide::GuideTable,
     pub hero_trial: hero_trial::HeroTrialTable,
     pub insight_item: insight_item::InsightItemTable,
     pub item: item::ItemTable,
+    pub magic_circle: magic_circle::MagicCircleTable,
     pub monster: monster::MonsterTable,
+    pub monster_group: monster_group::MonsterGroupTable,
     pub monster_skill_template: monster_skill_template::MonsterSkillTemplateTable,
     pub monster_template: monster_template::MonsterTemplateTable,
     pub month_card: month_card::MonthCardTable,
     pub open: open::OpenTable,
     pub power_item: power_item::PowerItemTable,
+    pub resistances_attribute: resistances_attribute::ResistancesAttributeTable,
+    pub rule: rule::RuleTable,
     pub skill: skill::SkillTable,
     pub skill_behavior: skill_behavior::SkillBehaviorTable,
+    pub skill_behavior_condition: skill_behavior_condition::SkillBehaviorConditionTable,
     pub skill_buff: skill_buff::SkillBuffTable,
+    pub skill_bufftype: skill_bufftype::SkillBufftypeTable,
     pub skill_effect: skill_effect::SkillEffectTable,
     pub skill_ex_level: skill_ex_level::SkillExLevelTable,
+    pub skill_next: skill_next::SkillNextTable,
     pub skill_passive_level: skill_passive_level::SkillPassiveLevelTable,
     pub skin: skin::SkinTable,
     pub store_charge_goods: store_charge_goods::StoreChargeGoodsTable,
     pub store_charge_optional: store_charge_optional::StoreChargeOptionalTable,
     pub store_goods: store_goods::StoreGoodsTable,
+    pub store_recommend: store_recommend::StoreRecommendTable,
     pub summon: summon::SummonTable,
     pub summon_pool: summon_pool::SummonPoolTable,
     pub talent_scheme: talent_scheme::TalentSchemeTable,
@@ -147,6 +169,9 @@ impl GameDB {
         let bp_task = bp_task::BpTaskTable::load(
             &format!("{}/bp_task.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load bp_task.json: {}", e))?;
+        let buff_act = buff_act::BuffActTable::load(
+            &format!("{}/buff_act.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load buff_act.json: {}", e))?;
         let chapter = chapter::ChapterTable::load(
             &format!("{}/chapter.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load chapter.json: {}", e))?;
@@ -201,6 +226,12 @@ impl GameDB {
         let equip_strengthen_cost = equip_strengthen_cost::EquipStrengthenCostTable::load(
             &format!("{}/equip_strengthen_cost.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load equip_strengthen_cost.json: {}", e))?;
+        let fight_card_choice = fight_card_choice::FightCardChoiceTable::load(
+            &format!("{}/fight_card_choice.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load fight_card_choice.json: {}", e))?;
+        let fight_const = fight_const::FightConstTable::load(
+            &format!("{}/fight_const.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load fight_const.json: {}", e))?;
         let guide = guide::GuideTable::load(
             &format!("{}/guide.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load guide.json: {}", e))?;
@@ -213,9 +244,15 @@ impl GameDB {
         let item = item::ItemTable::load(
             &format!("{}/item.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load item.json: {}", e))?;
+        let magic_circle = magic_circle::MagicCircleTable::load(
+            &format!("{}/magic_circle.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load magic_circle.json: {}", e))?;
         let monster = monster::MonsterTable::load(
             &format!("{}/monster.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load monster.json: {}", e))?;
+        let monster_group = monster_group::MonsterGroupTable::load(
+            &format!("{}/monster_group.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load monster_group.json: {}", e))?;
         let monster_skill_template = monster_skill_template::MonsterSkillTemplateTable::load(
             &format!("{}/monster_skill_template.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load monster_skill_template.json: {}", e))?;
@@ -231,21 +268,36 @@ impl GameDB {
         let power_item = power_item::PowerItemTable::load(
             &format!("{}/power_item.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load power_item.json: {}", e))?;
+        let resistances_attribute = resistances_attribute::ResistancesAttributeTable::load(
+            &format!("{}/resistances_attribute.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load resistances_attribute.json: {}", e))?;
+        let rule = rule::RuleTable::load(
+            &format!("{}/rule.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load rule.json: {}", e))?;
         let skill = skill::SkillTable::load(
             &format!("{}/skill.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill.json: {}", e))?;
         let skill_behavior = skill_behavior::SkillBehaviorTable::load(
             &format!("{}/skill_behavior.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_behavior.json: {}", e))?;
+        let skill_behavior_condition = skill_behavior_condition::SkillBehaviorConditionTable::load(
+            &format!("{}/skill_behavior_condition.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load skill_behavior_condition.json: {}", e))?;
         let skill_buff = skill_buff::SkillBuffTable::load(
             &format!("{}/skill_buff.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_buff.json: {}", e))?;
+        let skill_bufftype = skill_bufftype::SkillBufftypeTable::load(
+            &format!("{}/skill_bufftype.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load skill_bufftype.json: {}", e))?;
         let skill_effect = skill_effect::SkillEffectTable::load(
             &format!("{}/skill_effect.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_effect.json: {}", e))?;
         let skill_ex_level = skill_ex_level::SkillExLevelTable::load(
             &format!("{}/skill_ex_level.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_ex_level.json: {}", e))?;
+        let skill_next = skill_next::SkillNextTable::load(
+            &format!("{}/skill_next.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load skill_next.json: {}", e))?;
         let skill_passive_level = skill_passive_level::SkillPassiveLevelTable::load(
             &format!("{}/skill_passive_level.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_passive_level.json: {}", e))?;
@@ -261,6 +313,9 @@ impl GameDB {
         let store_goods = store_goods::StoreGoodsTable::load(
             &format!("{}/store_goods.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load store_goods.json: {}", e))?;
+        let store_recommend = store_recommend::StoreRecommendTable::load(
+            &format!("{}/store_recommend.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load store_recommend.json: {}", e))?;
         let summon = summon::SummonTable::load(
             &format!("{}/summon.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load summon.json: {}", e))?;
@@ -286,6 +341,7 @@ impl GameDB {
             bp_des,
             bp_lv_bonus,
             bp_task,
+            buff_act,
             chapter,
             character,
             character_cosume,
@@ -304,26 +360,36 @@ impl GameDB {
             equip_skill,
             equip_strengthen,
             equip_strengthen_cost,
+            fight_card_choice,
+            fight_const,
             guide,
             hero_trial,
             insight_item,
             item,
+            magic_circle,
             monster,
+            monster_group,
             monster_skill_template,
             monster_template,
             month_card,
             open,
             power_item,
+            resistances_attribute,
+            rule,
             skill,
             skill_behavior,
+            skill_behavior_condition,
             skill_buff,
+            skill_bufftype,
             skill_effect,
             skill_ex_level,
+            skill_next,
             skill_passive_level,
             skin,
             store_charge_goods,
             store_charge_optional,
             store_goods,
+            store_recommend,
             summon,
             summon_pool,
             talent_scheme,

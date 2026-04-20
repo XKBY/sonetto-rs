@@ -50,6 +50,7 @@ pub struct HeroGroupInfo {
     pub equips: Vec<HeroGroupEquip>,
     pub activity104_equips: Vec<HeroGroupEquip>,
     pub assist_boss_id: i32,
+    pub params: String,
 }
 
 impl From<HeroGroupInfo> for sonettobuf::HeroGroupInfo {
@@ -66,6 +67,7 @@ impl From<HeroGroupInfo> for sonettobuf::HeroGroupInfo {
                 .map(Into::into)
                 .collect(),
             assist_boss_id: Some(info.assist_boss_id),
+            params: Some(info.params),
         }
     }
 }

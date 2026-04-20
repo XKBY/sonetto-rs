@@ -1,0 +1,146 @@
+use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
+
+use crate::state::battle::{
+    fight_step::FightStepBuilder,
+    context::FightContext,
+    passives::collector::CollectedPassives,
+    trigger::combat::TriggerEvent,
+    utils::{buff_del, buff_update, moxie_change},
+};
+
+use super::TriggerPass;
+
+pub struct ExPointSyncPass;
+
+impl TriggerPass for ExPointSyncPass {
+    fn run(
+        &self,
+        ctx: &mut FightContext<'_>,
+        event: &TriggerEvent,
+        _collected: &CollectedPassives,
+    ) -> Vec<FightStep> {
+        let cfg = config::configs::get();
+        let mut out = Vec::new();
+
+        for target_uid in &event.damaged_uids {
+            let buffs = ctx.managers.buff_mgr.get(*target_uid).to_vec();
+            for buff in buffs {
+                if event.added_buff_uids.contains(&buff.uid) {
+                    continue;
+                }
+                let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff.buff_id) else {
+                    continue;
+                };
+
+                let mut ex_gain = 0_i32;
+                let mut has_ex_on_hit = false;
+                for entry in buff_cfg.features.split('|') {
+                    let parts: Vec<&str> = entry.split('#').collect();
+                    let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
+                        continue;
+                    };
+                    let is_ex_on_hit = cfg
+                        .buff_act
+                        .iter()
+                        .find(|a| a.id == act_id)
+                        .map(|a| a.r#type == "ExPointAddByHit")
+                        .unwrap_or(false);
+                    if !is_ex_on_hit {
+                        continue;
+                    }
+                    has_ex_on_hit = true;
+                    ex_gain += parts
+                        .get(1)
+                        .and_then(|v| v.trim().parse::<i32>().ok())
+                        .unwrap_or(0);
+                }
+
+                if !has_ex_on_hit {
+                    continue;
+                }
+
+                let mut act_effect = Vec::<ActEffect>::new();
+
+                if buff.layer > 1 {
+                    let new_layer = buff.layer - 1;
+                    ctx.managers.buff_mgr.add_with_uid(
+                        *target_uid,
+                        buff.buff_id,
+                        buff.from_uid,
+                        buff.stacks,
+                        new_layer,
+                        buff.uid,
+                    );
+                    act_effect.push(buff_update(
+                        *target_uid,
+                        buff.from_uid,
+                        buff.buff_id,
+                        buff.uid,
+                        buff.stacks,
+                        new_layer,
+                    ));
+                } else if buff.stacks > 1 {
+                    let new_count = buff.stacks - 1;
+                    ctx.managers.buff_mgr.add_with_uid(
+                        *target_uid,
+                        buff.buff_id,
+                        buff.from_uid,
+                        new_count,
+                        buff.layer,
+                        buff.uid,
+                    );
+                    act_effect.push(buff_update(
+                        *target_uid,
+                        buff.from_uid,
+                        buff.buff_id,
+                        buff.uid,
+                        new_count,
+                        buff.layer,
+                    ));
+                } else {
+                    ctx.managers.buff_mgr.remove_by_uid(*target_uid, buff.uid);
+                    act_effect.push(buff_del(*target_uid, buff.uid, buff.buff_id, buff.from_uid));
+                }
+
+                act_effect.push(ActEffect {
+                    effect_type: Some(0),
+                    target_id: Some(*target_uid),
+                    effect_num: Some(0),
+                    ..Default::default()
+                });
+
+                if ex_gain != 0 {
+                    // Don't mutate ex_point_mgr directly — the emitted ExPointChange
+                    // effect is applied by calculate_mgr::play_effect_add_ex_point during
+                    // play_step_data. Direct mutation + replay = double-apply.
+                    act_effect.push(moxie_change(buff.from_uid, ex_gain));
+                }
+
+                let inner = ProtoFightStep {
+                    act_type: Some(fight_step::ActType::Effect.into()),
+                    from_id: Some(buff.from_uid),
+                    to_id: Some(*target_uid),
+                    act_id: Some(buff.buff_id),
+                    act_effect,
+                    card_index: Some(0),
+                    support_hero_id: Some(0),
+                    fake_timeline: Some(false),
+                    real_skill_type: Some(0),
+                    real_skin_id: Some(0),
+                };
+
+                let wrapped = ActEffect {
+                    effect_type: Some(162),
+                    target_id: Some(0),
+                    effect_num: Some(0),
+                    fight_step: Some(inner),
+                    ..Default::default()
+                };
+
+                out.push(FightStepBuilder::effect().with(wrapped).build());
+            }
+        }
+
+        out
+    }
+}

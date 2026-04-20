@@ -58,7 +58,7 @@ pub async fn get_weekwalk_info(
             is_show_buff: Some(map.is_show_buff),
             is_show_finished: Some(map.is_show_finished),
             is_show_select_cd: Some(map.is_show_select_cd),
-            battle_infos: battles.into_iter().map(Into::into).collect(),
+            battle_infos: battles.into_iter().collect(),
             element_infos: elements.into_iter().map(Into::into).collect(),
             hero_infos: heroes.into_iter().map(Into::into).collect(),
             story_ids,

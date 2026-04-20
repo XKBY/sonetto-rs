@@ -17,10 +17,14 @@ CREATE TABLE user_summon_pools (
     offline_time INTEGER NOT NULL DEFAULT 0,
     have_free BOOLEAN NOT NULL DEFAULT 0,
     used_free_count INTEGER NOT NULL DEFAULT 0,
+
     discount_time INTEGER NOT NULL DEFAULT 0,
     can_get_guarantee_sr_count INTEGER NOT NULL DEFAULT 0,
     guarantee_sr_countdown INTEGER NOT NULL DEFAULT 0,
     summon_count INTEGER NOT NULL DEFAULT 0,
+    have_free10_count INTEGER NOT NULL DEFAULT 0,
+    not_ssr_count INTEGER NOT NULL DEFAULT 0,
+    total_free10_use_count INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -56,6 +60,7 @@ CREATE TABLE user_sp_pool_info (
     limited_ticket_num INTEGER NOT NULL DEFAULT 0,
     open_time INTEGER NOT NULL DEFAULT 0,
     used_first_ssr_guarantee BOOLEAN NOT NULL DEFAULT 0,
+    infallible_item_status INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, pool_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

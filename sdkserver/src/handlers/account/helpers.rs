@@ -144,7 +144,7 @@ pub fn mask_email(email: &str) -> String {
 
 /// Calculate remaining token expiry time
 pub fn calculate_expires_in(token_expires_at: Option<i64>) -> i64 {
-    let now = ServerTime::now_ms() as i64;
+    let now = ServerTime::now_ms();
     token_expires_at
         .map(|exp| ((exp - now) / 1000).max(0))
         .unwrap_or(604800)
@@ -154,7 +154,7 @@ pub fn calculate_expires_in(token_expires_at: Option<i64>) -> i64 {
 pub fn format_timestamp(timestamp: Option<i64>) -> String {
     timestamp
         .and_then(|ts| {
-            chrono::DateTime::from_timestamp((ts / 1000) as i64, 0)
+            chrono::DateTime::from_timestamp(ts / 1000, 0)
                 .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
         })
         .unwrap_or_else(|| "2025-04-12 19:40:00".to_string())
@@ -292,16 +292,13 @@ pub async fn get_summons(
         .fetch_all(&state.game.db)
         .await?;
 
-        let gain_ids = item_rows
-            .into_iter()
-            .map(|r| r.gain_id as i64)
-            .collect::<Vec<_>>();
+        let gain_ids = item_rows.into_iter().map(|r| r.gain_id).collect::<Vec<_>>();
 
         page_data.push(PageDatum {
             summon_type: history.summon_type.to_string(),
             lucky_bag_ids: Vec::new(),
             create_time: format_timestamp(Some(history.summon_time)),
-            pool_id: history.pool_id as i64,
+            pool_id: history.pool_id,
             gain_ids,
             pool_type: history.pool_type as i64,
             pool_name: PoolName::from_db(&history.pool_name),

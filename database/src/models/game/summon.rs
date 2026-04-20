@@ -23,6 +23,10 @@ pub struct UserSummonPool {
     pub can_get_guarantee_sr_count: i32,
     pub guarantee_sr_countdown: i32,
     pub summon_count: i32,
+    pub have_free10_count: i32,
+    pub not_ssr_count: i32,
+    pub total_free10_use_count: i32,
+
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -68,6 +72,7 @@ pub struct SpPoolInfo {
     pub open_time: u64,
     pub used_first_ssr_guarantee: bool,
     pub has_get_reward_progresses: Vec<i32>,
+    pub infallible_item_status: i32,
 }
 
 impl From<SpPoolInfo> for sonettobuf::SpPoolInfo {
@@ -80,6 +85,22 @@ impl From<SpPoolInfo> for sonettobuf::SpPoolInfo {
             open_time: Some(info.open_time),
             used_first_ssr_guarantee: Some(info.used_first_ssr_guarantee),
             has_get_reward_progresses: info.has_get_reward_progresses,
+            infallible_item_status: Some(info.infallible_item_status),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PopUpInfo {
+    pub order_id: i32,
+    pub recommend_pop_up_count: i32,
+}
+
+impl From<PopUpInfo> for sonettobuf::PopUpInfo {
+    fn from(info: PopUpInfo) -> Self {
+        sonettobuf::PopUpInfo {
+            order_id: Some(info.order_id),
+            recommend_pop_up_count: Some(info.recommend_pop_up_count),
         }
     }
 }
@@ -89,6 +110,7 @@ pub struct SummonPoolInfo {
     pub pool: UserSummonPool,
     pub lucky_bag: Option<LuckyBagInfo>,
     pub sp_pool: Option<SpPoolInfo>,
+    pub pop_up_infos: Vec<PopUpInfo>,
 }
 
 impl From<SummonPoolInfo> for sonettobuf::SummonPoolInfo {
@@ -105,6 +127,10 @@ impl From<SummonPoolInfo> for sonettobuf::SummonPoolInfo {
             can_get_guarantee_sr_count: Some(info.pool.can_get_guarantee_sr_count),
             guarantee_sr_count_down: Some(info.pool.guarantee_sr_countdown),
             summon_count: Some(info.pool.summon_count),
+            have_free10_count: Some(info.pool.have_free10_count),
+            not_ssr_count: Some(info.pool.not_ssr_count),
+            total_free10_use_count: Some(info.pool.total_free10_use_count),
+            pop_up_infos: info.pop_up_infos.into_iter().map(Into::into).collect(),
         }
     }
 }

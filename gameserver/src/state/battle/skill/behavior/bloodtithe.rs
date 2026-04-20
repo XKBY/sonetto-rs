@@ -1,0 +1,269 @@
+use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromType};
+
+use super::super::damage::calculate_damage;
+use super::super::targets::get_entity;
+use crate::state::battle::manager::round_mgr::lookup_entry_max_hp;
+use crate::state::battle::manager::buff_mgr::BuffMgr;
+use crate::state::battle::mechanics::bloodtithe::{
+    BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
+};
+use crate::state::battle::types::effects::EffectType;
+use crate::state::battle::utils::damage_with_hurt;
+
+fn attr_value(entity: &sonettobuf::FightEntityInfo, attr_id: i32) -> i32 {
+    let attr = entity.attr.as_ref();
+    match attr_id {
+        100 => entity.current_hp.unwrap_or(0),
+        101 => attr.and_then(|a| a.hp).unwrap_or(0),
+        102 => attr.and_then(|a| a.attack).unwrap_or(0),
+        103 => attr.and_then(|a| a.defense).unwrap_or(0),
+        _ => attr.and_then(|a| a.attack).unwrap_or(0),
+    }
+}
+
+fn is_rubuska_basic_self_loss(skill_id: i32) -> bool {
+    matches!(
+        skill_id,
+        31250111
+            | 31250112
+            | 31250113
+            | 31250114
+            | 31250115
+            | 31250116
+            | 31250117
+            | 31250118
+            | 31250119
+            | 312501110
+            | 312501111
+            | 312501112
+    )
+}
+
+fn burn_params(buff_id: i32) -> Option<(i32, i32, i32)> {
+    if buff_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+        return None;
+    };
+    for entry in buff_cfg.features.split('|') {
+        let parts: Vec<&str> = entry.split('#').collect();
+        let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
+            continue;
+        };
+        if cfg
+            .buff_act
+            .iter()
+            .find(|a| a.id == act_id)
+            .map(|a| a.r#type == "Burn")
+            .unwrap_or(false)
+        {
+            let rate = parts
+                .get(1)
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            let attr_id = parts
+                .get(2)
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            return Some((act_id, rate, attr_id));
+        }
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn lost_life(
+    fight: &Fight,
+    buff_mgr: &BuffMgr,
+    bloodtithe: &mut BloodtitheState,
+    caster_uid: i64,
+    target: i64,
+    mode: i32,
+    _attr_id: i32,
+    permille: i32,
+    behavior_id: i32,
+    skill_id: i32,
+    floor_permille: i32,
+) -> Vec<ActEffect> {
+    let mut effects = Vec::new();
+
+    let entity = get_entity(fight, target);
+    let max_hp = entity
+        .and_then(|e| e.attr.as_ref().and_then(|a| a.hp))
+        .unwrap_or(0);
+    let current_hp = entity.and_then(|e| e.current_hp).unwrap_or(0);
+    let burn = (mode == 1).then(|| burn_params(skill_id)).flatten();
+    let loss = if let Some((_, burn_rate, burn_attr_id)) = burn {
+        let burn_rate = if burn_rate > 0 { burn_rate } else { permille };
+
+        let from_damage = calculate_damage(
+            fight, buff_mgr, None, caster_uid, target, burn_rate, skill_id, false,
+        )
+        .into_iter()
+        .find(|e| {
+            matches!(
+                e.effect_type,
+                Some(t)
+                    if t == EffectType::Damage as i32
+                        || t == EffectType::Crit as i32
+                        || t == EffectType::OriginDamage as i32
+                        || t == EffectType::OriginCrit as i32
+            )
+        })
+        .and_then(|e| e.effect_num)
+        .unwrap_or(0);
+
+        if from_damage > 0 {
+            from_damage
+        } else {
+            let source = get_entity(fight, caster_uid)
+                .map(|e| attr_value(e, burn_attr_id))
+                .unwrap_or(0);
+            source * permille / 1000
+        }
+    } else if is_rubuska_basic_self_loss(skill_id) && target == caster_uid && _attr_id == 100 {
+        // Rubuska's 31250111 family self-loss tracks the entry HP snapshot used by
+        // Shadow Cloak, not the legacy 1%-of-current-max fallback.
+        let entry_max_hp = lookup_entry_max_hp(fight, target);
+        entry_max_hp.max(0) * permille / 1000
+    } else if mode == 1 {
+        current_hp * permille / 1000
+    } else {
+        // Default LostLife lane uses basis-point style scaling
+        // (e.g. value 800 -> 8% of max HP).
+        max_hp * permille / 10000
+    };
+
+    let min_hp = if floor_permille > 0 {
+        (max_hp * floor_permille / 1000).max(1)
+    } else {
+        0
+    };
+    let actual_loss = loss.min((current_hp - min_hp).max(0));
+
+    if actual_loss == 0 {
+        return effects;
+    }
+
+    if let Some((act_id, _, _)) = burn {
+        let buff_uid = buff_mgr
+            .get(target)
+            .iter()
+            .find(|b| b.buff_id == skill_id || b.type_id == skill_id)
+            .map(|b| b.uid)
+            .unwrap_or(0);
+
+        effects.push(ActEffect {
+            effect_type: Some(EffectType::Burn as i32),
+            target_id: Some(target),
+            effect_num: Some(skill_id),
+            buff_act_id: (act_id > 0).then_some(act_id),
+            ..Default::default()
+        });
+
+        effects.push(ActEffect {
+            effect_type: Some(EffectType::OriginDamage as i32),
+            target_id: Some(target),
+            effect_num: Some(actual_loss),
+            buff_act_id: (act_id > 0).then_some(act_id),
+            hurt_info: Some(FightHurtInfo {
+                damage: Some(actual_loss),
+                reduce_hp: Some(0),
+                reduce_shield: Some(0),
+                career_restraint: Some(false),
+                critical: Some(false),
+                assassinate: Some(false),
+                hurt_effect: Some(EffectType::OriginDamage as i32),
+                damage_from_type: Some(DamageFromType::Buff as i32),
+                config_effect: Some(0),
+                buff_act_id: (act_id > 0).then_some(act_id),
+                buff_uid: (buff_uid > 0).then_some(buff_uid as i32),
+                effect_id: Some(0),
+                skill_id: Some(0),
+                from_uid: Some(caster_uid),
+            }),
+            ..Default::default()
+        });
+    } else {
+        effects.push(damage_with_hurt(
+            target,
+            actual_loss,
+            behavior_id,
+            skill_id,
+            caster_uid,
+        ));
+    }
+
+    let team_type = get_entity(fight, target).and_then(|e| e.team_type);
+
+    let model_id = get_entity(fight, target).and_then(|e| e.model_id);
+
+    // Battle2 parity: Semmelweis Ultimate body emits four visible 335 packets even when
+    // our replay-seeded bloodpool cap is already saturated. Mirror the live packet lane
+    // here and let replay-time 335 application advance the authoritative pool value.
+    if skill_id == 308801322 {
+        let manual_gain = match model_id {
+            Some(3125) => 2,
+            Some(3088 | 3120 | 3126) => 1,
+            _ => 0,
+        };
+        if manual_gain > 0 {
+            effects.push(bloodtithe_add_to_pool(target, manual_gain));
+            return effects;
+        }
+    }
+    let preview_gain = team_type.and_then(|team_type| {
+        let mut preview = bloodtithe.clone();
+        preview.on_hp_lost(target, team_type, actual_loss)
+    });
+    if let Some(new_value) = preview_gain {
+        if model_id == Some(3120) {
+            effects.push(ActEffect {
+                effect_type: Some(111),
+                target_id: Some(target),
+                effect_num: Some(1),
+                ..Default::default()
+            });
+        }
+        effects.push(bloodtithe_add_to_pool(target, new_value));
+    }
+
+    effects
+}
+
+pub fn pool_max_change(
+    _fight: &Fight,
+    bloodtithe: &mut BloodtitheState,
+    _target: i64,
+    amount: i32,
+) -> Vec<ActEffect> {
+    bloodtithe
+        .pending_effects
+        .push(bloodtithe_max_change(amount, 1));
+    vec![]
+}
+
+pub fn pool_value_change(
+    fight: &Fight,
+    bloodtithe: &mut BloodtitheState,
+    target: i64,
+    amount: i32,
+) -> Vec<ActEffect> {
+    bloodtithe.add_initial_gain(1, amount);
+
+    let model_id = get_entity(fight, target).and_then(|e| e.model_id);
+    if model_id == Some(3120) {
+        bloodtithe.pending_effects.push(ActEffect {
+            effect_type: Some(111),
+            target_id: Some(target),
+            effect_num: Some(1),
+            ..Default::default()
+        });
+    }
+    bloodtithe
+        .pending_effects
+        .push(bloodtithe_value_change(target, amount, 1));
+    vec![]
+}
