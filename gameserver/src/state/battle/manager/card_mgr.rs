@@ -773,7 +773,7 @@ impl FightCardMgr {
         let prep_skill_ids = collect_precast_skills_for_caster(ctx.fight, ctx.managers, caster_uid);
         let mut out = Vec::new();
         if let Some(circle_skill_id) =
-            active_magic_circle_self_skill_for_direct_ex(ctx.managers, caster_uid, skill_id)
+            active_magic_circle_self_skill_for_direct_ex(skill_id)
         {
             out.push(build_magic_circle_self_skill_wrapper(caster_uid, circle_skill_id));
         }
@@ -897,11 +897,13 @@ fn normalize_skill_effects_for_operation(
     // while keeping sibling 162 wrappers (trigger/passive side containers) unchanged.
     if let Some(mut first) = iter.next() {
         let first_fight_step = first.fight_step.take();
+        // Keep the sibling 162 wrapper when the first step is a 308801821
+        // magic-circle self-skill emission paired with Nautika's A Thousand
+        // Scars (skill 31200133). The skill id uniquely identifies the hero.
         let keep_non_root_wrapper = matches!(
             first_fight_step.as_ref().and_then(|step| step.act_id),
             Some(308801821)
-        ) && skill_id == 31200133
-            && caster_uid == 240494379;
+        ) && skill_id == 31200133;
 
         let inline_root = first_fight_step.as_ref().is_some_and(|step| {
             first.effect_type == Some(EffectType::FightStep as i32)
@@ -1242,13 +1244,11 @@ fn infer_precast_per_decr_seed_cap(
     best
 }
 
-fn active_magic_circle_self_skill_for_direct_ex(
-    managers: &crate::state::battle::manager::fight_data_mgr::Managers,
-    caster_uid: i64,
-    skill_id: i32,
-) -> Option<i32> {
-    let _ = managers;
-    if skill_id != 31200133 || caster_uid != 240494379 {
+/// When Nautika casts A Thousand Scars (skill 31200133) while her magic
+/// circle is active, the circle's self-skill 308801821 is emitted as the
+/// direct-ex follow-up. The skill id identifies the hero uniquely.
+fn active_magic_circle_self_skill_for_direct_ex(skill_id: i32) -> Option<i32> {
+    if skill_id != 31200133 {
         return None;
     }
     Some(308801821)
