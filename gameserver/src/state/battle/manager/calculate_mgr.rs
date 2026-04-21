@@ -25,6 +25,23 @@ pub struct FightCalculateDataMgr {
 impl FightCalculateDataMgr {
     const MAX_NESTED_STEP_DEPTH: usize = 256;
 
+    fn step_contains_positive_bloodpool_delta(step: &FightStep) -> bool {
+        let mut stack: Vec<&FightStep> = vec![step];
+        while let Some(current) = stack.pop() {
+            for effect in &current.act_effect {
+                if effect.effect_type == Some(EffectType::BloodPoolValueChange as i32)
+                    && effect.effect_num1.unwrap_or(0) > 0
+                {
+                    return true;
+                }
+                if let Some(nested) = effect.fight_step.as_ref() {
+                    stack.push(nested);
+                }
+            }
+        }
+        false
+    }
+
     pub fn new(fight: &Fight) -> Self {
         Self {
             entity_mgr: FightEntityDataMgr::new(fight),
@@ -50,8 +67,11 @@ impl FightCalculateDataMgr {
         buff_mgr: &mut BuffMgr,
         ex_point_mgr: &mut ExPointMgr,
     ) -> Result<(), String> {
-        let mut stack: Vec<(&FightStep, usize)> = vec![(step, 0)];
-        while let Some((current, depth)) = stack.pop() {
+        let mut stack: Vec<(&FightStep, usize, bool)> = vec![(step, 0, false)];
+        while let Some((current, depth, inherited_bloodtithe_sync)) = stack.pop() {
+            let local_bloodtithe_sync = Self::step_contains_positive_bloodpool_delta(current);
+            let use_accumulator_only_bloodtithe_sync =
+                inherited_bloodtithe_sync || local_bloodtithe_sync;
             for effect in current.act_effect.iter().rev() {
                 if let Some(nested) = effect.fight_step.as_ref() {
                     if depth >= Self::MAX_NESTED_STEP_DEPTH {
@@ -62,15 +82,11 @@ impl FightCalculateDataMgr {
                         );
                         continue;
                     }
-                    stack.push((nested, depth + 1));
+                    stack.push((nested, depth + 1, use_accumulator_only_bloodtithe_sync));
                     continue;
                 }
                 let is_bloodpool_delta =
                     effect.effect_type == Some(EffectType::BloodPoolValueChange as i32);
-                let use_accumulator_only_bloodtithe_sync = current.act_effect.iter().any(|sibling| {
-                    sibling.effect_type == Some(EffectType::BloodPoolValueChange as i32)
-                        && sibling.effect_num1.unwrap_or(0) > 0
-                });
                 let pre_pool = is_bloodpool_delta.then(|| {
                     let team_type = effect.team_type.or(effect.effect_num).unwrap_or(1);
                     (
@@ -92,28 +108,6 @@ impl FightCalculateDataMgr {
             }
         }
         Ok(())
-    }
-
-    pub fn play_act_effect_data(
-        &mut self,
-        effect: &ActEffect,
-        fight: &mut Fight,
-        bloodtithe: &mut BloodtitheState,
-        buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
-    ) -> Result<(), String> {
-        if let Some(ref nested) = effect.fight_step {
-            return self.play_step_data(nested, fight, bloodtithe, buff_mgr, ex_point_mgr);
-        }
-
-        self.play_non_nested_effect_data(
-            effect,
-            fight,
-            bloodtithe,
-            buff_mgr,
-            ex_point_mgr,
-            false,
-        )
     }
 
     fn play_non_nested_effect_data(
@@ -658,10 +652,7 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
     ) -> Result<(), String> {
-        let magic_circle = effect
-            .magic_circle
-            .clone()
-            .ok_or("No magic circle info")?;
+        let magic_circle = effect.magic_circle.ok_or("No magic circle info")?;
         fight.magic_circle = Some(magic_circle);
         Ok(())
     }

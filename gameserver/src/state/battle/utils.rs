@@ -1218,6 +1218,8 @@ pub fn build_blood_pool_gain_ex_point_step(
     })
 }
 
+// Consumed by battle_gen's replay bootstrap; clippy can't see cross-crate callers.
+#[allow(dead_code)]
 pub fn seed_blood_pool_ex_tracker(
     bloodtithe: &BloodtitheState,
     fight: &Fight,
@@ -1247,7 +1249,8 @@ pub fn seed_blood_pool_ex_tracker(
         let model_id = find_entity(fight, uid).and_then(|e| e.model_id);
         for instance in buff_mgr.get(uid) {
             if buff_uses_blood_pool_gain_accum(instance.buff_id) {
-                if let Some((threshold, _)) = buff_get_blood_pool_ex_point_params(instance.buff_id) {
+                if let Some((threshold, _)) = buff_get_blood_pool_ex_point_params(instance.buff_id)
+                {
                     accum_tracker.insert((battle_key, instance.uid), total.rem_euclid(threshold));
                 }
                 continue;

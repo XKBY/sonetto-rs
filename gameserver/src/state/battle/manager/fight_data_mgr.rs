@@ -71,6 +71,9 @@ impl FightDataMgr {
         &self.fight
     }
 
+    // Replay-bootstrap surface consumed by battle_gen; clippy can't see the
+    // cross-crate callers so silence the per-method dead_code lint here.
+    #[allow(dead_code)]
     #[inline]
     pub fn fight_mut(&mut self) -> &mut Fight {
         &mut self.fight
@@ -181,6 +184,7 @@ impl FightDataMgr {
         })
     }
 
+    #[allow(dead_code)]
     pub fn seed_replay_state(
         &mut self,
         initial_round: &FightRound,
@@ -208,20 +212,21 @@ impl FightDataMgr {
                 .filter_map(|info| info.uid.map(|uid| (uid, info)))
                 .collect();
 
-            for team in [&mut self.fight.attacker, &mut self.fight.defender] {
-                if let Some(side) = team {
-                    for entity in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
-                        let uid = entity.uid.unwrap_or(0);
-                        let Some(info) = by_uid.get(&uid) else { continue };
+            for side in [&mut self.fight.attacker, &mut self.fight.defender]
+                .into_iter()
+                .flatten()
+            {
+                for entity in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
+                    let uid = entity.uid.unwrap_or(0);
+                    let Some(info) = by_uid.get(&uid) else { continue };
 
-                        let ex_point = info.ex_point.unwrap_or(0);
-                        entity.ex_point = Some(ex_point);
-                        self.managers.ex_point_mgr.set_ex_point(uid, ex_point);
+                    let ex_point = info.ex_point.unwrap_or(0);
+                    entity.ex_point = Some(ex_point);
+                    self.managers.ex_point_mgr.set_ex_point(uid, ex_point);
 
-                        if let Some(current_hp) = info.current_hp {
-                            entity.current_hp = Some(current_hp);
-                            self.managers.ex_point_mgr.set_hp(uid, current_hp);
-                        }
+                    if let Some(current_hp) = info.current_hp {
+                        entity.current_hp = Some(current_hp);
+                        self.managers.ex_point_mgr.set_hp(uid, current_hp);
                     }
                 }
             }
@@ -243,10 +248,8 @@ impl FightDataMgr {
         Ok(())
     }
 
-    pub fn seed_replay_bloodtithe_from_effects(
-        &mut self,
-        effects: &[(i32, i32, i32)],
-    ) {
+    #[allow(dead_code)]
+    pub fn seed_replay_bloodtithe_from_effects(&mut self, effects: &[(i32, i32, i32)]) {
         let mut rebuilt = BloodtitheState::new();
         for &(effect_type, team_type, amount) in effects {
             match EffectType::from(effect_type) {
@@ -278,6 +281,7 @@ impl FightDataMgr {
         }
     }
 
+    #[allow(dead_code)]
     pub fn seed_replay_buffs_from_effects(
         &mut self,
         effects: &[(i32, i64, i64, i32, i32, i64, i32)],
@@ -309,10 +313,8 @@ impl FightDataMgr {
                         continue;
                     }
 
-                    if let Some(existing) = entity
-                        .buffs
-                        .iter_mut()
-                        .find(|b| b.uid == Some(buff_uid))
+                    if let Some(existing) =
+                        entity.buffs.iter_mut().find(|b| b.uid == Some(buff_uid))
                     {
                         existing.buff_id = Some(buff_id);
                         existing.from_uid = Some(from_uid);
@@ -340,6 +342,7 @@ impl FightDataMgr {
         }
     }
 
+    #[allow(dead_code)]
     fn reseed_bloodtithe_from_round(&mut self, round: &FightRound) {
         #[derive(Clone, Copy)]
         struct Frame<'a> {
@@ -403,6 +406,7 @@ impl FightDataMgr {
         }
     }
 
+    #[allow(dead_code)]
     fn reseed_shadow_cloak_from_round(&mut self, round: &FightRound) {
         #[derive(Clone, Copy)]
         struct Frame<'a> {

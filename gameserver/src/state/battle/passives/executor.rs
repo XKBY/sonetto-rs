@@ -97,36 +97,8 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
 
     let mut attacker_uid_checkpoint: i64 = 0;
     let mut defender_uid_checkpoint: i64 = DEFENDER_BUFF_UID_START;
-    let pass_name = |pass: &Pass| -> &'static str {
-        match pass {
-            Pass::BattleRulesAttacker => "BattleRulesAttacker",
-            Pass::BattleRulesDefender => "BattleRulesDefender",
-            Pass::BattleRulesUnconditionalAttacker => "BattleRulesUnconditionalAttacker",
-            Pass::Passive {
-                side: Side::Attacker,
-                ..
-            } => "PassiveAttacker",
-            Pass::Passive {
-                side: Side::Defender,
-                ..
-            } => "PassiveDefender",
-            Pass::BloodpoolInit => "BloodpoolInit",
-            Pass::BloodtitheSync => "BloodtitheSync",
-            Pass::Raspberry => "Raspberry",
-            Pass::ShadowCloakSync => "ShadowCloakSync",
-            Pass::DefenderUidReset => "DefenderUidReset",
-            Pass::AttackerUidRestore => "AttackerUidRestore",
-            Pass::DealCards => "DealCards",
-            Pass::CardDeckNum => "CardDeckNum",
-            Pass::TempCard => "TempCard",
-            Pass::TempCardCleanup => "TempCardCleanup",
-            Pass::BloodPoolExPoint => "BloodPoolExPoint",
-            Pass::CardDeckNumFinal => "CardDeckNumFinal",
-        }
-    };
 
     for pass in passes {
-        let pass_label = pass_name(&pass);
         match pass {
             Pass::BattleRulesAttacker => {
                 let battle_skills: Vec<i32> = collected

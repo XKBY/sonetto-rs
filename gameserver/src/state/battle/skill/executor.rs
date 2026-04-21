@@ -1,27 +1,27 @@
 use anyhow::Result;
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::time::Instant;
 use sonettobuf::{ActEffect, BuffInfo, Fight, FightStep, fight_step};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
 
 use super::super::{
-    context::behavior_context::BehaviorContext,
-    context::FightContext,
-    manager::fight_data_mgr::Managers,
-    mechanics::Mechanics,
-    skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
+    context::{FightContext, behavior_context::BehaviorContext},
+    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, fight_data_mgr::Managers},
+    mechanics::{Mechanics, bloodtithe::BloodtitheState},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
+    utils::buff_del,
 };
 
 use super::{
     behavior::execute_behavior,
-    condition::buff::deleted_matches,
-    condition::check_condition,
+    cache::{SKILL_CACHE, resolve_skill_effect_id},
+    condition::{buff::deleted_matches, check_condition},
     damage::{calculate_damage, should_crit_hit},
     phase::{PhaseFilter, TriggerState},
     targets::{collect_team, get_ally_uids, get_entity, get_team_type, resolve_targets},
 };
-use crate::state::battle::utils::buff_del;
 
 #[derive(Default, Debug, Clone)]
 pub struct SkillExecutor {
@@ -209,7 +209,9 @@ impl SkillExecutor {
                     ConditionType::ActiveUseSkillId { skill_ids } => {
                         Some(event.active_use_skill && skill_ids.contains(&event.skill_id))
                     }
-                    ConditionType::UseExSkill => Some(event.active_use_skill && event.used_ex_skill),
+                    ConditionType::UseExSkill => {
+                        Some(event.active_use_skill && event.used_ex_skill)
+                    }
                     ConditionType::TeammateUseExSkill => Some(event.teammate_use_ex_skill),
                     ConditionType::BeAttacked => Some(event.be_attacked),
                     ConditionType::HurtNotRestraint => Some(event.hurt_not_restraint),
@@ -278,40 +280,38 @@ impl SkillExecutor {
                         &b.condition,
                         raw,
                     );
-                    let raw = if b.condition_target == 103
-                        && b.logic_target == 201
-                        && target_uid != 0
-                    {
-                        match &b.condition {
-                            ConditionType::HasBuffId { .. } => {
-                                raw || check_condition(
-                                    &sim_fight,
-                                    &sim_buff_mgr,
-                                    &managers.ex_point_mgr,
-                                    &mechanics.bloodtithe,
-                                    caster_uid,
-                                    target_uid,
-                                    has_trigger_state,
-                                    &b.condition,
-                                )
+                    let raw =
+                        if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
+                            match &b.condition {
+                                ConditionType::HasBuffId { .. } => {
+                                    raw || check_condition(
+                                        &sim_fight,
+                                        &sim_buff_mgr,
+                                        &managers.ex_point_mgr,
+                                        &mechanics.bloodtithe,
+                                        caster_uid,
+                                        target_uid,
+                                        has_trigger_state,
+                                        &b.condition,
+                                    )
+                                }
+                                ConditionType::NoBuffId { .. } => {
+                                    raw && check_condition(
+                                        &sim_fight,
+                                        &sim_buff_mgr,
+                                        &managers.ex_point_mgr,
+                                        &mechanics.bloodtithe,
+                                        caster_uid,
+                                        target_uid,
+                                        has_trigger_state,
+                                        &b.condition,
+                                    )
+                                }
+                                _ => raw,
                             }
-                            ConditionType::NoBuffId { .. } => {
-                                raw && check_condition(
-                                    &sim_fight,
-                                    &sim_buff_mgr,
-                                    &managers.ex_point_mgr,
-                                    &mechanics.bloodtithe,
-                                    caster_uid,
-                                    target_uid,
-                                    has_trigger_state,
-                                    &b.condition,
-                                )
-                            }
-                            _ => raw,
-                        }
-                    } else {
-                        raw
-                    };
+                        } else {
+                            raw
+                        };
                     if b.negated { !raw } else { raw }
                 }
             } else {
@@ -347,8 +347,7 @@ impl SkillExecutor {
                     &b.condition,
                     raw,
                 );
-                let raw = if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0
-                {
+                let raw = if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
                     match &b.condition {
                         ConditionType::HasBuffId { .. } => {
                             raw || check_condition(
@@ -406,8 +405,15 @@ impl SkillExecutor {
                 b.logic_target,
                 phase,
             );
-            let behavior_effects =
-                execute_behavior(self, managers, mechanics, &behavior_ctx, &b.behavior, b.condition_id, &b.condition)?;
+            let behavior_effects = execute_behavior(
+                self,
+                managers,
+                mechanics,
+                &behavior_ctx,
+                &b.behavior,
+                b.condition_id,
+                &b.condition,
+            )?;
 
             tracing::debug!("    -> effects built: {}", behavior_effects.len());
             for e in &behavior_effects {
@@ -776,12 +782,7 @@ impl SkillExecutor {
         get_ally_uids(fight, caster_uid)
     }
 
-    pub fn add_skill_rate_bonus(
-        &mut self,
-        caster_uid: i64,
-        target_uid: i64,
-        amount: i32,
-    ) {
+    pub fn add_skill_rate_bonus(&mut self, caster_uid: i64, target_uid: i64, amount: i32) {
         if amount == 0 {
             return;
         }
@@ -790,7 +791,10 @@ impl SkillExecutor {
             self.pending_global_rate_bonus = self.pending_global_rate_bonus.saturating_add(amount);
             return;
         }
-        let entry = self.pending_target_rate_bonus.entry(target_uid).or_insert(0);
+        let entry = self
+            .pending_target_rate_bonus
+            .entry(target_uid)
+            .or_insert(0);
         *entry = entry.saturating_add(amount);
     }
 
@@ -798,7 +802,10 @@ impl SkillExecutor {
         if amount == 0 {
             return;
         }
-        let entry = self.pending_attr_bonus.entry((entity_uid, attr_id)).or_insert(0);
+        let entry = self
+            .pending_attr_bonus
+            .entry((entity_uid, attr_id))
+            .or_insert(0);
         *entry = entry.saturating_add(amount);
     }
 }
@@ -840,9 +847,9 @@ fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
 
 fn check_condition_with_random_target(
     fight: &Fight,
-    buff_mgr: &crate::state::battle::manager::buff_mgr::BuffMgr,
-    ex_point_mgr: &crate::state::battle::manager::ex_point_mgr::ExPointMgr,
-    bloodtithe: &crate::state::battle::mechanics::bloodtithe::BloodtitheState,
+    buff_mgr: &BuffMgr,
+    ex_point_mgr: &ExPointMgr,
+    bloodtithe: &BloodtitheState,
     caster_uid: i64,
     condition_uid: i64,
     random_target_uid: i64,
@@ -929,7 +936,7 @@ fn has_no_act_seed_buff(fight: &Fight, caster_uid: i64, wanted_ids: &[i32]) -> b
         return false;
     }
     let cfg = config::configs::get();
-    let Some(entity) = crate::state::battle::skill::targets::get_entity(fight, caster_uid) else {
+    let Some(entity) = get_entity(fight, caster_uid) else {
         return false;
     };
 
@@ -1109,7 +1116,7 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
 }
 
 fn apply_preview_effects_to_sim_buffs(
-    buff_mgr: &mut crate::state::battle::manager::buff_mgr::BuffMgr,
+    buff_mgr: &mut BuffMgr,
     effects: &[ActEffect],
 ) {
     for effect in effects {
@@ -1216,16 +1223,14 @@ fn fallback_damage_targets(
                     .and_then(|e| e.current_hp)
                     .unwrap_or(0)
             };
-            hp(*b)
-                .cmp(&hp(*a))
-                .then_with(|| {
-                    let pos = |uid: i64| {
-                        get_entity(fight, uid)
-                            .and_then(|e| e.position)
-                            .unwrap_or(99)
-                    };
-                    pos(*a).cmp(&pos(*b))
-                })
+            hp(*b).cmp(&hp(*a)).then_with(|| {
+                let pos = |uid: i64| {
+                    get_entity(fight, uid)
+                        .and_then(|e| e.position)
+                        .unwrap_or(99)
+                };
+                pos(*a).cmp(&pos(*b))
+            })
         });
         return enemies.into_iter().take(2).collect();
     }

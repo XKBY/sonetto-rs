@@ -8,12 +8,12 @@ use crate::state::battle::{
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
     utils::{
-        build_blood_pool_ex_point_step, buff_get_blood_pool_ex_point_params,
-        buff_get_raspberry_params, damage_with_buff_act, find_entity,
+        build_blood_pool_ex_point_step, buff_get_raspberry_params, damage_with_buff_act,
+        find_entity,
     },
 };
 use crate::state::battle::context::FightContext;
-use crate::state::battle::mechanics::{nuodika, round_end, shadowcloak};
+use crate::state::battle::mechanics::{magic_circle, nuodika, round_end, shadowcloak};
 
 const DAMAGE_PER_POINT: i32 = 3000;
 const BASE_MAX: i32 = 24;
@@ -206,12 +206,28 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     }
 
     let attacker_uids = collected.attacker_uids();
-    let consume_blood_steps = build_passive_step(
+    let mut consume_blood_steps = build_passive_step(
         ctx,
         &attacker_uids,
         collected,
         &crate::state::battle::skill::PhaseFilter::consume_blood(),
     );
+    for step in &mut consume_blood_steps {
+        if step.act_type == Some(sonettobuf::fight_step::ActType::Skill as i32) {
+            let circle_embeds = magic_circle::build_magic_circle_self_skill_embeds(
+                ctx,
+                &step.clone(),
+                step.from_id.unwrap_or(0),
+            );
+            if !circle_embeds.is_empty() {
+                let insert_at =
+                    crate::state::battle::steps::trigger_embed::find_trigger_insert_index(
+                        &step.act_effect,
+                    );
+                step.act_effect.splice(insert_at..insert_at, circle_embeds);
+            }
+        }
+    }
     out.extend(consume_blood_steps);
 
     out.extend(round_end::build_round_end_use_skill_to_enemy_steps(ctx));
@@ -219,15 +235,14 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     let nuodika_steps = nuodika::build_nuodika_channel_steps(mgr, ctx, &out);
     out.extend(nuodika_steps);
 
-    if let Some(mut step) = build_blood_pool_ex_point_step(
+    if let Some(step) = build_blood_pool_ex_point_step(
         &mut ctx.mechanics.bloodtithe,
         ctx.fight,
         &ctx.managers.buff_mgr,
         &mut ctx.managers.ex_point_mgr,
-    ) {
-        if !step.act_effect.is_empty() {
-            out.push(step);
-        }
+    ) && !step.act_effect.is_empty()
+    {
+        out.push(step);
     }
 
     out
@@ -419,80 +434,6 @@ impl BloodtitheState {
         Some(FightStepBuilder::effect().with_many(outer_effects).build())
     }
 
-    pub fn blood_pool_ex_point_step(
-        &self,
-        fight: &Fight,
-        buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
-    ) -> Option<FightStep> {
-        if !self.initialized {
-            return None;
-        }
-        let bloodtithe_value = self.get_value(1);
-        if bloodtithe_value == 0 {
-            return None;
-        }
-
-        let uids: Vec<i64> = fight
-            .attacker
-            .as_ref()
-            .map(|a| a.entitys.iter().filter_map(|e| e.uid).collect())
-            .unwrap_or_default();
-
-        let mut outer_effects: Vec<ActEffect> = Vec::new();
-
-        for uid in uids {
-            for instance in buff_mgr.get(uid) {
-                let Some((threshold, amount)) =
-                    buff_get_blood_pool_ex_point_params(instance.buff_id)
-                else {
-                    continue;
-                };
-                let gain = (bloodtithe_value / threshold) * amount;
-                if gain == 0 {
-                    continue;
-                }
-                ex_point_mgr.add_ex_point(uid, gain);
-
-                outer_effects.push(ActEffect {
-                    effect_type: Some(EffectType::Fightstep as i32),
-                    target_id: Some(0),
-                    fight_step: Some(FightStep {
-                        act_type: Some(fight_step::ActType::Effect.into()),
-                        from_id: Some(uid),
-                        to_id: Some(uid),
-                        act_id: Some(instance.buff_id),
-                        act_effect: vec![
-                            ActEffect {
-                                effect_type: Some(0),
-                                effect_num: Some(instance.buff_id),
-                                buff_act_id: Some(1021),
-                                target_id: Some(uid),
-                                ..Default::default()
-                            },
-                            ActEffect {
-                                effect_type: Some(EffectType::Expointchange as i32),
-                                effect_num: Some(gain),
-                                target_id: Some(uid),
-                                ..Default::default()
-                            },
-                        ],
-                        card_index: Some(0),
-                        support_hero_id: Some(0),
-                        fake_timeline: Some(false),
-                        real_skill_type: Some(0),
-                        real_skin_id: Some(0),
-                    }),
-                    ..Default::default()
-                });
-            }
-        }
-
-        if outer_effects.is_empty() {
-            return None;
-        }
-        Some(FightStepBuilder::effect().with_many(outer_effects).build())
-    }
 }
 
 fn find_nautika_uid(fight: &Fight, team_type: i32) -> Option<i64> {

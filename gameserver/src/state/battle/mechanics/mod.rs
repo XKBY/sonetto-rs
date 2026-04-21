@@ -61,13 +61,4 @@ impl Mechanics {
         self.shadow_cloak.sync_step(fight, buff_mgr, ex_point_mgr)
     }
 
-    pub fn on_post_consume_blood(
-        &self,
-        fight: &Fight,
-        buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
-    ) -> Option<FightStep> {
-        self.bloodtithe
-            .blood_pool_ex_point_step(fight, buff_mgr, ex_point_mgr)
-    }
 }

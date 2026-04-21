@@ -19,7 +19,8 @@ use crate::state::battle::utils::{buff_get_raspberry_params, moxie_change};
 /// thresholds. Unique per config (skill_buff.json).
 pub const SHADOW_CLOAK_ACCUMULATOR_BUFF_ID: i32 = 31250151;
 
-static SEEDED_RASPBERRY_MAX: Lazy<Mutex<HashMap<i32, i32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static SEEDED_RASPBERRY_MAX: Lazy<Mutex<HashMap<i32, i32>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static SHADOW_CLOAK_FULL_CAP_GRANTED: Lazy<Mutex<HashSet<(i32, i64)>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 
@@ -244,6 +245,8 @@ pub(crate) fn build_shadow_cloak_full_cap_step(
     Some(build_effect_step(effects))
 }
 
+// Consumed by battle_gen's replay bootstrap; clippy can't see cross-crate callers.
+#[allow(dead_code)]
 pub fn seed_replay_raspberry_max(fight: &Fight, max_capacity: i32) {
     let battle_id = fight.battle_id.unwrap_or(0);
     if battle_id == 0 || max_capacity <= 0 {

@@ -8,9 +8,9 @@ use std::{
 };
 
 use super::super::{
+    ConditionType,
     context::{FightContext, RoundContext},
-    fight_step::split_step_by_effect_limit,
-    fight_step::{FightStepBuilder, wrap_step},
+    fight_step::{FightStepBuilder, split_step_by_effect_limit, wrap_step},
     manager::{
         buff_mgr::{
             DEFENDER_BUFF_UID_START, reset_buff_uid_to, sync_buff_uid_counters_from_fight,
@@ -20,30 +20,29 @@ use super::super::{
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
     },
-    passives::collector::collect,
-    passives::steps::build_passive_step,
-    passives::steps::skill::execute_skill as execute_passive_skill,
+    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, magic_circle},
+    passives::{
+        collector::{CollectedPassives, collect},
+        steps::skill::execute_skill as execute_passive_skill,
+    },
     round::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
         step_shape::{build_effect_step, split_updates_and_wrap_rest},
         steps::{refresh::build_refresh_step, transitions::build_pre_enemy_transition_steps},
     },
-    steps::{broadcast, ex_gain, step_normalize, trigger_embed},
-    trigger::combat::{event_from_step, fire_combat_triggers},
-    trigger::passes::{build_belief_gain_step, sync_blood_value_baseline},
-};
-use crate::state::battle::skill::{
-    cache::resolve_skill_effect_id,
-    classification::{CombatPassiveScanMode, has_combat_reactive_condition},
-    condition::parser::parse_condition,
-};
-use crate::state::battle::{
-    ConditionType,
-    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, round_end},
-    utils::{
-        buff_get_use_skill_to_enemy_params, build_blood_pool_ex_point_step,
-        build_blood_pool_gain_ex_point_step,
+    skill::{
+        PhaseFilter,
+        cache::resolve_skill_effect_id,
+        classification::{CombatPassiveScanMode, has_combat_reactive_condition},
+        condition::parser::parse_condition,
     },
+    steps::{broadcast, ex_gain, step_normalize, trigger_embed},
+    trigger::{
+        combat::{event_from_step, fire_combat_triggers},
+        passes::{build_belief_gain_step, sync_blood_value_baseline},
+    },
+    types::effects::EffectType,
+    utils::build_blood_pool_gain_ex_point_step,
 };
 
 enum BattleEndState {
@@ -56,7 +55,7 @@ enum BattleEndState {
 struct RoundOpenPhaseData {
     state: RoundState,
     steps: Vec<FightStep>,
-    collected: super::super::passives::collector::CollectedPassives,
+    collected: CollectedPassives,
     selected_for_round_end: Vec<CardInfo>,
     selected_non_temp: Vec<CardInfo>,
     deck_num: i32,
@@ -119,6 +118,64 @@ pub struct FightRoundMgr;
 impl FightRoundMgr {
     pub fn new() -> Self {
         Self
+    }
+
+    fn step_contains_magic_circle_add(&self, step: &FightStep) -> bool {
+        step.act_effect.iter().any(|effect| {
+            effect.effect_type
+                == Some(
+                    crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32,
+                )
+                || effect
+                    .fight_step
+                    .as_ref()
+                    .map(|child| self.step_contains_magic_circle_add(child))
+                    .unwrap_or(false)
+        })
+    }
+
+    fn inline_magic_circle_root_wrapper(&self, host_step: &mut FightStep) -> bool {
+        let Some(idx) = host_step.act_effect.iter().position(|effect| {
+            effect.effect_type == Some(162)
+                && effect
+                    .fight_step
+                    .as_ref()
+                    .map(|step| {
+                        step.act_type == Some(fight_step::ActType::Skill as i32)
+                            && self.step_contains_magic_circle_add(step)
+                    })
+                    .unwrap_or(false)
+        }) else {
+            return false;
+        };
+
+        let Some(inner) = host_step
+            .act_effect
+            .remove(idx)
+            .fight_step
+            .filter(|step| step.act_type == Some(fight_step::ActType::Skill as i32))
+        else {
+            return false;
+        };
+
+        host_step
+            .act_effect
+            .splice(idx..idx, inner.act_effect);
+        true
+    }
+
+    fn host_trigger_insert_index(&self, host_step: &FightStep) -> usize {
+        host_step
+            .act_effect
+            .iter()
+            .position(|effect| {
+                effect.effect_type
+                    == Some(
+                        crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32,
+                    )
+            })
+            .map(|idx| idx + 1)
+            .unwrap_or_else(|| trigger_embed::find_trigger_insert_index(&host_step.act_effect))
     }
 
     pub async fn process_round(
@@ -402,19 +459,6 @@ impl FightRoundMgr {
             .into_iter()
             .flat_map(split_step_by_effect_limit)
             .collect();
-        let log_step = |idx: usize, step: &FightStep| {
-            for (i, e) in step.act_effect.iter().enumerate() {
-                if e.effect_type == Some(162)
-                    && let Some(fs) = &e.fight_step
-                {
-                }
-            }
-        };
-        for &i in &[18usize, 22, 23, 29] {
-            if let Some(step) = open.steps.get(i) {
-                log_step(i, step);
-            }
-        }
 
         Ok(FightRound {
             fight_step: open.steps,
@@ -468,7 +512,7 @@ impl FightRoundMgr {
         card_mgr: &mut FightCardMgr,
         state: &mut RoundState,
         operations: Vec<BeginRoundOper>,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         steps: &mut Vec<FightStep>,
     ) -> Result<()> {
         let battle_id = ctx.fight.battle_id.unwrap_or(0);
@@ -477,7 +521,7 @@ impl FightRoundMgr {
         for oper in operations {
             let ex_step_after_op = ex_gain::pre_operation_ex_gain(ctx, state, &oper);
             let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
-            let mut step = card_mgr.execute_operation(rng, ctx, state, oper).await?;
+            let step = card_mgr.execute_operation(rng, ctx, state, oper).await?;
             if step.act_type.unwrap_or(0) == 0 {
                 continue;
             }
@@ -506,6 +550,7 @@ impl FightRoundMgr {
                 steps.push(ex_step);
             }
             let mut host_step = step.clone();
+            self.inline_magic_circle_root_wrapper(&mut host_step);
             let expanded_steps =
                 self.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             let preferred_nested_act_id = host_step.act_id.unwrap_or(0) - 20;
@@ -601,7 +646,7 @@ impl FightRoundMgr {
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
+                    let insert_at = self.host_trigger_insert_index(&host_step);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
@@ -610,11 +655,12 @@ impl FightRoundMgr {
             let monitor_embeds =
                 channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
             if !monitor_embeds.is_empty() {
-                let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
+                let insert_at = self.host_trigger_insert_index(&host_step);
                 host_step
                     .act_effect
                     .splice(insert_at..insert_at, monitor_embeds);
             }
+            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
             state.is_finish = self.check_battle_end(ctx.fight);
@@ -632,7 +678,7 @@ impl FightRoundMgr {
         ctx: &mut FightContext<'_>,
         card_mgr: &mut FightCardMgr,
         state: &mut RoundState,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         steps: &mut Vec<FightStep>,
     ) -> Result<()> {
         let battle_id = ctx.fight.battle_id.unwrap_or(0);
@@ -669,6 +715,7 @@ impl FightRoundMgr {
             }
 
             let mut host_step = step.clone();
+            self.inline_magic_circle_root_wrapper(&mut host_step);
             let preferred_nested_act_id = host_step.act_id.unwrap_or(0) - 20;
             let nested_skill_idx = host_step
                 .act_effect
@@ -762,12 +809,13 @@ impl FightRoundMgr {
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
+                    let insert_at = self.host_trigger_insert_index(&host_step);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
                 }
             }
+            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
         }
@@ -777,7 +825,7 @@ impl FightRoundMgr {
     fn apply_passive_phase(
         &self,
         ctx: &mut FightContext<'_>,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         config: PassivePhaseConfig,
         sync_snapshot: bool,
         steps: &mut Vec<FightStep>,
@@ -798,7 +846,7 @@ impl FightRoundMgr {
         state: &mut RoundState,
         selected_for_round_end: Vec<CardInfo>,
         deck_num: i32,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         defender_uid_checkpoint: i64,
         steps: &mut Vec<FightStep>,
     ) -> Result<()> {
@@ -897,7 +945,7 @@ impl FightRoundMgr {
                     .position(|s| {
                         s.act_effect.iter().any(|e| {
                             e.effect_type
-                                == Some(super::super::types::effects::EffectType::FightStep as i32)
+                                == Some(EffectType::FightStep as i32)
                         })
                     })
                     .map(|off| defender_sweep_start + off)
@@ -935,7 +983,7 @@ impl FightRoundMgr {
                             .find(|e| {
                                 e.effect_type
                                     == Some(
-                                        super::super::types::effects::EffectType::FightStep as i32,
+                                        EffectType::FightStep as i32,
                                     )
                             })
                             .cloned()
@@ -964,7 +1012,7 @@ impl FightRoundMgr {
             FightStepBuilder::effect()
                 .with(ActEffect {
                     effect_type: Some(
-                        super::super::types::effects::EffectType::SmallRoundEnd as i32,
+                        EffectType::SmallRoundEnd as i32,
                     ),
                     effect_num: Some(1),
                     ..Default::default()
@@ -983,7 +1031,7 @@ impl FightRoundMgr {
             FightStepBuilder::effect()
                 .with(ActEffect {
                     effect_type: Some(
-                        super::super::types::effects::EffectType::ClearUniversalCard as i32,
+                        EffectType::ClearUniversalCard as i32,
                     ),
                     team_type: Some(1),
                     ..Default::default()
@@ -993,7 +1041,7 @@ impl FightRoundMgr {
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffect {
-                    effect_type: Some(super::super::types::effects::EffectType::ChangeRound as i32),
+                    effect_type: Some(EffectType::ChangeRound as i32),
                     ..Default::default()
                 })
                 .build(),
@@ -1066,7 +1114,7 @@ impl FightRoundMgr {
                             && s.act_effect.iter().all(|e| {
                                 e.effect_type
                                     == Some(
-                                        super::super::types::effects::EffectType::BuffUpdate as i32,
+                                        EffectType::BuffUpdate as i32,
                                     )
                             })
                     })
@@ -1156,7 +1204,7 @@ impl FightRoundMgr {
     pub(crate) fn expand_trigger_chain(
         &self,
         ctx: &mut FightContext<'_>,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         root_step: &FightStep,
         runtime_deleted_buff_ids: &[i32],
     ) -> Vec<FightStep> {
@@ -1282,7 +1330,7 @@ impl FightRoundMgr {
     fn run_passive_phase(
         &self,
         ctx: &mut FightContext<'_>,
-        collected: &super::super::passives::collector::CollectedPassives,
+        collected: &CollectedPassives,
         config: PassivePhaseConfig,
     ) -> Vec<FightStep> {
         let scope_uids = match &config.scope {
@@ -1294,7 +1342,7 @@ impl FightRoundMgr {
             PhaseSkillSet::ExcludeBattleRule | PhaseSkillSet::CombatReactive => {
                 let battle_rule_skills = self.collect_battle_rule_skills(ctx.fight);
                 let stop_at_first = matches!(config.depth, PhaseDepth::FirstMatch);
-                let passive_phase = super::super::skill::PhaseFilter::combat();
+                let passive_phase = PhaseFilter::combat();
                 let mut out = Vec::new();
 
                 for &uid in &scope_uids {
@@ -1328,27 +1376,6 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
                         {
-                            if matches!(config.skill_set, PhaseSkillSet::CombatReactive) {
-                                let post_sweep_effects = effects
-                                    .iter()
-                                    .map(|e| {
-                                        e.fight_step
-                                            .as_ref()
-                                            .map(|s| {
-                                                (
-                                                    e.effect_type.unwrap_or(-1),
-                                                    s.act_type.unwrap_or(-1),
-                                                    s.act_id.unwrap_or(0),
-                                                    s.act_effect
-                                                        .iter()
-                                                        .map(|ie| ie.effect_type.unwrap_or(-1))
-                                                        .collect::<Vec<_>>(),
-                                                )
-                                            })
-                                            .unwrap_or((e.effect_type.unwrap_or(-1), 0, 0, vec![]))
-                                    })
-                                    .collect::<Vec<_>>();
-                            }
                             per_entity_effects.extend(effects);
                             if stop_at_first {
                                 break;
@@ -1404,7 +1431,7 @@ impl FightRoundMgr {
                             *uid,
                             *uid,
                             skill_id,
-                            &super::super::skill::PhaseFilter::combat(),
+                            &PhaseFilter::combat(),
                         ) && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);
@@ -1494,7 +1521,7 @@ impl FightRoundMgr {
                             *uid,
                             *uid,
                             skill_id,
-                            &super::super::skill::PhaseFilter::combat(),
+                            &PhaseFilter::combat(),
                         ) && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);

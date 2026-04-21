@@ -44,9 +44,7 @@ fn burn_params(buff_id: i32) -> Option<(i32, i32, i32)> {
         return None;
     }
     let cfg = config::configs::get();
-    let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
-        return None;
-    };
+    let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
     for entry in buff_cfg.features.split('|') {
         let parts: Vec<&str> = entry.split('#').collect();
         let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {

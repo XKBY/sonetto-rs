@@ -4,8 +4,12 @@ use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    manager::{ex_point_mgr::ExPointMgr, round_mgr::{lookup_entry_max_hp, FightRoundMgr}},
-    mechanics::injury_counter,
+    manager::{
+        buff_mgr::BuffMgr,
+        ex_point_mgr::ExPointMgr,
+        round_mgr::{FightRoundMgr, lookup_entry_max_hp},
+    },
+    mechanics::{injury_counter, magic_circle},
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::step_shape::build_effect_step,
     skill::targets,
@@ -16,10 +20,6 @@ use crate::state::battle::{
 use crate::state::battle::fight_step::wrap_step;
 use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::types::effects::EffectType;
-
-/// Channel-output pattern used by NuoDiKa rank-3; live emits a split 350-permille
-/// replacement when a matching `AttrReplace` buff drives the output.
-pub const NUODIKA_RANK3_OUTPUT_SKILL_ID: i32 = 31200173;
 
 pub(crate) fn build_nuodika_channel_steps(
     _mgr: &FightRoundMgr,
@@ -110,8 +110,24 @@ pub(crate) fn build_nuodika_channel_steps(
             else {
                 continue;
             };
+            if let Some(skill_step) =
+                injury_counter::find_nested_skill_step_mut(&mut channel_effects, output_skill_id)
+            {
+                let circle_embeds = magic_circle::build_magic_circle_self_skill_embeds(
+                    ctx,
+                    &skill_step.clone(),
+                    holder_uid,
+                );
+                if !circle_embeds.is_empty() {
+                    let insert_at = crate::state::battle::steps::trigger_embed::find_trigger_insert_index(&skill_step.act_effect);
+                    skill_step
+                        .act_effect
+                        .splice(insert_at..insert_at, circle_embeds);
+                }
+            }
             rewrite_nuodika_channel_body(
                 ctx.fight,
+                &ctx.managers.buff_mgr,
                 &ctx.managers.ex_point_mgr,
                 &mut channel_effects,
                 holder_uid,
@@ -119,6 +135,7 @@ pub(crate) fn build_nuodika_channel_steps(
                 target_uid,
                 &alive_enemy_targets,
                 granted_points,
+                available - consume,
             );
 
             let mut step_effects = vec![ActEffect {
@@ -208,6 +225,7 @@ fn apply_step_to_simulated_hp(step: &FightStep, simulated_hp: &mut HashMap<i64, 
 
 pub(crate) fn rewrite_nuodika_channel_body(
     fight: &Fight,
+    buff_mgr: &BuffMgr,
     ex_point_mgr: &ExPointMgr,
     skill_effects: &mut [ActEffect],
     caster_uid: i64,
@@ -215,6 +233,7 @@ pub(crate) fn rewrite_nuodika_channel_body(
     primary_target_uid: i64,
     alive_enemy_targets: &[i64],
     blood_sacrifice_points: i32,
+    current_blood_value: i32,
 ) {
     if blood_sacrifice_points <= 0 {
         return;
@@ -233,32 +252,19 @@ pub(crate) fn rewrite_nuodika_channel_body(
         return;
     };
 
-    let mut raw_behavior = None;
-    for slot in 1..=20 {
-        let behavior = match slot {
-            1 => skill_cfg.behavior1.as_str(),
-            2 => skill_cfg.behavior2.as_str(),
-            3 => skill_cfg.behavior3.as_str(),
-            4 => skill_cfg.behavior4.as_str(),
-            5 => skill_cfg.behavior5.as_str(),
-            6 => skill_cfg.behavior6.as_str(),
-            7 => skill_cfg.behavior7.as_str(),
-            8 => skill_cfg.behavior8.as_str(),
-            9 => skill_cfg.behavior9.as_str(),
-            10 => skill_cfg.behavior10.as_str(),
-            11 => skill_cfg.behavior11.as_str(),
-            12 => skill_cfg.behavior12.as_str(),
-            13 => skill_cfg.behavior13.as_str(),
-            14 => skill_cfg.behavior14.as_str(),
-            15 => skill_cfg.behavior15.as_str(),
-            16 => skill_cfg.behavior16.as_str(),
-            17 => skill_cfg.behavior17.as_str(),
-            18 => skill_cfg.behavior18.as_str(),
-            19 => skill_cfg.behavior19.as_str(),
-            20 => skill_cfg.behavior20.as_str(),
-            _ => "",
-        };
-        if behavior.trim().is_empty() {
+    let mut nuodika_behavior = None;
+    let behavior_slots = [
+        &skill_cfg.behavior1, &skill_cfg.behavior2, &skill_cfg.behavior3,
+        &skill_cfg.behavior4, &skill_cfg.behavior5, &skill_cfg.behavior6,
+        &skill_cfg.behavior7, &skill_cfg.behavior8, &skill_cfg.behavior9,
+        &skill_cfg.behavior10, &skill_cfg.behavior11, &skill_cfg.behavior12,
+        &skill_cfg.behavior13, &skill_cfg.behavior14, &skill_cfg.behavior15,
+        &skill_cfg.behavior16, &skill_cfg.behavior17, &skill_cfg.behavior18,
+        &skill_cfg.behavior19, &skill_cfg.behavior20,
+    ];
+    for behavior in behavior_slots {
+        let behavior = behavior.trim();
+        if behavior.is_empty() {
             continue;
         }
         let Some(behavior_id) = behavior
@@ -275,11 +281,11 @@ pub(crate) fn rewrite_nuodika_channel_body(
             .map(|b| b.r#type == "NuoDiKaDamage")
             .unwrap_or(false);
         if is_nuodika {
-            raw_behavior = Some(behavior.to_string());
+            nuodika_behavior = Some((behavior_id, behavior.to_string()));
             break;
         }
     }
-    let Some(raw_behavior) = raw_behavior else {
+    let Some((behavior_id, raw_behavior)) = nuodika_behavior else {
         return;
     };
     let parts: Vec<&str> = raw_behavior.split('#').collect();
@@ -292,6 +298,7 @@ pub(crate) fn rewrite_nuodika_channel_body(
     let Some(caster) = crate::state::battle::skill::get_entity(fight, caster_uid) else {
         return;
     };
+    let pending_attr_bonus = collect_pre_hit_attr_bonus(&skill_step.act_effect, caster_uid);
     let max_hp = lookup_entry_max_hp(fight, caster_uid)
         .max(ex_point_mgr.get_max_hp(caster_uid))
         .max(
@@ -313,6 +320,41 @@ pub(crate) fn rewrite_nuodika_channel_body(
     if max_hp <= 0 {
         return;
     }
+    let blood_sacrifice_hp_bonus_permille =
+        resolve_blood_sacrifice_hp_bonus_permille(buff_mgr, caster_uid);
+    let blood_sacrifice_point_count =
+        resolve_blood_sacrifice_point_count(buff_mgr, caster_uid, current_blood_value);
+    let scaled_max_hp = apply_blood_sacrifice_hp_bonus(
+        max_hp,
+        blood_sacrifice_point_count,
+        blood_sacrifice_hp_bonus_permille,
+    );
+    let team_hit_extra_hp_permille =
+        resolve_team_hit_extra_max_hp_permille(&skill_step.act_effect, caster_uid);
+    let team_hit_max_hp = apply_permille_bonus(scaled_max_hp, team_hit_extra_hp_permille);
+    let calc_scaled_damage = |base_max_hp: i32, permille: i32, rate: i32| -> i32 {
+        let scaled = (base_max_hp as i64)
+            .saturating_mul(permille as i64)
+            .saturating_mul(rate as i64)
+            / 1000
+            / 1000;
+        scaled.clamp(1, i32::MAX as i64) as i32
+    };
+    let apply_pending_attr_bonus = |base_damage: i32| -> i32 {
+        let rate_bonus = pending_attr_bonus.get(&205).copied().unwrap_or(0)
+            + pending_attr_bonus.get(&214).copied().unwrap_or(0)
+            + pending_attr_bonus.get(&215).copied().unwrap_or(0)
+            + pending_attr_bonus.get(&219).copied().unwrap_or(0)
+            - pending_attr_bonus.get(&206).copied().unwrap_or(0);
+        let aux_bonus = pending_attr_bonus.get(&201).copied().unwrap_or(0)
+            + pending_attr_bonus.get(&203).copied().unwrap_or(0);
+        let scaled = (base_damage as i64)
+            .saturating_mul((1000 + rate_bonus).max(0) as i64)
+            .saturating_mul((1000 + aux_bonus).max(0) as i64)
+            / 1000
+            / 1000;
+        scaled.clamp(1, i32::MAX as i64) as i32
+    };
     let mut preserved = Vec::new();
     let mut aggregate_damage = std::collections::HashMap::<i64, i32>::new();
     let mut team_targets = Vec::new();
@@ -343,43 +385,46 @@ pub(crate) fn rewrite_nuodika_channel_body(
     }
 
     let random_target = primary_target_uid;
-    let use_live_rank3_pattern = output_skill_id == NUODIKA_RANK3_OUTPUT_SKILL_ID
-        && primary_permille == 350
-        && primary_rate == 1000
-        && secondary_permille == 500
-        && secondary_rate == 1000
-        && blood_sacrifice_points >= 15;
-    let (random_hit_pattern, team_hit_damage) = if use_live_rank3_pattern {
-        let mut pattern = vec![36292; blood_sacrifice_points.max(0) as usize];
-        if !pattern.is_empty() {
-            pattern[0] = 17592;
-        }
-        if pattern.len() > 12 {
-            pattern[12] = 17592;
-        }
-        (pattern, 53823)
-    } else {
-        let random_hit_damage = (max_hp
-            .saturating_mul(primary_permille)
-            .saturating_mul(primary_rate)
-            / 1000
-            / 1000)
-            .max(1);
-        let team_hit_damage = (max_hp
-            .saturating_mul(secondary_permille)
-            .saturating_mul(secondary_rate)
-            / 1000
-            / 1000)
-            .max(1);
-        (
-            vec![random_hit_damage; blood_sacrifice_points.max(0) as usize],
-            team_hit_damage,
-        )
-    };
+    // Damage per hit is derived from the caster's Max HP times the buff's
+    // attrReplace permille times the behavior-slot rate (both parts-per-1000).
+    let random_hit_damage = apply_pending_attr_bonus(calc_scaled_damage(
+        scaled_max_hp,
+        primary_permille,
+        primary_rate,
+    ));
+    let team_hit_damage = apply_pending_attr_bonus(calc_scaled_damage(
+        team_hit_max_hp,
+        secondary_permille,
+        secondary_rate,
+    ));
+    let variant_config = resolve_dying_heal_disperse_variant(buff_mgr, caster_uid);
+    let variant_random_hit_damage = variant_config
+        .as_ref()
+        .map(|variant| {
+            let base_variant_damage = calc_scaled_damage(max_hp, primary_permille, primary_rate);
+            let reduced_variant_damage = (base_variant_damage as i64)
+                .saturating_mul(1000)
+                / (1000 + variant.reduction_permille.max(0)) as i64;
+            apply_pending_attr_bonus(reduced_variant_damage.clamp(1, i32::MAX as i64) as i32)
+        })
+        .unwrap_or(random_hit_damage);
+    let random_hit_pattern: Vec<(i32, i32)> = (0..blood_sacrifice_points.max(0) as usize)
+        .map(|index| {
+            let is_variant = variant_config
+                .as_ref()
+                .map(|variant| index % variant.hit_stride == 0)
+                .unwrap_or(false);
+            if is_variant {
+                (variant_random_hit_damage, 2)
+            } else {
+                (random_hit_damage, 3)
+            }
+        })
+        .collect();
     if random_hit_pattern.is_empty() && team_hit_damage <= 0 {
         return;
     }
-    for damage in &random_hit_pattern {
+    for (damage, _) in &random_hit_pattern {
         if random_target != 0 {
             *aggregate_damage.entry(random_target).or_insert(0) += *damage;
         }
@@ -396,19 +441,20 @@ pub(crate) fn rewrite_nuodika_channel_body(
         effect_num1: Some(1),
         ..Default::default()
     });
-    for damage in &random_hit_pattern {
+    for (index, (damage, effect_num1)) in random_hit_pattern.iter().enumerate() {
         if random_target != 0 {
             rebuilt.push(ActEffect {
                 effect_type: Some(EffectType::NuoDiKaRandomAttack as i32),
                 target_id: Some(random_target),
                 effect_num: Some(*damage),
-                effect_num1: Some(if use_live_rank3_pattern && *damage == 17592 {
-                    2
-                } else {
-                    3
-                }),
-                config_effect: Some(60209),
+                effect_num1: Some(*effect_num1),
+                config_effect: Some(behavior_id),
                 buff_act_id: Some(output_skill_id),
+                reserve_str: Some(format!(
+                    "{}#{}",
+                    index + 1,
+                    blood_sacrifice_points.max(0) as usize
+                )),
                 ..Default::default()
             });
         }
@@ -419,7 +465,7 @@ pub(crate) fn rewrite_nuodika_channel_body(
             target_id: Some(*target_id),
             effect_num: Some(team_hit_damage),
             effect_num1: Some(1),
-            config_effect: Some(60209),
+            config_effect: Some(behavior_id),
             buff_act_id: Some(output_skill_id),
             ..Default::default()
         });
@@ -428,7 +474,7 @@ pub(crate) fn rewrite_nuodika_channel_body(
         rebuilt.push(damage_with_hurt(
             target_id,
             damage.max(1),
-            60209,
+            behavior_id,
             output_skill_id,
             caster_uid,
         ));
@@ -438,4 +484,285 @@ pub(crate) fn rewrite_nuodika_channel_body(
         rebuilt.extend(dead_effects);
     }
     skill_step.act_effect = rebuilt;
+}
+
+fn collect_pre_hit_attr_bonus(effects: &[ActEffect], caster_uid: i64) -> HashMap<i32, i32> {
+    fn walk(effects: &[ActEffect], caster_uid: i64, out: &mut HashMap<i32, i32>) {
+        for effect in effects {
+            let Some(step) = effect.fight_step.as_ref() else {
+                continue;
+            };
+            if step.from_id.unwrap_or(0) == caster_uid {
+                collect_skill_attr_bonus(step.act_id.unwrap_or(0), out);
+            }
+            walk(&step.act_effect, caster_uid, out);
+        }
+    }
+
+    fn collect_skill_attr_bonus(skill_id: i32, out: &mut HashMap<i32, i32>) {
+        if skill_id <= 0 {
+            return;
+        }
+        let cfg = config::configs::get();
+        let Some(skill_cfg) = cfg
+            .skill_effect
+            .iter()
+            .find(|s| s.id == resolve_skill_effect_id(skill_id))
+        else {
+            return;
+        };
+        let behavior_slots = [
+            &skill_cfg.behavior1, &skill_cfg.behavior2, &skill_cfg.behavior3,
+            &skill_cfg.behavior4, &skill_cfg.behavior5, &skill_cfg.behavior6,
+            &skill_cfg.behavior7, &skill_cfg.behavior8, &skill_cfg.behavior9,
+            &skill_cfg.behavior10, &skill_cfg.behavior11, &skill_cfg.behavior12,
+            &skill_cfg.behavior13, &skill_cfg.behavior14, &skill_cfg.behavior15,
+            &skill_cfg.behavior16, &skill_cfg.behavior17, &skill_cfg.behavior18,
+            &skill_cfg.behavior19, &skill_cfg.behavior20,
+        ];
+        for raw in behavior_slots {
+            if let Some((attr_id, amount)) = parse_attr_fix_like_behavior(raw.trim()) {
+                {
+                    *out.entry(attr_id).or_insert(0) += amount;
+                }
+            }
+        }
+    }
+
+    let mut out = HashMap::new();
+    walk(effects, caster_uid, &mut out);
+    out
+}
+
+fn apply_blood_sacrifice_hp_bonus(
+    base_max_hp: i32,
+    point_count: i32,
+    per_point_permille: i32,
+) -> i32 {
+    if base_max_hp <= 0 || point_count <= 0 || per_point_permille <= 0 {
+        return base_max_hp.max(0);
+    }
+    let scaled = (base_max_hp as i64)
+        .saturating_mul(
+            1000_i64.saturating_add((point_count as i64).saturating_mul(per_point_permille as i64)),
+        )
+        / 1000;
+    scaled.clamp(1, i32::MAX as i64) as i32
+}
+
+fn apply_permille_bonus(base_value: i32, bonus_permille: i32) -> i32 {
+    if base_value <= 0 || bonus_permille <= 0 {
+        return base_value.max(0);
+    }
+    let scaled = (base_value as i64).saturating_mul((1000 + bonus_permille) as i64) / 1000;
+    scaled.clamp(1, i32::MAX as i64) as i32
+}
+
+struct DyingHealDisperseVariant {
+    reduction_permille: i32,
+    hit_stride: usize,
+}
+
+fn resolve_dying_heal_disperse_variant(
+    buff_mgr: &BuffMgr,
+    caster_uid: i64,
+) -> Option<DyingHealDisperseVariant> {
+    let cfg = config::configs::get();
+    buff_mgr.get(caster_uid).iter().find_map(|instance| {
+        let buff = cfg.skill_buff.iter().find(|b| b.id == instance.buff_id)?;
+        buff.features.split('|').find_map(|feature| {
+            let parts: Vec<&str> = feature.split('#').collect();
+            let act_id = parts.first()?.trim().parse::<i32>().ok()?;
+            if act_id != 1010 {
+                return None;
+            }
+            let reduction_permille = parts
+                .get(1)
+                .and_then(|value| value.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            let hit_stride = parts
+                .get(2)
+                .map(|value| {
+                    value
+                        .split(',')
+                        .filter_map(|part| part.trim().parse::<usize>().ok())
+                        .sum::<usize>()
+                })
+                .unwrap_or(0);
+            if reduction_permille <= 0 || hit_stride == 0 {
+                return None;
+            }
+            Some(DyingHealDisperseVariant {
+                reduction_permille,
+                hit_stride,
+            })
+        })
+    })
+}
+
+fn resolve_team_hit_extra_max_hp_permille(effects: &[ActEffect], caster_uid: i64) -> i32 {
+    fn walk(effects: &[ActEffect], caster_uid: i64, out: &mut i32) {
+        let cfg = config::configs::get();
+        for effect in effects {
+            if effect.target_id.unwrap_or(0) == caster_uid {
+                let Some(buff_id) = effect.buff.as_ref().and_then(|buff| buff.buff_id) else {
+                    if let Some(step) = effect.fight_step.as_ref() {
+                        walk(&step.act_effect, caster_uid, out);
+                    }
+                    continue;
+                };
+                let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+                    if let Some(step) = effect.fight_step.as_ref() {
+                        walk(&step.act_effect, caster_uid, out);
+                    }
+                    continue;
+                };
+                let is_stacked = cfg
+                    .skill_bufftype
+                    .iter()
+                    .find(|t| t.id == buff_cfg.type_id)
+                    .and_then(|t| t.include_types.split('#').next())
+                    .map(|include_type| matches!(include_type.trim(), "10" | "12" | "14" | "15"))
+                    .unwrap_or(false);
+                if is_stacked {
+                    for entry in buff_cfg.features.split('|') {
+                        let parts: Vec<&str> = entry.split('#').collect();
+                        let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok())
+                        else {
+                            continue;
+                        };
+                        let act_type = cfg
+                            .buff_act
+                            .iter()
+                            .find(|a| a.id == act_id)
+                            .map(|a| a.r#type.as_str())
+                            .unwrap_or("");
+                        if act_type != "Attr" {
+                            continue;
+                        }
+                        let attr_id = parts
+                            .get(1)
+                            .and_then(|v| v.trim().parse::<i32>().ok())
+                            .unwrap_or(0);
+                        let amount = parts
+                            .get(2)
+                            .and_then(|v| v.trim().parse::<i32>().ok())
+                            .unwrap_or(0);
+                        if attr_id == 101 && amount > 0 {
+                            *out = (*out).max(amount);
+                        }
+                    }
+                }
+            }
+            if let Some(step) = effect.fight_step.as_ref() {
+                walk(&step.act_effect, caster_uid, out);
+            }
+        }
+    }
+
+    let mut out = 0;
+    walk(effects, caster_uid, &mut out);
+    out
+}
+
+fn resolve_blood_sacrifice_point_count(
+    buff_mgr: &BuffMgr,
+    caster_uid: i64,
+    current_blood_value: i32,
+) -> i32 {
+    let cfg = config::configs::get();
+    let stack_bonus: i32 = buff_mgr
+        .get(caster_uid)
+        .iter()
+        .filter_map(|instance| {
+            let buff = cfg.skill_buff.iter().find(|b| b.id == instance.buff_id)?;
+            let is_blood_sacrifice_counter = buff.features.split('|').any(|feature| {
+                let parts: Vec<&str> = feature.split('#').collect();
+                let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
+                    return false;
+                };
+                cfg.buff_act
+                    .iter()
+                    .find(|a| a.id == act_id)
+                    .map(|a| a.r#type == "DyingHealDisperse1")
+                    .unwrap_or(false)
+            });
+            if !is_blood_sacrifice_counter {
+                return None;
+            }
+            Some(instance.stacks.max(instance.layer).max(0))
+        })
+        .sum();
+    current_blood_value.max(0) + stack_bonus
+}
+
+fn resolve_blood_sacrifice_hp_bonus_permille(buff_mgr: &BuffMgr, caster_uid: i64) -> i32 {
+    let cfg = config::configs::get();
+    let carrier_buff_ids: Vec<i32> = buff_mgr
+        .get(caster_uid)
+        .iter()
+        .filter_map(|instance| {
+            let buff = cfg.skill_buff.iter().find(|b| b.id == instance.buff_id)?;
+            buff.features.split('|').find_map(|feature| {
+                let parts: Vec<&str> = feature.split('#').collect();
+                let act_id = parts.first()?.trim().parse::<i32>().ok()?;
+                let act_type = cfg
+                    .buff_act
+                    .iter()
+                    .find(|a| a.id == act_id)
+                    .map(|a| a.r#type.as_str())
+                    .unwrap_or("");
+                if act_type != "BloodValueUseSkill" {
+                    return None;
+                }
+                parts.get(1)?.trim().parse::<i32>().ok()
+            })
+        })
+        .collect();
+
+    carrier_buff_ids
+        .into_iter()
+        .filter(|buff_id| buff_mgr.has(caster_uid, *buff_id))
+        .filter_map(extract_blood_sacrifice_permille_from_carrier_buff)
+        .max()
+        .unwrap_or(0)
+}
+
+fn extract_blood_sacrifice_permille_from_carrier_buff(buff_id: i32) -> Option<i32> {
+    let cfg = config::configs::get();
+    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
+    buff.features.split('|').find_map(|feature| {
+        let parts: Vec<&str> = feature.split('#').collect();
+        let act_id = parts.first()?.trim().parse::<i32>().ok()?;
+        let act_type = cfg
+            .buff_act
+            .iter()
+            .find(|a| a.id == act_id)
+            .map(|a| a.r#type.as_str())
+            .unwrap_or("");
+        if act_type != "CureUpByLostHp" {
+            return None;
+        }
+        parts.last()?.trim().parse::<i32>().ok()
+    })
+}
+
+fn parse_attr_fix_like_behavior(raw: &str) -> Option<(i32, i32)> {
+    if raw.is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = raw.split('#').collect();
+    let behavior_id = parts.first()?.trim().parse::<i32>().ok()?;
+    let behavior_type = config::configs::get()
+        .skill_behavior
+        .iter()
+        .find(|b| b.id == behavior_id)
+        .map(|b| b.r#type.as_str())
+        .unwrap_or("");
+    if behavior_type != "AttrFix" && behavior_type != "AttrModify" {
+        return None;
+    }
+    let attr_id = parts.get(1)?.trim().parse::<i32>().ok()?;
+    let amount = parts.get(2)?.trim().parse::<i32>().ok()?;
+    Some((attr_id, amount))
 }

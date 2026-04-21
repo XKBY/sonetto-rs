@@ -145,26 +145,3 @@ fn insert_trigger_into_matching_nested_inner(
     false
 }
 
-pub(crate) fn find_nested_skill_step_mut(
-    effects: &mut [ActEffect],
-    act_id: i32,
-) -> Option<&mut FightStep> {
-    for effect in effects {
-        if let Some(step) = effect.fight_step.as_mut() {
-            if step.act_type == Some(fight_step::ActType::Skill as i32)
-                && step.act_id == Some(act_id)
-            {
-                return Some(step);
-            }
-            for nested in &mut step.act_effect {
-                if let Some(inner) = nested.fight_step.as_mut()
-                    && inner.act_type == Some(fight_step::ActType::Skill as i32)
-                    && inner.act_id == Some(act_id)
-                {
-                    return Some(inner);
-                }
-            }
-        }
-    }
-    None
-}

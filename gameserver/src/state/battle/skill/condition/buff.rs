@@ -41,13 +41,10 @@ pub fn deleted_matches(deleted_buff_ids: &[i32], wanted_ids: &[i32]) -> bool {
         return false;
     }
 
-    let category_match = wanted_ids
+    wanted_ids
         .iter()
         .filter_map(|id| resolve_buff_category(*id))
-        .any(|wanted_category| deleted_categories.contains(&wanted_category));
-
-
-    category_match
+        .any(|wanted_category| deleted_categories.contains(&wanted_category))
 }
 
 pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {

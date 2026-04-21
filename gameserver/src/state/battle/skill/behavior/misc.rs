@@ -2,6 +2,7 @@ use anyhow::Result;
 use config::configs;
 use sonettobuf::{ActEffect, Fight, MagicCircleInfo};
 
+use crate::state::battle::utils::buff_add;
 use crate::state::battle::types::effects::EffectType;
 
 pub fn be_attacked_assassinate() -> Result<Vec<ActEffect>> {
@@ -10,13 +11,20 @@ pub fn be_attacked_assassinate() -> Result<Vec<ActEffect>> {
 
 pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Result<Vec<ActEffect>> {
     let _ = fight;
-    let round = configs::get()
+    let circle = configs::get()
         .magic_circle
         .get(circle_id)
-        .map(|circle| circle.round)
-        .unwrap_or(0);
-
-    Ok(vec![ActEffect {
+        .cloned();
+    let round = circle.as_ref().map(|circle| circle.round).unwrap_or(0);
+    let mut out = Vec::new();
+    if let Some(buff_id) = circle
+        .as_ref()
+        .and_then(|circle| circle.self_buff.trim().parse::<i32>().ok())
+        .filter(|id| *id > 0)
+    {
+        out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
+    }
+    out.push(ActEffect {
         effect_type: Some(EffectType::MagicCircleAdd as i32),
         target_id: Some(caster_uid),
         effect_num: Some(0),
@@ -30,7 +38,9 @@ pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Resul
             max_electric_progress: Some(0),
         }),
         ..Default::default()
-    }])
+    });
+
+    Ok(out)
 }
 
 pub fn magic_circle_attr() -> Result<Vec<ActEffect>> {

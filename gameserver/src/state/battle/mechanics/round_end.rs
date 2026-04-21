@@ -1,17 +1,18 @@
 use sonettobuf::{FightStep, fight_step};
 
+use crate::state::battle::fight_step::wrap_step;
 use crate::state::battle::{
     context::FightContext,
-    mechanics::injury_counter,
+    mechanics::{injury_counter, magic_circle},
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::step_shape::build_effect_step,
     skill::get_entity,
     skill::targets::collect_team,
+    steps::trigger_embed,
     trigger::combat::event_from_step,
     trigger::passes::build_belief_gain_step,
     utils::buff_get_use_skill_to_enemy_params,
 };
-use crate::state::battle::fight_step::wrap_step;
 
 pub(crate) fn build_round_end_use_skill_to_enemy_steps(
     ctx: &mut FightContext<'_>,
@@ -38,7 +39,9 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
         let Some(holder) = get_entity(ctx.fight, holder_uid) else {
             continue;
         };
-        let team_type = holder.team_type.unwrap_or(if holder_uid > 0 { 1 } else { 2 });
+        let team_type = holder
+            .team_type
+            .unwrap_or(if holder_uid > 0 { 1 } else { 2 });
         let target_uid = collect_team(ctx.fight, Some(if team_type == 1 { 2 } else { 1 }), false)
             .into_iter()
             .find(|uid| {
@@ -72,19 +75,16 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
                 continue;
             }
 
-            let preview_injuries =
-                injury_counter::count_team_injury_effects_in_effects(
-                    ctx.fight,
-                    &skill_effects,
-                    team_type,
-                );
-            if let Some((cap, rate_per_stack)) =
-                injury_counter::find_round_injury_skill_rate_params(
-                    ctx.fight,
-                    holder_uid,
-                    output_skill_id,
-                )
-            {
+            let preview_injuries = injury_counter::count_team_injury_effects_in_effects(
+                ctx.fight,
+                &skill_effects,
+                team_type,
+            );
+            if let Some((cap, rate_per_stack)) = injury_counter::find_round_injury_skill_rate_params(
+                ctx.fight,
+                holder_uid,
+                output_skill_id,
+            ) {
                 let battle_id = ctx.fight.battle_id.unwrap_or(0);
                 let stacks = (injury_counter::get_round_injury_count(battle_id, team_type)
                     + preview_injuries)
@@ -100,6 +100,22 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
                         stacks,
                         rate_per_stack,
                     );
+                }
+            }
+            if let Some(skill_step) =
+                injury_counter::find_nested_skill_step_mut(&mut skill_effects, output_skill_id)
+            {
+                let circle_embeds = magic_circle::build_magic_circle_self_skill_embeds(
+                    ctx,
+                    &skill_step.clone(),
+                    holder_uid,
+                );
+                if !circle_embeds.is_empty() {
+                    let insert_at =
+                        trigger_embed::find_trigger_insert_index(&skill_step.act_effect);
+                    skill_step
+                        .act_effect
+                        .splice(insert_at..insert_at, circle_embeds);
                 }
             }
 
