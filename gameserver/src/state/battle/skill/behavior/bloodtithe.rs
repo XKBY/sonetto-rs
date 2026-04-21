@@ -2,8 +2,9 @@ use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromTyp
 
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
-use crate::state::battle::manager::round_mgr::lookup_entry_max_hp;
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::buff_mgr::BuffMgr;
+use crate::state::battle::manager::round_mgr::lookup_entry_max_hp;
 use crate::state::battle::mechanics::bloodtithe::{
     BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
 };
@@ -218,12 +219,7 @@ pub fn lost_life(
     });
     if let Some(new_value) = preview_gain {
         if model_id == Some(3120) {
-            effects.push(ActEffect {
-                effect_type: Some(111),
-                target_id: Some(target),
-                effect_num: Some(1),
-                ..Default::default()
-            });
+            effects.push(ActEffectBuilder::new(111, target).effect_num(1).build());
         }
         effects.push(bloodtithe_add_to_pool(target, new_value));
     }
@@ -253,12 +249,9 @@ pub fn pool_value_change(
 
     let model_id = get_entity(fight, target).and_then(|e| e.model_id);
     if model_id == Some(3120) {
-        bloodtithe.pending_effects.push(ActEffect {
-            effect_type: Some(111),
-            target_id: Some(target),
-            effect_num: Some(1),
-            ..Default::default()
-        });
+        bloodtithe
+            .pending_effects
+            .push(ActEffectBuilder::new(111, target).effect_num(1).build());
     }
     bloodtithe
         .pending_effects

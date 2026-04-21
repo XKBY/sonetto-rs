@@ -192,7 +192,9 @@ pub async fn on_party_server_list(
     let mut conn = ctx.lock().await;
     conn.send_reply(
         CmdId::PartyServerListCmd,
-        PartyServerListReply { party_servers: vec![] },
+        PartyServerListReply {
+            party_servers: vec![],
+        },
         0,
         req.up_tag,
     )

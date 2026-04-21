@@ -36,11 +36,7 @@ pub fn parse_weighted_id_list(s: &str) -> Vec<(i32, u32)> {
         .map(|part| {
             let mut it = part.split('#');
 
-            let id: i32 = it
-                .next()
-                .expect("missing id")
-                .parse()
-                .expect("bad id");
+            let id: i32 = it.next().expect("missing id").parse().expect("bad id");
 
             let weight: u32 = it
                 .next()

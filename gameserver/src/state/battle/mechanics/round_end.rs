@@ -1,6 +1,6 @@
-use sonettobuf::{FightStep, fight_step};
+use sonettobuf::FightStep;
 
-use crate::state::battle::fight_step::wrap_step;
+use crate::state::battle::fight_step::{effect_container_step, wrap_step};
 use crate::state::battle::{
     context::FightContext,
     mechanics::{injury_counter, magic_circle},
@@ -119,18 +119,8 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
                 }
             }
 
-            let inner = FightStep {
-                act_type: Some(fight_step::ActType::Effect as i32),
-                from_id: Some(holder_uid),
-                to_id: Some(holder_uid),
-                act_id: Some(instance.buff_id),
-                act_effect: skill_effects,
-                card_index: Some(0),
-                support_hero_id: Some(0),
-                fake_timeline: Some(false),
-                real_skill_type: Some(0),
-                real_skin_id: Some(0),
-            };
+            let inner =
+                effect_container_step(holder_uid, holder_uid, instance.buff_id, skill_effects);
             let step = build_effect_step(vec![wrap_step(inner.clone())]);
             out.push(step);
             let event = event_from_step(

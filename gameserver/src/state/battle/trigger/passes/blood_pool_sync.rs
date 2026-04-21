@@ -45,4 +45,3 @@ impl TriggerPass for BloodPoolSyncPass {
         out
     }
 }
-

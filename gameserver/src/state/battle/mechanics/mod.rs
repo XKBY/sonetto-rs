@@ -60,5 +60,4 @@ impl Mechanics {
     ) -> Option<FightStep> {
         self.shadow_cloak.sync_step(fight, buff_mgr, ex_point_mgr)
     }
-
 }

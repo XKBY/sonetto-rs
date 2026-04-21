@@ -52,7 +52,9 @@ pub fn check(
 
             let result = 'eval: loop {
                 let mut value = match current {
-                    ConditionType::None | ConditionType::CombatNone | ConditionType::EnterFight { .. } => true,
+                    ConditionType::None
+                    | ConditionType::CombatNone
+                    | ConditionType::EnterFight { .. } => true,
                     ConditionType::EnterFightAnd(conds) => {
                         if conds.is_empty() {
                             true

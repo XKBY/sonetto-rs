@@ -1,4 +1,5 @@
 use super::super::{
+    fight_step::ActEffectBuilder,
     manager::buff_mgr::BuffMgr,
     types::attr::AttrId,
     utils::{
@@ -157,9 +158,7 @@ pub fn calculate_damage(
                 Some(AttrId::Attack) => caster_attr.attack.unwrap_or(0),
                 _ => caster_attr.attack.unwrap_or(0),
             };
-            replace_val
-                .saturating_mul(permille)
-                / 1000
+            replace_val.saturating_mul(permille) / 1000
                 + pending_attr_bonus(pending_attr, caster_uid, 102)
         } else {
             caster_attr
@@ -218,30 +217,28 @@ pub fn calculate_damage(
         EffectType::Damage as i32
     };
 
-    vec![ActEffect {
-        effect_type: Some(primary_effect),
-        target_id: Some(target_uid),
-        effect_num: Some(dmg),
-        // Live packets carry skill damage with configEffect=-1 in this path.
-        config_effect: Some(-1),
-        hurt_info: Some(sonettobuf::FightHurtInfo {
-            damage: Some(dmg),
-            reduce_hp: Some(0),
-            reduce_shield: Some(0),
-            career_restraint: Some(restraint),
-            critical: Some(is_crit),
-            assassinate: Some(false),
-            hurt_effect: Some(primary_effect),
-            damage_from_type: Some(DamageFromType::Skill as i32),
-            config_effect: Some(-1),
-            buff_act_id: Some(0),
-            buff_uid: Some(0),
-            effect_id: Some(0),
-            skill_id: Some(0),
-            from_uid: Some(caster_uid),
-        }),
-        ..Default::default()
-    }]
+    vec![
+        ActEffectBuilder::new(primary_effect, target_uid)
+            .effect_num(dmg)
+            .config_effect(-1)
+            .hurt_info(sonettobuf::FightHurtInfo {
+                damage: Some(dmg),
+                reduce_hp: Some(0),
+                reduce_shield: Some(0),
+                career_restraint: Some(restraint),
+                critical: Some(is_crit),
+                assassinate: Some(false),
+                hurt_effect: Some(primary_effect),
+                damage_from_type: Some(DamageFromType::Skill as i32),
+                config_effect: Some(-1),
+                buff_act_id: Some(0),
+                buff_uid: Some(0),
+                effect_id: Some(0),
+                skill_id: Some(0),
+                from_uid: Some(caster_uid),
+            })
+            .build(),
+    ]
 }
 
 pub fn calculate_heal(
@@ -288,15 +285,15 @@ pub fn calculate_heal_by_two_attr(
 }
 
 pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect {
-    ActEffect {
-        effect_type: Some(if is_crit {
+    ActEffectBuilder::new(
+        if is_crit {
             EffectType::Healcrit as i32
         } else {
             EffectType::Heal as i32
-        }),
-        target_id: Some(target_id),
-        effect_num: Some(heal),
-        config_effect: Some(VfxConfig::Heal as i32),
-        ..Default::default()
-    }
+        },
+        target_id,
+    )
+    .effect_num(heal)
+    .config_effect(VfxConfig::Heal as i32)
+    .build()
 }

@@ -218,7 +218,9 @@ impl FightDataMgr {
             {
                 for entity in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
                     let uid = entity.uid.unwrap_or(0);
-                    let Some(info) = by_uid.get(&uid) else { continue };
+                    let Some(info) = by_uid.get(&uid) else {
+                        continue;
+                    };
 
                     let ex_point = info.ex_point.unwrap_or(0);
                     entity.ex_point = Some(ex_point);

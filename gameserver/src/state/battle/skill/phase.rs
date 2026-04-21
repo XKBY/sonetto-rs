@@ -1,5 +1,5 @@
-use super::super::{BehaviorType, ConditionType};
 use super::super::manager::buff_mgr::BuffMgr;
+use super::super::{BehaviorType, ConditionType};
 use super::condition::buff::deleted_matches;
 
 /// Which conditions are active for this trigger event.

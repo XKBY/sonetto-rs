@@ -1,10 +1,10 @@
+use crate::state::battle::{
+    skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
+    types::condition::ConditionType,
+};
 use config::configs;
 use sonettobuf::Fight;
 use std::collections::HashSet;
-use crate::state::battle::{
-    skill::cache::{resolve_skill_effect_id, SKILL_CACHE},
-    types::condition::ConditionType,
-};
 
 #[derive(Debug, Clone)]
 pub struct CollectedPassives {

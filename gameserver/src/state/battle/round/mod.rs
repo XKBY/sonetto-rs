@@ -1,7 +1,7 @@
 mod builder;
 pub mod passive_phase;
-pub mod step_shape;
 mod state;
+pub mod step_shape;
 pub mod steps;
 
 pub use builder::build_initial_round;

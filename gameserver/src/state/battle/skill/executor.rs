@@ -8,6 +8,7 @@ use std::{
 
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
+    fight_step::ActEffectBuilder,
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, fight_data_mgr::Managers},
     mechanics::{Mechanics, bloodtithe::BloodtitheState},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
@@ -565,13 +566,10 @@ impl SkillExecutor {
             real_skin_id: Some(0),
         };
 
-        let mut skill_act_effect = ActEffect {
-            effect_type: Some(EffectType::FightStep as i32),
-            target_id: Some(0),
-            effect_num: Some(0),
-            fight_step: Some(skill_step),
-            ..Default::default()
-        };
+        let mut skill_act_effect = ActEffectBuilder::new(EffectType::FightStep as i32, 0)
+            .effect_num(0)
+            .fight_step(skill_step)
+            .build();
 
         let mut result = Vec::new();
 
@@ -711,13 +709,12 @@ impl SkillExecutor {
                 real_skill_type: Some(0),
                 real_skin_id: Some(0),
             };
-            out.push(ActEffect {
-                effect_type: Some(EffectType::FightStep as i32),
-                target_id: Some(0),
-                effect_num: Some(0),
-                fight_step: Some(inner),
-                ..Default::default()
-            });
+            out.push(
+                ActEffectBuilder::new(EffectType::FightStep as i32, 0)
+                    .effect_num(0)
+                    .fight_step(inner)
+                    .build(),
+            );
         }
 
         out
@@ -754,10 +751,8 @@ impl SkillExecutor {
         let buff_dels = inner_executor.pending_buff_dels.drain(..).collect();
 
         let act_effect = if results.is_empty() {
-            ActEffect {
-                effect_type: Some(EffectType::FightStep as i32),
-                target_id: Some(0),
-                fight_step: Some(FightStep {
+            ActEffectBuilder::new(EffectType::FightStep as i32, 0)
+                .fight_step(FightStep {
                     act_type: Some(fight_step::ActType::Skill.into()),
                     from_id: Some(caster_uid),
                     to_id: Some(caster_uid),
@@ -768,9 +763,8 @@ impl SkillExecutor {
                     fake_timeline: Some(false),
                     real_skill_type: Some(0),
                     real_skin_id: Some(0),
-                }),
-                ..Default::default()
-            }
+                })
+                .build()
         } else {
             results.remove(0)
         };
@@ -1106,19 +1100,15 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
 
     killed_in_order
         .into_iter()
-        .map(|target_id| ActEffect {
-            effect_type: Some(EffectType::Dead as i32),
-            target_id: Some(target_id),
-            effect_num: Some(0),
-            ..Default::default()
+        .map(|target_id| {
+            ActEffectBuilder::new(EffectType::Dead as i32, target_id)
+                .effect_num(0)
+                .build()
         })
         .collect()
 }
 
-fn apply_preview_effects_to_sim_buffs(
-    buff_mgr: &mut BuffMgr,
-    effects: &[ActEffect],
-) {
+fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffect]) {
     for effect in effects {
         match effect.effect_type.unwrap_or(0) {
             x if x == EffectType::BuffAdd as i32 => {

@@ -1,5 +1,5 @@
+use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::super::executor::SkillExecutor;
-use super::super::cache::{resolve_skill_effect_id, SKILL_CACHE};
 use super::buff_helper::{has_include_type, uses_slave_uid};
 use sonettobuf::{ActEffect, Fight};
 
@@ -253,9 +253,10 @@ pub fn apply(
         let has_excluded_active = if has_exclude_types {
             let excluded_ids = excluded_buff_or_type_ids(buff_id);
             with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.buffs(target).iter().any(|b| {
-                    excluded_ids.contains(&b.buff_id) || excluded_ids.contains(&b.type_id)
-                })
+                buff_ctx
+                    .buffs(target)
+                    .iter()
+                    .any(|b| excluded_ids.contains(&b.buff_id) || excluded_ids.contains(&b.type_id))
             })
         } else {
             false

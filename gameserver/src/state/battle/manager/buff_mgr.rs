@@ -1,11 +1,11 @@
 use super::traits::Manager;
 use sonettobuf::Fight;
+#[cfg(test)]
+use std::{cell::Cell, sync::Mutex};
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicBool, AtomicI64, Ordering},
 };
-#[cfg(test)]
-use std::{cell::Cell, sync::Mutex};
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]

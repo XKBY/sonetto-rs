@@ -4,11 +4,11 @@ use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    fight_step::wrap_step,
+    fight_step::{effect_container_step, wrap_step},
     manager::round_mgr::FightRoundMgr,
-    steps::trigger_embed,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, TriggerState},
+    steps::trigger_embed,
     trigger::combat::event_from_step,
     utils::{buff_get_monitor_continue_channel_params, buff_update},
 };
@@ -126,8 +126,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
         else {
             continue;
         };
-        if prerequisite_buff_id > 0
-            && !ctx.managers.buff_mgr.has(caster_uid, prerequisite_buff_id)
+        if prerequisite_buff_id > 0 && !ctx.managers.buff_mgr.has(caster_uid, prerequisite_buff_id)
         {
             continue;
         }
@@ -154,12 +153,11 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             .iter()
             .find(|b| b.buff_id == emit_effect_id)
         {
-            let update_step = FightStep {
-                act_type: Some(fight_step::ActType::Effect.into()),
-                from_id: Some(caster_uid),
-                to_id: Some(caster_uid),
-                act_id: Some(emit_effect_id),
-                act_effect: vec![buff_update(
+            let update_step = effect_container_step(
+                caster_uid,
+                caster_uid,
+                emit_effect_id,
+                vec![buff_update(
                     caster_uid,
                     existing.from_uid,
                     emit_effect_id,
@@ -167,12 +165,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
                     existing.stacks.max(1),
                     existing.layer,
                 )],
-                card_index: Some(0),
-                support_hero_id: Some(0),
-                fake_timeline: Some(false),
-                real_skill_type: Some(0),
-                real_skin_id: Some(0),
-            };
+            );
             if update_step.act_type == Some(fight_step::ActType::Effect as i32)
                 && update_step.act_effect.len() == 1
                 && let Some(effect) = update_step.act_effect.first().cloned()
@@ -214,7 +207,11 @@ pub(crate) fn build_monitor_continue_channel_embeds(
         ) else {
             continue;
         };
-        out.extend(skill_effects.into_iter().filter(|effect| effect.effect_type == Some(162)));
+        out.extend(
+            skill_effects
+                .into_iter()
+                .filter(|effect| effect.effect_type == Some(162)),
+        );
     }
 
     out
@@ -306,8 +303,7 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
 
     let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
     let phase = crate::state::battle::skill::PhaseFilter::combat_with(
-        crate::state::battle::skill::TriggerState::default()
-            .with_buff_mgr(&ctx.managers.buff_mgr),
+        crate::state::battle::skill::TriggerState::default().with_buff_mgr(&ctx.managers.buff_mgr),
     );
     let Ok(channel_effects) =
         execute_passive_skill(ctx, caster_uid, target_uid, extra_skill_id, &phase)
@@ -318,18 +314,8 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
         return false;
     }
 
-    let channel_step = FightStep {
-        act_type: Some(fight_step::ActType::Effect as i32),
-        from_id: Some(caster_uid),
-        to_id: Some(caster_uid),
-        act_id: Some(channel_buff_id),
-        act_effect: channel_effects,
-        card_index: Some(0),
-        support_hero_id: Some(0),
-        fake_timeline: Some(false),
-        real_skill_type: Some(0),
-        real_skin_id: Some(0),
-    };
+    let channel_step =
+        effect_container_step(caster_uid, caster_uid, channel_buff_id, channel_effects);
 
     if mgr
         .apply_step_and_maybe_sync(ctx, &channel_step, true)
@@ -350,7 +336,8 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
 
     let mut host_step = channel_step.clone();
     let nested_skill_idx = host_step.act_effect.iter().position(|effect| {
-        effect.effect_type == Some(crate::state::battle::types::effects::EffectType::FightStep as i32)
+        effect.effect_type
+            == Some(crate::state::battle::types::effects::EffectType::FightStep as i32)
             && effect
                 .fight_step
                 .as_ref()
@@ -373,7 +360,9 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
             }
             if !fallback_nested.is_empty() {
                 let insert_at = trigger_embed::find_trigger_insert_index(&nested.act_effect);
-                nested.act_effect.splice(insert_at..insert_at, fallback_nested);
+                nested
+                    .act_effect
+                    .splice(insert_at..insert_at, fallback_nested);
             }
         }
     } else {
@@ -383,12 +372,14 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
             .collect();
         if !embedded_steps.is_empty() {
             let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
-            host_step.act_effect.splice(insert_at..insert_at, embedded_steps);
+            host_step
+                .act_effect
+                .splice(insert_at..insert_at, embedded_steps);
         }
     }
 
-    steps.push(crate::state::battle::round::step_shape::build_effect_step(vec![wrap_step(
-        host_step,
-    )]));
+    steps.push(crate::state::battle::round::step_shape::build_effect_step(
+        vec![wrap_step(host_step)],
+    ));
     true
 }

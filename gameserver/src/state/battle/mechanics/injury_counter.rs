@@ -1,9 +1,8 @@
 use crate::state::battle::{
-    skill::cache::resolve_skill_effect_id,
-    types::effects::EffectType,
+    fight_step::ActEffectBuilder, skill::cache::resolve_skill_effect_id, types::effects::EffectType,
 };
 use once_cell::sync::Lazy;
-use sonettobuf::{fight_step, ActEffect, Fight, FightStep};
+use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
@@ -203,12 +202,9 @@ pub(crate) fn apply_round_injury_skill_bonus(
         .unwrap_or(skill_step.act_effect.len());
     skill_step.act_effect.insert(
         counter_insert_at,
-        ActEffect {
-            effect_type: Some(EffectType::FightCounter as i32),
-            target_id: Some(holder_uid),
-            effect_num: Some(stacks),
-            ..Default::default()
-        },
+        ActEffectBuilder::new(EffectType::FightCounter as i32, holder_uid)
+            .effect_num(stacks)
+            .build(),
     );
 
     let mut first_bonus_amount = 0;
@@ -247,12 +243,11 @@ pub(crate) fn apply_round_injury_skill_bonus(
         first_damage_target
     };
     if additional_target != 0 && first_bonus_amount > 0 {
-        skill_step.act_effect.push(ActEffect {
-            effect_type: Some(EffectType::AdditionalDamageCrit as i32),
-            target_id: Some(additional_target),
-            effect_num: Some(first_bonus_amount),
-            ..Default::default()
-        });
+        skill_step.act_effect.push(
+            ActEffectBuilder::new(EffectType::AdditionalDamageCrit as i32, additional_target)
+                .effect_num(first_bonus_amount)
+                .build(),
+        );
     }
 }
 
@@ -339,7 +334,10 @@ pub(crate) fn find_nested_skill_step_mut(
     None
 }
 
-pub(crate) fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Vec<ActEffect> {
+pub(crate) fn collect_dead_effects_after_damage(
+    fight: &Fight,
+    effects: &[ActEffect],
+) -> Vec<ActEffect> {
     let mut states: HashMap<i64, (i32, i32)> = HashMap::new();
     let mut dead_targets: HashSet<i64> = effects
         .iter()
@@ -384,11 +382,10 @@ pub(crate) fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEff
 
     killed_in_order
         .into_iter()
-        .map(|target_id| ActEffect {
-            effect_type: Some(EffectType::Dead as i32),
-            target_id: Some(target_id),
-            effect_num: Some(0),
-            ..Default::default()
+        .map(|target_id| {
+            ActEffectBuilder::new(EffectType::Dead as i32, target_id)
+                .effect_num(0)
+                .build()
         })
         .collect()
 }

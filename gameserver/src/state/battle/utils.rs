@@ -1,7 +1,7 @@
 use super::{
-    mechanics::bloodtithe::BloodtitheState,
     manager::buff_mgr::{BuffMgr, next_buff_uid_for_target, next_slave_buff_uid_for_target},
     manager::ex_point_mgr::ExPointMgr,
+    mechanics::bloodtithe::BloodtitheState,
     skill::get_entity,
     types::{buff::BuffLayerType, career::CareerType},
 };
@@ -9,8 +9,7 @@ use super::{
 use once_cell::sync::Lazy;
 use sonettobuf::{
     ActEffect, BuffInfo, Fight, FightEntityInfo, FightHurtInfo, FightStep,
-    effect_type_enum::EffectType, fight_step,
-    fight_hurt_info::DamageFromType,
+    effect_type_enum::EffectType, fight_hurt_info::DamageFromType, fight_step,
 };
 use std::{collections::HashMap, sync::Mutex};
 
@@ -550,10 +549,12 @@ pub fn get_attr_bonus(
 ) -> i32 {
     let cfg = config::configs::get();
     let mut total = 0i32;
-    let mut stacked_key_total: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
+    let mut stacked_key_total: std::collections::HashMap<String, i32> =
+        std::collections::HashMap::new();
     let mut stacked_key_layer_bonus: std::collections::HashMap<String, i32> =
         std::collections::HashMap::new();
-    let mut handled_stacked_keys: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut handled_stacked_keys: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for buff in buff_mgr.get(entity_uid) {
         let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff.buff_id) else {
@@ -866,7 +867,6 @@ fn buff_uses_blood_pool_gain_accum(buff_id: i32) -> bool {
     })
 }
 
-
 #[allow(dead_code)]
 pub fn buff_get_blood_value_use_skill_params(buff_id: i32) -> Option<(i32, i32, i32)> {
     let cfg = config::configs::get();
@@ -889,7 +889,11 @@ pub fn buff_get_blood_value_use_skill_params(buff_id: i32) -> Option<(i32, i32, 
         let blood_value_threshold = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
         let wrapper_skill_id = parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0);
         if wrapper_skill_id > 0 {
-            return Some((prerequisite_buff_id, blood_value_threshold, wrapper_skill_id));
+            return Some((
+                prerequisite_buff_id,
+                blood_value_threshold,
+                wrapper_skill_id,
+            ));
         }
     }
     None
@@ -1220,11 +1224,7 @@ pub fn build_blood_pool_gain_ex_point_step(
 
 // Consumed by battle_gen's replay bootstrap; clippy can't see cross-crate callers.
 #[allow(dead_code)]
-pub fn seed_blood_pool_ex_tracker(
-    bloodtithe: &BloodtitheState,
-    fight: &Fight,
-    buff_mgr: &BuffMgr,
-) {
+pub fn seed_blood_pool_ex_tracker(bloodtithe: &BloodtitheState, fight: &Fight, buff_mgr: &BuffMgr) {
     if !bloodtithe.initialized {
         return;
     }
@@ -1309,5 +1309,3 @@ pub fn modify_hero_attr(entity: &mut FightEntityInfo, attr_id: i32, amount_permi
         _ => tracing::warn!("modify_hero_attr: unhandled attr_id={}", attr_id),
     }
 }
-
-

@@ -59,7 +59,9 @@ fn append_preview_bloodtithe_gain_effects(
 
     let raw_damage = effects
         .iter()
-        .filter(|effect| effect.target_id == Some(target_uid) && is_damage_effect_type(effect.effect_type))
+        .filter(|effect| {
+            effect.target_id == Some(target_uid) && is_damage_effect_type(effect.effect_type)
+        })
         .map(|effect| effect.effect_num.unwrap_or(0).max(0))
         .sum::<i32>();
     if raw_damage <= 0 {
@@ -289,12 +291,8 @@ fn dispatch(
         // calculate_mgr::play_effect_add_ex_point during play_step_data.
         // Mutating here AND letting play_step_data also mutate caused
         // double-application (heroes starting with 2x expected EX).
-        BehaviorType::AddExPoint { amount } => {
-            Ok(stats::add_ex_point(target, *amount))
-        }
-        BehaviorType::AddExPointWithMax { amount } => {
-            Ok(stats::add_ex_point(target, *amount))
-        }
+        BehaviorType::AddExPoint { amount } => Ok(stats::add_ex_point(target, *amount)),
+        BehaviorType::AddExPointWithMax { amount } => Ok(stats::add_ex_point(target, *amount)),
         BehaviorType::Bloodlust { amount } => Ok(stats::bloodlust(target, *amount)),
         BehaviorType::ChangePower { amount } => Ok(stats::change_power(target, *amount)),
         BehaviorType::AverageLife => Ok(stats::average_life(target)),
@@ -505,13 +503,7 @@ fn dispatch(
                             .with_buff_mgr(&managers.buff_mgr),
                     );
                     executor.execute_skill(
-                        fight,
-                        managers,
-                        mechanics,
-                        caster_uid,
-                        caster_uid,
-                        precast_id,
-                        &phase,
+                        fight, managers, mechanics, caster_uid, caster_uid, precast_id, &phase,
                     )?
                 };
                 out.append(&mut pre);
@@ -955,11 +947,7 @@ fn dispatch(
             let mut out = Vec::new();
             if self_loss > 0 {
                 out.push(damage_with_hurt(
-                    caster_uid,
-                    self_loss,
-                    30006,
-                    skill_id,
-                    caster_uid,
+                    caster_uid, self_loss, 30006, skill_id, caster_uid,
                 ));
             }
             if total_permille <= 0 {
@@ -1114,21 +1102,24 @@ fn collect_precast_skills_for_caster(
     // Buff feature 865(AddPassiveSkills) contributes virtual passive skills while buff is active.
     let active_buffs = buff::active_buffs(fight, managers, caster_uid);
     for instance in &active_buffs {
-        crate::state::battle::utils::for_each_buff_feature_chain(instance.buff_id, |act_type, parts| {
-            if act_type != "AddPassiveSkills" {
-                return;
-            }
-            for raw in parts.iter().skip(1) {
-                for piece in raw.split(',') {
-                    if let Ok(skill_id) = piece.trim().parse::<i32>()
-                        && skill_id > 0
-                        && !passive_candidates.contains(&skill_id)
-                    {
-                        passive_candidates.push(skill_id);
+        crate::state::battle::utils::for_each_buff_feature_chain(
+            instance.buff_id,
+            |act_type, parts| {
+                if act_type != "AddPassiveSkills" {
+                    return;
+                }
+                for raw in parts.iter().skip(1) {
+                    for piece in raw.split(',') {
+                        if let Ok(skill_id) = piece.trim().parse::<i32>()
+                            && skill_id > 0
+                            && !passive_candidates.contains(&skill_id)
+                        {
+                            passive_candidates.push(skill_id);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 
     find_self_buff_prep_skills(&passive_candidates)
@@ -1167,25 +1158,28 @@ fn infer_precast_per_decr_seed_cap(
                 let mut source_cap = 0;
                 for source in active {
                     let mut matched = false;
-                    crate::state::battle::utils::for_each_buff_feature_chain(source.buff_id, |act_type, parts| {
-                        if matched || act_type != "AddPassiveSkills" {
-                            return;
-                        }
-                        for raw in parts.iter().skip(1) {
-                            for piece in raw.split(',') {
-                                let Ok(sid) = piece.trim().parse::<i32>() else {
-                                    continue;
-                                };
-                                if sid == skill_id {
-                                    matched = true;
+                    crate::state::battle::utils::for_each_buff_feature_chain(
+                        source.buff_id,
+                        |act_type, parts| {
+                            if matched || act_type != "AddPassiveSkills" {
+                                return;
+                            }
+                            for raw in parts.iter().skip(1) {
+                                for piece in raw.split(',') {
+                                    let Ok(sid) = piece.trim().parse::<i32>() else {
+                                        continue;
+                                    };
+                                    if sid == skill_id {
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                                if matched {
                                     break;
                                 }
                             }
-                            if matched {
-                                break;
-                            }
-                        }
-                    });
+                        },
+                    );
                     if matched {
                         source_cap = source.layer.max(source.stacks).max(0);
                         if source_cap > 0 {

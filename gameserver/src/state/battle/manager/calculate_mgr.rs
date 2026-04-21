@@ -148,16 +148,14 @@ impl FightCalculateDataMgr {
             | EffectType::AdditionalDamage
             | EffectType::AdditionalDamageCrit
             | EffectType::ShareHurt
-            | EffectType::EnchantDepresseDamage => {
-                self.play_effect_damage(
-                    effect,
-                    fight,
-                    bloodtithe,
-                    buff_mgr,
-                    ex_point_mgr,
-                    use_accumulator_only_bloodtithe_sync,
-                )
-            }
+            | EffectType::EnchantDepresseDamage => self.play_effect_damage(
+                effect,
+                fight,
+                bloodtithe,
+                buff_mgr,
+                ex_point_mgr,
+                use_accumulator_only_bloodtithe_sync,
+            ),
 
             EffectType::Heal
             | EffectType::Bloodlust

@@ -1,12 +1,8 @@
 use sonettobuf::{Fight, FightStep};
 
 use crate::state::battle::{
-    context::FightContext,
-    fight_step::FightStepBuilder,
-    passives::collector::CollectedPassives,
-    trigger::combat::TriggerEvent,
-    types::ex_point::ExPointType,
-    utils::moxie_change,
+    context::FightContext, fight_step::FightStepBuilder, passives::collector::CollectedPassives,
+    trigger::combat::TriggerEvent, types::ex_point::ExPointType, utils::moxie_change,
 };
 
 use super::TriggerPass;

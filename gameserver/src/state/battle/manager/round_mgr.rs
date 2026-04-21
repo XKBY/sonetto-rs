@@ -123,9 +123,7 @@ impl FightRoundMgr {
     fn step_contains_magic_circle_add(&self, step: &FightStep) -> bool {
         step.act_effect.iter().any(|effect| {
             effect.effect_type
-                == Some(
-                    crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32,
-                )
+                == Some(crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32)
                 || effect
                     .fight_step
                     .as_ref()
@@ -158,9 +156,7 @@ impl FightRoundMgr {
             return false;
         };
 
-        host_step
-            .act_effect
-            .splice(idx..idx, inner.act_effect);
+        host_step.act_effect.splice(idx..idx, inner.act_effect);
         true
     }
 
@@ -170,9 +166,7 @@ impl FightRoundMgr {
             .iter()
             .position(|effect| {
                 effect.effect_type
-                    == Some(
-                        crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32,
-                    )
+                    == Some(crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32)
             })
             .map(|idx| idx + 1)
             .unwrap_or_else(|| trigger_embed::find_trigger_insert_index(&host_step.act_effect))
@@ -943,10 +937,9 @@ impl FightRoundMgr {
                 && let Some(target_idx) = steps[defender_sweep_start..]
                     .iter()
                     .position(|s| {
-                        s.act_effect.iter().any(|e| {
-                            e.effect_type
-                                == Some(EffectType::FightStep as i32)
-                        })
+                        s.act_effect
+                            .iter()
+                            .any(|e| e.effect_type == Some(EffectType::FightStep as i32))
                     })
                     .map(|off| defender_sweep_start + off)
             {
@@ -980,12 +973,7 @@ impl FightRoundMgr {
                         target
                             .act_effect
                             .iter()
-                            .find(|e| {
-                                e.effect_type
-                                    == Some(
-                                        EffectType::FightStep as i32,
-                                    )
-                            })
+                            .find(|e| e.effect_type == Some(EffectType::FightStep as i32))
                             .cloned()
                     })
                     .map(|wrapper| {
@@ -1011,9 +999,7 @@ impl FightRoundMgr {
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffect {
-                    effect_type: Some(
-                        EffectType::SmallRoundEnd as i32,
-                    ),
+                    effect_type: Some(EffectType::SmallRoundEnd as i32),
                     effect_num: Some(1),
                     ..Default::default()
                 })
@@ -1030,9 +1016,7 @@ impl FightRoundMgr {
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffect {
-                    effect_type: Some(
-                        EffectType::ClearUniversalCard as i32,
-                    ),
+                    effect_type: Some(EffectType::ClearUniversalCard as i32),
                     team_type: Some(1),
                     ..Default::default()
                 })
@@ -1111,12 +1095,9 @@ impl FightRoundMgr {
                     .iter()
                     .rposition(|s| {
                         !s.act_effect.is_empty()
-                            && s.act_effect.iter().all(|e| {
-                                e.effect_type
-                                    == Some(
-                                        EffectType::BuffUpdate as i32,
-                                    )
-                            })
+                            && s.act_effect
+                                .iter()
+                                .all(|e| e.effect_type == Some(EffectType::BuffUpdate as i32))
                     })
                     .map(|off| attacker_sweep_start + off)
             {
@@ -1426,13 +1407,9 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
-                        if let Ok(effects) = execute_passive_skill(
-                            ctx,
-                            *uid,
-                            *uid,
-                            skill_id,
-                            &PhaseFilter::combat(),
-                        ) && !effects.is_empty()
+                        if let Ok(effects) =
+                            execute_passive_skill(ctx, *uid, *uid, skill_id, &PhaseFilter::combat())
+                            && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);
                             wrapped.push(wrap_step(inner));
@@ -1516,13 +1493,9 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
-                        if let Ok(effects) = execute_passive_skill(
-                            ctx,
-                            *uid,
-                            *uid,
-                            skill_id,
-                            &PhaseFilter::combat(),
-                        ) && !effects.is_empty()
+                        if let Ok(effects) =
+                            execute_passive_skill(ctx, *uid, *uid, skill_id, &PhaseFilter::combat())
+                            && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);
                             wrapped.push(wrap_step(inner));

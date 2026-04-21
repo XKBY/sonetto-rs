@@ -48,7 +48,8 @@ pub fn build_battle_rule_step(
     let mut steps: Vec<FightStep> = Vec::new();
 
     for &uid in uids {
-        let per_entity_effects = execute_skills_for_entity(ctx, uid, battle_skill_ids.to_vec(), phase);
+        let per_entity_effects =
+            execute_skills_for_entity(ctx, uid, battle_skill_ids.to_vec(), phase);
         if !per_entity_effects.is_empty() {
             steps.push(
                 FightStepBuilder::effect()
@@ -71,9 +72,7 @@ fn execute_skills_for_entity(
 
     for skill_id in skill_ids {
         match execute_skill(ctx, uid, uid, skill_id, phase) {
-            Ok(skill_effects) => {
-                effects.extend(skill_effects)
-            }
+            Ok(skill_effects) => effects.extend(skill_effects),
             Err(e) => tracing::warn!("passive {} uid {} phase {:?}: {}", skill_id, uid, phase, e),
         }
     }

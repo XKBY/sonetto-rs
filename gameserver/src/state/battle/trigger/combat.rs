@@ -7,9 +7,9 @@ use crate::state::battle::{
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
-    skill::condition::buff::deleted_matches,
     skill::cache::resolve_skill_effect_id,
     skill::classification::{CombatPassiveScanMode, has_combat_reactive_condition},
+    skill::condition::buff::deleted_matches,
     skill::condition::parser::parse_condition,
     skill::{PhaseFilter, TriggerState},
     trigger::passes::{
@@ -98,9 +98,7 @@ impl TriggerEvent {
         // TriggerBullet is team-scoped in current data: every TriggerBullet row
         // in skill_effect.json uses conditionTarget=103, so same-side bullet
         // reactions must wake teammate passives and channel extra skills too.
-        self.trigger_bullet
-            && self.caster_uid != 0
-            && self.caster_uid.signum() == uid.signum()
+        self.trigger_bullet && self.caster_uid != 0 && self.caster_uid.signum() == uid.signum()
     }
 
     pub fn bloodpool_gain(&self, team_type: i32) -> i32 {
@@ -110,7 +108,6 @@ impl TriggerEvent {
             .map(|(_, gain)| *gain)
             .unwrap_or(0)
     }
-
 }
 
 /// Extract a TriggerEvent from the effects produced by a card skill step.
@@ -215,7 +212,12 @@ fn push_team_metric(out: &mut Vec<(i32, i32)>, team_type: i32, value: i32) {
     }
 }
 
-fn push_skill_team_metric(out: &mut Vec<(i32, i32, i32)>, skill_id: i32, team_type: i32, value: i32) {
+fn push_skill_team_metric(
+    out: &mut Vec<(i32, i32, i32)>,
+    skill_id: i32,
+    team_type: i32,
+    value: i32,
+) {
     if let Some((_, _, existing)) = out
         .iter_mut()
         .find(|(sid, team, _)| *sid == skill_id && *team == team_type)
@@ -246,8 +248,9 @@ fn collect_bloodpool_gains_inner(
         if effect.effect_type == Some(EffectType::Bloodpoolvaluechange as i32) {
             let team_type = effect.effect_num.unwrap_or(0);
             let delta = effect.effect_num1.unwrap_or(0);
-            let from_magic_circle = current_skill_id
-                .is_some_and(crate::state::battle::mechanics::magic_circle::is_magic_circle_self_skill);
+            let from_magic_circle = current_skill_id.is_some_and(
+                crate::state::battle::mechanics::magic_circle::is_magic_circle_self_skill,
+            );
             if team_type > 0 && delta > 0 && !from_magic_circle {
                 push_team_metric(delta_out, team_type, delta);
                 push_skill_team_metric(
@@ -262,11 +265,11 @@ fn collect_bloodpool_gains_inner(
             }
         }
         if let Some(step) = &effect.fight_step {
-            let nested_skill_id =
-                (step.act_type == Some(sonettobuf::fight_step::ActType::Skill as i32))
-                    .then(|| step.act_id.unwrap_or(0))
-                    .filter(|id| *id > 0)
-                    .or(current_skill_id);
+            let nested_skill_id = (step.act_type
+                == Some(sonettobuf::fight_step::ActType::Skill as i32))
+            .then(|| step.act_id.unwrap_or(0))
+            .filter(|id| *id > 0)
+            .or(current_skill_id);
             collect_bloodpool_gains_inner(
                 &step.act_effect,
                 delta_out,
@@ -404,19 +407,18 @@ pub(crate) fn run_combat_passives_pass(
                     .any(|&d| d.signum() == uid.signum()),
                 deleted_buff_ids: event.deleted_buff_ids.clone(),
             };
-            let trigger_target_uid = if uid_skill_target != 0
-                && uid_skill_target.signum() != uid.signum()
-            {
-                uid_skill_target
-            } else if event.primary_target_uid != 0
-                && event.primary_target_uid.signum() != uid.signum()
-            {
-                event.primary_target_uid
-            } else if event.caster_uid != 0 && event.caster_uid.signum() != uid.signum() {
-                event.caster_uid
-            } else {
-                uid
-            };
+            let trigger_target_uid =
+                if uid_skill_target != 0 && uid_skill_target.signum() != uid.signum() {
+                    uid_skill_target
+                } else if event.primary_target_uid != 0
+                    && event.primary_target_uid.signum() != uid.signum()
+                {
+                    event.primary_target_uid
+                } else if event.caster_uid != 0 && event.caster_uid.signum() != uid.signum() {
+                    event.caster_uid
+                } else {
+                    uid
+                };
             match execute_skill(
                 ctx,
                 uid,
@@ -492,39 +494,36 @@ fn collect_battle_rule_skills(fight: &Fight) -> Vec<i32> {
     out
 }
 
-fn extend_with_buff_granted_passives(
-    ctx: &FightContext<'_>,
-    uid: i64,
-    skill_ids: &mut Vec<i32>,
-) {
+fn extend_with_buff_granted_passives(ctx: &FightContext<'_>, uid: i64, skill_ids: &mut Vec<i32>) {
     for instance in ctx.managers.buff_mgr.get(uid) {
-        crate::state::battle::utils::for_each_buff_feature_chain(instance.buff_id, |act_type, parts| {
-            let value_parts: Vec<&str> = match act_type {
-                "AddPassiveSkills" => parts.iter().skip(1).copied().collect(),
-                "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => {
-                    parts.iter().skip(2).copied().collect()
+        crate::state::battle::utils::for_each_buff_feature_chain(
+            instance.buff_id,
+            |act_type, parts| {
+                let value_parts: Vec<&str> = match act_type {
+                    "AddPassiveSkills" => parts.iter().skip(1).copied().collect(),
+                    "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => {
+                        parts.iter().skip(2).copied().collect()
+                    }
+                    // Format: 825#<extraSkillId>#...
+                    // Keep only the injected extra-skill lane for trigger-pass scans.
+                    "ConsumeBuffContinueChannel" => parts.get(1).copied().into_iter().collect(),
+                    _ => Vec::new(),
+                };
+                if value_parts.is_empty() {
+                    return;
                 }
-                // Format: 825#<extraSkillId>#...
-                // Keep only the injected extra-skill lane for trigger-pass scans.
-                "ConsumeBuffContinueChannel" => {
-                    parts.get(1).copied().into_iter().collect()
-                }
-                _ => Vec::new(),
-            };
-            if value_parts.is_empty() {
-                return;
-            }
-            for raw in value_parts {
-                for piece in raw.split(',') {
-                    if let Ok(skill_id) = piece.trim().parse::<i32>()
-                        && skill_id > 0
-                        && !skill_ids.contains(&skill_id)
-                    {
-                        skill_ids.push(skill_id);
+                for raw in value_parts {
+                    for piece in raw.split(',') {
+                        if let Ok(skill_id) = piece.trim().parse::<i32>()
+                            && skill_id > 0
+                            && !skill_ids.contains(&skill_id)
+                        {
+                            skill_ids.push(skill_id);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 }
 
@@ -596,11 +595,7 @@ fn condition_is_enter_fight_only(condition: &ConditionType) -> bool {
     }
 }
 
-pub fn skill_should_fire(
-    uid: i64,
-    skill_id: i32,
-    event: &TriggerEvent,
-) -> bool {
+pub fn skill_should_fire(uid: i64, skill_id: i32, event: &TriggerEvent) -> bool {
     let mut saw_event_condition = false;
     for i in 1..=10i32 {
         let condition_str = get_condition(skill_id, i);
@@ -834,8 +829,7 @@ fn collect_deleted_buff_ids(effects: &[ActEffect], out: &mut Vec<i32>) {
 
 fn collect_added_buffs(effects: &[ActEffect], out_uids: &mut Vec<i64>, out_ids: &mut Vec<i32>) {
     for effect in effects {
-        if effect.effect_type == Some(EffectType::Buffadd as i32)
-        {
+        if effect.effect_type == Some(EffectType::Buffadd as i32) {
             if let Some(uid) = effect.buff.as_ref().and_then(|b| b.uid)
                 && uid > 0
                 && !out_uids.contains(&uid)

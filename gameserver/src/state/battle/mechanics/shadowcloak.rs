@@ -1,6 +1,6 @@
 use super::super::{
     context::FightContext,
-    fight_step::FightStepBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     round::step_shape::build_effect_step,
     utils::find_entity,
@@ -129,30 +129,27 @@ impl ShadowCloakState {
                 .map(|b| b.uid)
                 .unwrap_or(0);
 
-            effects.push(ActEffect {
-                effect_type: Some(EffectType::Currenthpchange as i32),
-                target_id: Some(uid),
-                effect_num: Some(current_hp),
-                ..Default::default()
-            });
-            effects.push(ActEffect {
-                effect_type: Some(EffectType::Buffactinfoupdate as i32),
-                target_id: Some(uid),
-                reserve_id: Some(buff_uid),
-                buff_act_info: Some(sonettobuf::BuffActInfo {
-                    act_id: Some(1042),
-                    param: vec![gain, max_capacity],
-                    ..Default::default()
-                }),
-                ..Default::default()
-            });
-            effects.push(ActEffect {
-                effect_type: Some(EffectType::Maxhpchange as i32),
-                target_id: Some(uid),
-                effect_num: Some(new_max_hp),
-                buff_act_id: Some(1042), //Raspberry in buff_act
-                ..Default::default()
-            });
+            effects.push(
+                ActEffectBuilder::new(EffectType::Currenthpchange as i32, uid)
+                    .effect_num(current_hp)
+                    .build(),
+            );
+            effects.push(
+                ActEffectBuilder::new(EffectType::Buffactinfoupdate as i32, uid)
+                    .reserve_id(buff_uid)
+                    .buff_act_info(sonettobuf::BuffActInfo {
+                        act_id: Some(1042),
+                        param: vec![gain, max_capacity],
+                        ..Default::default()
+                    })
+                    .build(),
+            );
+            effects.push(
+                ActEffectBuilder::new(EffectType::Maxhpchange as i32, uid)
+                    .effect_num(new_max_hp)
+                    .buff_act_id(1042)
+                    .build(),
+            );
         }
 
         effects
@@ -241,7 +238,9 @@ pub(crate) fn build_shadow_cloak_full_cap_step(
         return None;
     }
 
-    let effects = (0..payout_count).map(|_| moxie_change(rubuska_uid, 1)).collect();
+    let effects = (0..payout_count)
+        .map(|_| moxie_change(rubuska_uid, 1))
+        .collect();
     Some(build_effect_step(effects))
 }
 

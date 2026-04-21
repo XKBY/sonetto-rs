@@ -6,8 +6,8 @@ use sonettobuf::{ActEffect, BeginRoundOper, Fight, FightEntityInfo, FightStep, f
 
 use super::super::{
     card::CardOpType,
-    fight_step::make_skill_step,
     context::FightContext,
+    fight_step::make_skill_step,
     passives::collector::collect,
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::RoundState,
@@ -177,7 +177,6 @@ impl FightCardMgr {
                 .map(|ex_skill| ex_skill == resolved_skill_id)
                 .unwrap_or(false);
 
-
         let mut raw_skill_effects = if is_direct_ex_card {
             self.build_direct_ex_card_prefix(ctx, exec_caster_uid, resolved_skill_id)?
         } else {
@@ -223,8 +222,12 @@ impl FightCardMgr {
             }
         }
         if is_temp_card && skill_effects.is_empty() {
-            let mut fallback = self
-                .build_temp_direct_bigskill_fallback(ctx, exec_caster_uid, target_uid, resolved_skill_id)?;
+            let mut fallback = self.build_temp_direct_bigskill_fallback(
+                ctx,
+                exec_caster_uid,
+                target_uid,
+                resolved_skill_id,
+            )?;
             if !fallback.is_empty() {
                 fallback.extend(skill_effects);
                 skill_effects = fallback;
@@ -467,8 +470,9 @@ impl FightCardMgr {
                 }
             };
 
-            let canonical_caster_uid = canonical_ai_caster_uid(ctx.fight, caster_uid, resolved_skill_id)
-                .unwrap_or(caster_uid);
+            let canonical_caster_uid =
+                canonical_ai_caster_uid(ctx.fight, caster_uid, resolved_skill_id)
+                    .unwrap_or(caster_uid);
 
             candidates.push(AiCast {
                 idx: i,
@@ -557,13 +561,7 @@ impl FightCardMgr {
                 continue;
             }
 
-            let step = make_skill_step(
-                caster_uid,
-                target_uid,
-                skill_id,
-                0,
-                op_effects,
-            );
+            let step = make_skill_step(caster_uid, target_uid, skill_id, 0, op_effects);
             advance_ai_preview_after_cast(
                 &mut preview_fight,
                 &mut preview_managers,
@@ -611,7 +609,13 @@ impl FightCardMgr {
             .skill_effect
             .iter()
             .find(|s| s.id == resolve_skill_effect_id(ex_skill_id))
-            .map(|s| if s.need_ex_point > 0 { s.need_ex_point } else { max_consume })
+            .map(|s| {
+                if s.need_ex_point > 0 {
+                    s.need_ex_point
+                } else {
+                    max_consume
+                }
+            })
             .unwrap_or(max_consume)
             .max(0);
         let current_ex = ctx.managers.ex_point_mgr.get_ex_point(caster_uid).max(0);
@@ -628,8 +632,14 @@ impl FightCardMgr {
             .map(|cap| initial_consume.min(cap.max(0)))
             .unwrap_or(initial_consume)
             .max(0);
-        let mut refund = if need_ex > 0 { consume.min(need_ex) } else { consume };
-        ctx.managers.ex_point_mgr.set_recent_decr_ex_point(caster_uid, consume);
+        let mut refund = if need_ex > 0 {
+            consume.min(need_ex)
+        } else {
+            consume
+        };
+        ctx.managers
+            .ex_point_mgr
+            .set_recent_decr_ex_point(caster_uid, consume);
 
         for &prep_id in &prep_skill_ids {
             let mut pre = self.skill_executor.execute_skill(
@@ -664,7 +674,11 @@ impl FightCardMgr {
 
         if let Some(cap) = prep_layer_cap {
             consume = consume.min(cap.max(0)).max(0);
-            refund = if need_ex > 0 { consume.min(need_ex) } else { consume };
+            refund = if need_ex > 0 {
+                consume.min(need_ex)
+            } else {
+                consume
+            };
         }
         if consume != initial_consume {
             ctx.managers
@@ -712,7 +726,9 @@ impl FightCardMgr {
                 ..Default::default()
             });
         }
-        ctx.managers.ex_point_mgr.clear_recent_decr_ex_point(caster_uid);
+        ctx.managers
+            .ex_point_mgr
+            .clear_recent_decr_ex_point(caster_uid);
 
         Ok(out)
     }
@@ -725,14 +741,18 @@ impl FightCardMgr {
     ) -> Result<Vec<ActEffect>> {
         let current_ex = ctx.managers.ex_point_mgr.get_ex_point(caster_uid).max(0);
         if current_ex <= 0 {
-            ctx.managers.ex_point_mgr.set_recent_decr_ex_point(caster_uid, 0);
+            ctx.managers
+                .ex_point_mgr
+                .set_recent_decr_ex_point(caster_uid, 0);
             return Ok(vec![]);
         }
 
         let cfg = config::configs::get();
         let skill_effect_id = resolve_skill_effect_id(skill_id);
         let Some(skill_row) = cfg.skill_effect.iter().find(|s| s.id == skill_effect_id) else {
-            ctx.managers.ex_point_mgr.set_recent_decr_ex_point(caster_uid, 0);
+            ctx.managers
+                .ex_point_mgr
+                .set_recent_decr_ex_point(caster_uid, 0);
             return Ok(vec![]);
         };
 
@@ -911,7 +931,11 @@ fn normalize_skill_effects_for_operation(
     out
 }
 
-fn canonical_ai_caster_uid(fight: &sonettobuf::Fight, caster_uid: i64, skill_id: i32) -> Option<i64> {
+fn canonical_ai_caster_uid(
+    fight: &sonettobuf::Fight,
+    caster_uid: i64,
+    skill_id: i32,
+) -> Option<i64> {
     let defender = fight.defender.as_ref()?;
     let mut owners: Vec<&sonettobuf::FightEntityInfo> = defender
         .entitys
@@ -957,7 +981,10 @@ fn clamp_ai_add_ex_with_max_effects(
         }
 
         let effect_type = EffectType::from(effect.effect_type.unwrap_or(0));
-        if !matches!(effect_type, EffectType::AddExPoint | EffectType::ExPointChange) {
+        if !matches!(
+            effect_type,
+            EffectType::AddExPoint | EffectType::ExPointChange
+        ) {
             continue;
         }
         if effect.config_effect != Some(20002) {
@@ -990,8 +1017,8 @@ fn clamp_ai_add_ex_with_max_effects(
             .iter()
             .find_map(|buff| buff_get_ex_point_overflow(buff.buff_id))
             .unwrap_or(0);
-        let pending_standard_gain = (target_id == caster_uid
-            && entity_gains_standard_action_ex(fight, caster_uid)) as i32;
+        let pending_standard_gain =
+            (target_id == caster_uid && entity_gains_standard_action_ex(fight, caster_uid)) as i32;
         let current = entity.ex_point.unwrap_or(0) + pending_standard_gain;
         let allowed = (base_max + overflow_bonus - current).max(0);
         effect.effect_num = Some(raw.min(allowed));
@@ -1074,7 +1101,11 @@ fn entity_gains_standard_action_ex(fight: &Fight, uid: i64) -> bool {
 
 fn find_entity_mut(fight: &mut Fight, uid: i64) -> Option<&mut FightEntityInfo> {
     for team in fight.attacker.iter_mut().chain(fight.defender.iter_mut()) {
-        if let Some(entity) = team.entitys.iter_mut().find(|entity| entity.uid == Some(uid)) {
+        if let Some(entity) = team
+            .entitys
+            .iter_mut()
+            .find(|entity| entity.uid == Some(uid))
+        {
             return Some(entity);
         }
         if let Some(entity) = team
@@ -1128,26 +1159,30 @@ fn collect_precast_skills_for_caster(
     managers: &crate::state::battle::manager::fight_data_mgr::Managers,
     caster_uid: i64,
 ) -> Vec<i32> {
-    let mut passive_candidates: Vec<i32> = crate::state::battle::skill::get_entity(fight, caster_uid)
-        .map(|e| e.passive_skill.clone())
-        .unwrap_or_default();
+    let mut passive_candidates: Vec<i32> =
+        crate::state::battle::skill::get_entity(fight, caster_uid)
+            .map(|e| e.passive_skill.clone())
+            .unwrap_or_default();
 
     for instance in managers.buff_mgr.get(caster_uid) {
-        crate::state::battle::utils::for_each_buff_feature_chain(instance.buff_id, |act_type, parts| {
-            if act_type != "AddPassiveSkills" {
-                return;
-            }
-            for raw in parts.iter().skip(1) {
-                for piece in raw.split(',') {
-                    if let Ok(skill_id) = piece.trim().parse::<i32>()
-                        && skill_id > 0
-                        && !passive_candidates.contains(&skill_id)
-                    {
-                        passive_candidates.push(skill_id);
+        crate::state::battle::utils::for_each_buff_feature_chain(
+            instance.buff_id,
+            |act_type, parts| {
+                if act_type != "AddPassiveSkills" {
+                    return;
+                }
+                for raw in parts.iter().skip(1) {
+                    for piece in raw.split(',') {
+                        if let Ok(skill_id) = piece.trim().parse::<i32>()
+                            && skill_id > 0
+                            && !passive_candidates.contains(&skill_id)
+                        {
+                            passive_candidates.push(skill_id);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 
     find_self_buff_prep_skills(&passive_candidates)
@@ -1190,25 +1225,28 @@ fn infer_precast_per_decr_seed_cap(
                 let mut source_cap = 0;
                 for source in active {
                     let mut matched = false;
-                    crate::state::battle::utils::for_each_buff_feature_chain(source.buff_id, |act_type, parts| {
-                        if matched || act_type != "AddPassiveSkills" {
-                            return;
-                        }
-                        for raw in parts.iter().skip(1) {
-                            for piece in raw.split(',') {
-                                let Ok(sid) = piece.trim().parse::<i32>() else {
-                                    continue;
-                                };
-                                if sid == skill_id {
-                                    matched = true;
+                    crate::state::battle::utils::for_each_buff_feature_chain(
+                        source.buff_id,
+                        |act_type, parts| {
+                            if matched || act_type != "AddPassiveSkills" {
+                                return;
+                            }
+                            for raw in parts.iter().skip(1) {
+                                for piece in raw.split(',') {
+                                    let Ok(sid) = piece.trim().parse::<i32>() else {
+                                        continue;
+                                    };
+                                    if sid == skill_id {
+                                        matched = true;
+                                        break;
+                                    }
+                                }
+                                if matched {
                                     break;
                                 }
                             }
-                            if matched {
-                                break;
-                            }
-                        }
-                    });
+                        },
+                    );
                     if matched {
                         source_cap = source.layer.max(source.stacks).max(0);
                         if source_cap > 0 {
@@ -1228,4 +1266,3 @@ fn infer_precast_per_decr_seed_cap(
 
     best
 }
-

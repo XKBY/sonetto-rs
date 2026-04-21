@@ -130,7 +130,8 @@ pub fn resolve_targets(
                             get_entity(fight, uid)
                                 .map(|e| {
                                     let cur = e.current_hp.unwrap_or(0) as f32;
-                                    let max = e.attr.as_ref().and_then(|a| a.hp).unwrap_or(1) as f32;
+                                    let max =
+                                        e.attr.as_ref().and_then(|a| a.hp).unwrap_or(1) as f32;
                                     (cur / max * 10000.0) as i32
                                 })
                                 .unwrap_or(i32::MAX)
@@ -165,7 +166,9 @@ pub fn resolve_targets(
                         s.entitys
                             .iter()
                             .chain(s.sub_entitys.iter())
-                            .find(|e| e.position == Some(target_pos) && e.current_hp.unwrap_or(0) > 0)
+                            .find(|e| {
+                                e.position == Some(target_pos) && e.current_hp.unwrap_or(0) > 0
+                            })
                             .and_then(|e| e.uid)
                     })
                     .map(|uid| vec![uid])
@@ -186,7 +189,10 @@ pub fn resolve_targets(
                 if enemies.contains(&target_uid) {
                     out.push(target_uid);
                     if enemies.len() > 1 {
-                        let idx = enemies.iter().position(|uid| *uid == target_uid).unwrap_or(0);
+                        let idx = enemies
+                            .iter()
+                            .position(|uid| *uid == target_uid)
+                            .unwrap_or(0);
                         let extra = enemies[(idx + 1) % enemies.len()];
                         if extra != target_uid {
                             out.push(extra);
@@ -200,16 +206,14 @@ pub fn resolve_targets(
                                 .and_then(|e| e.current_hp)
                                 .unwrap_or(0)
                         };
-                        hp(b)
-                            .cmp(&hp(a))
-                            .then_with(|| {
-                                let pos = |uid: i64| {
-                                    get_entity(fight, uid)
-                                        .and_then(|e| e.position)
-                                        .unwrap_or(99)
-                                };
-                                pos(a).cmp(&pos(b))
-                            })
+                        hp(b).cmp(&hp(a)).then_with(|| {
+                            let pos = |uid: i64| {
+                                get_entity(fight, uid)
+                                    .and_then(|e| e.position)
+                                    .unwrap_or(99)
+                            };
+                            pos(a).cmp(&pos(b))
+                        })
                     });
                     out.push(by_hp[0]);
                     if by_hp.len() > 1 {
@@ -317,10 +321,7 @@ pub fn resolve_behavior_targets(
     logic_target: i32,
     add_buff_fanout_999: bool,
 ) -> Vec<i64> {
-    if add_buff_fanout_999
-        && behavior_target == 999
-        && condition_target == 101
-        && logic_target == 1
+    if add_buff_fanout_999 && behavior_target == 999 && condition_target == 101 && logic_target == 1
     {
         return collect_team(fight, get_team_type(fight, caster_uid), true);
     }

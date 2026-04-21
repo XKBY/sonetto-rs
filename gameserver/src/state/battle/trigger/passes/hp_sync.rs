@@ -1,9 +1,7 @@
 use sonettobuf::FightStep;
 
 use crate::state::battle::{
-    context::FightContext,
-    passives::collector::CollectedPassives,
-    trigger::combat::TriggerEvent,
+    context::FightContext, passives::collector::CollectedPassives, trigger::combat::TriggerEvent,
 };
 
 use super::TriggerPass;

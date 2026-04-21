@@ -108,16 +108,14 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
 
 pub fn check(condition: &ConditionType, buff_mgr: &BuffMgr, condition_uid: i64) -> Option<bool> {
     match condition {
-        ConditionType::HasBuffId { buff_ids } => Some(
-            buff_ids
-                .iter()
-                .any(|&bid| buff_mgr.has(condition_uid, bid) || buff_mgr.has_type(condition_uid, bid)),
-        ),
-        ConditionType::NoBuffId { buff_ids } => Some(
-            buff_ids
-                .iter()
-                .all(|&bid| !buff_mgr.has(condition_uid, bid) && !buff_mgr.has_type(condition_uid, bid)),
-        ),
+        ConditionType::HasBuffId { buff_ids } => {
+            Some(buff_ids.iter().any(|&bid| {
+                buff_mgr.has(condition_uid, bid) || buff_mgr.has_type(condition_uid, bid)
+            }))
+        }
+        ConditionType::NoBuffId { buff_ids } => Some(buff_ids.iter().all(|&bid| {
+            !buff_mgr.has(condition_uid, bid) && !buff_mgr.has_type(condition_uid, bid)
+        })),
         ConditionType::BuffIdDel { .. } => Some(false),
         ConditionType::HasTypeIdBuffMoreThan { type_id, min_count } => {
             Some(buff_mgr.count_type(condition_uid, *type_id) >= *min_count)

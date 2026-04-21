@@ -56,7 +56,7 @@ impl Passive {
         // These skills exist in skill_effect but are absent from skill_passive_level
         // and character_destiny_facets.exchangeSkills. Add more stones here as discovered.
         let destiny_passive_map: &[(i32, &[i32])] = &[
-            (306201, &[30620144, 30620147]),             // 3062
+            (306201, &[30620144, 30620147]),              // 3062
             (306301, &[30630151, 30630161, 30630171]),    // 3063
             (308801, &[308801911, 308801921, 308802111]), // 3088
         ];

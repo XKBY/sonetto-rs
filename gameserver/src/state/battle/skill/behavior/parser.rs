@@ -139,9 +139,7 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             pool_buff_id: p1,
             count: p2,
         },
-        "AddMagicCircle" | "MagicCircleAddRound" => BehaviorType::AddMagicCircle {
-            circle_id: p1,
-        },
+        "AddMagicCircle" | "MagicCircleAddRound" => BehaviorType::AddMagicCircle { circle_id: p1 },
         "MagicCircleAttr" => {
             let mut modifiers = Vec::new();
             let mut i = 1;

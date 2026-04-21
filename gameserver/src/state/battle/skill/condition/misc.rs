@@ -10,8 +10,7 @@ fn deterministic_roll_permille(fight: &Fight, caster_uid: i64, target_uid: i64, 
     let seed = fight.cur_round.unwrap_or(1) as i64
         + fight.version.unwrap_or(0) as i64
         + fight.battle_id.unwrap_or(0) as i64;
-    let x =
-        seed as i128 + caster_uid as i128 * 31 + target_uid as i128 * 17 + salt as i128 * 13;
+    let x = seed as i128 + caster_uid as i128 * 31 + target_uid as i128 * 17 + salt as i128 * 13;
     x.rem_euclid(1000) as i32
 }
 
@@ -22,7 +21,11 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         }),
         "TeammateAlive" => Some(ConditionType::TeammateAlive {
             // live data commonly encodes: #0 => teammate alive, #1 => teammate dead/missing
-            expect_dead: parts.get(1).and_then(|v| v.parse::<i32>().ok()).unwrap_or(0) == 1,
+            expect_dead: parts
+                .get(1)
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(0)
+                == 1,
         }),
         "HurtRestraint" => Some(ConditionType::HurtRestraint),
         "HurtNumType" => Some(ConditionType::HurtNumType {

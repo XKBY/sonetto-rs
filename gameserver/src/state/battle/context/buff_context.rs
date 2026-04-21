@@ -1,6 +1,4 @@
-use crate::state::battle::{
-    manager::buff_mgr::{BuffInstance, BuffMgr},
-};
+use crate::state::battle::manager::buff_mgr::{BuffInstance, BuffMgr};
 
 /// Lifecycle/policy context around buff storage.
 pub struct BuffContext<'a> {

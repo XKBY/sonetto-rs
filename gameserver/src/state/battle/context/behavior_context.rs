@@ -1,5 +1,5 @@
-use crate::state::battle::skill::targets::resolve_behavior_targets;
 use crate::state::battle::skill::PhaseFilter;
+use crate::state::battle::skill::targets::resolve_behavior_targets;
 use crate::state::battle::types::behavior::BehaviorType;
 use sonettobuf::Fight;
 

@@ -1,8 +1,8 @@
 use crate::{
-    models::game::heros::{HeroModel, UserHeroModel},
     models::game::dungeons::{
         DungeonLastHeroGroup, RewardPointInfo, UserChapterTypeNum, UserDungeon,
     },
+    models::game::heros::{HeroModel, UserHeroModel},
 };
 
 use anyhow::Result;

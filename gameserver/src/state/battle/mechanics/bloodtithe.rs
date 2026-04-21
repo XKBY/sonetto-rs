@@ -1,19 +1,19 @@
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
 use std::{collections::HashMap, sync::Mutex};
 
+use crate::state::battle::context::FightContext;
+use crate::state::battle::mechanics::{magic_circle, nuodika, round_end, shadowcloak};
 use crate::state::battle::{
-    fight_step::FightStepBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
     utils::{
-        build_blood_pool_ex_point_step, buff_get_raspberry_params, damage_with_buff_act,
+        buff_get_raspberry_params, build_blood_pool_ex_point_step, damage_with_buff_act,
         find_entity,
     },
 };
-use crate::state::battle::context::FightContext;
-use crate::state::battle::mechanics::{magic_circle, nuodika, round_end, shadowcloak};
 
 const DAMAGE_PER_POINT: i32 = 3000;
 const BASE_MAX: i32 = 24;
@@ -249,13 +249,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
 }
 
 pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Bloodpoolvaluechange as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(1),
-        effect_num1: Some(new_total),
-        ..Default::default()
-    }
+    ActEffectBuilder::bloodpool_value_change(target_uid, 1, new_total)
 }
 
 pub fn set_gain(value: i32) {
@@ -263,23 +257,11 @@ pub fn set_gain(value: i32) {
 }
 
 pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Bloodpoolmaxchange as i32),
-        target_id: Some(0),
-        effect_num: Some(change_type),
-        effect_num1: Some(amount),
-        ..Default::default()
-    }
+    ActEffectBuilder::bloodpool_max_change(change_type, amount)
 }
 
 pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Bloodpoolvaluechange as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(change_type),
-        effect_num1: Some(amount),
-        ..Default::default()
-    }
+    ActEffectBuilder::bloodpool_value_change(target_uid, change_type, amount)
 }
 
 impl BloodtitheState {
@@ -290,19 +272,10 @@ impl BloodtitheState {
         Some(
             FightStepBuilder::effect()
                 .with_many(vec![
-                    ActEffect {
-                        effect_type: Some(EffectType::Bloodpoolmaxcreate as i32),
-                        effect_num: Some(1),
-                        target_id: Some(0),
-                        ..Default::default()
-                    },
-                    ActEffect {
-                        effect_type: Some(EffectType::Bloodpoolmaxchange as i32),
-                        effect_num: Some(1),
-                        effect_num1: Some(57),
-                        target_id: Some(0),
-                        ..Default::default()
-                    },
+                    ActEffectBuilder::new(EffectType::Bloodpoolmaxcreate as i32, 0)
+                        .effect_num(1)
+                        .build(),
+                    ActEffectBuilder::bloodpool_max_change(1, 57),
                 ])
                 .build(),
         )
@@ -318,13 +291,7 @@ impl BloodtitheState {
         }
         Some(
             FightStepBuilder::effect()
-                .with(ActEffect {
-                    effect_type: Some(EffectType::Bloodpoolmaxchange as i32),
-                    effect_num: Some(1),
-                    effect_num1: Some(value),
-                    target_id: Some(0),
-                    ..Default::default()
-                })
+                .with(ActEffectBuilder::bloodpool_max_change(1, value))
                 .build(),
         )
     }
@@ -398,33 +365,17 @@ impl BloodtitheState {
                 {
                     if let Some(nautika_uid) = find_nautika_uid(fight, team_type) {
                         ex_point_mgr.add_ex_point(nautika_uid, gained);
-                        effects.push(ActEffect {
-                            effect_type: Some(EffectType::Expointchange as i32),
-                            target_id: Some(nautika_uid),
-                            effect_num: Some(gained),
-                            ..Default::default()
-                        });
+                        effects.push(ActEffectBuilder::ex_point_change(nautika_uid, gained));
                     }
                     effects.push(bloodtithe_add_to_pool(uid, gained));
                 }
 
-                outer_effects.push(ActEffect {
-                    effect_type: Some(EffectType::Fightstep as i32),
-                    target_id: Some(0),
-                    fight_step: Some(FightStep {
-                        act_type: Some(fight_step::ActType::Effect.into()),
-                        from_id: Some(caster_uid),
-                        to_id: Some(uid),
-                        act_id: Some(instance.buff_id),
-                        act_effect: effects,
-                        card_index: Some(0),
-                        support_hero_id: Some(0),
-                        fake_timeline: Some(false),
-                        real_skill_type: Some(0),
-                        real_skin_id: Some(0),
-                    }),
-                    ..Default::default()
-                });
+                outer_effects.push(wrap_step(effect_container_step(
+                    caster_uid,
+                    uid,
+                    instance.buff_id,
+                    effects,
+                )));
             }
         }
 
@@ -433,7 +384,6 @@ impl BloodtitheState {
         }
         Some(FightStepBuilder::effect().with_many(outer_effects).build())
     }
-
 }
 
 fn find_nautika_uid(fight: &Fight, team_type: i32) -> Option<i64> {

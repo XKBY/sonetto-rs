@@ -5,14 +5,11 @@ use sonettobuf::{ActEffect, FightStep};
 
 use crate::state::battle::{
     context::FightContext,
-    passives::{
-        collector::CollectedPassives,
-        steps::skill::execute_skill,
-    },
+    passives::{collector::CollectedPassives, steps::skill::execute_skill},
     round::step_shape::build_effect_step,
     skill::{PhaseFilter, TriggerState},
-    types::effects::EffectType,
     trigger::combat::TriggerEvent,
+    types::effects::EffectType,
     utils::buff_get_blood_value_use_skill_params,
 };
 
@@ -55,10 +52,13 @@ impl TriggerPass for BloodValueUseSkillPass {
             .collect();
 
         for holder_uid in holder_uids {
-            let Some(holder) = crate::state::battle::skill::get_entity(ctx.fight, holder_uid) else {
+            let Some(holder) = crate::state::battle::skill::get_entity(ctx.fight, holder_uid)
+            else {
                 continue;
             };
-            let team_type = holder.team_type.unwrap_or(if holder_uid > 0 { 1 } else { 2 });
+            let team_type = holder
+                .team_type
+                .unwrap_or(if holder_uid > 0 { 1 } else { 2 });
             let delta = event.bloodpool_gain(team_type);
             if delta <= 0 {
                 continue;

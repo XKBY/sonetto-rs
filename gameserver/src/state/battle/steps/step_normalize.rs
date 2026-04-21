@@ -2,11 +2,9 @@ use sonettobuf::{ActEffect, Fight};
 
 use crate::state::battle::{context::FightContext, utils::buff_update};
 
-pub(crate) fn is_preferred_defender_round_end_wrapper(
-    fight: &Fight,
-    effect: &ActEffect,
-) -> bool {
-    if effect.effect_type != Some(crate::state::battle::types::effects::EffectType::FightStep as i32)
+pub(crate) fn is_preferred_defender_round_end_wrapper(fight: &Fight, effect: &ActEffect) -> bool {
+    if effect.effect_type
+        != Some(crate::state::battle::types::effects::EffectType::FightStep as i32)
     {
         return false;
     }
@@ -41,7 +39,8 @@ pub(crate) fn normalize_defender_round_end_wrapper(
         .act_effect
         .iter()
         .find(|e| {
-            e.effect_type == Some(crate::state::battle::types::effects::EffectType::BuffUpdate as i32)
+            e.effect_type
+                == Some(crate::state::battle::types::effects::EffectType::BuffUpdate as i32)
                 && e.target_id == Some(target_uid)
                 && e.buff.as_ref().and_then(|b| b.buff_id) == Some(buff_id)
         })

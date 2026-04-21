@@ -51,7 +51,11 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
         .iter()
         .filter_map(|e| {
             let uid = e.uid.unwrap_or(0);
-            if uid < 0 && e.current_hp.unwrap_or(0) > 0 { Some(uid) } else { None }
+            if uid < 0 && e.current_hp.unwrap_or(0) > 0 {
+                Some(uid)
+            } else {
+                None
+            }
         })
         .collect();
 

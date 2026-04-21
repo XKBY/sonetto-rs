@@ -64,7 +64,8 @@ pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
     }
 
     let mut idx = 0usize;
-    while idx < step.act_effect.len() && is_damage_effect(step.act_effect[idx].effect_type.unwrap_or(0))
+    while idx < step.act_effect.len()
+        && is_damage_effect(step.act_effect[idx].effect_type.unwrap_or(0))
     {
         idx += 1;
     }
@@ -144,4 +145,3 @@ fn insert_trigger_into_matching_nested_inner(
     }
     false
 }
-

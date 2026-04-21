@@ -1,8 +1,8 @@
 use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 
 use crate::state::battle::{
-    fight_step::FightStepBuilder,
     context::FightContext,
+    fight_step::FightStepBuilder,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
     utils::{buff_del, buff_update, moxie_change},
@@ -36,7 +36,8 @@ impl TriggerPass for ExPointSyncPass {
                 let mut has_ex_on_hit = false;
                 for entry in buff_cfg.features.split('|') {
                     let parts: Vec<&str> = entry.split('#').collect();
-                    let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
+                    let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok())
+                    else {
                         continue;
                     };
                     let is_ex_on_hit = cfg
