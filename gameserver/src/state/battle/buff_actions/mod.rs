@@ -10,6 +10,7 @@ pub mod heal;
 pub mod hp;
 pub mod lost_life;
 pub mod monitor_continue;
+pub mod nuodika_cast;
 pub mod raspberry;
 pub mod shield;
 
