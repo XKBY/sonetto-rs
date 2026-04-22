@@ -9,8 +9,8 @@ use std::{
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
     fight_step::ActEffectBuilder,
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, fight_data_mgr::Managers},
-    mechanics::{Mechanics, bloodtithe::BloodtitheState},
+    manager::{buff_mgr::BuffMgr, fight_data_mgr::Managers},
+    mechanics::Mechanics,
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::buff_del,
 };
@@ -18,7 +18,7 @@ use super::super::{
 use super::{
     behavior::execute_behavior,
     cache::{SKILL_CACHE, resolve_skill_effect_id},
-    condition::{buff::deleted_matches, check_condition},
+    condition::{ConditionEval, buff::deleted_matches},
     damage::{calculate_damage, should_crit_hit},
     phase::{PhaseFilter, TriggerState},
     targets::{collect_team, get_ally_uids, get_entity, get_team_type, resolve_targets},
@@ -246,33 +246,25 @@ impl SkillExecutor {
                     } else {
                         caster_uid
                     };
+                    let condition_eval = ConditionEval::new(
+                        &sim_fight,
+                        &sim_buff_mgr,
+                        &managers.ex_point_mgr,
+                        &mechanics.bloodtithe,
+                        caster_uid,
+                    )
+                    .with_trigger_state(has_trigger_state);
                     let raw = if has_trigger_state
                         && b.condition_target == 103
                         && target_uid != 0
                         && target_uid.signum() != caster_uid.signum()
                         && condition_has_trigger_bullet_and_random(&b.condition)
                     {
-                        check_condition_with_random_target(
-                            &sim_fight,
-                            &sim_buff_mgr,
-                            &managers.ex_point_mgr,
-                            &mechanics.bloodtithe,
-                            caster_uid,
-                            condition_uid,
-                            target_uid,
-                            &b.condition,
-                        )
+                        condition_eval
+                            .for_target(condition_uid)
+                            .check_with_random_target(target_uid, &b.condition)
                     } else {
-                        check_condition(
-                            &sim_fight,
-                            &sim_buff_mgr,
-                            &managers.ex_point_mgr,
-                            &mechanics.bloodtithe,
-                            caster_uid,
-                            condition_uid,
-                            has_trigger_state,
-                            &b.condition,
-                        )
+                        condition_eval.for_target(condition_uid).check(&b.condition)
                     };
                     let raw = apply_no_act_seed_hint(
                         &sim_fight,
@@ -285,28 +277,10 @@ impl SkillExecutor {
                         if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
                             match &b.condition {
                                 ConditionType::HasBuffId { .. } => {
-                                    raw || check_condition(
-                                        &sim_fight,
-                                        &sim_buff_mgr,
-                                        &managers.ex_point_mgr,
-                                        &mechanics.bloodtithe,
-                                        caster_uid,
-                                        target_uid,
-                                        has_trigger_state,
-                                        &b.condition,
-                                    )
+                                    raw || condition_eval.for_target(target_uid).check(&b.condition)
                                 }
                                 ConditionType::NoBuffId { .. } => {
-                                    raw && check_condition(
-                                        &sim_fight,
-                                        &sim_buff_mgr,
-                                        &managers.ex_point_mgr,
-                                        &mechanics.bloodtithe,
-                                        caster_uid,
-                                        target_uid,
-                                        has_trigger_state,
-                                        &b.condition,
-                                    )
+                                    raw && condition_eval.for_target(target_uid).check(&b.condition)
                                 }
                                 _ => raw,
                             }
@@ -331,16 +305,15 @@ impl SkillExecutor {
                 } else {
                     caster_uid
                 };
-                let raw = check_condition(
+                let condition_eval = ConditionEval::new(
                     &sim_fight,
                     &sim_buff_mgr,
                     &managers.ex_point_mgr,
                     &mechanics.bloodtithe,
                     caster_uid,
-                    condition_uid,
-                    has_trigger_state,
-                    &b.condition,
-                );
+                )
+                .with_trigger_state(has_trigger_state);
+                let raw = condition_eval.for_target(condition_uid).check(&b.condition);
                 let raw = apply_no_act_seed_hint(
                     &sim_fight,
                     caster_uid,
@@ -351,28 +324,10 @@ impl SkillExecutor {
                 let raw = if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
                     match &b.condition {
                         ConditionType::HasBuffId { .. } => {
-                            raw || check_condition(
-                                &sim_fight,
-                                &sim_buff_mgr,
-                                &managers.ex_point_mgr,
-                                &mechanics.bloodtithe,
-                                caster_uid,
-                                target_uid,
-                                has_trigger_state,
-                                &b.condition,
-                            )
+                            raw || condition_eval.for_target(target_uid).check(&b.condition)
                         }
                         ConditionType::NoBuffId { .. } => {
-                            raw && check_condition(
-                                &sim_fight,
-                                &sim_buff_mgr,
-                                &managers.ex_point_mgr,
-                                &mechanics.bloodtithe,
-                                caster_uid,
-                                target_uid,
-                                has_trigger_state,
-                                &b.condition,
-                            )
+                            raw && condition_eval.for_target(target_uid).check(&b.condition)
                         }
                         _ => raw,
                     }
@@ -836,64 +791,6 @@ fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
             saw_trigger_bullet && saw_random
         }
         _ => false,
-    }
-}
-
-fn check_condition_with_random_target(
-    fight: &Fight,
-    buff_mgr: &BuffMgr,
-    ex_point_mgr: &ExPointMgr,
-    bloodtithe: &BloodtitheState,
-    caster_uid: i64,
-    condition_uid: i64,
-    random_target_uid: i64,
-    condition: &ConditionType,
-) -> bool {
-    match condition {
-        ConditionType::EnterFightAnd(conds) => conds.iter().all(|cond| {
-            let leaf_target = if matches!(cond, ConditionType::Random { .. }) {
-                random_target_uid
-            } else {
-                condition_uid
-            };
-            check_condition(
-                fight,
-                buff_mgr,
-                ex_point_mgr,
-                bloodtithe,
-                caster_uid,
-                leaf_target,
-                true,
-                cond,
-            )
-        }),
-        ConditionType::EnterFightOr(conds) => conds.iter().any(|cond| {
-            let leaf_target = if matches!(cond, ConditionType::Random { .. }) {
-                random_target_uid
-            } else {
-                condition_uid
-            };
-            check_condition(
-                fight,
-                buff_mgr,
-                ex_point_mgr,
-                bloodtithe,
-                caster_uid,
-                leaf_target,
-                true,
-                cond,
-            )
-        }),
-        _ => check_condition(
-            fight,
-            buff_mgr,
-            ex_point_mgr,
-            bloodtithe,
-            caster_uid,
-            condition_uid,
-            true,
-            condition,
-        ),
     }
 }
 

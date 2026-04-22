@@ -17,6 +17,132 @@ use sonettobuf::Fight;
 
 pub use crate::state::battle::types::condition::ConditionType;
 
+#[derive(Clone, Copy)]
+pub struct ConditionEval<'a> {
+    fight: &'a Fight,
+    buff_mgr: &'a BuffMgr,
+    ex_point_mgr: &'a ExPointMgr,
+    bloodtithe: &'a BloodtitheState,
+    caster_uid: i64,
+    target_uid: i64,
+    has_trigger_state: bool,
+}
+
+impl<'a> ConditionEval<'a> {
+    pub fn new(
+        fight: &'a Fight,
+        buff_mgr: &'a BuffMgr,
+        ex_point_mgr: &'a ExPointMgr,
+        bloodtithe: &'a BloodtitheState,
+        caster_uid: i64,
+    ) -> Self {
+        Self {
+            fight,
+            buff_mgr,
+            ex_point_mgr,
+            bloodtithe,
+            caster_uid,
+            target_uid: caster_uid,
+            has_trigger_state: false,
+        }
+    }
+
+    pub fn for_target(mut self, target_uid: i64) -> Self {
+        self.target_uid = target_uid;
+        self
+    }
+
+    pub fn with_trigger_state(mut self, has_trigger_state: bool) -> Self {
+        self.has_trigger_state = has_trigger_state;
+        self
+    }
+
+    pub fn check(&self, condition: &ConditionType) -> bool {
+        if self.has_trigger_state && is_grouped_combat_event_condition(condition) {
+            return true;
+        }
+
+        if !self.has_trigger_state
+            && matches!(
+                condition,
+                ConditionType::PerDecrExPoint { .. }
+                    | ConditionType::UseExSkill
+                    | ConditionType::ActiveUseSkill
+                    | ConditionType::TeammateUseExSkill
+                    | ConditionType::ActiveUseSkillId { .. }
+                    | ConditionType::TriggerBullet
+                    | ConditionType::BeAttacked
+                    | ConditionType::HurtNotRestraint
+                    | ConditionType::HurtRestraint
+                    | ConditionType::TeammateInjuryCount
+                    | ConditionType::TeamInjuryCountRound
+                    | ConditionType::BuffIdDel { .. }
+                    | ConditionType::NoActRound
+            )
+        {
+            return false;
+        }
+
+        enter_fight::check(
+            condition,
+            self.fight,
+            self.buff_mgr,
+            self.ex_point_mgr,
+            self.bloodtithe,
+            self.caster_uid,
+            self.target_uid,
+            self.has_trigger_state,
+        )
+        .or_else(|| buff::check(condition, self.buff_mgr, self.target_uid))
+        .or_else(|| career::check(condition, self.fight, self.caster_uid, self.target_uid))
+        .or_else(|| life::check(condition, self.fight, self.caster_uid))
+        .or_else(|| ex_point::check(condition, self.ex_point_mgr, self.caster_uid))
+        .or_else(|| combat::check(condition))
+        .or_else(|| bloodtithe::check(condition, self.bloodtithe))
+        .or_else(|| {
+            misc::check(
+                condition,
+                self.fight,
+                self.buff_mgr,
+                self.caster_uid,
+                self.target_uid,
+            )
+        })
+        .unwrap_or(false)
+    }
+
+    pub fn check_with_random_target(
+        &self,
+        random_target_uid: i64,
+        condition: &ConditionType,
+    ) -> bool {
+        match condition {
+            ConditionType::EnterFightAnd(conds) => conds.iter().all(|cond| {
+                let leaf_target = if matches!(cond, ConditionType::Random { .. }) {
+                    random_target_uid
+                } else {
+                    self.target_uid
+                };
+                self.for_target(leaf_target)
+                    .with_trigger_state(true)
+                    .check(cond)
+            }),
+            ConditionType::EnterFightOr(conds) => conds.iter().any(|cond| {
+                let leaf_target = if matches!(cond, ConditionType::Random { .. }) {
+                    random_target_uid
+                } else {
+                    self.target_uid
+                };
+                self.for_target(leaf_target)
+                    .with_trigger_state(true)
+                    .check(cond)
+            }),
+            _ => self.with_trigger_state(true).check(condition),
+        }
+    }
+}
+
+/// Compatibility shim for condition walkers that still pass the full context piecemeal.
 pub fn check_condition(
     fight: &Fight,
     buff_mgr: &BuffMgr,
@@ -27,49 +153,10 @@ pub fn check_condition(
     has_trigger_state: bool,
     condition: &ConditionType,
 ) -> bool {
-    if has_trigger_state && is_grouped_combat_event_condition(condition) {
-        return true;
-    }
-
-    if !has_trigger_state
-        && matches!(
-            condition,
-            ConditionType::PerDecrExPoint { .. }
-                | ConditionType::UseExSkill
-                | ConditionType::ActiveUseSkill
-                | ConditionType::TeammateUseExSkill
-                | ConditionType::ActiveUseSkillId { .. }
-                | ConditionType::TriggerBullet
-                | ConditionType::BeAttacked
-                | ConditionType::HurtNotRestraint
-                | ConditionType::HurtRestraint
-                | ConditionType::TeammateInjuryCount
-                | ConditionType::TeamInjuryCountRound
-                | ConditionType::BuffIdDel { .. }
-                | ConditionType::NoActRound
-        )
-    {
-        return false;
-    }
-
-    enter_fight::check(
-        condition,
-        fight,
-        buff_mgr,
-        ex_point_mgr,
-        bloodtithe,
-        caster_uid,
-        target_uid,
-        has_trigger_state,
-    )
-    .or_else(|| buff::check(condition, buff_mgr, target_uid))
-    .or_else(|| career::check(condition, fight, caster_uid, target_uid))
-    .or_else(|| life::check(condition, fight, caster_uid))
-    .or_else(|| ex_point::check(condition, ex_point_mgr, caster_uid))
-    .or_else(|| combat::check(condition))
-    .or_else(|| bloodtithe::check(condition, bloodtithe))
-    .or_else(|| misc::check(condition, fight, buff_mgr, caster_uid, target_uid))
-    .unwrap_or(false)
+    ConditionEval::new(fight, buff_mgr, ex_point_mgr, bloodtithe, caster_uid)
+        .for_target(target_uid)
+        .with_trigger_state(has_trigger_state)
+        .check(condition)
 }
 
 fn is_grouped_combat_event_condition(condition: &ConditionType) -> bool {

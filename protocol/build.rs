@@ -33,7 +33,7 @@ fn collect_enum_variants(generated: &str) -> BTreeMap<String, Vec<(String, Strin
     let mut module_stack: Vec<(String, usize)> = Vec::new();
     let mut brace_depth = 0usize;
     let lines: Vec<&str> = generated.lines().collect();
-    
+
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
 
