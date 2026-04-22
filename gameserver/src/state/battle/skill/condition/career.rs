@@ -13,15 +13,6 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
             Some(ConditionType::TargetCareer { career_ids: ids })
         }
         "CareerCheck" => Some({
-            let cond_id = parts
-                .first()
-                .and_then(|v| v.parse::<i32>().ok())
-                .unwrap_or(0);
-            if cond_id == 508212 {
-                return Some(ConditionType::Unknown {
-                    raw: parts.join("#"),
-                });
-            }
             ConditionType::CareerCheck {
                 param: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
             }
