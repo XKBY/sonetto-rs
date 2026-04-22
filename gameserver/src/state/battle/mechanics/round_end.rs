@@ -1,5 +1,6 @@
 use sonettobuf::FightStep;
 
+use crate::state::battle::buff_actions::use_skill_to_enemy::buff_get_use_skill_to_enemy_params;
 use crate::state::battle::fight_step::{effect_container_step, wrap_step};
 use crate::state::battle::{
     context::FightContext,
@@ -11,7 +12,6 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::event_from_step,
     trigger::passes::build_belief_gain_step,
-    utils::buff_get_use_skill_to_enemy_params,
 };
 
 pub(crate) fn build_round_end_use_skill_to_enemy_steps(

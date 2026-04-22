@@ -10,6 +10,7 @@ pub mod raspberry;
 pub mod shield;
 
 pub mod result;
+pub mod use_skill_to_enemy;
 
 pub use crate::state::battle::context::effect_context::EffectContext;
 pub use heal::{heal, heal_by_two_attr};
