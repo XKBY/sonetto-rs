@@ -48,6 +48,9 @@ pub struct BuffMgr {
     /// Cumulative teammate-injury packets observed for each holder.
     /// This tracker intentionally does not reset on round end.
     teammate_injury_not_reset: HashMap<i64, i32>,
+    /// Per-round behavior slot usage tracker keyed by
+    /// `(caster_uid, skill_effect_id, slot_index)`.
+    skill_slot_round_usage: HashMap<(i64, i32, u8), i32>,
 }
 
 #[allow(dead_code)]
@@ -258,6 +261,31 @@ impl BuffMgr {
         *entry = entry.saturating_add(amount);
     }
 
+    pub fn skill_slot_round_usage(&self, caster_uid: i64, skill_effect_id: i32, slot: u8) -> i32 {
+        self.skill_slot_round_usage
+            .get(&(caster_uid, skill_effect_id, slot))
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub fn increment_skill_slot_round_usage(
+        &mut self,
+        caster_uid: i64,
+        skill_effect_id: i32,
+        slot: u8,
+    ) -> i32 {
+        let entry = self
+            .skill_slot_round_usage
+            .entry((caster_uid, skill_effect_id, slot))
+            .or_insert(0);
+        *entry = entry.saturating_add(1);
+        *entry
+    }
+
+    pub fn reset_skill_slot_round_usage(&mut self) {
+        self.skill_slot_round_usage.clear();
+    }
+
     pub fn clear(&mut self, uid: i64) {
         if let Some(buffs) = self.active.remove(&uid) {
             for inst in &buffs {
@@ -392,6 +420,7 @@ impl Manager for BuffMgr {
     fn on_battle_end(&mut self) {
         self.active.clear();
         self.teammate_injury_not_reset.clear();
+        self.skill_slot_round_usage.clear();
     }
 }
 

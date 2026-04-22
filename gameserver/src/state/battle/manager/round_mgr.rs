@@ -1033,6 +1033,9 @@ impl FightRoundMgr {
                 })
                 .build(),
         );
+        // New-round boundary: reset per-slot round-limit usage trackers before
+        // post-round-start passive sweeps execute.
+        ctx.managers.buff_mgr.reset_skill_slot_round_usage();
 
         // Battle2 bloodtithe parity: live re-runs the same blood-pool pipeline
         // here that battle start uses before the next-round attacker sweep.

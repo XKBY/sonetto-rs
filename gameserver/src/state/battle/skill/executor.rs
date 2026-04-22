@@ -181,6 +181,7 @@ impl SkillExecutor {
 
         // Preserve config slot order; each slot condition still evaluates against skill-entry snapshot.
         for (i, b) in behaviors.iter().enumerate() {
+            let slot_index = (i + 1) as u8;
             tracing::debug!(
                 "  [behavior {}] condition={:?} behavior={:?} behavior_target={} condition_target={} logic_target={}",
                 i + 1,
@@ -195,6 +196,23 @@ impl SkillExecutor {
                 && !condition_has_combat_event(&b.condition)
             {
                 continue;
+            }
+
+            if b.round_limit > 0 {
+                let used = managers.buff_mgr.skill_slot_round_usage(
+                    caster_uid,
+                    skill_effect_id,
+                    slot_index,
+                );
+                if used >= b.round_limit {
+                    tracing::debug!(
+                        "  [behavior {}] skipped by round_limit={} used={}",
+                        i + 1,
+                        b.round_limit,
+                        used
+                    );
+                    continue;
+                }
             }
 
             if !phase.check(&b.condition, b.behavior_target) {
@@ -354,7 +372,7 @@ impl SkillExecutor {
                 caster_uid,
                 target_uid,
                 skill_id,
-                (i + 1) as u8,
+                slot_index,
                 b.behavior_target,
                 b.condition_target,
                 b.logic_target,
@@ -369,6 +387,11 @@ impl SkillExecutor {
                 b.condition_id,
                 &b.condition,
             )?;
+            managers.buff_mgr.increment_skill_slot_round_usage(
+                caster_uid,
+                skill_effect_id,
+                slot_index,
+            );
 
             tracing::debug!("    -> effects built: {}", behavior_effects.len());
             for e in &behavior_effects {
