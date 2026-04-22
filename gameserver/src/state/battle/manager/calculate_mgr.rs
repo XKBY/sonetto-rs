@@ -3,6 +3,7 @@ use sonettobuf::{
 };
 
 use super::super::{
+    buff_actions::ex_point_overflow_bank::buff_get_ex_point_overflow,
     manager::{
         buff_mgr::BuffMgr,
         entity_mgr::{FightEntityDataMgr, get_entity_mut_by_location},
@@ -10,7 +11,6 @@ use super::super::{
     },
     mechanics::bloodtithe::BloodtitheState,
     types::{buff::BuffLayerType, effects::EffectType},
-    utils::buff_get_ex_point_overflow,
 };
 
 use super::traits::Manager;

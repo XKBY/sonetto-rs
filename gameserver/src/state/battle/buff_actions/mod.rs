@@ -1,6 +1,7 @@
 pub mod attr;
 pub mod ban_lost_life;
 pub mod channel;
+pub mod ex_point_overflow_bank;
 pub mod halo;
 pub mod heal;
 pub mod hp;
