@@ -2,11 +2,11 @@ use sonettobuf::{ActEffect, BuffActInfo};
 
 use crate::state::battle::{skill::SkillExecutor, types::effects::EffectType};
 
-use super::{EffectContext, channel::queue_monitor_triggers};
+use super::{EffectContext, monitor_continue::queue_monitor_triggers};
 
 /// Behavior: RaspberryAddCount — accumulates HP into the Raspberry counter
 /// and emits the 109/350/108 triplet per target.
-/// MonitorContinueChannel trigger scanning is handled separately in channel.rs.
+/// MonitorContinueChannel trigger scanning is handled separately in monitor_continue.rs.
 pub fn add_count(
     ctx: &mut EffectContext,
     executor: &mut SkillExecutor,

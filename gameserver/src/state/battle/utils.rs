@@ -896,39 +896,6 @@ pub fn buff_get_nuodika_channel_params(buff_id: i32) -> Option<(i32, i32, i32, i
     None
 }
 
-pub fn buff_get_monitor_continue_channel_params(buff_id: i32) -> Option<(i32, i32, i32, i32)> {
-    let cfg = config::configs::get();
-    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
-    for segment in buff.features.split('|') {
-        let parts: Vec<&str> = segment.split('#').collect();
-        let feature_id: i32 = parts.first()?.trim().parse().ok()?;
-        let Some(act_type) = cfg
-            .buff_act
-            .iter()
-            .find(|a| a.id == feature_id)
-            .map(|a| a.r#type.as_str())
-        else {
-            continue;
-        };
-        if act_type != "MonitorContinueChannel" {
-            continue;
-        }
-        let prerequisite_buff_id = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-        let monitor_buff_id = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
-        let emit_effect_id = parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0);
-        let emit_skill_id = parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0);
-        if emit_effect_id > 0 && emit_skill_id > 0 {
-            return Some((
-                prerequisite_buff_id,
-                monitor_buff_id,
-                emit_effect_id,
-                emit_skill_id,
-            ));
-        }
-    }
-    None
-}
-
 pub fn build_blood_pool_ex_point_step(
     bloodtithe: &mut BloodtitheState,
     fight: &Fight,
