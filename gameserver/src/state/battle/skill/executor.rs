@@ -474,6 +474,28 @@ impl SkillExecutor {
             all_effects.extend(consume_steps);
         }
 
+        // Prevent self-nested skill emission: if behavior output already includes a
+        // same-act_id FightStep carrying damage, lift its payload into this skill step.
+        let mut normalized_effects = Vec::with_capacity(all_effects.len());
+        for mut effect in all_effects.drain(..) {
+            if effect.effect_type == Some(EffectType::FightStep as i32)
+                && let Some(step) = effect.fight_step.take()
+            {
+                if step.act_id == Some(skill_id)
+                    && step
+                        .act_effect
+                        .iter()
+                        .any(|e| e.effect_type.is_some_and(is_damage_effect_type))
+                {
+                    normalized_effects.extend(step.act_effect);
+                    continue;
+                }
+                effect.fight_step = Some(step);
+            }
+            normalized_effects.push(effect);
+        }
+        all_effects = normalized_effects;
+
         if all_effects.is_empty()
             && self.pending_monitor_triggers.is_empty()
             && self.side_effects.is_empty()
@@ -707,7 +729,7 @@ impl SkillExecutor {
 
         let buff_dels = inner_executor.pending_buff_dels.drain(..).collect();
 
-        let act_effect = if results.is_empty() {
+        let mut act_effect = if results.is_empty() {
             ActEffectBuilder::new(EffectType::FightStep as i32, 0)
                 .fight_step(FightStep {
                     act_type: Some(fight_step::ActType::Skill.into()),
@@ -723,8 +745,68 @@ impl SkillExecutor {
                 })
                 .build()
         } else {
-            results.remove(0)
+            let has_step_damage = |step: &FightStep| {
+                step.act_effect
+                    .iter()
+                    .any(|effect| effect.effect_type.is_some_and(is_damage_effect_type))
+            };
+            let selected_idx = results
+                .iter()
+                .position(|effect| {
+                    effect
+                        .fight_step
+                        .as_ref()
+                        .is_some_and(|step| step.act_id == Some(skill_id) && has_step_damage(step))
+                })
+                .or_else(|| {
+                    results.iter().position(|effect| {
+                        effect
+                            .fight_step
+                            .as_ref()
+                            .is_some_and(|step| step.act_id == Some(skill_id))
+                    })
+                })
+                .unwrap_or(0);
+            results.remove(selected_idx)
         };
+
+        // Some trigger paths return a self-wrapper SkillStep (act_id = X) that only
+        // nests another SkillStep with the same act_id. Prefer the nested payload step.
+        if let Some(step) = act_effect.fight_step.as_ref() {
+            let parent_act_id = step.act_id;
+            let parent_has_damage = step
+                .act_effect
+                .iter()
+                .any(|effect| effect.effect_type.is_some_and(is_damage_effect_type));
+            if !parent_has_damage {
+                let nested_idx =
+                    step.act_effect
+                        .iter()
+                        .position(|effect| {
+                            effect.effect_type == Some(EffectType::FightStep as i32)
+                                && effect.fight_step.as_ref().is_some_and(|nested| {
+                                    nested.act_id == parent_act_id
+                                        && nested.act_effect.iter().any(|e| {
+                                            e.effect_type.is_some_and(is_damage_effect_type)
+                                        })
+                                })
+                        })
+                        .or_else(|| {
+                            step.act_effect.iter().position(|effect| {
+                                effect.effect_type == Some(EffectType::FightStep as i32)
+                                    && effect
+                                        .fight_step
+                                        .as_ref()
+                                        .is_some_and(|nested| nested.act_id == parent_act_id)
+                            })
+                        });
+                if let Some(index) = nested_idx {
+                    if let Some(nested) = step.act_effect.get(index) {
+                        act_effect = nested.clone();
+                    }
+                }
+            }
+        }
 
         Ok((act_effect, buff_dels))
     }

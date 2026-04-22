@@ -106,6 +106,39 @@ pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
     step.act_effect = reordered;
 }
 
+pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
+    if step.act_type != Some(fight_step::ActType::Skill as i32) {
+        return;
+    }
+    let host_act_id = step.act_id;
+    let mut flattened = Vec::with_capacity(step.act_effect.len());
+    for mut effect in std::mem::take(&mut step.act_effect) {
+        if effect.effect_type == Some(162)
+            && let Some(inner) = effect.fight_step.take()
+        {
+            let inner_has_damage = inner.act_effect.iter().any(|e| {
+                e.effect_type.is_some_and(|t| {
+                    t == crate::state::battle::types::effects::EffectType::Damage as i32
+                        || t == crate::state::battle::types::effects::EffectType::Crit as i32
+                        || t == crate::state::battle::types::effects::EffectType::OriginDamage
+                            as i32
+                        || t == crate::state::battle::types::effects::EffectType::OriginCrit as i32
+                })
+            });
+            if inner.act_type == Some(fight_step::ActType::Skill as i32)
+                && inner.act_id == host_act_id
+                && inner_has_damage
+            {
+                flattened.extend(inner.act_effect);
+                continue;
+            }
+            effect.fight_step = Some(inner);
+        }
+        flattened.push(effect);
+    }
+    step.act_effect = flattened;
+}
+
 pub(crate) fn insert_trigger_into_matching_nested(
     host: &mut FightStep,
     embedded: ActEffect,

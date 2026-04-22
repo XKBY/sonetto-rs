@@ -644,37 +644,60 @@ fn dispatch_impl(
                     &phase,
                 )?
             };
-            // Some trigger chains can emit duplicate wrapper skill steps. Keep the
-            // damage-carrying step for this EX skill and drop redundant empty/attr-only duplicates.
-            let mut kept_ex_skill_step = false;
-            ex.retain(|e| {
-                let is_ex_skill_step = e.effect_type == Some(EffectType::Fightstep as i32)
-                    && e
-                        .fight_step
+            // Some trigger chains can emit duplicate wrapper skill steps. If any same-act_id
+            // step carries damage, drop empty/attr-only duplicates for that act_id.
+            let is_ex_skill_step = |e: &ActEffect| {
+                e.effect_type == Some(EffectType::Fightstep as i32)
+                    && e.fight_step
                         .as_ref()
                         .map(|s| s.act_id == Some(ex_skill_id))
-                        .unwrap_or(false);
-                if !is_ex_skill_step {
-                    return true;
-                }
-                let has_damage = e
-                    .fight_step
+                        .unwrap_or(false)
+            };
+            let ex_skill_step_has_damage = |e: &ActEffect| {
+                e.fight_step
                     .as_ref()
                     .map(|s| {
-                        s.act_effect.iter().any(|ae| {
-                            matches!(
-                                ae.effect_type,
-                                Some(x) if x == EffectType::Damage as i32 || x == EffectType::Crit as i32
-                            )
-                        })
+                        s.act_effect
+                            .iter()
+                            .any(|ae| is_damage_effect_type(ae.effect_type))
                     })
-                    .unwrap_or(false);
-                if has_damage {
-                    kept_ex_skill_step = true;
+                    .unwrap_or(false)
+            };
+            let has_damage_ex_skill_step = ex
+                .iter()
+                .any(|e| is_ex_skill_step(e) && ex_skill_step_has_damage(e));
+            let mut kept_non_damage_ex_skill_step = false;
+            ex.retain(|e| {
+                if !is_ex_skill_step(e) {
                     return true;
                 }
-                !kept_ex_skill_step
+                if ex_skill_step_has_damage(e) {
+                    return true;
+                }
+                if has_damage_ex_skill_step {
+                    return false;
+                }
+                if kept_non_damage_ex_skill_step {
+                    return false;
+                }
+                kept_non_damage_ex_skill_step = true;
+                true
             });
+            if ex_skill_id == skill_id {
+                // Avoid self-nesting: this behavior can execute the same act_id as the
+                // current skill, and we only want one outward Skill step.
+                let mut flattened = Vec::new();
+                for mut effect in ex.drain(..) {
+                    if is_ex_skill_step(&effect) {
+                        if let Some(step) = effect.fight_step.take() {
+                            flattened.extend(step.act_effect);
+                        }
+                    } else {
+                        flattened.push(effect);
+                    }
+                }
+                ex = flattened;
+            }
             out.append(&mut ex);
 
             if refund > 0 {

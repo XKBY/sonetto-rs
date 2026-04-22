@@ -656,6 +656,7 @@ impl FightRoundMgr {
                     .splice(insert_at..insert_at, monitor_embeds);
             }
             magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
+            trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
             state.is_finish = self.check_battle_end(ctx.fight);
@@ -811,6 +812,7 @@ impl FightRoundMgr {
                 }
             }
             magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
+            trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
         }
