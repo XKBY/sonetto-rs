@@ -16,7 +16,8 @@ pub struct TriggerState {
     pub be_attacked: bool,
     pub hurt_not_restraint: bool,
     pub hurt_restraint: bool,
-    pub teammate_injury_count: bool,
+    pub teammate_injury_count: i32,
+    pub teammate_injury_count_not_reset: i32,
     pub team_injury_count_round: bool,
     pub deleted_buff_ids: Vec<i32>,
 }
@@ -237,7 +238,12 @@ impl PhaseFilter {
             ConditionType::BeAttacked => event.be_attacked,
             ConditionType::HurtNotRestraint => event.hurt_not_restraint,
             ConditionType::HurtRestraint => event.hurt_restraint,
-            ConditionType::TeammateInjuryCount => event.teammate_injury_count,
+            ConditionType::TeammateInjuryCount { threshold } => {
+                event.teammate_injury_count >= *threshold
+            }
+            ConditionType::TeammateInjuryCountNotReset { threshold } => {
+                event.teammate_injury_count_not_reset >= *threshold
+            }
             ConditionType::TeamInjuryCountRound => event.team_injury_count_round,
             ConditionType::BuffIdDel { buff_ids } => {
                 deleted_matches(&event.deleted_buff_ids, buff_ids)

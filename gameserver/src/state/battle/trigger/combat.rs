@@ -306,11 +306,11 @@ fn collect_damage_uids(
             }
         }
 
-        // Recurse into nested fightStep (e.g. sub-skills triggered inline)
-        if et == EffectType::Fightstep as i32
-            && let Some(step) = &effect.fight_step
-        {
-            collect_damage_uids(&step.act_effect, caster_uid, damaged, dealers);
+        // Recurse into any nested fightStep payload and keep dealer attribution
+        // aligned with the nested step's own caster when present.
+        if let Some(step) = &effect.fight_step {
+            let nested_caster = step.from_id.unwrap_or(caster_uid);
+            collect_damage_uids(&step.act_effect, nested_caster, damaged, dealers);
         }
     }
 }
@@ -364,6 +364,8 @@ pub(crate) fn run_combat_passives_pass(
             }
         }
         skill_ids.sort_unstable();
+        let teammate_injury_hits = team_injury_hits_for_uid(uid, event);
+        let teammate_injury_not_reset = ctx.managers.buff_mgr.teammate_injury_not_reset(uid);
         let mut entity_step_effects: Vec<ActEffect> = Vec::new();
 
         for skill_id in skill_ids {
@@ -373,7 +375,13 @@ pub(crate) fn run_combat_passives_pass(
             if !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass) {
                 continue;
             }
-            let should_fire = skill_should_fire(uid, skill_id, event);
+            let should_fire = skill_should_fire(
+                uid,
+                skill_id,
+                event,
+                teammate_injury_hits,
+                teammate_injury_not_reset,
+            );
             if !should_fire {
                 continue;
             }
@@ -397,14 +405,9 @@ pub(crate) fn run_combat_passives_pass(
                 be_attacked: event.took_damage(uid),
                 hurt_not_restraint: event.dealt_damage(uid),
                 hurt_restraint: event.dealt_damage(uid),
-                teammate_injury_count: event
-                    .damaged_uids
-                    .iter()
-                    .any(|&d| d.signum() == uid.signum() && d != uid),
-                team_injury_count_round: event
-                    .damaged_uids
-                    .iter()
-                    .any(|&d| d.signum() == uid.signum()),
+                teammate_injury_count: teammate_injury_hits,
+                teammate_injury_count_not_reset: teammate_injury_not_reset,
+                team_injury_count_round: teammate_injury_hits > 0,
                 deleted_buff_ids: event.deleted_buff_ids.clone(),
             };
             let trigger_target_uid =
@@ -447,6 +450,11 @@ pub(crate) fn run_combat_passives_pass(
 
         if !entity_step_effects.is_empty() {
             steps.push(build_effect_step(entity_step_effects));
+        }
+        if teammate_injury_hits > 0 {
+            ctx.managers
+                .buff_mgr
+                .add_teammate_injury_not_reset(uid, teammate_injury_hits);
         }
     }
 
@@ -595,7 +603,21 @@ fn condition_is_enter_fight_only(condition: &ConditionType) -> bool {
     }
 }
 
-pub fn skill_should_fire(uid: i64, skill_id: i32, event: &TriggerEvent) -> bool {
+fn team_injury_hits_for_uid(uid: i64, event: &TriggerEvent) -> i32 {
+    event
+        .damaged_uids
+        .iter()
+        .filter(|&&d| d.signum() == uid.signum())
+        .count() as i32
+}
+
+pub fn skill_should_fire(
+    uid: i64,
+    skill_id: i32,
+    event: &TriggerEvent,
+    teammate_injury_hits: i32,
+    teammate_injury_not_reset: i32,
+) -> bool {
     let mut saw_event_condition = false;
     for i in 1..=10i32 {
         let condition_str = get_condition(skill_id, i);
@@ -603,7 +625,14 @@ pub fn skill_should_fire(uid: i64, skill_id: i32, event: &TriggerEvent) -> bool 
             break;
         }
         let (condition, _negated) = parse_condition(&condition_str);
-        if let Some(pass) = condition_fires_for(skill_id, &condition, uid, event) {
+        if let Some(pass) = condition_fires_for(
+            skill_id,
+            &condition,
+            uid,
+            event,
+            teammate_injury_hits,
+            teammate_injury_not_reset,
+        ) {
             saw_event_condition = true;
             if pass {
                 return true;
@@ -658,6 +687,8 @@ fn condition_fires_for(
     condition: &ConditionType,
     uid: i64,
     event: &TriggerEvent,
+    teammate_injury_hits: i32,
+    teammate_injury_not_reset: i32,
 ) -> Option<bool> {
     let teammate_used_ex = event.teammate_used_ex_skill(uid);
 
@@ -686,12 +717,12 @@ fn condition_fires_for(
         ),
         ConditionType::HurtNotRestraint => Some(event.dealt_damage(uid)),
         ConditionType::HurtRestraint => Some(event.dealt_damage(uid)),
-        ConditionType::TeammateInjuryCount => Some(
-            event
-                .damaged_uids
-                .iter()
-                .any(|&d| d.signum() == uid.signum() && d != uid),
-        ),
+        ConditionType::TeammateInjuryCount { threshold } => {
+            Some(teammate_injury_hits >= *threshold)
+        }
+        ConditionType::TeammateInjuryCountNotReset { threshold } => {
+            Some(teammate_injury_not_reset >= *threshold && teammate_injury_hits > 0)
+        }
         ConditionType::TeamInjuryCountRound => Some(
             event
                 .damaged_uids
@@ -760,7 +791,14 @@ fn condition_fires_for(
             let mut any_relevant = false;
             let mut all_pass = true;
             for c in conds {
-                if let Some(pass) = condition_fires_for(skill_id, c, uid, event) {
+                if let Some(pass) = condition_fires_for(
+                    skill_id,
+                    c,
+                    uid,
+                    event,
+                    teammate_injury_hits,
+                    teammate_injury_not_reset,
+                ) {
                     any_relevant = true;
                     all_pass &= pass;
                 }
@@ -771,7 +809,14 @@ fn condition_fires_for(
             let mut any_relevant = false;
             let mut any_pass = false;
             for c in conds {
-                if let Some(pass) = condition_fires_for(skill_id, c, uid, event) {
+                if let Some(pass) = condition_fires_for(
+                    skill_id,
+                    c,
+                    uid,
+                    event,
+                    teammate_injury_hits,
+                    teammate_injury_not_reset,
+                ) {
                     any_relevant = true;
                     any_pass |= pass;
                 }

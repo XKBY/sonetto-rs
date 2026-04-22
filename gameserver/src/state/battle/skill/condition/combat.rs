@@ -8,13 +8,17 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         "UseExSkill" => Some(ConditionType::UseExSkill),
         "UseSkillId" => Some(ConditionType::UseSkillId),
         "TriggerBullet" => Some(ConditionType::TriggerBullet),
-        "TeammateInjuryCountNotReset" => Some(ConditionType::TeammateInjuryCountNotReset),
+        "TeammateInjuryCountNotReset" => Some(ConditionType::TeammateInjuryCountNotReset {
+            threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1),
+        }),
         "BeAttacked" => Some(ConditionType::BeAttacked),
         "BloodPoolValue" | "BloodPoolCompare" => Some(ConditionType::BloodPool),
         "HurtNotRestraint" => Some(ConditionType::HurtNotRestraint),
         "CanUseSkill" => Some(ConditionType::CanUseSkill),
         "TeamInjuryCountRound" => Some(ConditionType::TeamInjuryCountRound),
-        "TeammateInjuryCount" => Some(ConditionType::TeammateInjuryCount),
+        "TeammateInjuryCount" => Some(ConditionType::TeammateInjuryCount {
+            threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1),
+        }),
         "PowerCompare" => Some(ConditionType::PowerCompare),
         "HeroRoundInterval" => Some(ConditionType::HeroRoundInterval),
         "Dead" => Some(ConditionType::Dead),
@@ -42,7 +46,7 @@ pub fn check(condition: &ConditionType) -> Option<bool> {
         ConditionType::UseExSkill
         | ConditionType::UseSkillId
         | ConditionType::TriggerBullet
-        | ConditionType::TeammateInjuryCountNotReset
+        | ConditionType::TeammateInjuryCountNotReset { .. }
         | ConditionType::BloodPool
         | ConditionType::CanUseSkill
         | ConditionType::PowerCompare

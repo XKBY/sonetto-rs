@@ -178,6 +178,11 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             }
         }
 
+        let teammate_injury_hits = event
+            .damaged_uids
+            .iter()
+            .filter(|&&d| d.signum() == caster_uid.signum())
+            .count() as i32;
         let trigger_state = TriggerState {
             active_use_skill: true,
             skill_id: root_step.act_id.unwrap_or(0),
@@ -188,14 +193,12 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             be_attacked: event.took_damage(caster_uid),
             hurt_not_restraint: event.dealt_damage(caster_uid),
             hurt_restraint: event.dealt_damage(caster_uid),
-            teammate_injury_count: event
-                .damaged_uids
-                .iter()
-                .any(|&d| d.signum() == caster_uid.signum() && d != caster_uid),
-            team_injury_count_round: event
-                .damaged_uids
-                .iter()
-                .any(|&d| d.signum() == caster_uid.signum()),
+            teammate_injury_count: teammate_injury_hits,
+            teammate_injury_count_not_reset: ctx
+                .managers
+                .buff_mgr
+                .teammate_injury_not_reset(caster_uid),
+            team_injury_count_round: teammate_injury_hits > 0,
             deleted_buff_ids: event.deleted_buff_ids.clone(),
         };
 

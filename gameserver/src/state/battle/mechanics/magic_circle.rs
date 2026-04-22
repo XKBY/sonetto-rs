@@ -36,7 +36,12 @@ pub fn is_magic_circle_self_skill(skill_id: i32) -> bool {
     config::configs::get()
         .magic_circle
         .iter()
-        .filter_map(|c| c.self_skills.trim().parse::<i32>().ok())
+        .flat_map(|c| {
+            c.self_skills
+                .split(['|', ',', ';', '#'])
+                .filter_map(|part| part.trim().parse::<i32>().ok())
+                .collect::<Vec<_>>()
+        })
         .any(|id| id == skill_id)
 }
 
@@ -93,6 +98,11 @@ fn magic_circle_aura_state(
     } else {
         event.primary_target_uid
     };
+    let teammate_injury_hits = event
+        .damaged_uids
+        .iter()
+        .filter(|&&d| d.signum() == host_caster_uid.signum())
+        .count() as i32;
     Some((
         self_skill_id,
         target_uid,
@@ -106,14 +116,12 @@ fn magic_circle_aura_state(
             be_attacked: event.took_damage(host_caster_uid),
             hurt_not_restraint: event.dealt_damage(host_caster_uid),
             hurt_restraint: event.dealt_damage(host_caster_uid),
-            teammate_injury_count: event
-                .damaged_uids
-                .iter()
-                .any(|&d| d.signum() == host_caster_uid.signum() && d != host_caster_uid),
-            team_injury_count_round: event
-                .damaged_uids
-                .iter()
-                .any(|&d| d.signum() == host_caster_uid.signum()),
+            teammate_injury_count: teammate_injury_hits,
+            teammate_injury_count_not_reset: ctx
+                .managers
+                .buff_mgr
+                .teammate_injury_not_reset(host_caster_uid),
+            team_injury_count_round: teammate_injury_hits > 0,
             deleted_buff_ids: event.deleted_buff_ids.clone(),
         },
     ))

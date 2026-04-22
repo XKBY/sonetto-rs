@@ -272,7 +272,7 @@ impl FightCardMgr {
         };
         if !is_temp_card {
             for passive_skill_id in collected.merged_for(exec_caster_uid) {
-                if !skill_should_fire(exec_caster_uid, passive_skill_id, &use_card_event) {
+                if !skill_should_fire(exec_caster_uid, passive_skill_id, &use_card_event, 0, 0) {
                     continue;
                 }
                 match execute_passive_skill(

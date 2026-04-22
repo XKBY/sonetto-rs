@@ -45,6 +45,9 @@ pub struct BuffMgr {
     /// `BuffIdDel` trigger conditions firing from mid-step passive chains that
     /// don't receive an explicit event list (see `TriggerState::with_buff_mgr`).
     step_deleted_buff_ids: Vec<i32>,
+    /// Cumulative teammate-injury packets observed for each holder.
+    /// This tracker intentionally does not reset on round end.
+    teammate_injury_not_reset: HashMap<i64, i32>,
 }
 
 #[allow(dead_code)]
@@ -240,6 +243,21 @@ impl BuffMgr {
         self.step_deleted_buff_ids.clear();
     }
 
+    pub fn teammate_injury_not_reset(&self, uid: i64) -> i32 {
+        self.teammate_injury_not_reset
+            .get(&uid)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    pub fn add_teammate_injury_not_reset(&mut self, uid: i64, amount: i32) {
+        if uid == 0 || amount <= 0 {
+            return;
+        }
+        let entry = self.teammate_injury_not_reset.entry(uid).or_insert(0);
+        *entry = entry.saturating_add(amount);
+    }
+
     pub fn clear(&mut self, uid: i64) {
         if let Some(buffs) = self.active.remove(&uid) {
             for inst in &buffs {
@@ -373,6 +391,7 @@ impl Manager for BuffMgr {
 
     fn on_battle_end(&mut self) {
         self.active.clear();
+        self.teammate_injury_not_reset.clear();
     }
 }
 

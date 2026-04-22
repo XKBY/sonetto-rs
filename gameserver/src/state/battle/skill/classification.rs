@@ -75,7 +75,8 @@ pub fn is_combat_event_condition(
         | ConditionType::BeAttacked
         | ConditionType::HurtNotRestraint
         | ConditionType::HurtRestraint
-        | ConditionType::TeammateInjuryCount
+        | ConditionType::TeammateInjuryCount { .. }
+        | ConditionType::TeammateInjuryCountNotReset { .. }
         | ConditionType::TeamInjuryCountRound
         | ConditionType::NoActRound
         | ConditionType::BuffIdDel { .. }

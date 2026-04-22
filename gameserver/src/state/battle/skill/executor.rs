@@ -219,7 +219,12 @@ impl SkillExecutor {
                     ConditionType::BeAttacked => Some(event.be_attacked),
                     ConditionType::HurtNotRestraint => Some(event.hurt_not_restraint),
                     ConditionType::HurtRestraint => Some(event.hurt_restraint),
-                    ConditionType::TeammateInjuryCount => Some(event.teammate_injury_count),
+                    ConditionType::TeammateInjuryCount { threshold } => {
+                        Some(event.teammate_injury_count >= *threshold)
+                    }
+                    ConditionType::TeammateInjuryCountNotReset { threshold } => {
+                        Some(event.teammate_injury_count_not_reset >= *threshold)
+                    }
                     ConditionType::TeamInjuryCountRound => Some(event.team_injury_count_round),
                     ConditionType::BuffIdDel { buff_ids } => {
                         Some(deleted_matches(&event.deleted_buff_ids, buff_ids))
@@ -691,7 +696,8 @@ impl SkillExecutor {
             be_attacked: false,
             hurt_not_restraint: false,
             hurt_restraint: false,
-            teammate_injury_count: false,
+            teammate_injury_count: 0,
+            teammate_injury_count_not_reset: 0,
             team_injury_count_round: false,
             deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
         });
@@ -766,7 +772,8 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
                 | ConditionType::BeAttacked
                 | ConditionType::HurtNotRestraint
                 | ConditionType::HurtRestraint
-                | ConditionType::TeammateInjuryCount
+                | ConditionType::TeammateInjuryCount { .. }
+                | ConditionType::TeammateInjuryCountNotReset { .. }
                 | ConditionType::TeamInjuryCountRound
                 | ConditionType::BuffIdDel { .. }
                 | ConditionType::CombatNone

@@ -74,7 +74,8 @@ impl<'a> ConditionEval<'a> {
                     | ConditionType::BeAttacked
                     | ConditionType::HurtNotRestraint
                     | ConditionType::HurtRestraint
-                    | ConditionType::TeammateInjuryCount
+                    | ConditionType::TeammateInjuryCount { .. }
+                    | ConditionType::TeammateInjuryCountNotReset { .. }
                     | ConditionType::TeamInjuryCountRound
                     | ConditionType::BuffIdDel { .. }
                     | ConditionType::NoActRound
@@ -186,7 +187,8 @@ fn is_grouped_combat_event_condition(condition: &ConditionType) -> bool {
             | ConditionType::BeAttacked
             | ConditionType::HurtNotRestraint
             | ConditionType::HurtRestraint
-            | ConditionType::TeammateInjuryCount
+            | ConditionType::TeammateInjuryCount { .. }
+            | ConditionType::TeammateInjuryCountNotReset { .. }
             | ConditionType::TeamInjuryCountRound
             | ConditionType::BuffIdDel { .. }
             | ConditionType::NoActRound
@@ -278,7 +280,7 @@ mod tests {
 
     #[test]
     fn teammate_injury_count_is_false_without_trigger_state() {
-        assert_false_without_trigger_state(ConditionType::TeammateInjuryCount);
+        assert_false_without_trigger_state(ConditionType::TeammateInjuryCount { threshold: 1 });
     }
 
     #[test]
