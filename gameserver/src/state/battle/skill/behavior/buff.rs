@@ -7,10 +7,7 @@ use sonettobuf::{ActEffect, Fight};
 use super::super::super::{
     buff::{apply_buff_effects, pre_buff_effects},
     context::buff_context::BuffContext,
-    manager::{
-        buff_mgr::{BuffInstance, next_buff_uid_for_target},
-        fight_data_mgr::Managers,
-    },
+    manager::{buff_mgr::next_buff_uid_for_target, fight_data_mgr::Managers},
     mechanics::Mechanics,
     types::behavior::BehaviorType,
     types::buff::{BAD_BUFF_TYPES, GOOD_BUFF_TYPES, stack_type::is_stackable},
@@ -845,10 +842,6 @@ pub fn ban_lost_life_floor_permille(fight: &Fight, managers: &mut Managers, uid:
             .find_map(|b| buff_get_ban_lost_life_floor(b.buff_id))
             .unwrap_or(0)
     })
-}
-
-pub fn active_buffs(fight: &Fight, managers: &mut Managers, uid: i64) -> Vec<BuffInstance> {
-    with_buff_ctx(fight, managers, |buff_ctx| buff_ctx.buffs(uid).to_vec())
 }
 
 #[cfg(test)]
