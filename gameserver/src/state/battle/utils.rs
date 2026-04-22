@@ -416,27 +416,6 @@ pub fn buff_del(target: i64, buff_uid: i64, buff_id: i32, from_uid: i64) -> ActE
     }
 }
 
-pub fn buff_get_raspberry_params(buff_id: i32) -> Option<(i32, i32)> {
-    let cfg = config::configs::get();
-    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
-    buff.features.split('|').find_map(|entry| {
-        let parts: Vec<&str> = entry.split('#').collect();
-        let act_id: i32 = parts.first()?.trim().parse().ok()?;
-        let is_raspberry = cfg
-            .buff_act
-            .iter()
-            .find(|a| a.id == act_id)
-            .map(|a| a.r#type == "Raspberry")
-            .unwrap_or(false);
-        if is_raspberry {
-            let rate: i32 = parts.get(1)?.trim().parse().ok()?;
-            Some((act_id, rate))
-        } else {
-            None
-        }
-    })
-}
-
 pub fn damage_with_buff_act(
     target: i64,
     amount: i32,

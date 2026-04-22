@@ -1,10 +1,37 @@
+//! Handlers for buff_act 1041 RaspberryBigSkill + 1042 Raspberry - Rubuska Shadow
+//! Cloak mechanic (Shadow Friend HP conversion + accumulator feeding Shadow Cloak /
+//! Crit DMG buffs).
+
 use sonettobuf::{ActEffect, BuffActInfo};
 
 use crate::state::battle::{skill::SkillExecutor, types::effects::EffectType};
 
 use super::{EffectContext, monitor_continue::queue_monitor_triggers};
 
-/// Behavior: RaspberryAddCount — accumulates HP into the Raspberry counter
+pub const BUFF_ACT_ID_RASPBERRY: i32 = 1042;
+#[allow(dead_code)]
+pub const BUFF_ACT_ID_RASPBERRY_BIG_SKILL: i32 = 1041;
+
+pub fn buff_get_raspberry_params(buff_id: i32) -> Option<(i32, i32)> {
+    let cfg = config::configs::get();
+    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
+    buff.features.split('|').find_map(|entry| {
+        let parts: Vec<&str> = entry.split('#').collect();
+        let act_id: i32 = parts.first()?.trim().parse().ok()?;
+        let is_raspberry = matches!(
+            cfg.buff_act.iter().find(|a| a.id == act_id),
+            Some(act) if act.r#type == "Raspberry"
+        );
+        if is_raspberry {
+            let rate: i32 = parts.get(1)?.trim().parse().ok()?;
+            Some((act_id, rate))
+        } else {
+            None
+        }
+    })
+}
+
+/// Behavior: RaspberryAddCount - accumulates HP into the Raspberry counter
 /// and emits the 109/350/108 triplet per target.
 /// MonitorContinueChannel trigger scanning is handled separately in monitor_continue.rs.
 pub fn add_count(
@@ -70,7 +97,7 @@ pub fn add_count(
             target_id: Some(ctx.target_uid()),
             reserve_id: Some(buff_uid),
             buff_act_info: Some(BuffActInfo {
-                act_id: Some(1042),
+                act_id: Some(BUFF_ACT_ID_RASPBERRY),
                 param: vec![accum, max_cap],
                 ..Default::default()
             }),
@@ -80,7 +107,7 @@ pub fn add_count(
             effect_type: Some(EffectType::MaxHpChange as i32),
             target_id: Some(ctx.target_uid()),
             effect_num: Some(new_max_hp),
-            buff_act_id: Some(1042),
+            buff_act_id: Some(BUFF_ACT_ID_RASPBERRY),
             ..Default::default()
         },
     ])

@@ -12,7 +12,9 @@ use std::{
     sync::Mutex,
 };
 
-use crate::state::battle::utils::{buff_get_raspberry_params, moxie_change};
+use crate::state::battle::{
+    buff_actions::raspberry::buff_get_raspberry_params, utils::moxie_change,
+};
 
 /// Shadow Cloak accumulator buff id. Applied to the carrier; its stored value
 /// is the currently-accumulated Shadow Friend points feeding Shadow Cloak
