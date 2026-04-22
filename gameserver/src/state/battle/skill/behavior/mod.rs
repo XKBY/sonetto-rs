@@ -14,7 +14,10 @@ use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
-    buff_actions::{EffectContext, heal, heal_by_two_attr, lost_life, raspberry},
+    buff_actions::{
+        EffectContext, add_passive_skills::for_each_add_passive_skill_id, heal, heal_by_two_attr,
+        lost_life, raspberry,
+    },
     context::behavior_context::BehaviorContext,
     manager::fight_data_mgr::Managers,
     mechanics::Mechanics,
@@ -1135,24 +1138,11 @@ fn collect_precast_skills_for_caster(
     // Buff feature 865(AddPassiveSkills) contributes virtual passive skills while buff is active.
     let active_buffs = buff::active_buffs(fight, managers, caster_uid);
     for instance in &active_buffs {
-        crate::state::battle::utils::for_each_buff_feature_chain(
-            instance.buff_id,
-            |act_type, parts| {
-                if act_type != "AddPassiveSkills" {
-                    return;
-                }
-                for raw in parts.iter().skip(1) {
-                    for piece in raw.split(',') {
-                        if let Ok(skill_id) = piece.trim().parse::<i32>()
-                            && skill_id > 0
-                            && !passive_candidates.contains(&skill_id)
-                        {
-                            passive_candidates.push(skill_id);
-                        }
-                    }
-                }
-            },
-        );
+        for_each_add_passive_skill_id(instance.buff_id, |skill_id| {
+            if !passive_candidates.contains(&skill_id) {
+                passive_candidates.push(skill_id);
+            }
+        });
     }
 
     find_self_buff_prep_skills(&passive_candidates)
@@ -1191,28 +1181,11 @@ fn infer_precast_per_decr_seed_cap(
                 let mut source_cap = 0;
                 for source in active {
                     let mut matched = false;
-                    crate::state::battle::utils::for_each_buff_feature_chain(
-                        source.buff_id,
-                        |act_type, parts| {
-                            if matched || act_type != "AddPassiveSkills" {
-                                return;
-                            }
-                            for raw in parts.iter().skip(1) {
-                                for piece in raw.split(',') {
-                                    let Ok(sid) = piece.trim().parse::<i32>() else {
-                                        continue;
-                                    };
-                                    if sid == skill_id {
-                                        matched = true;
-                                        break;
-                                    }
-                                }
-                                if matched {
-                                    break;
-                                }
-                            }
-                        },
-                    );
+                    for_each_add_passive_skill_id(source.buff_id, |sid| {
+                        if !matched && sid == skill_id {
+                            matched = true;
+                        }
+                    });
                     if matched {
                         source_cap = source.layer.max(source.stacks).max(0);
                         if source_cap > 0 {

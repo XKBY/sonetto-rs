@@ -1,3 +1,4 @@
+pub mod add_passive_skills;
 pub mod attr;
 pub mod ban_lost_life;
 pub mod channel;

@@ -11,6 +11,7 @@ use config::magic_circle::MagicCircle;
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
+    buff_actions::add_passive_skills::for_each_add_passive_skill_id,
     context::FightContext,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, TriggerState},
@@ -144,19 +145,9 @@ fn collect_add_passive_skill_ids(
         if target_uid != host_caster_uid || buff_id <= 0 {
             continue;
         }
-        crate::state::battle::utils::for_each_buff_feature_chain(buff_id, |act_type, parts| {
-            if act_type != "AddPassiveSkills" {
-                return;
-            }
-            for raw in parts.iter().skip(1) {
-                for piece in raw.split(',') {
-                    let Ok(skill_id) = piece.trim().parse::<i32>() else {
-                        continue;
-                    };
-                    if skill_id > 0 && skill_id != skip_skill_id && !out.contains(&skill_id) {
-                        out.push(skill_id);
-                    }
-                }
+        for_each_add_passive_skill_id(buff_id, |skill_id| {
+            if skill_id != skip_skill_id && !out.contains(&skill_id) {
+                out.push(skill_id);
             }
         });
     }
@@ -170,24 +161,11 @@ fn extend_with_active_add_passive_skill_ids(
     out: &mut Vec<i32>,
 ) {
     for instance in ctx.managers.buff_mgr.get(host_caster_uid) {
-        crate::state::battle::utils::for_each_buff_feature_chain(
-            instance.buff_id,
-            |act_type, parts| {
-                if act_type != "AddPassiveSkills" {
-                    return;
-                }
-                for raw in parts.iter().skip(1) {
-                    for piece in raw.split(',') {
-                        let Ok(skill_id) = piece.trim().parse::<i32>() else {
-                            continue;
-                        };
-                        if skill_id > 0 && skill_id != skip_skill_id && !out.contains(&skill_id) {
-                            out.push(skill_id);
-                        }
-                    }
-                }
-            },
-        );
+        for_each_add_passive_skill_id(instance.buff_id, |skill_id| {
+            if skill_id != skip_skill_id && !out.contains(&skill_id) {
+                out.push(skill_id);
+            }
+        });
     }
 }
 
