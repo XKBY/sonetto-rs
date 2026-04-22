@@ -14,6 +14,7 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         }
         "CareerCheck" => Some({
             ConditionType::CareerCheck {
+                subtype_id: parts.first().and_then(|v| v.parse().ok()).unwrap_or(0),
                 param: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
             }
         }),
@@ -38,7 +39,10 @@ pub fn check(
             let career = get_entity(fight, target_uid).and_then(|e| e.career);
             Some(career.map(|c| career_ids.contains(&c)).unwrap_or(false))
         }
-        ConditionType::CareerCheck { param } => {
+        ConditionType::CareerCheck {
+            subtype_id: _,
+            param,
+        } => {
             // CareerCheck is evaluated against the resolved condition target.
             // For example, Pickles 30630151 uses conditionTarget=128 (adjacent ally).
             let career = get_entity(fight, target_uid)

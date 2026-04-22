@@ -49,7 +49,7 @@ pub enum ConditionType {
     PerDecrExPoint { threshold: i32 },
     PerHasTargetCareerList { careers: Vec<i32> },
     TeammateUseExSkill,
-    CareerCheck { param: i32 },
+    CareerCheck { subtype_id: i32, param: i32 },
     BattleTagNum { tag_id: i32, threshold: i32 },
     BloodPoolMax { min: i32, max: i32 },
     TargetCount { value: i32, mode: i32 },
