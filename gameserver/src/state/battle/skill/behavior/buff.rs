@@ -1,6 +1,7 @@
 use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::super::executor::SkillExecutor;
 use super::buff_helper::{has_include_type, uses_slave_uid};
+use crate::state::battle::buff_actions::ban_lost_life::buff_get_ban_lost_life_floor;
 use sonettobuf::{ActEffect, Fight};
 
 use super::super::super::{
@@ -841,7 +842,7 @@ pub fn ban_lost_life_floor_permille(fight: &Fight, managers: &mut Managers, uid:
         buff_ctx
             .buffs(uid)
             .iter()
-            .find_map(|b| crate::state::battle::utils::buff_get_ban_lost_life_floor(b.buff_id))
+            .find_map(|b| buff_get_ban_lost_life_floor(b.buff_id))
             .unwrap_or(0)
     })
 }

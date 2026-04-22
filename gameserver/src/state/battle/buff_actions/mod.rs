@@ -1,4 +1,5 @@
 pub mod attr;
+pub mod ban_lost_life;
 pub mod channel;
 pub mod halo;
 pub mod heal;
