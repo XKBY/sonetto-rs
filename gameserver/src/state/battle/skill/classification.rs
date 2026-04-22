@@ -1,6 +1,9 @@
 use crate::state::battle::{
     ConditionType,
-    skill::{cache::resolve_skill_effect_id, condition::parser::parse_condition},
+    skill::{
+        cache::resolve_skill_effect_id,
+        condition::{self, parser::parse_condition},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +66,7 @@ pub fn is_combat_event_condition(
     include_per_decr_ex_point: bool,
     include_career_check: bool,
 ) -> bool {
-    match condition {
+    condition::fold(condition, &mut |cond| match cond {
         ConditionType::ActiveUseSkill
         | ConditionType::ActiveUseSkillId { .. }
         | ConditionType::CombatNone
@@ -81,11 +84,8 @@ pub fn is_combat_event_condition(
         | ConditionType::TriggerBullet => true,
         ConditionType::CareerCheck { .. } => include_career_check,
         ConditionType::PerDecrExPoint { .. } => include_per_decr_ex_point,
-        ConditionType::EnterFightAnd(conds) | ConditionType::EnterFightOr(conds) => conds
-            .iter()
-            .any(|c| is_combat_event_condition(c, include_per_decr_ex_point, include_career_check)),
         _ => false,
-    }
+    })
 }
 
 fn collect_skill_condition_strings(skill_id: i32, stop_on_first_empty: bool) -> Vec<String> {

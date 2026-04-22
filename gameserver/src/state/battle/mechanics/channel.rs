@@ -288,14 +288,13 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
     };
 
     let selected_target_uid = mgr.first_alive_defender_uid(ctx.fight).unwrap_or(0);
-    let target_uid = crate::state::battle::skill::targets::resolve_targets(
+    let target_uid = crate::state::battle::skill::targets::TargetResolver::new(
         ctx.fight,
         caster_uid,
         selected_target_uid,
-        target_type,
-        0,
-        0,
     )
+    .behavior(target_type)
+    .resolve()
     .into_iter()
     .next()
     .or_else(|| (selected_target_uid != 0).then_some(selected_target_uid))

@@ -360,7 +360,7 @@ impl FightCardMgr {
                     };
                     preview_managers.buff_mgr.clear_step_deleted_buff_ids();
                     let per_behavior = self.skill_executor.execute_skill(
-                        &mut preview_fight,
+                        &preview_fight,
                         &mut preview_managers,
                         &mut preview_mechanics,
                         caster_uid,
@@ -541,7 +541,7 @@ impl FightCardMgr {
             };
 
             let per_behavior = self.skill_executor.execute_skill(
-                &mut preview_fight,
+                &preview_fight,
                 &mut preview_managers,
                 &mut preview_mechanics,
                 caster_uid,

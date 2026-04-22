@@ -13,7 +13,6 @@ use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 
 use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
-use super::targets::collect_team;
 use crate::state::battle::{
     buff_actions::{EffectContext, heal, heal_by_two_attr, lost_life, raspberry},
     context::behavior_context::BehaviorContext,
@@ -21,7 +20,7 @@ use crate::state::battle::{
     mechanics::Mechanics,
     skill::cache::SKILL_CACHE,
     skill::condition::parser::parse_condition,
-    skill::targets::{get_entity, resolve_targets},
+    skill::targets::{TargetResolver, alive_enemies, get_entity},
     types::{behavior::BehaviorType, condition::ConditionType},
     utils::{buff_get_attr_replace_permille, damage_with_hurt},
 };
@@ -108,6 +107,72 @@ fn append_preview_bloodtithe_gain_effects(
     }
 }
 
+pub struct BehaviorExec<'a, 'ctx> {
+    executor: &'a mut SkillExecutor,
+    managers: &'a mut Managers,
+    mechanics: &'a mut Mechanics,
+    behavior_ctx: &'a BehaviorContext<'ctx>,
+    caster_uid: i64,
+    target_uid: i64,
+    skill_id: i32,
+    condition_id: i32,
+}
+
+impl<'a, 'ctx> BehaviorExec<'a, 'ctx> {
+    pub fn new(
+        executor: &'a mut SkillExecutor,
+        managers: &'a mut Managers,
+        mechanics: &'a mut Mechanics,
+        behavior_ctx: &'a BehaviorContext<'ctx>,
+    ) -> Self {
+        Self {
+            executor,
+            managers,
+            mechanics,
+            behavior_ctx,
+            caster_uid: behavior_ctx.caster_uid,
+            target_uid: behavior_ctx.target_uid,
+            skill_id: behavior_ctx.skill_id,
+            condition_id: 0,
+        }
+    }
+
+    pub fn caster(mut self, caster_uid: i64) -> Self {
+        self.caster_uid = caster_uid;
+        self
+    }
+
+    pub fn for_target(mut self, target_uid: i64) -> Self {
+        self.target_uid = target_uid;
+        self
+    }
+
+    pub fn skill(mut self, skill_id: i32) -> Self {
+        self.skill_id = skill_id;
+        self
+    }
+
+    pub fn condition_uid(mut self, condition_id: i32) -> Self {
+        self.condition_id = condition_id;
+        self
+    }
+
+    pub fn run(self, behavior: &BehaviorType, condition: &ConditionType) -> Result<Vec<ActEffect>> {
+        dispatch_impl(
+            self.executor,
+            self.managers,
+            self.mechanics,
+            self.behavior_ctx,
+            self.caster_uid,
+            self.target_uid,
+            behavior,
+            self.skill_id,
+            self.condition_id,
+            condition,
+        )
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn execute_behavior(
     executor: &mut SkillExecutor,
@@ -137,24 +202,20 @@ pub fn execute_behavior(
     let targets = behavior_ctx.resolve_targets(self_targeted, behavior);
     let mut effects = Vec::new();
     for target in targets {
-        effects.extend(dispatch(
-            executor,
-            managers,
-            mechanics,
-            behavior_ctx,
-            caster_uid,
-            target,
-            behavior,
-            skill_id,
-            condition_id,
-            condition,
-        )?);
+        effects.extend(
+            BehaviorExec::new(executor, managers, mechanics, behavior_ctx)
+                .caster(caster_uid)
+                .for_target(target)
+                .skill(skill_id)
+                .condition_uid(condition_id)
+                .run(behavior, condition)?,
+        );
     }
     Ok(effects)
 }
 
 #[allow(clippy::too_many_arguments)]
-fn dispatch(
+fn dispatch_impl(
     executor: &mut SkillExecutor,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
@@ -403,20 +464,10 @@ fn dispatch(
                 target,
                 *skill_id,
                 &crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState {
-                        active_use_skill: true,
-                        skill_id: *skill_id,
-                        used_ex_skill: false,
-                        teammate_use_ex_skill: false,
-                        trigger_bullet: false,
-                        event_driven_only: false,
-                        be_attacked: false,
-                        hurt_not_restraint: false,
-                        hurt_restraint: false,
-                        teammate_injury_count: false,
-                        team_injury_count_round: false,
-                        deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
-                    },
+                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
+                        *skill_id,
+                    )
+                    .with_buff_mgr(&managers.buff_mgr),
                 ),
             )?;
 
@@ -567,7 +618,7 @@ fn dispatch(
             {
                 target
             } else {
-                collect_team(fight, caster_team, false)
+                alive_enemies(fight, caster_uid)
                     .into_iter()
                     .next()
                     .unwrap_or(target)
@@ -776,20 +827,10 @@ fn dispatch(
                 target,
                 chosen_skill_id,
                 &crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState {
-                        active_use_skill: true,
-                        skill_id: chosen_skill_id,
-                        used_ex_skill: false,
-                        teammate_use_ex_skill: false,
-                        trigger_bullet: false,
-                        event_driven_only: false,
-                        be_attacked: false,
-                        hurt_not_restraint: false,
-                        hurt_restraint: false,
-                        teammate_injury_count: false,
-                        team_injury_count_round: false,
-                        deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
-                    },
+                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
+                        chosen_skill_id,
+                    )
+                    .with_buff_mgr(&managers.buff_mgr),
                 ),
             )?;
             if derived_effects.is_empty() {
@@ -816,20 +857,10 @@ fn dispatch(
             out.extend(derived_effects);
 
             let passive_phase = crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                crate::state::battle::skill::phase::TriggerState {
-                    active_use_skill: true,
-                    skill_id: chosen_skill_id,
-                    used_ex_skill: false,
-                    teammate_use_ex_skill: false,
-                    trigger_bullet: false,
-                    event_driven_only: false,
-                    be_attacked: false,
-                    hurt_not_restraint: false,
-                    hurt_restraint: false,
-                    teammate_injury_count: false,
-                    team_injury_count_round: false,
-                    deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
-                },
+                crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
+                    chosen_skill_id,
+                )
+                .with_buff_mgr(&managers.buff_mgr),
             );
             let passive_skills: Vec<i32> =
                 crate::state::battle::skill::targets::get_entity(fight, caster_uid)
@@ -942,7 +973,9 @@ fn dispatch(
                 .find(|s| s.id == resolve_skill_effect_id(skill_id))
                 .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
                 .unwrap_or(0);
-            let damage_targets = resolve_targets(fight, caster_uid, target, logic_target, 0, 0);
+            let damage_targets = TargetResolver::new(fight, caster_uid, target)
+                .behavior(logic_target)
+                .resolve();
 
             let mut out = Vec::new();
             if self_loss > 0 {

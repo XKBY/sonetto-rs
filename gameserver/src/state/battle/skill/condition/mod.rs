@@ -142,7 +142,22 @@ impl<'a> ConditionEval<'a> {
     }
 }
 
+/// Evaluate a (possibly composite) condition by applying `leaf(cond)` at each
+/// non-composite node. `EnterFightAnd` folds with logical AND, `EnterFightOr`
+/// folds with logical OR. Non-composite `cond`s are evaluated directly.
+pub fn fold<F>(condition: &ConditionType, leaf: &mut F) -> bool
+where
+    F: FnMut(&ConditionType) -> bool,
+{
+    match condition {
+        ConditionType::EnterFightAnd(conds) => conds.iter().all(|cond| fold(cond, leaf)),
+        ConditionType::EnterFightOr(conds) => conds.iter().any(|cond| fold(cond, leaf)),
+        other => leaf(other),
+    }
+}
+
 /// Compatibility shim for condition walkers that still pass the full context piecemeal.
+#[allow(clippy::too_many_arguments)]
 pub fn check_condition(
     fight: &Fight,
     buff_mgr: &BuffMgr,

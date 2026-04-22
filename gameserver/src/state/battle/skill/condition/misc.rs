@@ -1,7 +1,7 @@
 use super::super::super::ConditionType;
 use crate::state::battle::{
     manager::buff_mgr::BuffMgr,
-    skill::targets::{collect_team, get_entity, get_team_type},
+    skill::targets::{alive_allies, alive_enemies, get_entity},
     utils::check_career_restraint,
 };
 use sonettobuf::Fight;
@@ -58,8 +58,7 @@ pub fn check(
 ) -> Option<bool> {
     match condition {
         ConditionType::TeammateAlive { expect_dead } => {
-            let caster_team = get_team_type(fight, caster_uid);
-            let has_teammate_alive = collect_team(fight, caster_team, true)
+            let has_teammate_alive = alive_allies(fight, caster_uid)
                 .iter()
                 .any(|&uid| uid != caster_uid);
             Some(if *expect_dead {
@@ -78,15 +77,7 @@ pub fn check(
         }
         ConditionType::TargetCount { value, mode } => {
             // Branch skill behavior by count of available enemy targets.
-            let caster_team = get_team_type(fight, caster_uid);
-            let target_count = collect_team(fight, caster_team, false)
-                .iter()
-                .filter(|&&uid| {
-                    get_entity(fight, uid)
-                        .map(|e| e.current_hp.unwrap_or(0) > 0)
-                        .unwrap_or(false)
-                })
-                .count() as i32;
+            let target_count = alive_enemies(fight, caster_uid).len() as i32;
             let pass = match mode {
                 // mode=1 is a threshold/split compare used by skills like 31140121:
                 // - value=0 => single-target branch (only 1 enemy alive)

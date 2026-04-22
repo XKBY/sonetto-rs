@@ -172,6 +172,7 @@ impl FightRoundMgr {
             .unwrap_or_else(|| trigger_embed::find_trigger_insert_index(&host_step.act_effect))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn process_round(
         &self,
         rng: &mut StdRng,

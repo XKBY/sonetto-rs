@@ -1,6 +1,6 @@
 use super::super::manager::buff_mgr::BuffMgr;
 use super::super::{BehaviorType, ConditionType};
-use super::condition::buff::deleted_matches;
+use super::condition::{self, buff::deleted_matches};
 
 /// Which conditions are active for this trigger event.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -26,6 +26,15 @@ impl TriggerState {
         Self {
             active_use_skill: true,
             skill_id: 0,
+            used_ex_skill: false,
+            teammate_use_ex_skill: false,
+            ..Default::default()
+        }
+    }
+    pub fn on_active_use_skill(skill_id: i32) -> Self {
+        Self {
+            active_use_skill: true,
+            skill_id,
             used_ex_skill: false,
             teammate_use_ex_skill: false,
             ..Default::default()
@@ -114,85 +123,7 @@ impl PhaseFilter {
     }
 
     fn check_combat(&self, condition: &ConditionType, event: &TriggerState) -> bool {
-        #[derive(Clone, Copy)]
-        enum GroupMode {
-            All,
-            Any,
-        }
-
-        struct GroupFrame<'a> {
-            conds: &'a [ConditionType],
-            next_idx: usize,
-            mode: GroupMode,
-            value: bool,
-        }
-
-        let mut groups: Vec<GroupFrame<'_>> = Vec::new();
-        let mut current = condition;
-
-        loop {
-            let mut result = match current {
-                ConditionType::EnterFightAnd(conds) => {
-                    if conds.is_empty() {
-                        true
-                    } else {
-                        groups.push(GroupFrame {
-                            conds,
-                            next_idx: 1,
-                            mode: GroupMode::All,
-                            value: true,
-                        });
-                        current = &conds[0];
-                        continue;
-                    }
-                }
-                ConditionType::EnterFightOr(conds) => {
-                    if conds.is_empty() {
-                        false
-                    } else {
-                        groups.push(GroupFrame {
-                            conds,
-                            next_idx: 1,
-                            mode: GroupMode::Any,
-                            value: false,
-                        });
-                        current = &conds[0];
-                        continue;
-                    }
-                }
-                _ => self.check_combat_leaf(current, event),
-            };
-
-            loop {
-                let Some(frame) = groups.last_mut() else {
-                    return result;
-                };
-
-                frame.value = match frame.mode {
-                    GroupMode::All => frame.value && result,
-                    GroupMode::Any => frame.value || result,
-                };
-
-                let short_circuit = match frame.mode {
-                    GroupMode::All => !frame.value,
-                    GroupMode::Any => frame.value,
-                };
-                if short_circuit {
-                    result = frame.value;
-                    groups.pop();
-                    continue;
-                }
-
-                if frame.next_idx < frame.conds.len() {
-                    current = &frame.conds[frame.next_idx];
-                    frame.next_idx += 1;
-                    break;
-                }
-
-                result = frame.value;
-                groups.pop();
-            }
-        }
+        condition::fold(condition, &mut |cond| self.check_combat_leaf(cond, event))
     }
 
     fn check_non_combat(&self, condition: &ConditionType, behavior_target: i32) -> bool {

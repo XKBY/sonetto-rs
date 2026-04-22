@@ -18,10 +18,12 @@ use super::super::{
 use super::{
     behavior::execute_behavior,
     cache::{SKILL_CACHE, resolve_skill_effect_id},
-    condition::{ConditionEval, buff::deleted_matches},
+    condition::{self, ConditionEval, buff::deleted_matches},
     damage::{calculate_damage, should_crit_hit},
     phase::{PhaseFilter, TriggerState},
-    targets::{collect_team, get_ally_uids, get_entity, get_team_type, resolve_targets},
+    targets::{
+        TargetResolver, alive_enemies, alive_enemies_by_position, get_ally_uids, get_entity,
+    },
 };
 
 #[derive(Default, Debug, Clone)]
@@ -232,17 +234,13 @@ impl SkillExecutor {
                     if b.negated { !raw } else { raw }
                 } else {
                     let condition_uid = if b.condition_target != 0 {
-                        resolve_targets(
-                            &sim_fight,
-                            caster_uid,
-                            target_uid,
-                            b.condition_target,
-                            0,
-                            b.logic_target,
-                        )
-                        .into_iter()
-                        .next()
-                        .unwrap_or(caster_uid)
+                        TargetResolver::new(&sim_fight, caster_uid, target_uid)
+                            .behavior(b.condition_target)
+                            .logic(b.logic_target)
+                            .resolve()
+                            .into_iter()
+                            .next()
+                            .unwrap_or(caster_uid)
                     } else {
                         caster_uid
                     };
@@ -291,17 +289,13 @@ impl SkillExecutor {
                 }
             } else {
                 let condition_uid = if b.condition_target != 0 {
-                    resolve_targets(
-                        &sim_fight,
-                        caster_uid,
-                        target_uid,
-                        b.condition_target,
-                        0,
-                        b.logic_target,
-                    )
-                    .into_iter()
-                    .next()
-                    .unwrap_or(caster_uid)
+                    TargetResolver::new(&sim_fight, caster_uid, target_uid)
+                        .behavior(b.condition_target)
+                        .logic(b.logic_target)
+                        .resolve()
+                        .into_iter()
+                        .next()
+                        .unwrap_or(caster_uid)
                 } else {
                     caster_uid
                 };
@@ -493,7 +487,9 @@ impl SkillExecutor {
                 }
             })
             .and_then(|target_type| {
-                resolve_targets(&sim_fight, caster_uid, target_uid, target_type, 0, 0)
+                TargetResolver::new(&sim_fight, caster_uid, target_uid)
+                    .behavior(target_type)
+                    .resolve()
                     .into_iter()
                     .next()
             })
@@ -760,23 +756,22 @@ impl SkillExecutor {
 }
 
 fn condition_has_combat_event(condition: &ConditionType) -> bool {
-    match condition {
-        ConditionType::ActiveUseSkill
-        | ConditionType::ActiveUseSkillId { .. }
-        | ConditionType::UseExSkill
-        | ConditionType::TeammateUseExSkill
-        | ConditionType::BeAttacked
-        | ConditionType::HurtNotRestraint
-        | ConditionType::HurtRestraint
-        | ConditionType::TeammateInjuryCount
-        | ConditionType::TeamInjuryCountRound
-        | ConditionType::BuffIdDel { .. }
-        | ConditionType::CombatNone => true,
-        ConditionType::EnterFightAnd(conds) | ConditionType::EnterFightOr(conds) => {
-            conds.iter().any(condition_has_combat_event)
-        }
-        _ => false,
-    }
+    condition::fold(condition, &mut |cond| {
+        matches!(
+            cond,
+            ConditionType::ActiveUseSkill
+                | ConditionType::ActiveUseSkillId { .. }
+                | ConditionType::UseExSkill
+                | ConditionType::TeammateUseExSkill
+                | ConditionType::BeAttacked
+                | ConditionType::HurtNotRestraint
+                | ConditionType::HurtRestraint
+                | ConditionType::TeammateInjuryCount
+                | ConditionType::TeamInjuryCountRound
+                | ConditionType::BuffIdDel { .. }
+                | ConditionType::CombatNone
+        )
+    })
 }
 
 fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
@@ -1069,24 +1064,11 @@ fn fallback_damage_targets(
     // - logicTarget=201: selected target + one more enemy
     // - logicTarget=202/301/302: all enemies
     if matches!(logic_target, 202 | 301 | 302) {
-        let caster_team = get_team_type(fight, caster_uid);
-        let mut enemies = collect_team(fight, caster_team, false);
-        enemies.sort_by_key(|uid| {
-            get_entity(fight, *uid)
-                .and_then(|e| e.position)
-                .unwrap_or(99)
-        });
-        return enemies;
+        return alive_enemies_by_position(fight, caster_uid);
     }
 
     if logic_target == 201 {
-        let caster_team = get_team_type(fight, caster_uid);
-        let mut enemies = collect_team(fight, caster_team, false);
-        enemies.sort_by_key(|uid| {
-            get_entity(fight, *uid)
-                .and_then(|e| e.position)
-                .unwrap_or(99)
-        });
+        let enemies = alive_enemies_by_position(fight, caster_uid);
         if enemies.is_empty() {
             return vec![selected_target_uid];
         }
@@ -1104,6 +1086,7 @@ fn fallback_damage_targets(
             }
             return out;
         }
+        let mut enemies = alive_enemies(fight, caster_uid);
         enemies.sort_by(|a, b| {
             let hp = |uid: i64| {
                 get_entity(fight, uid)
@@ -1127,13 +1110,7 @@ fn fallback_damage_targets(
         return vec![selected_target_uid];
     }
 
-    let caster_team = get_team_type(fight, caster_uid);
-    let mut enemies = collect_team(fight, caster_team, false);
-    enemies.sort_by_key(|uid| {
-        get_entity(fight, *uid)
-            .and_then(|e| e.position)
-            .unwrap_or(99)
-    });
+    let enemies = alive_enemies_by_position(fight, caster_uid);
 
     let mut out = Vec::new();
     let selected_is_enemy = enemies.contains(&selected_target_uid)
