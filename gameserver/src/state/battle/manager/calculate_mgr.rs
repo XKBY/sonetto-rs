@@ -3,7 +3,9 @@ use sonettobuf::{
 };
 
 use super::super::{
-    buff_actions::ex_point_overflow_bank::buff_get_ex_point_overflow,
+    buff_actions::{
+        ex_point_overflow_bank::buff_get_ex_point_overflow, raspberry::BUFF_ACT_ID_RASPBERRY,
+    },
     manager::{
         buff_mgr::BuffMgr,
         entity_mgr::{FightEntityDataMgr, get_entity_mut_by_location},
@@ -197,6 +199,9 @@ impl FightCalculateDataMgr {
             EffectType::BuffDel | EffectType::BuffDelNoEffect => {
                 self.play_effect_del_buff(effect, buff_mgr)
             }
+            EffectType::BuffActInfoUpdate => self.play_effect_buff_act_info_update(effect),
+            EffectType::AddToTarget => self.play_effect_add_to_target(effect),
+            EffectType::Rebound => self.play_effect_rebound(effect),
             EffectType::BuffUpdate => self.play_effect_update_buff(effect, buff_mgr),
             EffectType::PowerChange => self.play_effect_power_change(effect, fight),
 
@@ -350,6 +355,36 @@ impl FightCalculateDataMgr {
         let layer = buff.layer.unwrap_or(0);
 
         buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+        Ok(())
+    }
+
+    fn play_effect_buff_act_info_update(&mut self, effect: &ActEffect) -> Result<(), String> {
+        let Some(info) = effect.buff_act_info.as_ref() else {
+            return Ok(());
+        };
+        let act_id = info.act_id.unwrap_or(0);
+        if act_id == BUFF_ACT_ID_RASPBERRY {
+            // Replay bootstrap pre-scans this payload and seeds Shadow Cloak state
+            // from the full step stream in FightDataMgr.
+            return Ok(());
+        }
+        tracing::debug!(
+            "Ignoring BuffActInfoUpdate replay payload: target={:?} act_id={} param={:?}",
+            effect.target_id,
+            act_id,
+            info.param
+        );
+        Ok(())
+    }
+
+    fn play_effect_add_to_target(&mut self, _effect: &ActEffect) -> Result<(), String> {
+        // Replay state for AddToTarget feature chains is already resolved by passive-skill
+        // expansion in trigger/combat.rs and round_mgr.rs.
+        Ok(())
+    }
+
+    fn play_effect_rebound(&mut self, _effect: &ActEffect) -> Result<(), String> {
+        // Reflect math is modeled via hero attributes (ReboundDmg), not effect-36 payloads.
         Ok(())
     }
 
