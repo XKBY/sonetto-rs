@@ -4,6 +4,7 @@ pub mod attr_replace;
 pub mod ban_lost_life;
 pub mod blood_pool_ex;
 pub mod blood_value_use_skill;
+pub mod bullet;
 pub mod ex_point_overflow_bank;
 pub mod halo;
 pub mod heal;
