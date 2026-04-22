@@ -2,6 +2,7 @@ pub mod add_passive_skills;
 pub mod attr;
 pub mod attr_replace;
 pub mod ban_lost_life;
+pub mod blood_value_use_skill;
 pub mod ex_point_overflow_bank;
 pub mod halo;
 pub mod heal;
