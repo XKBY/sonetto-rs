@@ -1,5 +1,6 @@
 pub mod add_passive_skills;
 pub mod attr;
+pub mod attr_replace;
 pub mod ban_lost_life;
 pub mod channel;
 pub mod ex_point_overflow_bank;

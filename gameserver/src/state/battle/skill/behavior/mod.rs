@@ -15,8 +15,8 @@ use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
     buff_actions::{
-        EffectContext, add_passive_skills::for_each_add_passive_skill_id, heal, heal_by_two_attr,
-        lost_life, raspberry,
+        EffectContext, add_passive_skills::for_each_add_passive_skill_id,
+        attr_replace::buff_get_attr_replace_permille, heal, heal_by_two_attr, lost_life, raspberry,
     },
     context::behavior_context::BehaviorContext,
     manager::fight_data_mgr::Managers,
@@ -25,7 +25,7 @@ use crate::state::battle::{
     skill::condition::parser::parse_condition,
     skill::targets::{TargetResolver, alive_enemies, get_entity},
     types::{behavior::BehaviorType, condition::ConditionType},
-    utils::{buff_get_attr_replace_permille, damage_with_hurt},
+    utils::damage_with_hurt,
 };
 
 fn is_damage_effect_type(effect_type: Option<i32>) -> bool {

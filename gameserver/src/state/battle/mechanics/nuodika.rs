@@ -5,6 +5,7 @@ use sonettobuf::{ActEffect, Fight, FightStep};
 use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::types::effects::EffectType;
 use crate::state::battle::{
+    buff_actions::attr_replace::buff_get_attr_replace_permille,
     context::FightContext,
     fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
     manager::{
@@ -16,7 +17,7 @@ use crate::state::battle::{
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::step_shape::build_effect_step,
     skill::targets,
-    utils::{buff_get_attr_replace_permille, buff_get_nuodika_channel_params, damage_with_hurt},
+    utils::{buff_get_nuodika_channel_params, damage_with_hurt},
 };
 
 pub(crate) fn build_nuodika_channel_steps(
