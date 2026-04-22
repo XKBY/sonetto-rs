@@ -1,10 +1,12 @@
 use sonettobuf::FightStep;
 
 use crate::state::battle::{
+    buff_actions::blood_pool_ex::{
+        build_blood_pool_ex_point_step, build_blood_pool_gain_ex_point_step,
+    },
     context::FightContext,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
-    utils::{build_blood_pool_ex_point_step, build_blood_pool_gain_ex_point_step},
 };
 
 use super::TriggerPass;

@@ -16,9 +16,9 @@ use anyhow::Result;
 use sonettobuf::{BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightStep};
 
 use crate::state::battle::{
+    buff_actions::blood_pool_ex::seed_blood_pool_ex_tracker,
     mechanics::{bloodtithe::BloodtitheState, shadowcloak::seed_replay_raspberry_max},
     types::effects::EffectType,
-    utils::seed_blood_pool_ex_tracker,
 };
 
 #[derive(Debug, Clone, Default)]

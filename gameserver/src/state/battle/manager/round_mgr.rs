@@ -9,6 +9,7 @@ use std::{
 
 use super::super::{
     ConditionType,
+    buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
     context::{FightContext, RoundContext},
     fight_step::{FightStepBuilder, split_step_by_effect_limit, wrap_step},
     manager::{
@@ -42,7 +43,6 @@ use super::super::{
         passes::{build_belief_gain_step, sync_blood_value_baseline},
     },
     types::effects::EffectType,
-    utils::build_blood_pool_gain_ex_point_step,
 };
 
 enum BattleEndState {
