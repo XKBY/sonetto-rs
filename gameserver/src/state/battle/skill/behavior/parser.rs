@@ -19,6 +19,14 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
     if id == 60175 {
         return BehaviorType::DirectUseBigSkill;
     }
+    // Live data bundles can label 60010 as DisperseForce2, but runtime payloads
+    // use 60010#<buff_id>[#count] as an AddBuff lane.
+    if id == 60010 {
+        return BehaviorType::AddBuff {
+            buff_id: p1,
+            count: p2,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {

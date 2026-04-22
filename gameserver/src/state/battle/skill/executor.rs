@@ -178,13 +178,15 @@ impl SkillExecutor {
 
         // Conditions should see evolving buff state produced by prior behavior slots.
         let has_trigger_state = matches!(phase, PhaseFilter::Combat(_));
+        let execution_order = behavior_execution_order(behaviors);
 
         // Preserve config slot order; each slot condition still evaluates against skill-entry snapshot.
-        for (i, b) in behaviors.iter().enumerate() {
-            let slot_index = (i + 1) as u8;
+        for &behavior_idx in &execution_order {
+            let b = &behaviors[behavior_idx];
+            let slot_index = (behavior_idx + 1) as u8;
             tracing::debug!(
                 "  [behavior {}] condition={:?} behavior={:?} behavior_target={} condition_target={} logic_target={}",
-                i + 1,
+                behavior_idx + 1,
                 b.condition,
                 b.behavior,
                 b.behavior_target,
@@ -207,7 +209,7 @@ impl SkillExecutor {
                 if used >= b.round_limit {
                     tracing::debug!(
                         "  [behavior {}] skipped by round_limit={} used={}",
-                        i + 1,
+                        behavior_idx + 1,
                         b.round_limit,
                         used
                     );
@@ -864,6 +866,49 @@ impl SkillExecutor {
             .or_insert(0);
         *entry = entry.saturating_add(amount);
     }
+}
+
+fn behavior_execution_order(behaviors: &[super::cache::ResolvedBehavior]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..behaviors.len()).collect();
+
+    for add_idx in 0..behaviors.len() {
+        let BehaviorType::AddBuff { buff_id, .. } = behaviors[add_idx].behavior else {
+            continue;
+        };
+        if buff_id <= 0 {
+            continue;
+        }
+
+        let Some(dep_idx) = (0..add_idx).find(|idx| {
+            let dep = &behaviors[*idx];
+            dep.condition_target == behaviors[add_idx].behavior_target
+                && condition_depends_on_buff(&dep.condition, buff_id)
+        }) else {
+            continue;
+        };
+
+        let Some(from_pos) = order.iter().position(|&v| v == add_idx) else {
+            continue;
+        };
+        let Some(to_pos) = order.iter().position(|&v| v == dep_idx) else {
+            continue;
+        };
+        if from_pos > to_pos {
+            let moved = order.remove(from_pos);
+            order.insert(to_pos, moved);
+        }
+    }
+
+    order
+}
+
+fn condition_depends_on_buff(condition: &ConditionType, buff_id: i32) -> bool {
+    condition::fold(condition, &mut |cond| match cond {
+        ConditionType::HasBuffId { buff_ids }
+        | ConditionType::NoBuffId { buff_ids }
+        | ConditionType::PerBuffIdCount { buff_ids } => buff_ids.contains(&buff_id),
+        _ => false,
+    })
 }
 
 fn condition_has_combat_event(condition: &ConditionType) -> bool {
