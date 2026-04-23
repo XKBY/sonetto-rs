@@ -111,6 +111,7 @@ pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
         return;
     }
     let host_act_id = step.act_id;
+    let host_from = step.from_id;
     let mut flattened = Vec::with_capacity(step.act_effect.len());
     for mut effect in std::mem::take(&mut step.act_effect) {
         if effect.effect_type == Some(162)
@@ -125,10 +126,16 @@ pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
                         || t == crate::state::battle::types::effects::EffectType::OriginCrit as i32
                 })
             });
-            if inner.act_type == Some(fight_step::ActType::Skill as i32)
-                && inner.act_id == host_act_id
-                && inner_has_damage
-            {
+            let is_same_skill = inner.act_type == Some(fight_step::ActType::Skill as i32)
+                && inner.act_id == host_act_id;
+            // Flatten when the nested skill duplicates the host: either it
+            // carries damage effects (original case) or it's a self-targeted
+            // nested wrapper (e.g. 31200133 → 31200133 from=self to=self) that
+            // just re-packs buff effects already represented at the top level.
+            let is_self_target_duplicate = is_same_skill
+                && inner.from_id == host_from
+                && inner.to_id == host_from;
+            if is_same_skill && (inner_has_damage || is_self_target_duplicate) {
                 flattened.extend(inner.act_effect);
                 continue;
             }
