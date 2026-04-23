@@ -4,16 +4,19 @@ use super::super::super::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
 use super::ConditionType;
 
 pub fn parse(id: i32, cond_type: &str) -> Option<ConditionType> {
+    // ID 6 is tagged `type=None` in config but is semantically the
+    // "Unconditional battle-start" gate (not a combat always-pass). Treat it
+    // as EnterFight here so Combat-phase passes correctly reject it; use 210
+    // for the true combat-None gate.
+    if matches!(id, 5 | 5021 | 6) {
+        return Some(ConditionType::EnterFight { condition_id: id });
+    }
     match cond_type {
         "EnterFight" => Some(ConditionType::EnterFight { condition_id: id }),
         "None" => match id {
             // These None conditions are combat triggers, not battle-start passives
             210 => Some(ConditionType::CombatNone),
             _ => Some(ConditionType::None),
-        },
-        "" => match id {
-            5 | 5021 | 6 => Some(ConditionType::EnterFight { condition_id: id }),
-            _ => None,
         },
         _ => None,
     }
