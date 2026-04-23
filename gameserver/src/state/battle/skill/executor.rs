@@ -529,6 +529,22 @@ impl SkillExecutor {
             return Ok(vec![]);
         }
 
+        // If the skill's only emitted effects are Attr-update markers with
+        // effect_num == 0 (e.g. AttrFix-only passives like 71004), the state
+        // change is already applied to the executor's pending_attr_bonus and
+        // LIVE does not emit a visible 162 wrapper. Suppress the container
+        // so these passives don't over-fire in the skill-count walker.
+        let all_attr_only = !all_effects.is_empty()
+            && all_effects.iter().all(|e| {
+                e.effect_type == Some(EffectType::Attr as i32) && e.effect_num.unwrap_or(0) == 0
+            });
+        if all_attr_only
+            && self.pending_monitor_triggers.is_empty()
+            && self.side_effects.is_empty()
+        {
+            return Ok(vec![]);
+        }
+
         let logic_to_id = skill_cfg
             .and_then(|s| {
                 let lt = s.logic_target.trim();
