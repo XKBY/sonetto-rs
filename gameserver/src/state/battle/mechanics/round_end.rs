@@ -5,17 +5,18 @@ use crate::state::battle::fight_step::{effect_container_step, wrap_step};
 use crate::state::battle::{
     context::FightContext,
     mechanics::{injury_counter, magic_circle},
-    passives::steps::skill::execute_skill as execute_passive_skill,
+    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
     round::step_shape::build_effect_step,
     skill::get_entity,
     skill::targets::collect_team,
     steps::trigger_embed,
-    trigger::combat::event_from_step,
+    trigger::combat::{event_from_step, fire_combat_triggers},
     trigger::passes::build_belief_gain_step,
 };
 
 pub(crate) fn build_round_end_use_skill_to_enemy_steps(
     ctx: &mut FightContext<'_>,
+    collected: &CollectedPassives,
 ) -> Vec<FightStep> {
     let mut out = Vec::new();
     let holder_uids: Vec<i64> = ctx
@@ -102,7 +103,7 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
                     );
                 }
             }
-            if let Some(skill_step) =
+            let skill_event = if let Some(skill_step) =
                 injury_counter::find_nested_skill_step_mut(&mut skill_effects, output_skill_id)
             {
                 let circle_embeds = magic_circle::build_magic_circle_self_skill_embeds(
@@ -116,6 +117,30 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
                     skill_step
                         .act_effect
                         .splice(insert_at..insert_at, circle_embeds);
+                }
+                Some(event_from_step(
+                    ctx.fight,
+                    skill_step.from_id.unwrap_or(0),
+                    skill_step.to_id.unwrap_or(0),
+                    skill_step.act_id.unwrap_or(0),
+                    &skill_step.act_effect,
+                ))
+            } else {
+                None
+            };
+
+            if let Some(skill_event) = skill_event {
+                let trigger_steps = fire_combat_triggers(ctx, collected, &skill_event);
+                if !trigger_steps.is_empty()
+                    && let Some(skill_step) = injury_counter::find_nested_skill_step_mut(
+                        &mut skill_effects,
+                        output_skill_id,
+                    )
+                {
+                    for ts in trigger_steps {
+                        let embedded = trigger_embed::trigger_step_to_embedded_effect(ts);
+                        skill_step.act_effect.push(embedded);
+                    }
                 }
             }
 

@@ -229,9 +229,11 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     }
     out.extend(consume_blood_steps);
 
-    out.extend(round_end::build_round_end_use_skill_to_enemy_steps(ctx));
+    out.extend(round_end::build_round_end_use_skill_to_enemy_steps(
+        ctx, collected,
+    ));
 
-    let nuodika_steps = nuodika::build_nuodika_channel_steps(mgr, ctx, &out);
+    let nuodika_steps = nuodika::build_nuodika_channel_steps(mgr, ctx, &out, collected);
     out.extend(nuodika_steps);
 
     if let Some(step) = build_blood_pool_ex_point_step(

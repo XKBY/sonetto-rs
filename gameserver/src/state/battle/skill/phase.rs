@@ -226,7 +226,9 @@ impl PhaseFilter {
             | ConditionType::CareerCheck { .. }
             | ConditionType::TeammateAlive { .. }
             | ConditionType::BattleTagNum { .. }
-            | ConditionType::TargetCount { .. } => true,
+            | ConditionType::TargetCount { .. }
+            | ConditionType::BloodPool
+            | ConditionType::BloodPoolMax { .. } => true,
 
             // Event-driven conditions — only fire for matching event
             ConditionType::ActiveUseSkill => event.active_use_skill,

@@ -15,9 +15,10 @@ use crate::state::battle::{
         round_mgr::{FightRoundMgr, lookup_entry_max_hp},
     },
     mechanics::{injury_counter, magic_circle},
-    passives::steps::skill::execute_skill as execute_passive_skill,
+    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
     round::step_shape::build_effect_step,
     skill::targets,
+    trigger::combat::{event_from_step, fire_combat_triggers},
     utils::damage_with_hurt,
 };
 
@@ -25,6 +26,7 @@ pub(crate) fn build_nuodika_channel_steps(
     _mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     prior_steps: &[FightStep],
+    collected: &CollectedPassives,
 ) -> Vec<FightStep> {
     let mut out = Vec::new();
     let mut simulated_pool = std::collections::HashMap::<i32, i32>::new();
@@ -118,7 +120,7 @@ pub(crate) fn build_nuodika_channel_steps(
             else {
                 continue;
             };
-            if let Some(skill_step) =
+            let skill_event = if let Some(skill_step) =
                 injury_counter::find_nested_skill_step_mut(&mut channel_effects, output_skill_id)
             {
                 let circle_embeds = magic_circle::build_magic_circle_self_skill_embeds(
@@ -134,6 +136,31 @@ pub(crate) fn build_nuodika_channel_steps(
                     skill_step
                         .act_effect
                         .splice(insert_at..insert_at, circle_embeds);
+                }
+                Some(event_from_step(
+                    ctx.fight,
+                    skill_step.from_id.unwrap_or(0),
+                    skill_step.to_id.unwrap_or(0),
+                    skill_step.act_id.unwrap_or(0),
+                    &skill_step.act_effect,
+                ))
+            } else {
+                None
+            };
+
+            if let Some(skill_event) = skill_event {
+                let trigger_steps = fire_combat_triggers(ctx, collected, &skill_event);
+                if !trigger_steps.is_empty()
+                    && let Some(skill_step) = injury_counter::find_nested_skill_step_mut(
+                        &mut channel_effects,
+                        output_skill_id,
+                    )
+                {
+                    for ts in trigger_steps {
+                        let embedded =
+                            crate::state::battle::steps::trigger_embed::trigger_step_to_embedded_effect(ts);
+                        skill_step.act_effect.push(embedded);
+                    }
                 }
             }
             rewrite_nuodika_channel_body(

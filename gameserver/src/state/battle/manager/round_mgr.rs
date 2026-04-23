@@ -546,8 +546,9 @@ impl FightRoundMgr {
             }
             let mut host_step = step.clone();
             self.inline_magic_circle_root_wrapper(&mut host_step);
+            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             let expanded_steps =
-                self.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
+                self.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
             let preferred_nested_act_id = host_step.act_id.unwrap_or(0) - 20;
             let nested_skill_idx = host_step
                 .act_effect
@@ -655,7 +656,6 @@ impl FightRoundMgr {
                     .act_effect
                     .splice(insert_at..insert_at, monitor_embeds);
             }
-            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
@@ -701,17 +701,20 @@ impl FightRoundMgr {
             let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
             let runtime_deleted_buff_ids =
                 self.deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
-            let expanded_steps =
-                self.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             let is_embedded_skill_host = step.act_type == Some(fight_step::ActType::Skill as i32)
                 && step.from_id.unwrap_or(0) >= 0;
             if !is_embedded_skill_host {
+                let expanded_steps =
+                    self.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
                 steps.extend(expanded_steps);
                 continue;
             }
 
             let mut host_step = step.clone();
             self.inline_magic_circle_root_wrapper(&mut host_step);
+            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
+            let expanded_steps =
+                self.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
             let preferred_nested_act_id = host_step.act_id.unwrap_or(0) - 20;
             let nested_skill_idx = host_step
                 .act_effect
@@ -811,7 +814,6 @@ impl FightRoundMgr {
                         .splice(insert_at..insert_at, embedded_steps);
                 }
             }
-            magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             steps.push(host_step);
