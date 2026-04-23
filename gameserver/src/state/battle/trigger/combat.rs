@@ -820,16 +820,11 @@ fn condition_fires_for(
                 && uid != event.caster_uid
                 && event.used_ex_skill,
         ),
-        // Blood-pool state is team-scoped. Treat same-team actions or same-team
-        // HP-loss events as relevant trigger moments, then leave exact pool/max
-        // validation to the normal skill-side condition checks.
-        ConditionType::BloodPool | ConditionType::BloodPoolMax { .. } => Some(
-            (event.caster_uid != 0 && event.caster_uid.signum() == uid.signum())
-                || event
-                    .damaged_uids
-                    .iter()
-                    .any(|&damaged| damaged != 0 && damaged.signum() == uid.signum()),
-        ),
+        // Blood-pool state queries are not events — treat as None so they
+        // don't turn a battle-start AND-clause (e.g. 435311's
+        // TargetCareer AND BloodPoolMax) into a combat-reactive trigger.
+        // Leave exact pool/max validation to skill-side condition checks.
+        ConditionType::BloodPool | ConditionType::BloodPoolMax { .. } => None,
         ConditionType::TeammateAlive { .. } => None,
         ConditionType::Dead => Some(false), // handled separately
         ConditionType::EnterFightAnd(conds) => {
