@@ -411,6 +411,8 @@ pub(crate) fn run_combat_passives_pass(
                 teammate_injury_count_not_reset: teammate_injury_not_reset,
                 team_injury_count_round: teammate_injury_hits > 0,
                 deleted_buff_ids: event.deleted_buff_ids.clone(),
+                bloodpool_max_attacker: Some(ctx.mechanics.bloodtithe.get_max(1)),
+                bloodpool_value_attacker: Some(ctx.mechanics.bloodtithe.get_value(1)),
             };
             let trigger_target_uid =
                 if uid_skill_target != 0 && uid_skill_target.signum() != uid.signum() {

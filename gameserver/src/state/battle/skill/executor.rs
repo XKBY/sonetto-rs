@@ -747,6 +747,8 @@ impl SkillExecutor {
             teammate_injury_count_not_reset: 0,
             team_injury_count_round: false,
             deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
+            bloodpool_max_attacker: Some(mechanics.bloodtithe.get_max(1)),
+            bloodpool_value_attacker: Some(mechanics.bloodtithe.get_value(1)),
         });
 
         let mut results = inner_executor

@@ -20,6 +20,11 @@ pub struct TriggerState {
     pub teammate_injury_count_not_reset: i32,
     pub team_injury_count_round: bool,
     pub deleted_buff_ids: Vec<i32>,
+    /// Attacker-side bloodpool max snapshot. `None` means the caller didn't
+    /// populate it, so BloodPool/BloodPoolMax conditions fall back to
+    /// always-pass for backward compatibility.
+    pub bloodpool_max_attacker: Option<i32>,
+    pub bloodpool_value_attacker: Option<i32>,
 }
 
 impl TriggerState {
@@ -226,9 +231,18 @@ impl PhaseFilter {
             | ConditionType::CareerCheck { .. }
             | ConditionType::TeammateAlive { .. }
             | ConditionType::BattleTagNum { .. }
-            | ConditionType::TargetCount { .. }
-            | ConditionType::BloodPool
-            | ConditionType::BloodPoolMax { .. } => true,
+            | ConditionType::TargetCount { .. } => true,
+
+            // Bloodpool state conditions — evaluated against snapshot when provided,
+            // always-pass otherwise for sites that don't populate the snapshot.
+            ConditionType::BloodPool => event
+                .bloodpool_value_attacker
+                .map(|v| v > 0)
+                .unwrap_or(true),
+            ConditionType::BloodPoolMax { min, max } => event
+                .bloodpool_max_attacker
+                .map(|pool_max| pool_max >= *min && pool_max <= *max)
+                .unwrap_or(true),
 
             // Event-driven conditions — only fire for matching event
             ConditionType::ActiveUseSkill => event.active_use_skill,
