@@ -25,7 +25,6 @@ pub struct ConditionEval<'a> {
     bloodtithe: &'a BloodtitheState,
     caster_uid: i64,
     target_uid: i64,
-    current_target_override: Option<i64>,
     has_trigger_state: bool,
 }
 
@@ -44,7 +43,6 @@ impl<'a> ConditionEval<'a> {
             bloodtithe,
             caster_uid,
             target_uid: caster_uid,
-            current_target_override: None,
             has_trigger_state: false,
         }
     }
@@ -57,21 +55,6 @@ impl<'a> ConditionEval<'a> {
     pub fn with_trigger_state(mut self, has_trigger_state: bool) -> Self {
         self.has_trigger_state = has_trigger_state;
         self
-    }
-
-    pub fn with_current_target(mut self, uid: i64) -> Self {
-        self.current_target_override = Some(uid);
-        self
-    }
-
-    pub fn resolve_target_code(&self, target_code: i32) -> i64 {
-        match target_code {
-            103 => self
-                .current_target_override
-                .or_else(|| (self.target_uid != 0).then_some(self.target_uid))
-                .unwrap_or(self.caster_uid),
-            _ => self.target_uid,
-        }
     }
 
     pub fn check(&self, condition: &ConditionType) -> bool {
