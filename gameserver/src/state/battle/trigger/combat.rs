@@ -8,7 +8,9 @@ use crate::state::battle::{
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
     skill::cache::resolve_skill_effect_id,
-    skill::classification::{CombatPassiveScanMode, has_combat_reactive_condition},
+    skill::classification::{
+        CombatPassiveScanMode, has_combat_reactive_condition, has_injury_reactive_condition,
+    },
     skill::condition::buff::deleted_matches,
     skill::condition::parser::parse_condition,
     skill::{PhaseFilter, TriggerState},
@@ -395,7 +397,7 @@ pub(crate) fn run_combat_passives_pass(
                 .skill_used_by(uid)
                 .map(|(sid, ex, to)| (true, sid, ex, to))
                 .unwrap_or((false, 0, false, 0));
-            let trigger_state = TriggerState {
+            let trigger_state_base = TriggerState {
                 active_use_skill,
                 skill_id: uid_skill_id,
                 used_ex_skill: uid_used_ex,
@@ -422,28 +424,56 @@ pub(crate) fn run_combat_passives_pass(
                 } else {
                     uid
                 };
-            match execute_skill(
-                ctx,
-                uid,
-                trigger_target_uid,
-                skill_id,
-                &PhaseFilter::combat_with(trigger_state),
-            ) {
-                Ok(mut skill_effects) if !skill_effects.is_empty() => {
-                    for effect in &mut skill_effects {
-                        if effect.effect_type == Some(EffectType::Fightstep as i32)
-                            && let Some(step) = effect.fight_step.as_mut()
-                        {
-                            drop_del_when_update_exists(&mut step.act_effect);
-                        }
+            // LIVE fires injury-reactive passives (TeammateInjuryCount /
+            // TeammateInjuryCountNotReset) once per distinct injured ally rather
+            // than once per batched root event. Replay the skill N times with
+            // per-event injury state so cond3-style refresh behaviors reach
+            // parity. The first replay retains batch values so AoE-driven
+            // conditions (e.g. TeammateInjuryCount(3)) still trigger when the
+            // batch count satisfies them.
+            let replay_count = if has_injury_reactive_condition(skill_id) {
+                distinct_teammate_injuries_excluding_self(uid, event).max(1)
+            } else {
+                1
+            };
+            for replay_idx in 0..replay_count {
+                let trigger_state = if replay_idx == 0 {
+                    trigger_state_base.clone()
+                } else {
+                    let per_hits = 1_i32;
+                    let per_not_reset = teammate_injury_not_reset + replay_idx + 1;
+                    if !skill_should_fire(uid, skill_id, event, per_hits, per_not_reset) {
+                        continue;
                     }
-                    // Live shape: keep one trigger EFFECT step per entity and pack
-                    // both 162 wrappers and flat effects in arrival order.
-                    entity_step_effects.extend(skill_effects);
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::warn!("trigger skill={} uid={}: {}", skill_id, uid, e)
+                    let mut ts = trigger_state_base.clone();
+                    ts.teammate_injury_count = per_hits;
+                    ts.teammate_injury_count_not_reset = per_not_reset;
+                    ts.team_injury_count_round = true;
+                    ts
+                };
+                match execute_skill(
+                    ctx,
+                    uid,
+                    trigger_target_uid,
+                    skill_id,
+                    &PhaseFilter::combat_with(trigger_state),
+                ) {
+                    Ok(mut skill_effects) if !skill_effects.is_empty() => {
+                        for effect in &mut skill_effects {
+                            if effect.effect_type == Some(EffectType::Fightstep as i32)
+                                && let Some(step) = effect.fight_step.as_mut()
+                            {
+                                drop_del_when_update_exists(&mut step.act_effect);
+                            }
+                        }
+                        // Live shape: keep one trigger EFFECT step per entity and pack
+                        // both 162 wrappers and flat effects in arrival order.
+                        entity_step_effects.extend(skill_effects);
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::warn!("trigger skill={} uid={}: {}", skill_id, uid, e)
+                    }
                 }
             }
         }
@@ -609,6 +639,19 @@ fn team_injury_hits_for_uid(uid: i64, event: &TriggerEvent) -> i32 {
         .iter()
         .filter(|&&d| d.signum() == uid.signum())
         .count() as i32
+}
+
+/// Distinct teammates (excluding `uid` itself) that took damage this event.
+/// LIVE fires TeammateInjuryCount-reactive passives once per distinct injured
+/// ally, so this drives the replay count for those skills.
+fn distinct_teammate_injuries_excluding_self(uid: i64, event: &TriggerEvent) -> i32 {
+    let mut seen: HashSet<i64> = HashSet::new();
+    for &d in &event.damaged_uids {
+        if d.signum() == uid.signum() && d != uid {
+            seen.insert(d);
+        }
+    }
+    seen.len() as i32
 }
 
 pub fn skill_should_fire(
