@@ -38,6 +38,26 @@ impl CollectedPassives {
     pub fn defender_uids(&self) -> Vec<i64> {
         self.defender.iter().map(|(uid, _)| *uid).collect()
     }
+
+    pub fn filter<F: Fn(i32) -> bool>(&self, keep: F) -> Self {
+        let filter_side = |side: &Vec<(i64, Vec<i32>)>| -> Vec<(i64, Vec<i32>)> {
+            side.iter()
+                .map(|(uid, ids)| {
+                    (
+                        *uid,
+                        ids.iter().copied().filter(|sid| keep(*sid)).collect(),
+                    )
+                })
+                .filter(|(_, ids): &(i64, Vec<i32>)| !ids.is_empty())
+                .collect()
+        };
+        Self {
+            attacker: filter_side(&self.attacker),
+            defender: filter_side(&self.defender),
+            battle_attacker: self.battle_attacker.iter().copied().filter(|sid| keep(*sid)).collect(),
+            battle_defender: self.battle_defender.iter().copied().filter(|sid| keep(*sid)).collect(),
+        }
+    }
 }
 
 pub fn collect(fight: &Fight, battle_id: i32) -> CollectedPassives {

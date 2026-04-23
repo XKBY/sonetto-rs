@@ -7,6 +7,7 @@ use crate::state::battle::{
     mechanics::{injury_counter, magic_circle},
     passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
     round::step_shape::build_effect_step,
+    skill::classification::has_injury_reactive_condition,
     skill::get_entity,
     skill::targets::collect_team,
     steps::trigger_embed,
@@ -130,7 +131,8 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
             };
 
             if let Some(skill_event) = skill_event {
-                let trigger_steps = fire_combat_triggers(ctx, collected, &skill_event);
+                let injury_only = collected.filter(has_injury_reactive_condition);
+                let trigger_steps = fire_combat_triggers(ctx, &injury_only, &skill_event);
                 if !trigger_steps.is_empty()
                     && let Some(skill_step) = injury_counter::find_nested_skill_step_mut(
                         &mut skill_effects,

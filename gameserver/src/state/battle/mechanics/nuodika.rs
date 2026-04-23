@@ -17,6 +17,7 @@ use crate::state::battle::{
     mechanics::{injury_counter, magic_circle},
     passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
     round::step_shape::build_effect_step,
+    skill::classification::has_injury_reactive_condition,
     skill::targets,
     trigger::combat::{event_from_step, fire_combat_triggers},
     utils::damage_with_hurt,
@@ -149,7 +150,8 @@ pub(crate) fn build_nuodika_channel_steps(
             };
 
             if let Some(skill_event) = skill_event {
-                let trigger_steps = fire_combat_triggers(ctx, collected, &skill_event);
+                let injury_only = collected.filter(has_injury_reactive_condition);
+                let trigger_steps = fire_combat_triggers(ctx, &injury_only, &skill_event);
                 if !trigger_steps.is_empty()
                     && let Some(skill_step) = injury_counter::find_nested_skill_step_mut(
                         &mut channel_effects,
