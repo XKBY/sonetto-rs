@@ -102,8 +102,6 @@ pub fn is_combat_event_condition(
         | ConditionType::TeamInjuryCountRound
         | ConditionType::NoActRound
         | ConditionType::BuffIdDel { .. }
-        | ConditionType::BloodPool
-        | ConditionType::BloodPoolMax { .. }
         | ConditionType::TriggerBullet => true,
         ConditionType::CareerCheck { .. } => include_career_check,
         ConditionType::PerDecrExPoint { .. } => include_per_decr_ex_point,
