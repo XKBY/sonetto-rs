@@ -136,6 +136,20 @@ pub(crate) fn execute_damage_for_target(
     effects
 }
 
+pub(crate) fn execute_nuo_di_ka_damage_for_target(
+    caster_uid: i64,
+    target_uid: i64,
+    damage: i32,
+    skill_id: i32,
+) -> Vec<ActEffect> {
+    if target_uid == 0 || target_uid == caster_uid {
+        return vec![];
+    }
+    vec![damage_with_hurt(
+        target_uid, damage, -1, skill_id, caster_uid,
+    )]
+}
+
 pub struct BehaviorExec<'a, 'ctx> {
     executor: &'a mut SkillExecutor,
     managers: &'a mut Managers,
@@ -1025,15 +1039,11 @@ fn dispatch_impl(
             }
             let damage = (max_hp.saturating_mul(total_permille) / 1000).max(1);
             for damage_target in damage_targets {
-                if damage_target == 0 || damage_target == caster_uid {
-                    continue;
-                }
-                out.push(damage_with_hurt(
+                out.extend(execute_nuo_di_ka_damage_for_target(
+                    caster_uid,
                     damage_target,
                     damage,
-                    -1,
                     skill_id,
-                    caster_uid,
                 ));
             }
             Ok(out)
