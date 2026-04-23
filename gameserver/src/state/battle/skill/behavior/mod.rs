@@ -112,6 +112,30 @@ fn append_preview_bloodtithe_gain_effects(
     }
 }
 
+pub(crate) fn execute_damage_for_target(
+    executor: &mut SkillExecutor,
+    managers: &mut Managers,
+    mechanics: &mut Mechanics,
+    fight: &Fight,
+    caster_uid: i64,
+    target_uid: i64,
+    rate: i32,
+    skill_id: i32,
+) -> Vec<ActEffect> {
+    let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target_uid);
+    let mut effects =
+        lost_life::apply(&mut ctx, Some(&executor.pending_attr_bonus), rate, skill_id);
+    append_preview_bloodtithe_gain_effects(
+        executor,
+        mechanics,
+        fight,
+        caster_uid,
+        target_uid,
+        &mut effects,
+    );
+    effects
+}
+
 pub struct BehaviorExec<'a, 'ctx> {
     executor: &'a mut SkillExecutor,
     managers: &'a mut Managers,
@@ -235,24 +259,9 @@ fn dispatch_impl(
     let fight = behavior_ctx.fight;
     match behavior {
         // --- damage ---
-        BehaviorType::Damage { rate } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            let mut effects = lost_life::apply(
-                &mut ctx,
-                Some(&executor.pending_attr_bonus),
-                *rate,
-                skill_id,
-            );
-            append_preview_bloodtithe_gain_effects(
-                executor,
-                mechanics,
-                fight,
-                caster_uid,
-                target,
-                &mut effects,
-            );
-            Ok(effects)
-        }
+        BehaviorType::Damage { rate } => Ok(execute_damage_for_target(
+            executor, managers, mechanics, fight, caster_uid, target, *rate, skill_id,
+        )),
 
         // --- healing ---
         BehaviorType::Heal { rate } => {
