@@ -190,7 +190,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             teammate_use_ex_skill: event.teammate_used_ex_skill(caster_uid),
             trigger_bullet: true,
             event_driven_only: false,
-            be_attacked: event.took_damage(caster_uid),
+            be_attacked: event.was_attacked_by_enemy(caster_uid),
             hurt_not_restraint: event.dealt_damage(caster_uid),
             hurt_restraint: event.dealt_damage(caster_uid),
             teammate_injury_count: teammate_injury_hits,

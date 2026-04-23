@@ -262,6 +262,7 @@ impl FightCardMgr {
             from_wrapper_card: display_caster_uid == 0,
             nested_skill_uses: vec![],
             damaged_uids: vec![],
+            cross_side_damaged_uids: vec![],
             dealer_uids: vec![],
             deleted_buff_ids: ctx.managers.buff_mgr.step_deleted_buff_ids().to_vec(),
             added_buff_uids: vec![],

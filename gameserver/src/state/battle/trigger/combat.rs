@@ -37,6 +37,12 @@ pub struct TriggerEvent {
     pub nested_skill_uses: Vec<(i64, i32, bool, i64)>, // (uid, skill_id, used_ex, to_id)
     /// Entities that took damage this step.
     pub damaged_uids: Vec<i64>,
+    /// Subset of `damaged_uids` that took damage from cross-side (enemy)
+    /// attacks rather than same-side self-cost or teammate-inflicted hits.
+    /// Used to gate BeAttacked reactive passives so e.g. raspberry bloodpool
+    /// cost on Nautika does not fire BeAttacked-triggered behaviors like
+    /// 31200222 c1, which LIVE only fires for actual enemy attacks.
+    pub cross_side_damaged_uids: Vec<i64>,
     /// Entities that dealt damage this step (usually just the caster).
     pub dealer_uids: Vec<i64>,
     /// Buff ids/type-ids deleted during this step.
@@ -57,6 +63,12 @@ pub struct TriggerEvent {
 impl TriggerEvent {
     pub fn took_damage(&self, uid: i64) -> bool {
         self.damaged_uids.contains(&uid)
+    }
+    /// Returns true only when `uid` was hit by an enemy in this event.
+    /// Excludes same-side self-cost damage (raspberry/bloodpool) so that
+    /// passives gated on BeAttacked do not fire on internal HP drops.
+    pub fn was_attacked_by_enemy(&self, uid: i64) -> bool {
+        self.cross_side_damaged_uids.contains(&uid)
     }
     pub fn dealt_damage(&self, uid: i64) -> bool {
         self.dealer_uids.contains(&uid)
@@ -121,12 +133,19 @@ pub fn event_from_step(
     effects: &[ActEffect],
 ) -> TriggerEvent {
     let mut damaged_uids = Vec::new();
+    let mut cross_side_damaged_uids = Vec::new();
     let mut dealer_uids = Vec::new();
     let mut deleted_buff_ids = Vec::new();
     let mut added_buff_uids = Vec::new();
     let mut _added_buff_ids = Vec::new();
 
-    collect_damage_uids(effects, caster_uid, &mut damaged_uids, &mut dealer_uids);
+    collect_damage_uids(
+        effects,
+        caster_uid,
+        &mut damaged_uids,
+        &mut cross_side_damaged_uids,
+        &mut dealer_uids,
+    );
     collect_deleted_buff_ids(effects, &mut deleted_buff_ids);
     collect_added_buffs(effects, &mut added_buff_uids, &mut _added_buff_ids);
     let mut nested_skill_ids = Vec::new();
@@ -196,6 +215,7 @@ pub fn event_from_step(
         from_wrapper_card,
         nested_skill_uses,
         damaged_uids,
+        cross_side_damaged_uids,
         dealer_uids,
         deleted_buff_ids,
         added_buff_uids,
@@ -287,6 +307,7 @@ fn collect_damage_uids(
     effects: &[ActEffect],
     caster_uid: i64,
     damaged: &mut Vec<i64>,
+    cross_side_damaged: &mut Vec<i64>,
     dealers: &mut Vec<i64>,
 ) {
     for effect in effects {
@@ -306,13 +327,30 @@ fn collect_damage_uids(
             if !dealers.contains(&caster_uid) {
                 dealers.push(caster_uid);
             }
+            // Cross-side damage (enemy-source) feeds the BeAttacked gate.
+            // Self-inflicted damage (same-side, e.g. raspberry bloodpool
+            // cost) is still tracked in `damaged` for injury counts, but
+            // excluded from the BeAttacked set so reactive passives don't
+            // fire on internal HP drops.
+            let is_cross_side = caster_uid != 0
+                && target != 0
+                && caster_uid.signum() != target.signum();
+            if is_cross_side && !cross_side_damaged.contains(&target) {
+                cross_side_damaged.push(target);
+            }
         }
 
         // Recurse into any nested fightStep payload and keep dealer attribution
         // aligned with the nested step's own caster when present.
         if let Some(step) = &effect.fight_step {
             let nested_caster = step.from_id.unwrap_or(caster_uid);
-            collect_damage_uids(&step.act_effect, nested_caster, damaged, dealers);
+            collect_damage_uids(
+                &step.act_effect,
+                nested_caster,
+                damaged,
+                cross_side_damaged,
+                dealers,
+            );
         }
     }
 }
@@ -404,7 +442,7 @@ pub(crate) fn run_combat_passives_pass(
                 teammate_use_ex_skill: event.teammate_used_ex_skill(uid),
                 trigger_bullet: event.triggered_bullet_for(uid),
                 event_driven_only: should_use_strict_event_only(ctx.fight, skill_id),
-                be_attacked: event.took_damage(uid),
+                be_attacked: event.was_attacked_by_enemy(uid),
                 hurt_not_restraint: event.dealt_damage(uid),
                 hurt_restraint: event.dealt_damage(uid),
                 teammate_injury_count: teammate_injury_hits,
@@ -739,7 +777,7 @@ fn condition_fires_for(
 
     match condition {
         ConditionType::BeAttacked => {
-            if !event.took_damage(uid) {
+            if !event.was_attacked_by_enemy(uid) {
                 return Some(false);
             }
             // Live parity: logicTarget=201 (single + random add-on) does not
