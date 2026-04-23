@@ -46,21 +46,6 @@ impl TriggerState {
             ..Default::default()
         }
     }
-    #[allow(dead_code)]
-    pub fn on_attack() -> Self {
-        Self {
-            hurt_not_restraint: true,
-            ..Default::default()
-        }
-    }
-    #[allow(dead_code)]
-    pub fn on_take_damage() -> Self {
-        Self {
-            be_attacked: true,
-            ..Default::default()
-        }
-    }
-
     /// Populate `deleted_buff_ids` from the live per-step buff-deletion
     /// tracker on `BuffMgr`. Used by mid-step passive/trigger sites that don't
     /// have an explicit `TriggerEvent` to pull a list from. If the caller has
@@ -102,7 +87,6 @@ impl PhaseFilter {
         Self::Combat(state)
     }
 
-    #[allow(dead_code)]
     pub fn is_combat(&self) -> bool {
         matches!(self, Self::Combat(_))
     }
