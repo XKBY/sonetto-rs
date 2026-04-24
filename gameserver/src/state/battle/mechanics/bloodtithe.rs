@@ -343,9 +343,9 @@ fn transition_host_act_id(step: &FightStep) -> Option<i32> {
 
 fn classify_transition_ancillary_step(
     step: &FightStep,
-    idx: usize,
-    semm_host_idx: Option<usize>,
-    naut_host_idx: Option<usize>,
+    _idx: usize,
+    _semm_host_idx: Option<usize>,
+    _naut_host_idx: Option<usize>,
 ) -> Option<TransitionHost> {
     let ownership = inspect_step_ownership(step);
 
@@ -354,19 +354,6 @@ fn classify_transition_ancillary_step(
     }
     if ownership.skill_from_semmelweis {
         return Some(TransitionHost::Semmelweis);
-    }
-
-    if let Some(semm_idx) = semm_host_idx
-        && idx < semm_idx
-    {
-        return Some(TransitionHost::Semmelweis);
-    }
-
-    if let (Some(semm_idx), Some(naut_idx)) = (semm_host_idx, naut_host_idx)
-        && idx > semm_idx
-        && idx < naut_idx
-    {
-        return Some(TransitionHost::Nautika);
     }
 
     if ownership.from_nautika || ownership.to_nautika {
