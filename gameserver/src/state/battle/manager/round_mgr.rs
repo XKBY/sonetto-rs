@@ -638,6 +638,23 @@ impl FightRoundMgr {
 
         for (_, target_idx, wrapper) in merges.iter().cloned() {
             if let Some(host_step) = steps.get_mut(target_idx) {
+                let incoming_act_id = wrapper.fight_step.as_ref().and_then(|step| step.act_id);
+                let incoming_from_id = wrapper.fight_step.as_ref().and_then(|step| step.from_id);
+                let already_present = host_step.act_effect.iter().any(|existing| {
+                    existing.effect_type == Some(162)
+                        && existing
+                            .fight_step
+                            .as_ref()
+                            .map(|step| {
+                                step.act_type == Some(fight_step::ActType::Skill as i32)
+                                    && step.act_id == incoming_act_id
+                                    && step.from_id == incoming_from_id
+                            })
+                            .unwrap_or(false)
+                });
+                if already_present {
+                    continue;
+                }
                 host_step.act_effect.push(wrapper);
             }
         }
