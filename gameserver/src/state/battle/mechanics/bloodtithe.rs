@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::context::FightContext;
@@ -17,6 +17,10 @@ use crate::state::battle::{
 const DAMAGE_PER_POINT: i32 = 3000;
 const BASE_MAX: i32 = 24;
 const PER_ALLY_BONUS: i32 = 16;
+const SEMMELWEIS_UID: i64 = 205497633;
+const NAUTIKA_UID: i64 = 240494379;
+const SEMMELWEIS_HOST_ACT_ID: i32 = 308801311;
+const NAUTIKA_HOST_ACT_ID: i32 = 31200193;
 
 static GAINED: Lazy<Mutex<i32>> = Lazy::new(|| Mutex::new(0));
 
@@ -246,7 +250,188 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
         out.push(step);
     }
 
+    merge_bloodtithe_transition_hosts(&mut out);
+
     out
+}
+
+fn merge_bloodtithe_transition_hosts(out: &mut Vec<FightStep>) {
+    let semm_host_idx = find_transition_host_index(out, SEMMELWEIS_HOST_ACT_ID);
+    let naut_host_idx = find_transition_host_index(out, NAUTIKA_HOST_ACT_ID);
+
+    if semm_host_idx.is_none() && naut_host_idx.is_none() {
+        return;
+    }
+
+    let mut semm_embeds = Vec::new();
+    let mut naut_embeds = Vec::new();
+    let mut remove_indices = Vec::new();
+
+    for idx in 0..out.len() {
+        if Some(idx) == semm_host_idx || Some(idx) == naut_host_idx {
+            continue;
+        }
+
+        let Some(host) =
+            classify_transition_ancillary_step(&out[idx], idx, semm_host_idx, naut_host_idx)
+        else {
+            continue;
+        };
+
+        match host {
+            TransitionHost::Semmelweis if semm_host_idx.is_some() => {
+                semm_embeds.push(wrap_step(out[idx].clone()));
+                remove_indices.push(idx);
+            }
+            TransitionHost::Nautika if naut_host_idx.is_some() => {
+                naut_embeds.push(wrap_step(out[idx].clone()));
+                remove_indices.push(idx);
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(idx) = semm_host_idx
+        && !semm_embeds.is_empty()
+    {
+        out[idx].act_effect.extend(semm_embeds);
+    }
+    if let Some(idx) = naut_host_idx
+        && !naut_embeds.is_empty()
+    {
+        out[idx].act_effect.extend(naut_embeds);
+    }
+
+    if remove_indices.is_empty() {
+        return;
+    }
+
+    remove_indices.sort_unstable();
+    remove_indices.dedup();
+    for idx in remove_indices.into_iter().rev() {
+        out.remove(idx);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TransitionHost {
+    Semmelweis,
+    Nautika,
+}
+
+fn find_transition_host_index(out: &[FightStep], host_act_id: i32) -> Option<usize> {
+    out.iter().position(|step| transition_host_act_id(step) == Some(host_act_id))
+}
+
+fn transition_host_act_id(step: &FightStep) -> Option<i32> {
+    if step.act_type != Some(fight_step::ActType::Effect as i32) {
+        return None;
+    }
+
+    let wrapped = step.act_effect.first()?;
+    if wrapped.effect_type != Some(162) {
+        return None;
+    }
+
+    let host = wrapped.fight_step.as_ref()?;
+    if host.act_type != Some(fight_step::ActType::Effect as i32) {
+        return None;
+    }
+
+    host.act_id
+}
+
+fn classify_transition_ancillary_step(
+    step: &FightStep,
+    idx: usize,
+    semm_host_idx: Option<usize>,
+    naut_host_idx: Option<usize>,
+) -> Option<TransitionHost> {
+    let ownership = inspect_step_ownership(step);
+
+    if ownership.skill_from_nautika {
+        return Some(TransitionHost::Nautika);
+    }
+    if ownership.skill_from_semmelweis {
+        return Some(TransitionHost::Semmelweis);
+    }
+
+    if let Some(semm_idx) = semm_host_idx
+        && idx < semm_idx
+    {
+        return Some(TransitionHost::Semmelweis);
+    }
+
+    if let (Some(semm_idx), Some(naut_idx)) = (semm_host_idx, naut_host_idx)
+        && idx > semm_idx
+        && idx < naut_idx
+    {
+        return Some(TransitionHost::Nautika);
+    }
+
+    if ownership.from_nautika || ownership.to_nautika {
+        return Some(TransitionHost::Nautika);
+    }
+    if ownership.from_semmelweis || ownership.to_semmelweis || ownership.targets_semmelweis {
+        return Some(TransitionHost::Semmelweis);
+    }
+    if ownership.targets_nautika {
+        return Some(TransitionHost::Nautika);
+    }
+
+    None
+}
+
+#[derive(Default)]
+struct StepOwnership {
+    from_semmelweis: bool,
+    from_nautika: bool,
+    to_semmelweis: bool,
+    to_nautika: bool,
+    targets_semmelweis: bool,
+    targets_nautika: bool,
+    skill_from_semmelweis: bool,
+    skill_from_nautika: bool,
+}
+
+fn inspect_step_ownership(step: &FightStep) -> StepOwnership {
+    let mut ownership = StepOwnership::default();
+    collect_step_ownership(step, &mut ownership);
+    ownership
+}
+
+fn collect_step_ownership(step: &FightStep, ownership: &mut StepOwnership) {
+    match step.from_id {
+        Some(SEMMELWEIS_UID) => ownership.from_semmelweis = true,
+        Some(NAUTIKA_UID) => ownership.from_nautika = true,
+        _ => {}
+    }
+
+    match step.to_id {
+        Some(SEMMELWEIS_UID) => ownership.to_semmelweis = true,
+        Some(NAUTIKA_UID) => ownership.to_nautika = true,
+        _ => {}
+    }
+
+    if step.act_type == Some(fight_step::ActType::Skill as i32) {
+        match step.from_id {
+            Some(SEMMELWEIS_UID) => ownership.skill_from_semmelweis = true,
+            Some(NAUTIKA_UID) => ownership.skill_from_nautika = true,
+            _ => {}
+        }
+    }
+
+    for effect in &step.act_effect {
+        match effect.target_id {
+            Some(SEMMELWEIS_UID) => ownership.targets_semmelweis = true,
+            Some(NAUTIKA_UID) => ownership.targets_nautika = true,
+            _ => {}
+        }
+
+        if let Some(child) = effect.fight_step.as_ref() {
+            collect_step_ownership(child, ownership);
+        }
+    }
 }
 
 pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
