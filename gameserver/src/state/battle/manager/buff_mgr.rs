@@ -406,14 +406,27 @@ impl BuffMgr {
 
 impl Manager for BuffMgr {
     fn on_round_end(&mut self) {
+        let cfg = config::configs::get();
         for buffs in self.active.values_mut() {
             for b in buffs.iter_mut() {
                 if b.duration > 0 {
                     b.duration -= 1;
                 }
             }
-            // retain if permanent (0) or still has duration remaining
-            buffs.retain(|b| b.duration != 0 || b.stacks == 0);
+            buffs.retain(|b| {
+                // Permanent buffs (cfg duringTime == 0) never expire at round
+                // end regardless of stack count — the previous stacks>0 check
+                // wrongly dropped Sentinel/Rubuska's 31260151 between rounds,
+                // which broke HasBuffId-gated buff-granted passives in later
+                // rounds (e.g. Dread Bullet 31260181 firing 0 times in r2).
+                let was_timed = cfg
+                    .skill_buff
+                    .iter()
+                    .find(|c| c.id == b.buff_id)
+                    .map(|c| c.during_time > 0)
+                    .unwrap_or(false);
+                !was_timed || b.duration != 0 || b.stacks == 0
+            });
         }
     }
 

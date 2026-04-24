@@ -601,10 +601,31 @@ impl FightRoundMgr {
                     .get_mut(idx)
                     .and_then(|e| e.fight_step.as_mut())
                 {
+                    // Inline pre-embeds (e.g. magic-circle aura follow-ups) can
+                    // surface a buff-granted passive as the chosen `nested`
+                    // wrapper. The combat-trigger pass then fires the same
+                    // passive again, and fallback-splices the duplicate into
+                    // `nested.act_effect`, producing a self-nested
+                    // act_id-in-act_id pair (e.g. 31260181 inside 31260181).
+                    // Drop any trigger whose SKILL id + from id match `nested`.
+                    let nested_act_id = nested.act_id;
+                    let nested_from_id = nested.from_id;
                     let mut top_level_prefix: Vec<ActEffect> = Vec::new();
                     let mut nested_embedded: Vec<ActEffect> = Vec::new();
                     for trigger_step in expanded_steps.into_iter().skip(1) {
                         let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                        let duplicates_nested = embedded
+                            .fight_step
+                            .as_ref()
+                            .map(|s| {
+                                s.act_type == Some(fight_step::ActType::Skill as i32)
+                                    && s.act_id == nested_act_id
+                                    && s.from_id == nested_from_id
+                            })
+                            .unwrap_or(false);
+                        if duplicates_nested {
+                            continue;
+                        }
                         let is_prep_prefix = embedded
                             .fight_step
                             .as_ref()
@@ -767,10 +788,31 @@ impl FightRoundMgr {
                     .get_mut(idx)
                     .and_then(|e| e.fight_step.as_mut())
                 {
+                    // Inline pre-embeds (e.g. magic-circle aura follow-ups) can
+                    // surface a buff-granted passive as the chosen `nested`
+                    // wrapper. The combat-trigger pass then fires the same
+                    // passive again, and fallback-splices the duplicate into
+                    // `nested.act_effect`, producing a self-nested
+                    // act_id-in-act_id pair (e.g. 31260181 inside 31260181).
+                    // Drop any trigger whose SKILL id + from id match `nested`.
+                    let nested_act_id = nested.act_id;
+                    let nested_from_id = nested.from_id;
                     let mut top_level_prefix: Vec<ActEffect> = Vec::new();
                     let mut nested_embedded: Vec<ActEffect> = Vec::new();
                     for trigger_step in expanded_steps.into_iter().skip(1) {
                         let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                        let duplicates_nested = embedded
+                            .fight_step
+                            .as_ref()
+                            .map(|s| {
+                                s.act_type == Some(fight_step::ActType::Skill as i32)
+                                    && s.act_id == nested_act_id
+                                    && s.from_id == nested_from_id
+                            })
+                            .unwrap_or(false);
+                        if duplicates_nested {
+                            continue;
+                        }
                         let is_prep_prefix = embedded
                             .fight_step
                             .as_ref()
