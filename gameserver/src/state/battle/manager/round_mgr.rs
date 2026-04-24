@@ -139,6 +139,33 @@ impl FightRoundMgr {
         Self
     }
 
+    fn step_has_effect_type(&self, step: &FightStep, effect_type: i32) -> bool {
+        step.act_effect
+            .iter()
+            .any(|effect| effect.effect_type == Some(effect_type))
+    }
+
+    fn is_standalone_effect_marker(&self, step: &FightStep, effect_type: i32) -> bool {
+        step.act_type == Some(fight_step::ActType::Effect as i32)
+            && step.act_effect.len() == 1
+            && step
+                .act_effect
+                .first()
+                .map(|effect| effect.effect_type == Some(effect_type))
+                .unwrap_or(false)
+    }
+
+    fn step_contains_act_id(&self, step: &FightStep, act_id: i32) -> bool {
+        step.act_id == Some(act_id)
+            || step.act_effect.iter().any(|effect| {
+                effect
+                    .fight_step
+                    .as_ref()
+                    .map(|child| self.step_contains_act_id(child, act_id))
+                    .unwrap_or(false)
+            })
+    }
+
     fn step_contains_magic_circle_add(&self, step: &FightStep) -> bool {
         step.act_effect.iter().any(|effect| {
             effect.effect_type
@@ -263,6 +290,35 @@ impl FightRoundMgr {
         }
     }
 
+    fn strip_redundant_change_round_markers(&self, steps: &mut Vec<FightStep>) {
+        const CHANGE_ROUND_SYNC_EFFECT: i32 = 310;
+        const NAUTIKA_TRANSITION_HOST_ACT_ID: i32 = 31200193;
+
+        let Some(first_step) = steps.first() else {
+            return;
+        };
+        if !self.step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT) {
+            return;
+        }
+        if !steps
+            .iter()
+            .any(|step| self.step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
+        {
+            return;
+        }
+
+        let mut remove_indices = Vec::new();
+        for (idx, step) in steps.iter().enumerate().skip(1) {
+            if self.is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT) {
+                remove_indices.push(idx);
+            }
+        }
+
+        for idx in remove_indices.into_iter().rev() {
+            steps.remove(idx);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn process_round(
         &self,
@@ -307,6 +363,7 @@ impl FightRoundMgr {
         )
         .await?;
         self.merge_post_turn_reactives_into_host(&mut open.steps);
+        self.strip_redundant_change_round_markers(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
