@@ -65,6 +65,25 @@ struct RoundOpenPhaseData {
 static ENTRY_MAX_HP: Lazy<Mutex<HashMap<(i32, i64), i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
+/// Whether `effect` wraps a FightStep whose act_effect is entirely
+/// display-only markers (BuffUpdate/Attr with effect_num=0). Defender idle
+/// sweeps use this to drop state-machine re-ticks that LIVE only emits
+/// nested inside real combat events.
+fn is_marker_only_fight_step_effect(effect: &ActEffect) -> bool {
+    let Some(step) = effect.fight_step.as_ref() else {
+        return false;
+    };
+    if step.act_effect.is_empty() {
+        return false;
+    }
+    step.act_effect.iter().all(|inner| {
+        let et = inner.effect_type.unwrap_or(0);
+        let num = inner.effect_num.unwrap_or(0);
+        (et == EffectType::BuffUpdate as i32 && num == 0)
+            || (et == EffectType::Attr as i32 && num == 0)
+    })
+}
+
 pub(crate) fn seed_entry_max_hp_from_fight(fight: &Fight) {
     let battle_id = fight.battle_id.unwrap_or(0);
     if battle_id == 0 {
@@ -1332,6 +1351,7 @@ impl FightRoundMgr {
                 let battle_rule_skills = self.collect_battle_rule_skills(ctx.fight);
                 let stop_at_first = matches!(config.depth, PhaseDepth::FirstMatch);
                 let passive_phase = PhaseFilter::combat();
+                let is_defender_sweep = matches!(config.scope, PhaseScope::Defenders);
                 let mut out = Vec::new();
 
                 for &uid in &scope_uids {
@@ -1365,7 +1385,31 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
                         {
-                            per_entity_effects.extend(effects);
+                            // Defender-side idle sweeps in LIVE do not emit
+                            // wrappers for state-machine passives whose only
+                            // output is a BuffUpdate marker (e.g. 530000151
+                            // cycling between 530000111/530000112 via
+                            // NoBuffId gates). LIVE fires these nested inside
+                            // actual combat events. Drop marker-only wrappers
+                            // from defender sweeps so top-level OURS steps
+                            // don't balloon with no-op state ticks.
+                            let kept: Vec<ActEffect> = if is_defender_sweep
+                                && has_combat_reactive_condition(
+                                    skill_id,
+                                    CombatPassiveScanMode::RoundSweep,
+                                )
+                            {
+                                effects
+                                    .into_iter()
+                                    .filter(|e| !is_marker_only_fight_step_effect(e))
+                                    .collect()
+                            } else {
+                                effects
+                            };
+                            if kept.is_empty() {
+                                continue;
+                            }
+                            per_entity_effects.extend(kept);
                             if stop_at_first {
                                 break;
                             }
