@@ -21,7 +21,10 @@ use super::super::{
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
     },
-    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, magic_circle},
+    mechanics::{
+        bloodtithe, channel as channel_mechanics, injury_counter, magic_circle,
+        round_end as round_end_mechanics,
+    },
     passives::{
         collector::{CollectedPassives, collect},
         steps::skill::execute_skill as execute_passive_skill,
@@ -1565,6 +1568,11 @@ impl FightRoundMgr {
                     target.act_effect = new_effects;
                 }
             }
+        }
+
+        if let Some(step) = round_end_mechanics::build_round_end_lost_hp_count_add_buff_step(ctx) {
+            self.apply_step_and_maybe_sync(ctx, &step, true)?;
+            steps.push(step);
         }
 
         if self.check_battle_end(ctx.fight) {

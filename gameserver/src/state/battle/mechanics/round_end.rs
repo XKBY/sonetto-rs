@@ -1,7 +1,7 @@
 use sonettobuf::FightStep;
 
 use crate::state::battle::buff_actions::use_skill_to_enemy::buff_get_use_skill_to_enemy_params;
-use crate::state::battle::fight_step::{effect_container_step, wrap_step};
+use crate::state::battle::fight_step::{ActEffectBuilder, effect_container_step, wrap_step};
 use crate::state::battle::{
     context::FightContext,
     mechanics::{injury_counter, magic_circle},
@@ -13,6 +13,7 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::{event_from_step, fire_combat_triggers},
     trigger::passes::build_belief_gain_step,
+    utils::buff_add_with_count,
 };
 
 pub(crate) fn build_round_end_use_skill_to_enemy_steps(
@@ -166,4 +167,100 @@ pub(crate) fn build_round_end_use_skill_to_enemy_steps(
     }
 
     out
+}
+
+pub(crate) fn build_round_end_lost_hp_count_add_buff_step(
+    ctx: &mut FightContext<'_>,
+) -> Option<FightStep> {
+    let mut wrapped = Vec::new();
+
+    let attackers = ctx
+        .fight
+        .attacker
+        .as_ref()
+        .map(|side| {
+            let mut entities: Vec<_> = side
+                .entitys
+                .iter()
+                .chain(side.sub_entitys.iter())
+                .filter(|entity| {
+                    entity.position.unwrap_or(-1) > 0 && entity.current_hp.unwrap_or(0) > 0
+                })
+                .collect();
+            entities.sort_by_key(|entity| entity.position.unwrap_or(i32::MAX));
+            entities
+        })
+        .unwrap_or_default();
+
+    for entity in attackers {
+        let Some(target_uid) = entity.uid else {
+            continue;
+        };
+
+        for instance in ctx.managers.buff_mgr.get(target_uid).to_vec() {
+            let Some(child_buff_id) = direct_lost_hp_count_add_buff_child(instance.buff_id) else {
+                continue;
+            };
+            if ctx
+                .managers
+                .buff_mgr
+                .get(target_uid)
+                .iter()
+                .any(|buff| buff.buff_id == child_buff_id || buff.type_id == child_buff_id)
+            {
+                continue;
+            }
+            if get_entity(ctx.fight, instance.from_uid)
+                .map(|source| source.current_hp.unwrap_or(0) > 0)
+                .unwrap_or(false)
+                == false
+            {
+                continue;
+            }
+
+            let child_effects = vec![
+                buff_add_with_count(
+                    target_uid,
+                    target_uid,
+                    child_buff_id,
+                    instance.layer.max(1),
+                    0,
+                ),
+                ActEffectBuilder::new(26, target_uid).effect_num(0).build(),
+            ];
+            let inner = effect_container_step(
+                instance.from_uid,
+                target_uid,
+                instance.buff_id,
+                child_effects,
+            );
+            wrapped.push(wrap_step(inner));
+        }
+    }
+
+    if wrapped.is_empty() {
+        None
+    } else {
+        Some(build_effect_step(wrapped))
+    }
+}
+
+fn direct_lost_hp_count_add_buff_child(
+    buff_id: i32,
+) -> Option<i32> {
+    let cfg = config::configs::get();
+    let buff = cfg.skill_buff.iter().find(|row| row.id == buff_id)?;
+    for entry in buff.features.split('|') {
+        let mut parts = entry.split('#');
+        let act_id = parts.next()?.trim().parse::<i32>().ok()?;
+        let act_type = cfg
+            .buff_act
+            .iter()
+            .find(|act| act.id == act_id)
+            .map(|act| act.r#type.as_str())?;
+        if act_type == "LostHpCountAddBuff" {
+            return parts.next()?.trim().parse::<i32>().ok().filter(|id| *id > 0);
+        }
+    }
+    None
 }
