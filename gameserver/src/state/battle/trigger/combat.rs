@@ -396,8 +396,25 @@ pub(crate) fn run_combat_passives_pass(
         .collect();
 
     for uid in all_uids {
-        let mut skill_ids = collected.merged_for(uid);
-        extend_with_buff_granted_passives(ctx, uid, &mut skill_ids);
+        let base_skill_ids = collected.merged_for(uid);
+        let mut buff_granted_ids: Vec<i32> = Vec::new();
+        extend_with_buff_granted_passives(ctx, uid, &mut buff_granted_ids);
+        // Track skills that only reach this pass via a buff-grant chain
+        // (e.g. Sentinel's 31260181 granted via 31260151→SubBuff 31260201→
+        // AddPassiveSkills). LIVE fires these when the owner acts; restrict
+        // the bypass to passives whose conditions consult a HasBuffId check
+        // so unconditional None-only passives don't leak into combat triggers.
+        let buff_granted_has_buff_set: std::collections::HashSet<i32> = buff_granted_ids
+            .iter()
+            .copied()
+            .filter(|sid| !base_skill_ids.contains(sid) && skill_has_has_buff_id_condition(*sid))
+            .collect();
+        let mut skill_ids = base_skill_ids;
+        for sid in &buff_granted_ids {
+            if !skill_ids.contains(sid) {
+                skill_ids.push(*sid);
+            }
+        }
         for sid in &battle_rule_skills {
             if !skill_ids.contains(sid) {
                 skill_ids.push(*sid);
@@ -412,16 +429,23 @@ pub(crate) fn run_combat_passives_pass(
             if is_enter_fight_only_passive(skill_id) {
                 continue;
             }
-            if !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass) {
+            let is_buff_granted_has_buff_skill = buff_granted_has_buff_set.contains(&skill_id);
+            if !is_buff_granted_has_buff_skill
+                && !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass)
+            {
                 continue;
             }
-            let should_fire = skill_should_fire(
-                uid,
-                skill_id,
-                event,
-                teammate_injury_hits,
-                teammate_injury_not_reset,
-            );
+            let should_fire = if is_buff_granted_has_buff_skill {
+                event.used_card(uid)
+            } else {
+                skill_should_fire(
+                    uid,
+                    skill_id,
+                    event,
+                    teammate_injury_hits,
+                    teammate_injury_not_reset,
+                )
+            };
             if !should_fire {
                 continue;
             }
@@ -519,7 +543,16 @@ pub(crate) fn run_combat_passives_pass(
         }
 
         if !entity_step_effects.is_empty() {
-            steps.push(build_effect_step(entity_step_effects));
+            let mut effect_step = build_effect_step(entity_step_effects);
+            // Stamp the trigger-owner uid on the EFFECT wrapper's from_id so
+            // downstream `insert_trigger_into_matching_nested` can match the
+            // step against a same-origin nested SKILL when embedding into
+            // the host card step. Without this, the wrapper's from_id=0
+            // default trips the early-return at trigger_embed.rs `trigger_from == 0`
+            // and the step either fallback-splices into the wrong child or
+            // gets lost entirely.
+            effect_step.from_id = Some(uid);
+            steps.push(effect_step);
         }
         if teammate_injury_hits > 0 {
             ctx.managers
@@ -570,6 +603,51 @@ fn collect_battle_rule_skills(fight: &Fight) -> Vec<i32> {
         }
     }
     out
+}
+
+fn skill_has_has_buff_id_condition(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == effect_id) else {
+        return false;
+    };
+    let raws = [
+        skill.condition1.as_str(),
+        skill.condition2.as_str(),
+        skill.condition3.as_str(),
+        skill.condition4.as_str(),
+        skill.condition5.as_str(),
+        skill.condition6.as_str(),
+        skill.condition7.as_str(),
+        skill.condition8.as_str(),
+        skill.condition9.as_str(),
+        skill.condition10.as_str(),
+    ];
+    for raw in raws {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let (cond, _) = parse_condition(trimmed);
+        if condition_contains_has_buff_id(&cond) {
+            return true;
+        }
+    }
+    false
+}
+
+fn condition_contains_has_buff_id(cond: &ConditionType) -> bool {
+    use ConditionType::*;
+    match cond {
+        HasBuffId { .. } => true,
+        EnterFightAnd(parts) | EnterFightOr(parts) => {
+            parts.iter().any(condition_contains_has_buff_id)
+        }
+        _ => false,
+    }
 }
 
 fn extend_with_buff_granted_passives(ctx: &FightContext<'_>, uid: i64, skill_ids: &mut Vec<i32>) {
