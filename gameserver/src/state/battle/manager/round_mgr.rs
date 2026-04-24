@@ -359,6 +359,40 @@ impl FightRoundMgr {
         );
     }
 
+    fn is_top_level_enemy_boss_cycle_noise_step(&self, step: &FightStep) -> bool {
+        const BOSS_CYCLE_ACT_ID: i32 = 530000151;
+
+        step.act_type == Some(fight_step::ActType::Effect as i32)
+            && step.act_id.unwrap_or(0) == 0
+            && step.from_id.unwrap_or(0) == 0
+            && step.to_id.unwrap_or(0) == 0
+            && !step.act_effect.is_empty()
+            && step.act_effect.iter().all(|effect| {
+                self.wrapped_skill_from_effect(effect)
+                    .map(|skill| {
+                        skill.act_id == Some(BOSS_CYCLE_ACT_ID) && skill.from_id.unwrap_or(0) < 0
+                    })
+                    .unwrap_or(false)
+            })
+    }
+
+    fn is_flat_post_round_attr_noise_step(&self, step: &FightStep) -> bool {
+        const POST_ROUND_ATTR_NOISE_TYPES: [i32; 4] = [60, 61, 96, 211];
+
+        step.act_type == Some(fight_step::ActType::Effect as i32)
+            && step.act_id.unwrap_or(0) == 0
+            && step.from_id.unwrap_or(0) == 0
+            && step.to_id.unwrap_or(0) == 0
+            && !step.act_effect.is_empty()
+            && step.act_effect.len() <= 3
+            && step.act_effect.iter().all(|effect| {
+                effect.fight_step.is_none()
+                    && POST_ROUND_ATTR_NOISE_TYPES.contains(&effect.effect_type.unwrap_or(0))
+                    && effect.target_id.unwrap_or(0) == 0
+                    && matches!(effect.effect_num.unwrap_or(0), 0 | 1)
+            })
+    }
+
     fn consolidate_boss_cycle_broadcasts_into_nautika_bundle(&self, steps: &mut Vec<FightStep>) {
         const SEMMELWEIS_UID: i64 = 205497633;
         const NAUTIKA_HOST_ACT_ID: i32 = 31200193;
@@ -501,6 +535,39 @@ impl FightRoundMgr {
         emptied_steps.dedup();
         for step_idx in emptied_steps.into_iter().rev() {
             steps.remove(step_idx);
+        }
+    }
+
+    fn strip_post_turn_enemy_cycle_and_attr_noise(&self, steps: &mut Vec<FightStep>) {
+        const NAUTIKA_TRANSITION_HOST_ACT_ID: i32 = 31200193;
+
+        if !steps
+            .iter()
+            .any(|step| self.step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
+        {
+            return;
+        }
+
+        let Some(round_end_idx) = steps.iter().position(|step| {
+            step.act_effect
+                .first()
+                .and_then(|effect| effect.effect_type)
+                == Some(276)
+        }) else {
+            return;
+        };
+
+        let mut remove_indices = Vec::new();
+        for (idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
+            if self.is_top_level_enemy_boss_cycle_noise_step(step)
+                || self.is_flat_post_round_attr_noise_step(step)
+            {
+                remove_indices.push(idx);
+            }
+        }
+
+        for idx in remove_indices.into_iter().rev() {
+            steps.remove(idx);
         }
     }
 
@@ -659,6 +726,7 @@ impl FightRoundMgr {
         self.merge_post_turn_reactives_into_host(&mut open.steps);
         self.strip_redundant_change_round_markers(&mut open.steps);
         self.consolidate_boss_cycle_broadcasts_into_nautika_bundle(&mut open.steps);
+        self.strip_post_turn_enemy_cycle_and_attr_noise(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
