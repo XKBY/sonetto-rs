@@ -1412,9 +1412,20 @@ impl FightRoundMgr {
             .flat_map(split_step_by_effect_limit)
             .collect();
 
+        let attacker_main_count = ctx
+            .fight
+            .attacker
+            .as_ref()
+            .map(|a| a.entitys.len() as i32)
+            .unwrap_or(3);
+
         Ok(FightRound {
             fight_step: open.steps,
-            act_point: Some(if open.state.is_finish { 0 } else { 3 }),
+            act_point: Some(if open.state.is_finish {
+                0
+            } else {
+                attacker_main_count
+            }),
             is_finish: Some(open.state.is_finish),
             move_num: Some(open.state.move_num),
             ex_point_info,
