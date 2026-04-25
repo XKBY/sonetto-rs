@@ -10,6 +10,7 @@ use std::{
 use super::super::{
     ConditionType,
     buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
+    card::CardOpType,
     context::{FightContext, RoundContext},
     fight_step::{
         FightStepBuilder, effect_container_step, make_skill_step, split_step_by_effect_limit,
@@ -200,6 +201,64 @@ pub(crate) fn lookup_entry_max_hp(fight: &Fight, uid: i64) -> i32 {
         .get(&(battle_id, uid))
         .copied()
         .unwrap_or(0)
+}
+
+fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> {
+    let cloth_id = fight
+        .attacker
+        .as_ref()
+        .and_then(|attacker| attacker.cloth_id)?;
+    config::configs::get()
+        .cloth_level
+        .iter()
+        .find(|cloth| cloth.id == cloth_id && cloth.level == 1)
+        .cloned()
+}
+
+fn parse_cloth_recover_delta(recover: &str, round_index: i32) -> i32 {
+    recover
+        .split('|')
+        .filter_map(|entry| {
+            let mut parts = entry.trim().split('#');
+            let start_round = parts.next()?.trim().parse::<i32>().ok()?;
+            let amount = parts.next()?.trim().parse::<i32>().ok()?;
+            if parts.next().is_some() {
+                return None;
+            }
+            Some((start_round, amount))
+        })
+        .filter(|(start_round, _)| *start_round == round_index)
+        .map(|(_, amount)| amount.max(0))
+        .sum()
+}
+
+fn seed_attacker_power_from_cloth(fight: &mut Fight, cloth: &config::cloth_level::ClothLevel) {
+    if let Some(attacker) = fight.attacker.as_mut()
+        && attacker.power.is_none()
+    {
+        attacker.power = Some(cloth.initial.max(0));
+    }
+}
+
+fn apply_cloth_power_delta(fight: &mut Fight, cloth: &config::cloth_level::ClothLevel, delta: i32) {
+    let Some(attacker) = fight.attacker.as_mut() else {
+        return;
+    };
+    let current = attacker.power.unwrap_or(cloth.initial.max(0));
+    let next = (current + delta).clamp(0, cloth.max_power.max(0));
+    attacker.power = Some(next);
+}
+
+fn cloth_power_delta_for_operation(
+    oper: &BeginRoundOper,
+    cloth: &config::cloth_level::ClothLevel,
+) -> i32 {
+    match CardOpType::try_from(oper.oper_type.unwrap_or(0)) {
+        Ok(CardOpType::MoveCard) | Ok(CardOpType::MoveUniversal) => cloth.r#move.max(0),
+        Ok(CardOpType::PlayCard) => cloth.r#use.max(0),
+        Ok(CardOpType::SimulateDissolveCard) => cloth.compose.max(0),
+        _ => 0,
+    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -1100,6 +1159,13 @@ impl FightRoundMgr {
         sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
         sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
         sync_buff_uid_counters_from_mgr(&ctx.managers.buff_mgr);
+        if let Some(cloth) = active_cloth_level(ctx.fight) {
+            seed_attacker_power_from_cloth(ctx.fight, &cloth);
+            let recover_delta = parse_cloth_recover_delta(&cloth.recover, round_ctx.round_index);
+            if recover_delta != 0 {
+                apply_cloth_power_delta(ctx.fight, &cloth, recover_delta);
+            }
+        }
 
         if let Some(a) = &ctx.fight.attacker {
             for e in &a.entitys {
@@ -1245,6 +1311,11 @@ impl FightRoundMgr {
         ai_deck: Vec<CardInfo>,
     ) -> Result<FightRound> {
         let ctx = &mut *round_ctx.fight_ctx;
+        if open.state.pending_cloth_power_delta != 0
+            && let Some(cloth) = active_cloth_level(ctx.fight)
+        {
+            apply_cloth_power_delta(ctx.fight, &cloth, open.state.pending_cloth_power_delta);
+        }
         open.state.is_finish = self.check_battle_end(ctx.fight);
 
         sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
@@ -1399,12 +1470,22 @@ impl FightRoundMgr {
         let battle_id = ctx.fight.battle_id.unwrap_or(0);
         sync_blood_value_baseline(battle_id, 1, ctx.mechanics.bloodtithe.get_value(1));
         sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
+        let cloth = active_cloth_level(ctx.fight);
         for oper in operations {
+            let cloth_power_delta = cloth
+                .as_ref()
+                .map(|cloth| cloth_power_delta_for_operation(&oper, cloth))
+                .unwrap_or(0);
             let ex_step_after_op = ex_gain::pre_operation_ex_gain(ctx, state, &oper);
             let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
             let step = card_mgr.execute_operation(rng, ctx, state, oper).await?;
             if step.act_type.unwrap_or(0) == 0 {
                 continue;
+            }
+            if cloth_power_delta != 0 {
+                state.pending_cloth_power_delta = state
+                    .pending_cloth_power_delta
+                    .saturating_add(cloth_power_delta);
             }
 
             self.apply_step_and_maybe_sync(ctx, &step, true)?;

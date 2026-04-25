@@ -11,6 +11,7 @@ pub struct RoundState {
     pub used_cards: Vec<i32>,
     pub enemy_skill_actors: HashSet<i64>,
     pub move_num: i32,
+    pub pending_cloth_power_delta: i32,
     pub is_finish: bool,
 }
 
