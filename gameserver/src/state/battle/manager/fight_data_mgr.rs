@@ -2,7 +2,7 @@ use super::super::{
     context::FightContext,
     fight_step::split_step_by_effect_limit,
     manager::{
-        buff_mgr::BuffMgr,
+        buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         calculate_mgr::FightCalculateDataMgr,
         entity_mgr::FightEntityDataMgr,
         ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_to_fight},
@@ -297,6 +297,7 @@ impl FightDataMgr {
                 continue;
             }
 
+            observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             self.managers
                 .buff_mgr
                 .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);

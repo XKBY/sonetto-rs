@@ -2,6 +2,7 @@ use sonettobuf::{ActEffect, effect_type_enum::EffectType};
 
 use crate::state::battle::{
     context::FightContext,
+    manager::buff_mgr::observe_explicit_buff_uid_for_target,
     skill::{PhaseFilter, build_skill_act_effect},
     utils::buff_has_bloodpool,
 };
@@ -109,6 +110,7 @@ fn sync_buff_state(ctx: &mut FightContext<'_>, uid: i64, effects: &[ActEffect]) 
             let layer = effect.buff.as_ref().and_then(|b| b.layer).unwrap_or(0);
             let buff_uid = effect.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
 
+            observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             ctx.managers
                 .buff_mgr
                 .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
@@ -127,6 +129,7 @@ fn sync_buff_state(ctx: &mut FightContext<'_>, uid: i64, effects: &[ActEffect]) 
             let layer = effect.buff.as_ref().and_then(|b| b.layer).unwrap_or(0);
             let buff_uid = effect.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
             if buff_id != 0 && buff_uid != 0 {
+                observe_explicit_buff_uid_for_target(target_uid, buff_uid);
                 ctx.managers
                     .buff_mgr
                     .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);

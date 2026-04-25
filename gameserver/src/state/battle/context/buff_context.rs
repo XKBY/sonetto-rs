@@ -1,4 +1,6 @@
-use crate::state::battle::manager::buff_mgr::{BuffInstance, BuffMgr};
+use crate::state::battle::manager::buff_mgr::{
+    BuffInstance, BuffMgr, observe_explicit_buff_uid_for_target,
+};
 
 /// Lifecycle/policy context around buff storage.
 pub struct BuffContext<'a> {
@@ -27,6 +29,7 @@ impl<'a> BuffContext<'a> {
         layer: i32,
         buff_uid: i64,
     ) {
+        observe_explicit_buff_uid_for_target(target_uid, buff_uid);
         self.store
             .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
     }

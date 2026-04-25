@@ -3,15 +3,15 @@ use config::configs;
 use sonettobuf::{ActEffect, Fight, MagicCircleInfo};
 
 use crate::state::battle::fight_step::ActEffectBuilder;
+use crate::state::battle::skill::targets::alive_allies;
 use crate::state::battle::types::effects::EffectType;
-use crate::state::battle::utils::buff_add;
+use crate::state::battle::utils::{buff_add, for_each_buff_feature_chain};
 
 pub fn be_attacked_assassinate() -> Result<Vec<ActEffect>> {
     Ok(vec![])
 }
 
 pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Result<Vec<ActEffect>> {
-    let _ = fight;
     let circle = configs::get().magic_circle.get(circle_id).cloned();
     let round = circle.as_ref().map(|circle| circle.round).unwrap_or(0);
     let mut out = Vec::new();
@@ -20,7 +20,20 @@ pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Resul
         .and_then(|circle| circle.self_buff.trim().parse::<i32>().ok())
         .filter(|id| *id > 0)
     {
-        out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
+        let mut has_cure_up_by_lost_hp = false;
+        for_each_buff_feature_chain(buff_id, |act_type, _| {
+            if act_type == "CureUpByLostHp" {
+                has_cure_up_by_lost_hp = true;
+            }
+        });
+
+        if has_cure_up_by_lost_hp {
+            for ally_uid in alive_allies(fight, caster_uid) {
+                out.push(buff_add(caster_uid, ally_uid, buff_id, 1));
+            }
+        } else {
+            out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
+        }
     }
     out.push(
         ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)

@@ -1,11 +1,13 @@
 use super::traits::Manager;
 use sonettobuf::Fight;
 #[cfg(test)]
-use std::{cell::Cell, sync::Mutex};
+use std::sync::Mutex;
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicBool, AtomicI64, Ordering},
 };
+#[cfg(test)]
+use std::cell::Cell;
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
@@ -526,6 +528,22 @@ pub fn next_slave_buff_uid_for_target(target_uid: i64) -> i64 {
     }
 }
 
+/// Explicit buff uids can arrive from previewed or replayed effects without
+/// going through `next_buff_uid_for_target`. Keep side-local counters ahead of
+/// them so later generated ids do not collide with live runtime slots.
+pub fn observe_explicit_buff_uid_for_target(target_uid: i64, buff_uid: i64) {
+    if buff_uid <= 0 {
+        return;
+    }
+    #[cfg(test)]
+    let _test_lock = buff_uid_test_access_lock();
+    if target_uid < 0 {
+        DEFENDER_BUFF_UID_COUNTER.fetch_max(buff_uid, Ordering::Relaxed);
+    } else {
+        ATTACKER_BUFF_UID_COUNTER.fetch_max(buff_uid, Ordering::Relaxed);
+    }
+}
+
 pub fn reset_buff_uid() {
     #[cfg(test)]
     let _test_lock = buff_uid_test_access_lock();
@@ -556,28 +574,30 @@ pub fn current_buff_uid() -> i64 {
     }
 }
 
-pub fn sync_buff_uid_counters_from_fight(fight: &Fight) {
+pub fn attacker_buff_uid_checkpoint() -> i64 {
+    #[cfg(test)]
+    let _test_lock = buff_uid_test_access_lock();
+    ATTACKER_BUFF_UID_COUNTER.load(Ordering::Relaxed)
+}
+
+pub fn defender_buff_uid_checkpoint() -> i64 {
+    #[cfg(test)]
+    let _test_lock = buff_uid_test_access_lock();
+    DEFENDER_BUFF_UID_COUNTER.load(Ordering::Relaxed)
+}
+
+pub fn sync_buff_uid_counters_from_mgr(mgr: &BuffMgr) {
     #[cfg(test)]
     let _test_lock = buff_uid_test_access_lock();
     let mut attacker_max = 0_i64;
     let mut defender_max = DEFENDER_BUFF_UID_START;
 
-    if let Some(attacker) = &fight.attacker {
-        for e in attacker.entitys.iter().chain(attacker.sub_entitys.iter()) {
-            for b in &e.buffs {
-                if let Some(uid) = b.uid {
-                    attacker_max = attacker_max.max(uid);
-                }
-            }
-        }
-    }
-
-    if let Some(defender) = &fight.defender {
-        for e in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
-            for b in &e.buffs {
-                if let Some(uid) = b.uid {
-                    defender_max = defender_max.max(uid);
-                }
+    for (target_uid, buffs) in &mgr.active {
+        for buff in buffs {
+            if *target_uid < 0 {
+                defender_max = defender_max.max(buff.uid);
+            } else {
+                attacker_max = attacker_max.max(buff.uid);
             }
         }
     }
@@ -604,6 +624,7 @@ pub fn sync_from_fight(fight: &Fight, mgr: &mut BuffMgr) {
                 if buff_id == 0 || buff_uid == 0 {
                     continue;
                 }
+                observe_explicit_buff_uid_for_target(target_uid, buff_uid);
                 mgr.add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
             }
         }

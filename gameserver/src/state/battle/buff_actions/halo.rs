@@ -1,6 +1,7 @@
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
+    manager::buff_mgr::observe_explicit_buff_uid_for_target,
     skill::SkillExecutor,
     types::effects::EffectType,
     utils::{buff_add_slave, master_halo, slave_halo},
@@ -31,6 +32,7 @@ pub fn master(
 
         let effect = buff_add_slave(ally_uid, ctx.caster_uid(), slave_buff_id, 0);
         if let Some(buff_uid) = effect.buff.as_ref().and_then(|b| b.uid) {
+            observe_explicit_buff_uid_for_target(ally_uid, buff_uid);
             ctx.buff_mgr_mut()
                 .add_with_uid(ally_uid, slave_buff_id, caster_uid, 0, 0, buff_uid);
         }

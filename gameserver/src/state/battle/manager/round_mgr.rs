@@ -14,7 +14,8 @@ use super::super::{
     fight_step::{FightStepBuilder, split_step_by_effect_limit, wrap_step},
     manager::{
         buff_mgr::{
-            DEFENDER_BUFF_UID_START, reset_buff_uid_to, sync_buff_uid_counters_from_fight,
+            DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint, defender_buff_uid_checkpoint,
+            reset_buff_uid_to, sync_buff_uid_counters_from_mgr,
             sync_from_fight_preserve_runtime as sync_buffs_from_fight,
         },
         card_mgr::FightCardMgr,
@@ -769,7 +770,7 @@ impl FightRoundMgr {
         seed_entry_max_hp_from_fight(ctx.fight);
         sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
         sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
-        sync_buff_uid_counters_from_fight(ctx.fight);
+        sync_buff_uid_counters_from_mgr(&ctx.managers.buff_mgr);
 
         if let Some(a) = &ctx.fight.attacker {
             for e in &a.entitys {
@@ -782,8 +783,8 @@ impl FightRoundMgr {
         }
 
         let mut state = RoundState::new(ctx.fight);
-        let attacker_uid_checkpoint = self.max_side_buff_uid(ctx.fight, false);
-        let mut defender_uid_checkpoint = self.max_side_buff_uid(ctx.fight, true);
+        let attacker_uid_checkpoint = attacker_buff_uid_checkpoint();
+        let mut defender_uid_checkpoint = defender_buff_uid_checkpoint();
         if defender_uid_checkpoint < DEFENDER_BUFF_UID_START {
             defender_uid_checkpoint = DEFENDER_BUFF_UID_START;
         }
@@ -1889,24 +1890,6 @@ impl FightRoundMgr {
             }
         }
         out
-    }
-
-    fn max_side_buff_uid(&self, fight: &Fight, defender: bool) -> i64 {
-        let side = if defender {
-            fight.defender.as_ref()
-        } else {
-            fight.attacker.as_ref()
-        };
-        side.map(|team| {
-            team.entitys
-                .iter()
-                .chain(team.sub_entitys.iter())
-                .flat_map(|e| e.buffs.iter())
-                .filter_map(|b| b.uid)
-                .max()
-                .unwrap_or(if defender { DEFENDER_BUFF_UID_START } else { 0 })
-        })
-        .unwrap_or(if defender { DEFENDER_BUFF_UID_START } else { 0 })
     }
 
     fn run_passive_phase(

@@ -9,7 +9,10 @@ use std::{
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
     fight_step::ActEffectBuilder,
-    manager::{buff_mgr::BuffMgr, fight_data_mgr::Managers},
+    manager::{
+        buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
+        fight_data_mgr::Managers,
+    },
     mechanics::Mechanics,
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::buff_del,
@@ -1185,6 +1188,7 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                     continue;
                 };
                 if target_uid != 0 && buff_id != 0 {
+                    observe_explicit_buff_uid_for_target(target_uid, buff.uid.unwrap_or(0));
                     buff_mgr.add_with_uid(
                         target_uid,
                         buff_id,
@@ -1208,6 +1212,7 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                 };
                 let buff_id = buff.buff_id.unwrap_or(0);
                 if target_uid != 0 && buff_id != 0 {
+                    observe_explicit_buff_uid_for_target(target_uid, buff.uid.unwrap_or(0));
                     buff_mgr.add_with_uid(
                         target_uid,
                         buff_id,

@@ -3,6 +3,7 @@ use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 use crate::state::battle::{
     context::FightContext,
     fight_step::FightStepBuilder,
+    manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
     utils::{buff_del, buff_update, moxie_change},
@@ -64,6 +65,7 @@ impl TriggerPass for ExPointSyncPass {
 
                 if buff.layer > 1 {
                     let new_layer = buff.layer - 1;
+                    observe_explicit_buff_uid_for_target(*target_uid, buff.uid);
                     ctx.managers.buff_mgr.add_with_uid(
                         *target_uid,
                         buff.buff_id,
@@ -82,6 +84,7 @@ impl TriggerPass for ExPointSyncPass {
                     ));
                 } else if buff.stacks > 1 {
                     let new_count = buff.stacks - 1;
+                    observe_explicit_buff_uid_for_target(*target_uid, buff.uid);
                     ctx.managers.buff_mgr.add_with_uid(
                         *target_uid,
                         buff.buff_id,

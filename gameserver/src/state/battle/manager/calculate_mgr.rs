@@ -7,7 +7,7 @@ use super::super::{
         ex_point_overflow_bank::buff_get_ex_point_overflow, raspberry::BUFF_ACT_ID_RASPBERRY,
     },
     manager::{
-        buff_mgr::BuffMgr,
+        buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         entity_mgr::{FightEntityDataMgr, get_entity_mut_by_location},
         ex_point_mgr::ExPointMgr,
     },
@@ -334,6 +334,7 @@ impl FightCalculateDataMgr {
         let buff_uid = effect.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
 
         if buff_uid != 0 {
+            observe_explicit_buff_uid_for_target(target_id, buff_uid);
             buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
         } else {
             buff_mgr.add(target_id, buff_id, from_uid, count, layer);
@@ -354,6 +355,7 @@ impl FightCalculateDataMgr {
         let count = buff.count.unwrap_or(0);
         let layer = buff.layer.unwrap_or(0);
 
+        observe_explicit_buff_uid_for_target(target_id, buff_uid);
         buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
         Ok(())
     }
