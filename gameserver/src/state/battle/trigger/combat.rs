@@ -669,9 +669,6 @@ fn extend_with_buff_granted_passives(ctx: &FightContext<'_>, uid: i64, skill_ids
                     "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => {
                         parts.iter().skip(2).copied().collect()
                     }
-                    // Format: 825#<extraSkillId>#...
-                    // Keep only the injected extra-skill lane for trigger-pass scans.
-                    "ConsumeBuffContinueChannel" => parts.get(1).copied().into_iter().collect(),
                     _ => Vec::new(),
                 };
                 if value_parts.is_empty() {

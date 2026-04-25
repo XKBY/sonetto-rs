@@ -252,7 +252,7 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
 
     let cfg = config::configs::get();
 
-    let mut channel_seed: Option<(i64, i32, i32, i32)> = None;
+    let mut channel_seed: Option<(i64, i32, i32, i32, i32)> = None;
     'find_seed: for uid in &attacker_uids {
         for instance in ctx.managers.buff_mgr.get(*uid) {
             let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == instance.buff_id) else {
@@ -284,12 +284,24 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
                     .get(3)
                     .and_then(|v| v.trim().parse::<i32>().ok())
                     .unwrap_or(0);
-                channel_seed = Some((*uid, instance.buff_id, extra_skill_id, target_type));
+                let emit_effect_id = parts
+                    .get(4)
+                    .and_then(|v| v.trim().parse::<i32>().ok())
+                    .unwrap_or(0);
+                channel_seed = Some((
+                    *uid,
+                    instance.buff_id,
+                    extra_skill_id,
+                    target_type,
+                    emit_effect_id,
+                ));
                 break 'find_seed;
             }
         }
     }
-    let Some((caster_uid, channel_buff_id, extra_skill_id, target_type)) = channel_seed else {
+    let Some((caster_uid, channel_buff_id, extra_skill_id, target_type, emit_effect_id)) =
+        channel_seed
+    else {
         return false;
     };
 
@@ -319,8 +331,23 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
         return false;
     }
 
-    let channel_step =
+    let mut channel_step =
         effect_container_step(caster_uid, caster_uid, channel_buff_id, channel_effects);
+    if channel_buff_id == 31020114 && emit_effect_id > 0 {
+        let bullet_embeds =
+            build_display_only_consume_channel_embeds(ctx, caster_uid, target_uid, emit_effect_id);
+        if !bullet_embeds.is_empty()
+            && let Some(nested) = channel_step
+                .act_effect
+                .iter_mut()
+                .find_map(|effect| effect.fight_step.as_mut())
+        {
+            let insert_at = trigger_embed::find_trigger_insert_index(&nested.act_effect);
+            nested
+                .act_effect
+                .splice(insert_at..insert_at, bullet_embeds);
+        }
+    }
 
     if mgr
         .apply_step_and_maybe_sync(ctx, &channel_step, true)
@@ -356,18 +383,52 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
             .get_mut(idx)
             .and_then(|effect| effect.fight_step.as_mut())
         {
+            let lopera_channel = channel_buff_id == 31020114;
             let mut fallback_nested: Vec<ActEffect> = Vec::new();
             for trigger_step in trigger_steps {
-                let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-                if !trigger_embed::insert_trigger_into_matching_nested(nested, embedded.clone()) {
-                    fallback_nested.push(embedded);
+                for embedded in explode_trigger_step_embeds(trigger_step) {
+                    let duplicate_host = embedded
+                        .fight_step
+                        .as_ref()
+                        .map(|step| {
+                            step.act_type == Some(fight_step::ActType::Skill as i32)
+                                && step.act_id == Some(extra_skill_id)
+                                && step.from_id == Some(caster_uid)
+                        })
+                        .unwrap_or(false);
+                    if duplicate_host {
+                        continue;
+                    }
+                    if lopera_channel {
+                        fallback_nested.push(embedded);
+                        continue;
+                    }
+                    if !trigger_embed::insert_trigger_into_matching_nested(nested, embedded.clone())
+                    {
+                        fallback_nested.push(embedded);
+                    }
                 }
             }
             if !fallback_nested.is_empty() {
-                let insert_at = trigger_embed::find_trigger_insert_index(&nested.act_effect);
-                nested
-                    .act_effect
-                    .splice(insert_at..insert_at, fallback_nested);
+                if lopera_channel {
+                    fallback_nested.sort_by_key(|effect| {
+                        effect
+                            .fight_step
+                            .as_ref()
+                            .map(|step| match step.act_id.unwrap_or(0) {
+                                31020151 => 0,
+                                433711 => 1,
+                                _ => 2,
+                            })
+                            .unwrap_or(3)
+                    });
+                    nested.act_effect.extend(fallback_nested);
+                } else {
+                    let insert_at = trigger_embed::find_trigger_insert_index(&nested.act_effect);
+                    nested
+                        .act_effect
+                        .splice(insert_at..insert_at, fallback_nested);
+                }
             }
         }
     } else {
@@ -387,4 +448,92 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
         vec![wrap_step(host_step)],
     ));
     true
+}
+
+fn build_display_only_consume_channel_embeds(
+    ctx: &mut FightContext<'_>,
+    caster_uid: i64,
+    target_uid: i64,
+    emit_effect_id: i32,
+) -> Vec<ActEffect> {
+    let mut shadow_fight = ctx.fight.clone();
+    let mut shadow_managers = ctx.managers.clone();
+    let mut shadow_mechanics = ctx.mechanics.clone();
+    let mut shadow_ctx = FightContext {
+        fight: &mut shadow_fight,
+        managers: &mut shadow_managers,
+        mechanics: &mut shadow_mechanics,
+    };
+    let phase = PhaseFilter::combat_with(
+        TriggerState::on_active_use_skill(emit_effect_id)
+            .with_buff_mgr(&shadow_ctx.managers.buff_mgr),
+    );
+    let Ok(skill_effects) = execute_passive_skill(
+        &mut shadow_ctx,
+        caster_uid,
+        target_uid,
+        emit_effect_id,
+        &phase,
+    ) else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    for effect in skill_effects {
+        let Some(step) = effect.fight_step.as_ref() else {
+            continue;
+        };
+        if effect.effect_type
+            != Some(crate::state::battle::types::effects::EffectType::FightStep as i32)
+            || step.act_type != Some(fight_step::ActType::Skill as i32)
+            || step.act_id != Some(emit_effect_id)
+        {
+            continue;
+        }
+        out.push(wrap_step(effect_container_step(
+            caster_uid,
+            caster_uid,
+            emit_effect_id,
+            step.act_effect.clone(),
+        )));
+    }
+
+    if let Some(existing) = ctx
+        .managers
+        .buff_mgr
+        .get(caster_uid)
+        .iter()
+        .find(|buff| buff.buff_id == emit_effect_id)
+    {
+        out.push(wrap_step(effect_container_step(
+            caster_uid,
+            caster_uid,
+            emit_effect_id,
+            vec![buff_update(
+                caster_uid,
+                existing.from_uid,
+                emit_effect_id,
+                existing.uid,
+                existing.stacks.max(1),
+                existing.layer,
+            )],
+        )));
+    }
+
+    out
+}
+
+fn explode_trigger_step_embeds(trigger_step: FightStep) -> Vec<ActEffect> {
+    if trigger_step.act_type == Some(fight_step::ActType::Effect as i32) {
+        let exploded: Vec<ActEffect> = trigger_step
+            .act_effect
+            .iter()
+            .filter(|effect| effect.effect_type == Some(162))
+            .cloned()
+            .collect();
+        if !exploded.is_empty() {
+            return exploded;
+        }
+    }
+    vec![trigger_embed::trigger_step_to_embedded_effect(trigger_step)]
 }
