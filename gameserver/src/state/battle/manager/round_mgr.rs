@@ -11,7 +11,10 @@ use super::super::{
     ConditionType,
     buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
     context::{FightContext, RoundContext},
-    fight_step::{FightStepBuilder, split_step_by_effect_limit, wrap_step},
+    fight_step::{
+        FightStepBuilder, effect_container_step, make_skill_step, split_step_by_effect_limit,
+        wrap_step,
+    },
     manager::{
         buff_mgr::{
             DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint, defender_buff_uid_checkpoint,
@@ -39,7 +42,7 @@ use super::super::{
         PhaseFilter,
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
-        condition::parser::parse_condition,
+        condition::{misc::HriEvalGuard, parser::parse_condition},
         euphoria::resolve_with_euphoria,
     },
     steps::{broadcast, ex_gain, step_normalize, trigger_embed},
@@ -69,6 +72,45 @@ struct RoundOpenPhaseData {
 
 static ENTRY_MAX_HP: Lazy<Mutex<HashMap<(i32, i64), i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn condition_has_matching_hero_round_interval(condition: &ConditionType, cur_round: i32) -> bool {
+    match condition {
+        ConditionType::EnterFightAnd(conds) | ConditionType::EnterFightOr(conds) => conds
+            .iter()
+            .any(|cond| condition_has_matching_hero_round_interval(cond, cur_round)),
+        ConditionType::HeroRoundInterval {
+            start_round,
+            period,
+        } => crate::state::battle::skill::condition::misc::hero_round_interval_matches(
+            *start_round,
+            *period,
+            cur_round,
+        ),
+        _ => false,
+    }
+}
+
+fn skill_carries_hero_round_interval(skill_id: i32, cur_round: i32) -> bool {
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let Some(skill_cfg) = config::configs::get().skill_effect.get(effect_id) else {
+        return false;
+    };
+
+    [
+        skill_cfg.condition1.as_str(),
+        skill_cfg.condition2.as_str(),
+        skill_cfg.condition3.as_str(),
+        skill_cfg.condition4.as_str(),
+        skill_cfg.condition5.as_str(),
+        skill_cfg.condition6.as_str(),
+    ]
+    .into_iter()
+    .filter(|raw| !raw.trim().is_empty())
+    .any(|raw| {
+        let (condition, _) = parse_condition(raw.trim());
+        condition_has_matching_hero_round_interval(&condition, cur_round)
+    })
+}
 
 /// Whether `effect` wraps a FightStep whose act_effect is entirely
 /// display-only markers (BuffUpdate/Attr with effect_num=0). Defender idle
@@ -221,6 +263,269 @@ impl FightRoundMgr {
             })
             .map(|idx| idx + 1)
             .unwrap_or_else(|| trigger_embed::find_trigger_insert_index(&host_step.act_effect))
+    }
+
+    fn collect_round_tied_defender_passive_steps(
+        &self,
+        ctx: &mut FightContext<'_>,
+        collected: &CollectedPassives,
+    ) -> Vec<ActEffect> {
+        let cur_round = crate::state::battle::round_state::simulated_round();
+        let passive_phase = PhaseFilter::combat();
+        let mut wrapped = Vec::new();
+
+        for uid in collected.defender_uids() {
+            for skill_id in collected.merged_for(uid) {
+                if !skill_carries_hero_round_interval(skill_id, cur_round) {
+                    continue;
+                }
+                let _guard = HriEvalGuard::enter();
+                let Ok(effects) = execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
+                else {
+                    continue;
+                };
+                if effects.is_empty() {
+                    continue;
+                }
+                wrapped.push(
+                    self.normalize_round_tied_defender_passive_effect(uid, skill_id, effects)
+                        .unwrap_or_else(|| {
+                            wrap_step(make_skill_step(uid, uid, skill_id, 0, Vec::new()))
+                        }),
+                );
+            }
+        }
+
+        wrapped
+    }
+
+    fn normalize_round_tied_defender_passive_effect(
+        &self,
+        uid: i64,
+        skill_id: i32,
+        effects: Vec<ActEffect>,
+    ) -> Option<ActEffect> {
+        let wrapped_idx = effects.iter().position(|effect| {
+            self.wrapped_skill_from_effect(effect)
+                .map(|step| {
+                    step.act_id == Some(skill_id)
+                        && step.from_id == Some(uid)
+                        && step.to_id == Some(uid)
+                })
+                .unwrap_or(false)
+        });
+        if let Some(idx) = wrapped_idx {
+            let mut effect = effects[idx].clone();
+            if let Some(skill_step) = self.wrapped_skill_from_effect_mut(&mut effect) {
+                self.prune_boss_wrapper_targets(skill_step);
+            }
+            return Some(effect);
+        }
+
+        let mut skill_step = make_skill_step(uid, uid, skill_id, 0, effects);
+        self.prune_boss_wrapper_targets(&mut skill_step);
+        Some(wrap_step(skill_step))
+    }
+
+    fn prune_boss_wrapper_targets(&self, step: &mut FightStep) {
+        if step.act_id != Some(530000745) {
+            return;
+        }
+
+        let mut kept_530000721 = false;
+        step.act_effect.retain(|effect| {
+            let is_530000721 = effect
+                .fight_step
+                .as_ref()
+                .map(|child| {
+                    child.act_type == Some(fight_step::ActType::Skill as i32)
+                        && child.act_id == Some(530000721)
+                })
+                .unwrap_or(false);
+            if !is_530000721 {
+                return true;
+            }
+            if kept_530000721 {
+                return false;
+            }
+            kept_530000721 = true;
+            true
+        });
+    }
+
+    fn find_bootstrap_nested_effects_mut<'a>(
+        &self,
+        steps: &'a mut [FightStep],
+    ) -> Option<&'a mut Vec<ActEffect>> {
+        let preferred_step_idx = steps.iter().rposition(|step| {
+            step.act_effect.iter().any(|effect| {
+                self.wrapped_skill_from_effect(effect).map(|s| s.act_id) == Some(Some(530000151))
+            })
+        });
+        let fallback_step_idx = steps.iter().rposition(|step| {
+            step.act_type == Some(fight_step::ActType::Effect as i32)
+                && step.act_id.unwrap_or(0) == 0
+                && step.from_id.unwrap_or(0) == 0
+                && step.to_id.unwrap_or(0) == 0
+        });
+        let step = steps.get_mut(preferred_step_idx.or(fallback_step_idx)?)?;
+        let nested = step.act_effect.iter_mut().find(|effect| {
+            effect.effect_type == Some(162)
+                && effect
+                    .fight_step
+                    .as_ref()
+                    .map(|inner| {
+                        inner.act_type == Some(fight_step::ActType::Effect as i32)
+                            && inner.act_id.unwrap_or(0) == 0
+                    })
+                    .unwrap_or(false)
+        })?;
+        Some(&mut nested.fight_step.as_mut()?.act_effect)
+    }
+
+    fn active_hour_of_repentance_holder(
+        &self,
+        ctx: &FightContext<'_>,
+    ) -> Option<(i64, crate::state::battle::manager::buff_mgr::BuffInstance)> {
+        let attacker = ctx.fight.attacker.as_ref()?;
+        attacker
+            .entitys
+            .iter()
+            .chain(attacker.sub_entitys.iter())
+            .filter(|entity| entity.current_hp.unwrap_or(0) > 0)
+            .filter_map(|entity| entity.uid)
+            .find_map(|uid| {
+                let has_channel_state = ctx.managers.buff_mgr.has(uid, 31260131);
+                let channel_buff = ctx
+                    .managers
+                    .buff_mgr
+                    .get(uid)
+                    .iter()
+                    .find(|buff| {
+                        buff.buff_id == 31260151 && buff.layer.max(buff.stacks).max(0) >= 1
+                    })
+                    .cloned();
+                if has_channel_state {
+                    channel_buff.map(|buff| (uid, buff))
+                } else {
+                    None
+                }
+            })
+    }
+
+    fn sentinel_insert_index(&self, effects: &[ActEffect]) -> usize {
+        effects
+            .iter()
+            .rposition(|effect| effect.effect_type == Some(EffectType::BuffUpdate as i32))
+            .unwrap_or(effects.len())
+    }
+
+    fn consume_hour_of_repentance_layer(
+        &self,
+        ctx: &mut FightContext<'_>,
+        holder_uid: i64,
+        buff: &crate::state::battle::manager::buff_mgr::BuffInstance,
+    ) {
+        let new_layer = if buff.layer > 0 {
+            buff.layer.saturating_sub(1)
+        } else {
+            0
+        };
+        let new_stacks = if buff.layer > 0 {
+            buff.stacks
+        } else {
+            buff.stacks.saturating_sub(1)
+        };
+        ctx.managers.buff_mgr.add_with_uid(
+            holder_uid,
+            buff.buff_id,
+            buff.from_uid,
+            new_stacks,
+            new_layer,
+            buff.uid,
+        );
+    }
+
+    fn inject_sentinel_reactives_into_boss_subtree(
+        &self,
+        ctx: &mut FightContext<'_>,
+        collected: &CollectedPassives,
+        boss_subtree: &mut Vec<ActEffect>,
+    ) {
+        const SENTINEL_HOST_SKILLS: [i32; 2] = [530000721, 530000752];
+        const SENTINEL_EFFECT_HOST_ID: i32 = 31260131;
+        const SENTINEL_SKILL_ID: i32 = 31260171;
+
+        for effect in boss_subtree.iter_mut() {
+            let Some(step) = effect.fight_step.as_mut() else {
+                continue;
+            };
+            self.inject_sentinel_reactives_into_boss_subtree(ctx, collected, &mut step.act_effect);
+
+            if effect.effect_type != Some(162)
+                || step.act_type != Some(fight_step::ActType::Skill as i32)
+                || step.from_id.unwrap_or(0) >= 0
+                || !SENTINEL_HOST_SKILLS.contains(&step.act_id.unwrap_or(0))
+            {
+                continue;
+            }
+
+            let Some((holder_uid, channel_buff)) = self.active_hour_of_repentance_holder(ctx)
+            else {
+                continue;
+            };
+            let enemy_caster_uid = step.from_id.unwrap_or(0);
+            let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
+            let Ok(skill_effects) = execute_passive_skill(
+                ctx,
+                holder_uid,
+                enemy_caster_uid,
+                SENTINEL_SKILL_ID,
+                &PhaseFilter::combat(),
+            ) else {
+                continue;
+            };
+            if skill_effects.is_empty() {
+                continue;
+            }
+            let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
+            let runtime_deleted_buff_ids =
+                self.deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
+
+            let mut sentinel_step = effect_container_step(
+                holder_uid,
+                enemy_caster_uid,
+                SENTINEL_EFFECT_HOST_ID,
+                skill_effects,
+            );
+            let expanded_steps = self.expand_trigger_chain(
+                ctx,
+                collected,
+                &sentinel_step,
+                &runtime_deleted_buff_ids,
+            );
+            let mut fallback_nested: Vec<ActEffect> = Vec::new();
+            for trigger_step in expanded_steps.into_iter().skip(1) {
+                let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+                if !trigger_embed::insert_trigger_into_matching_nested(
+                    &mut sentinel_step,
+                    embedded.clone(),
+                ) {
+                    fallback_nested.push(embedded);
+                }
+            }
+            if !fallback_nested.is_empty() {
+                let insert_at = trigger_embed::find_trigger_insert_index(&sentinel_step.act_effect);
+                sentinel_step
+                    .act_effect
+                    .splice(insert_at..insert_at, fallback_nested);
+            }
+
+            let sentinel_wrapper = wrap_step(sentinel_step);
+            let insert_at = self.sentinel_insert_index(&step.act_effect);
+            step.act_effect.insert(insert_at, sentinel_wrapper);
+            self.consume_hour_of_repentance_layer(ctx, holder_uid, &channel_buff);
+        }
     }
 
     fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep> {
@@ -1470,6 +1775,7 @@ impl FightRoundMgr {
             steps,
         )?;
         steps.extend(build_pre_enemy_transition_steps(deck_num));
+        let defender_bootstrap_start = steps.len();
         self.apply_passive_phase(
             ctx,
             collected,
@@ -1482,6 +1788,14 @@ impl FightRoundMgr {
             true,
             steps,
         )?;
+        let boss_wrappers = self.collect_round_tied_defender_passive_steps(ctx, collected);
+        if !boss_wrappers.is_empty()
+            && let Some(boss_subtree) =
+                self.find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
+        {
+            boss_subtree.extend(boss_wrappers);
+            self.inject_sentinel_reactives_into_boss_subtree(ctx, collected, boss_subtree);
+        }
 
         reset_buff_uid_to(defender_uid_checkpoint);
         self.phase_enemy_actions(rng, ctx, card_mgr, state, collected, steps)

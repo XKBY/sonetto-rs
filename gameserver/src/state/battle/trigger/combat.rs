@@ -429,6 +429,15 @@ pub(crate) fn run_combat_passives_pass(
             if is_enter_fight_only_passive(skill_id) {
                 continue;
             }
+            if skill_id == 31260181
+                && ctx.managers.buff_mgr.has(uid, 31260131)
+                && event
+                    .skill_used_by(uid)
+                    .map(|(sid, _, _)| sid == 31260121)
+                    .unwrap_or(false)
+            {
+                continue;
+            }
             let is_buff_granted_has_buff_skill = buff_granted_has_buff_set.contains(&skill_id);
             if !is_buff_granted_has_buff_skill
                 && !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass)

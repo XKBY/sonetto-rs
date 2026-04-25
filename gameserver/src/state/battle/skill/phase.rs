@@ -215,6 +215,7 @@ impl PhaseFilter {
             | ConditionType::CareerCheck { .. }
             | ConditionType::TeammateAlive { .. }
             | ConditionType::BattleTagNum { .. }
+            | ConditionType::HeroRoundInterval { .. }
             | ConditionType::TargetCount { .. } => true,
 
             // Bloodpool state conditions — evaluated against snapshot when provided,

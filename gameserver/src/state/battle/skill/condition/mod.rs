@@ -5,7 +5,7 @@ mod combat;
 mod enter_fight;
 mod ex_point;
 mod life;
-mod misc;
+pub mod misc;
 
 pub mod parser;
 

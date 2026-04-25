@@ -1,10 +1,39 @@
 use super::super::super::ConditionType;
 use crate::state::battle::{
     manager::buff_mgr::BuffMgr,
+    round_state::simulated_round,
     skill::targets::{alive_allies, alive_enemies, get_entity},
     utils::check_career_restraint,
 };
 use sonettobuf::Fight;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static ALLOW_HRI_EVAL: AtomicBool = AtomicBool::new(false);
+
+pub struct HriEvalGuard;
+
+impl HriEvalGuard {
+    pub fn enter() -> Self {
+        ALLOW_HRI_EVAL.store(true, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for HriEvalGuard {
+    fn drop(&mut self) {
+        ALLOW_HRI_EVAL.store(false, Ordering::Relaxed);
+    }
+}
+
+pub fn hero_round_interval_matches(start_round: i32, period: i32, cur_round: i32) -> bool {
+    if start_round <= 0 || period <= 0 || cur_round < start_round {
+        return false;
+    }
+    if start_round == period {
+        return cur_round == start_round;
+    }
+    (cur_round - start_round) % period == 0
+}
 
 fn deterministic_roll_permille(fight: &Fight, caster_uid: i64, target_uid: i64, salt: i32) -> i32 {
     let seed = fight.cur_round.unwrap_or(1) as i64
@@ -96,13 +125,20 @@ pub fn check(
         ConditionType::Random { permille } => {
             Some(deterministic_roll_permille(fight, caster_uid, target_uid, *permille) < *permille)
         }
-        // HeroRoundInterval is intentionally NOT evaluated by the generic
-        // condition pipeline. Round-tied passives (boss wrappers like
-        // `530000745`) are dispatched explicitly by the boss-wrapper
-        // passive sweep — see `eval_hero_round_interval` below — so they
-        // emit inside the right host structure rather than as top-level
-        // EFFECT steps from `apply_passive_phase`. Falling through to
-        // `combat::check` keeps the existing "Some(false)" gate in place.
+        ConditionType::HeroRoundInterval {
+            start_round,
+            period,
+        } => {
+            if !ALLOW_HRI_EVAL.load(Ordering::Relaxed) {
+                Some(false)
+            } else {
+                Some(hero_round_interval_matches(
+                    *start_round,
+                    *period,
+                    simulated_round(),
+                ))
+            }
+        }
         // combat only
         ConditionType::HurtNumType { .. }
         | ConditionType::ExSkillLevel { .. }

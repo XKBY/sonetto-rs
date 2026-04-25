@@ -2,6 +2,7 @@ use crate::state::battle::context::RoundContext;
 use crate::state::battle::manager::{
     card_mgr::FightCardMgr, fight_data_mgr::FightDataMgr, round_mgr::FightRoundMgr,
 };
+use crate::state::battle::round_state::set_simulated_round;
 use anyhow::Result;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -12,6 +13,7 @@ pub struct BattleSimulator {
     data: FightDataMgr,
     round_mgr: FightRoundMgr,
     card_mgr: FightCardMgr,
+    rounds_processed: i32,
 }
 
 impl BattleSimulator {
@@ -38,6 +40,7 @@ impl BattleSimulator {
             data,
             round_mgr: FightRoundMgr::new(),
             card_mgr: FightCardMgr::new(),
+            rounds_processed: 0,
         }
     }
 
@@ -48,6 +51,8 @@ impl BattleSimulator {
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
     ) -> Result<FightRound> {
+        self.rounds_processed += 1;
+        set_simulated_round(self.rounds_processed);
         let mut fight_ctx = self.data.ctx();
         let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
         let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);

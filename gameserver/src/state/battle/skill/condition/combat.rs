@@ -49,10 +49,6 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
 pub fn check(condition: &ConditionType) -> Option<bool> {
     // Event-driven conditions are now handled by PhaseFilter::check_combat via CombatEvent.
     // This function only handles conditions that are unconditionally false in combat.
-    // HeroRoundInterval stays Some(false) here so the generic passive sweep
-    // doesn't accidentally fire round-tied boss wrappers at top level — the
-    // dedicated boss-wrapper sweep evaluates it directly via
-    // `eval_hero_round_interval`.
     match condition {
         ConditionType::UseExSkill
         | ConditionType::UseSkillId
@@ -61,7 +57,6 @@ pub fn check(condition: &ConditionType) -> Option<bool> {
         | ConditionType::BloodPool
         | ConditionType::CanUseSkill
         | ConditionType::PowerCompare
-        | ConditionType::HeroRoundInterval { .. }
         | ConditionType::Dead
         | ConditionType::NoActRound
         | ConditionType::TeammateUseExSkill => Some(false),

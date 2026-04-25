@@ -157,7 +157,12 @@ fn collect_add_passive_skill_ids(
             continue;
         }
         for_each_add_passive_skill_id_for_entity(fight, host_caster_uid, buff_id, |skill_id| {
+            let is_hour_of_repentance_self_fire =
+                skill_id == 31260181 && matches!(buff_id, 31260151 | 31260201);
             if skill_id != skip_skill_id && !out.contains(&skill_id) {
+                if is_hour_of_repentance_self_fire {
+                    return;
+                }
                 out.push(skill_id);
             }
         });
@@ -188,7 +193,12 @@ fn extend_with_active_add_passive_skill_ids(
             host_caster_uid,
             instance.buff_id,
             |skill_id| {
+                let is_hour_of_repentance_self_fire =
+                    skill_id == 31260181 && matches!(instance.buff_id, 31260151 | 31260201);
                 if skill_id != skip_skill_id && !out.contains(&skill_id) {
+                    if is_hour_of_repentance_self_fire {
+                        return;
+                    }
                     out.push(skill_id);
                 }
             },
