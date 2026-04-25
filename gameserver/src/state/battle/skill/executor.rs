@@ -104,6 +104,71 @@ impl Drop for ReentryGuard {
     }
 }
 
+fn merge_duplicate_pickles_child_steps(effect_steps: &mut Vec<ActEffect>, child_act_id: i32) {
+    let mut first_idx = None;
+    let mut duplicate_indices = Vec::new();
+
+    for (idx, effect) in effect_steps.iter().enumerate() {
+        let act_id = effect
+            .fight_step
+            .as_ref()
+            .and_then(|step| step.act_id)
+            .unwrap_or_default();
+        if act_id != child_act_id {
+            continue;
+        }
+        if first_idx.is_none() {
+            first_idx = Some(idx);
+        } else {
+            duplicate_indices.push(idx);
+        }
+    }
+
+    let Some(first_idx) = first_idx else {
+        return;
+    };
+    if duplicate_indices.is_empty() {
+        return;
+    }
+
+    let mut merged_nested = Vec::new();
+    for &idx in &duplicate_indices {
+        if let Some(step) = effect_steps[idx].fight_step.as_ref() {
+            merged_nested.extend(step.act_effect.clone());
+        }
+    }
+
+    if let Some(step) = effect_steps[first_idx].fight_step.as_mut() {
+        step.act_effect.extend(merged_nested);
+    }
+
+    for &idx in duplicate_indices.iter().rev() {
+        effect_steps.remove(idx);
+    }
+}
+
+fn coalesce_pickles_30630151_wrappers(skill_id: i32, effect_steps: &mut Vec<ActEffect>) {
+    if skill_id != 30630151 {
+        return;
+    }
+
+    let count_30630122 = effect_steps
+        .iter()
+        .filter(|effect| effect.fight_step.as_ref().and_then(|step| step.act_id) == Some(30630122))
+        .count();
+    let count_30630161 = effect_steps
+        .iter()
+        .filter(|effect| effect.fight_step.as_ref().and_then(|step| step.act_id) == Some(30630161))
+        .count();
+
+    if count_30630122 < 2 || count_30630161 < 2 {
+        return;
+    }
+
+    merge_duplicate_pickles_child_steps(effect_steps, 30630122);
+    merge_duplicate_pickles_child_steps(effect_steps, 30630161);
+}
+
 impl SkillExecutor {
     pub fn new() -> Self {
         Self {
@@ -524,6 +589,7 @@ impl SkillExecutor {
             }
             normalized_effects.push(effect);
         }
+        coalesce_pickles_30630151_wrappers(skill_id, &mut normalized_effects);
         all_effects = normalized_effects;
 
         if all_effects.is_empty()
