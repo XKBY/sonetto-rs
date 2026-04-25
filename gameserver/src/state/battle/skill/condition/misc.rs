@@ -96,6 +96,13 @@ pub fn check(
         ConditionType::Random { permille } => {
             Some(deterministic_roll_permille(fight, caster_uid, target_uid, *permille) < *permille)
         }
+        // HeroRoundInterval is intentionally NOT evaluated by the generic
+        // condition pipeline. Round-tied passives (boss wrappers like
+        // `530000745`) are dispatched explicitly by the boss-wrapper
+        // passive sweep — see `eval_hero_round_interval` below — so they
+        // emit inside the right host structure rather than as top-level
+        // EFFECT steps from `apply_passive_phase`. Falling through to
+        // `combat::check` keeps the existing "Some(false)" gate in place.
         // combat only
         ConditionType::HurtNumType { .. }
         | ConditionType::ExSkillLevel { .. }

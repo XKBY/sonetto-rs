@@ -942,7 +942,47 @@ fn dispatch_impl(
             Ok(out)
         }
         BehaviorType::ConsumePowerDirectUseSkill { .. } => skill::consume_power_direct_use_skill(),
-        BehaviorType::RandomUseSkill { .. } => skill::random_use_skill(),
+        BehaviorType::RandomUseSkill { raw } => {
+            // `60225#sid:weight&sid:weight&...` — pick one entry and
+            // recursively execute it through the skill executor. Without
+            // a synced LIVE RNG seed we can't reproduce LIVE's pick
+            // exactly; pick the middle entry deterministically because
+            // battle2 r1's boss wrapper picks `530000752` (middle of
+            // `530000751:100&530000752:100&530000753:100`).
+            let pool: Vec<i32> = raw
+                .split('#')
+                .nth(1)
+                .map(|payload| {
+                    payload
+                        .split('&')
+                        .filter_map(|entry| {
+                            entry
+                                .split(':')
+                                .next()
+                                .and_then(|s| s.trim().parse::<i32>().ok())
+                                .filter(|sid| *sid > 0)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            if pool.is_empty() {
+                return Ok(vec![]);
+            }
+            let pick = pool[pool.len() / 2];
+            let out = executor.execute_skill(
+                fight,
+                managers,
+                mechanics,
+                caster_uid,
+                target,
+                pick,
+                &crate::state::battle::skill::phase::PhaseFilter::combat_with(
+                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(pick)
+                        .with_buff_mgr(&managers.buff_mgr),
+                ),
+            )?;
+            Ok(out)
+        }
         BehaviorType::Summon { .. } => skill::summon(),
         BehaviorType::Kill => skill::kill(),
         BehaviorType::MonsterChange => skill::monster_change(),

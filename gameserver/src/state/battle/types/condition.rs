@@ -33,7 +33,7 @@ pub enum ConditionType {
     TeamInjuryCountRound,
     TeammateInjuryCount { threshold: i32 },
     PowerCompare,
-    HeroRoundInterval,
+    HeroRoundInterval { start_round: i32, period: i32 },
     Dead,
     MultiHpXIn,
     TeammateAlive { expect_dead: bool },

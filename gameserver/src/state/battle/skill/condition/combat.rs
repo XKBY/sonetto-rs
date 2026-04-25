@@ -20,7 +20,14 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
             threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1),
         }),
         "PowerCompare" => Some(ConditionType::PowerCompare),
-        "HeroRoundInterval" => Some(ConditionType::HeroRoundInterval),
+        "HeroRoundInterval" => Some(ConditionType::HeroRoundInterval {
+            // `45104#start_round#period` — empirical: boss/passive rows like
+            // `45104#1#1`, `2#2`, `3#3` fire only on the matching round in
+            // LIVE replays. Evaluator treats matched-pair (start==period)
+            // as "fire on round start_round only".
+            start_round: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            period: parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0),
+        }),
         "Dead" => Some(ConditionType::Dead),
         "ActiveUseSkill" => Some(ConditionType::ActiveUseSkill),
         "ActiveUseSkillId" => Some(ConditionType::ActiveUseSkillId {
@@ -42,6 +49,10 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
 pub fn check(condition: &ConditionType) -> Option<bool> {
     // Event-driven conditions are now handled by PhaseFilter::check_combat via CombatEvent.
     // This function only handles conditions that are unconditionally false in combat.
+    // HeroRoundInterval stays Some(false) here so the generic passive sweep
+    // doesn't accidentally fire round-tied boss wrappers at top level — the
+    // dedicated boss-wrapper sweep evaluates it directly via
+    // `eval_hero_round_interval`.
     match condition {
         ConditionType::UseExSkill
         | ConditionType::UseSkillId
@@ -50,7 +61,7 @@ pub fn check(condition: &ConditionType) -> Option<bool> {
         | ConditionType::BloodPool
         | ConditionType::CanUseSkill
         | ConditionType::PowerCompare
-        | ConditionType::HeroRoundInterval
+        | ConditionType::HeroRoundInterval { .. }
         | ConditionType::Dead
         | ConditionType::NoActRound
         | ConditionType::TeammateUseExSkill => Some(false),
