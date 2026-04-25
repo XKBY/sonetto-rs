@@ -13,3 +13,8 @@ assets/*
 /docs/
 /.claude/
 CLAUDE.md
+# Local research tooling — Python scrapers + their generated data.
+# Kept out of git so the repo stays focused on the Rust engine.
+/scripts/
+# Local findings / scratch markdown produced during investigations.
+/_*_findings.md
