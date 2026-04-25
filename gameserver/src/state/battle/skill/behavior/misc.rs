@@ -28,8 +28,16 @@ pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Resul
         });
 
         if has_cure_up_by_lost_hp {
+            // LIVE emits paired (BuffAdd, CureUpByLostHp) packets per ally
+            // when the magic circle's selfBuff carries a CureUpByLostHp
+            // feature — see Semmelweis circle 100051 / buff 308801312.
             for ally_uid in alive_allies(fight, caster_uid) {
                 out.push(buff_add(caster_uid, ally_uid, buff_id, 1));
+                out.push(
+                    ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
+                        .effect_num(0)
+                        .build(),
+                );
             }
         } else {
             out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
