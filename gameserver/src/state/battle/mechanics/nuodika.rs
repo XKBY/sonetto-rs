@@ -15,7 +15,9 @@ use crate::state::battle::{
         round_mgr::{FightRoundMgr, lookup_entry_max_hp},
     },
     mechanics::{injury_counter, magic_circle},
-    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
+    passives::{
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
+    },
     round::step_shape::build_effect_step,
     skill::classification::has_injury_reactive_condition,
     skill::targets,

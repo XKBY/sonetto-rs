@@ -320,7 +320,8 @@ enum TransitionHost {
 }
 
 fn find_transition_host_index(out: &[FightStep], host_act_id: i32) -> Option<usize> {
-    out.iter().position(|step| transition_host_act_id(step) == Some(host_act_id))
+    out.iter()
+        .position(|step| transition_host_act_id(step) == Some(host_act_id))
 }
 
 fn transition_host_act_id(step: &FightStep) -> Option<i32> {

@@ -332,9 +332,8 @@ fn collect_damage_uids(
             // cost) is still tracked in `damaged` for injury counts, but
             // excluded from the BeAttacked set so reactive passives don't
             // fire on internal HP drops.
-            let is_cross_side = caster_uid != 0
-                && target != 0
-                && caster_uid.signum() != target.signum();
+            let is_cross_side =
+                caster_uid != 0 && target != 0 && caster_uid.signum() != target.signum();
             if is_cross_side && !cross_side_damaged.contains(&target) {
                 cross_side_damaged.push(target);
             }

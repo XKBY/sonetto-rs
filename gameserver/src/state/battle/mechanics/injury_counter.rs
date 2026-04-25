@@ -1,5 +1,7 @@
 use crate::state::battle::{
-    fight_step::ActEffectBuilder, skill::cache::resolve_skill_effect_id, types::effects::EffectType,
+    fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
+    skill::{cache::resolve_skill_effect_id, get_entity},
+    types::effects::EffectType,
 };
 use once_cell::sync::Lazy;
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
@@ -12,6 +14,7 @@ static ROUND_INJURY_COUNT: Lazy<Mutex<HashMap<(i32, i32), i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 static ROUND_INJURY_INDEX: Lazy<Mutex<HashMap<(i32, i32), i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
+const CARD_HOST_MARKER_SKILL_IDS: [i32; 3] = [308801821, 308802011, 308801611];
 
 pub(crate) fn increment_round_injury_count(battle_id: i32, team_type: i32) {
     if battle_id == 0 || team_type <= 0 {
@@ -390,6 +393,68 @@ pub(crate) fn collect_dead_effects_after_damage(
         .collect()
 }
 
+pub(crate) fn find_card_host_injury_marker_params(
+    fight: &Fight,
+    host_from_uid: i64,
+) -> Option<(i64, i32)> {
+    let battle_id = fight.battle_id.unwrap_or(0);
+    if battle_id == 0 || host_from_uid == 0 {
+        return None;
+    }
+    let team_type = get_entity(fight, host_from_uid)?.team_type?;
+    let injury_count = get_round_injury_count(battle_id, team_type).max(0);
+    if injury_count <= 0 {
+        return None;
+    }
+    Some((
+        find_round_injury_holder_uid(fight, team_type)?,
+        injury_count,
+    ))
+}
+
+pub(crate) fn inject_card_host_injury_markers(
+    host_step: &mut FightStep,
+    fight: &Fight,
+    holder_uid: i64,
+    injury_count: i32,
+) {
+    if injury_count <= 0 || holder_uid == 0 {
+        return;
+    }
+    let Some(caster_team_type) = host_step
+        .from_id
+        .and_then(|uid| get_entity(fight, uid))
+        .and_then(|entity| entity.team_type)
+    else {
+        return;
+    };
+
+    let mut next = Vec::with_capacity(host_step.act_effect.len() + 4);
+    for effect in std::mem::take(&mut host_step.act_effect) {
+        if let Some(injured_uid) = flat_host_injury_marker_uid(fight, &effect, caster_team_type) {
+            next.push(build_card_host_injury_marker(
+                injured_uid,
+                holder_uid,
+                injury_count,
+            ));
+        }
+
+        let nested_marker_uid = effect
+            .fight_step
+            .as_ref()
+            .and_then(|step| nested_host_injury_marker_uid(fight, step, caster_team_type));
+        next.push(effect);
+        if let Some(injured_uid) = nested_marker_uid {
+            next.push(build_card_host_injury_marker(
+                injured_uid,
+                holder_uid,
+                injury_count,
+            ));
+        }
+    }
+    host_step.act_effect = next;
+}
+
 pub(crate) fn is_damage_effect_type(effect_type: i32) -> bool {
     matches!(
         EffectType::from(effect_type),
@@ -409,4 +474,164 @@ pub(crate) fn is_damage_effect_type(effect_type: i32) -> bool {
             | EffectType::ShareHurt
             | EffectType::EnchantDepresseDamage
     )
+}
+
+fn find_round_injury_holder_uid(fight: &Fight, team_type: i32) -> Option<i64> {
+    fight
+        .attacker
+        .as_ref()
+        .into_iter()
+        .flat_map(|side| side.entitys.iter().chain(side.sub_entitys.iter()))
+        .chain(
+            fight
+                .defender
+                .as_ref()
+                .into_iter()
+                .flat_map(|side| side.entitys.iter().chain(side.sub_entitys.iter())),
+        )
+        .filter(|entity| entity.current_hp.unwrap_or(0) > 0)
+        .filter(|entity| entity.team_type == Some(team_type))
+        .find_map(|entity| {
+            let uid = entity.uid?;
+            has_round_injury_counter_passive(fight, uid).then_some(uid)
+        })
+}
+
+fn has_round_injury_counter_passive(fight: &Fight, holder_uid: i64) -> bool {
+    let cfg = config::configs::get();
+    let Some(holder) = get_entity(fight, holder_uid) else {
+        return false;
+    };
+    for passive_skill_id in &holder.passive_skill {
+        if *passive_skill_id <= 0 {
+            continue;
+        }
+        let effect_id = resolve_skill_effect_id(*passive_skill_id);
+        let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == effect_id) else {
+            continue;
+        };
+        let conditions = [
+            skill.condition1.as_str(),
+            skill.condition2.as_str(),
+            skill.condition3.as_str(),
+            skill.condition4.as_str(),
+            skill.condition5.as_str(),
+            skill.condition6.as_str(),
+            skill.condition7.as_str(),
+            skill.condition8.as_str(),
+            skill.condition9.as_str(),
+            skill.condition10.as_str(),
+        ];
+        let behaviors = [
+            skill.behavior1.as_str(),
+            skill.behavior2.as_str(),
+            skill.behavior3.as_str(),
+            skill.behavior4.as_str(),
+            skill.behavior5.as_str(),
+            skill.behavior6.as_str(),
+            skill.behavior7.as_str(),
+            skill.behavior8.as_str(),
+            skill.behavior9.as_str(),
+            skill.behavior10.as_str(),
+        ];
+        for (raw_condition, raw_behavior) in conditions.into_iter().zip(behaviors) {
+            let rate = raw_behavior
+                .trim()
+                .strip_prefix("10001#")
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            if rate <= 0 || raw_condition.trim().is_empty() {
+                continue;
+            }
+            for segment in raw_condition.split('&') {
+                let parts: Vec<&str> = segment.split('#').collect();
+                let Some(cond_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
+                    continue;
+                };
+                let cond_type = cfg
+                    .skill_behavior_condition
+                    .iter()
+                    .find(|c| c.id == cond_id)
+                    .map(|c| c.r#type.as_str())
+                    .unwrap_or("");
+                if cond_type == "TeamInjuryCountRound" {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn build_card_host_injury_marker(
+    injured_uid: i64,
+    holder_uid: i64,
+    injury_count: i32,
+) -> ActEffect {
+    wrap_step(effect_container_step(
+        injured_uid,
+        injured_uid,
+        0,
+        vec![
+            ActEffectBuilder::new(EffectType::FightCounter as i32, holder_uid)
+                .effect_num(injury_count)
+                .build(),
+        ],
+    ))
+}
+
+fn flat_host_injury_marker_uid(
+    fight: &Fight,
+    effect: &ActEffect,
+    caster_team_type: i32,
+) -> Option<i64> {
+    if effect.fight_step.is_some() || !is_damage_effect_type(effect.effect_type.unwrap_or(0)) {
+        return None;
+    }
+    let target_uid = effect.target_id?;
+    if get_entity(fight, target_uid).and_then(|entity| entity.team_type) != Some(caster_team_type) {
+        return None;
+    }
+    Some(target_uid)
+}
+
+fn nested_host_injury_marker_uid(
+    fight: &Fight,
+    step: &FightStep,
+    caster_team_type: i32,
+) -> Option<i64> {
+    if step.act_type != Some(fight_step::ActType::Skill as i32) {
+        return None;
+    }
+    let act_id = step.act_id.unwrap_or(0);
+    if !CARD_HOST_MARKER_SKILL_IDS.contains(&act_id) {
+        return None;
+    }
+    let injured_uid = step.from_id?;
+    if get_entity(fight, injured_uid).and_then(|entity| entity.team_type) != Some(caster_team_type)
+    {
+        return None;
+    }
+    step_contains_team_damage(fight, &step.act_effect, caster_team_type).then_some(injured_uid)
+}
+
+fn step_contains_team_damage(fight: &Fight, effects: &[ActEffect], team_type: i32) -> bool {
+    for effect in effects {
+        if let Some(step) = effect.fight_step.as_ref() {
+            if step_contains_team_damage(fight, &step.act_effect, team_type) {
+                return true;
+            }
+            continue;
+        }
+        let Some(target_uid) = effect.target_id else {
+            continue;
+        };
+        if !is_damage_effect_type(effect.effect_type.unwrap_or(0)) {
+            continue;
+        }
+        if get_entity(fight, target_uid).and_then(|entity| entity.team_type) == Some(team_type) {
+            return true;
+        }
+    }
+    false
 }

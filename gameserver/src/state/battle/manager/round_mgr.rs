@@ -1211,6 +1211,19 @@ impl FightRoundMgr {
             }
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
+            if let Some((holder_uid, injury_count)) =
+                injury_counter::find_card_host_injury_marker_params(
+                    ctx.fight,
+                    host_step.from_id.unwrap_or(0),
+                )
+            {
+                injury_counter::inject_card_host_injury_markers(
+                    &mut host_step,
+                    ctx.fight,
+                    holder_uid,
+                    injury_count,
+                );
+            }
             steps.push(host_step);
             state.is_finish = self.check_battle_end(ctx.fight);
             if state.is_finish {

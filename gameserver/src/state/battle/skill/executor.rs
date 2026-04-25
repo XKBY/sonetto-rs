@@ -538,9 +538,7 @@ impl SkillExecutor {
             && all_effects.iter().all(|e| {
                 e.effect_type == Some(EffectType::Attr as i32) && e.effect_num.unwrap_or(0) == 0
             });
-        if all_attr_only
-            && self.pending_monitor_triggers.is_empty()
-            && self.side_effects.is_empty()
+        if all_attr_only && self.pending_monitor_triggers.is_empty() && self.side_effects.is_empty()
         {
             return Ok(vec![]);
         }

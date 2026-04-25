@@ -5,7 +5,9 @@ use crate::state::battle::fight_step::{ActEffectBuilder, effect_container_step, 
 use crate::state::battle::{
     context::FightContext,
     mechanics::{injury_counter, magic_circle},
-    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
+    passives::{
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
+    },
     round::step_shape::build_effect_step,
     skill::classification::has_injury_reactive_condition,
     skill::get_entity,
@@ -245,9 +247,7 @@ pub(crate) fn build_round_end_lost_hp_count_add_buff_step(
     }
 }
 
-fn direct_lost_hp_count_add_buff_child(
-    buff_id: i32,
-) -> Option<i32> {
+fn direct_lost_hp_count_add_buff_child(buff_id: i32) -> Option<i32> {
     let cfg = config::configs::get();
     let buff = cfg.skill_buff.iter().find(|row| row.id == buff_id)?;
     for entry in buff.features.split('|') {
@@ -259,7 +259,12 @@ fn direct_lost_hp_count_add_buff_child(
             .find(|act| act.id == act_id)
             .map(|act| act.r#type.as_str())?;
         if act_type == "LostHpCountAddBuff" {
-            return parts.next()?.trim().parse::<i32>().ok().filter(|id| *id > 0);
+            return parts
+                .next()?
+                .trim()
+                .parse::<i32>()
+                .ok()
+                .filter(|id| *id > 0);
         }
     }
     None
