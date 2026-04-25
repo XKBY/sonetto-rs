@@ -15,7 +15,9 @@ use super::super::{
     skill::{
         PhaseFilter, SkillExecutor, TriggerState,
         cache::{SKILL_CACHE, resolve_skill_effect_id},
-        collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap,
+        collect_precast_skills_for_caster,
+        euphoria::{resolve_skill_effect_id_for_entity, resolve_with_euphoria},
+        infer_precast_per_decr_seed_cap,
     },
     trigger::combat::{TriggerEvent, skill_should_fire},
     types::{behavior::BehaviorType, effects::EffectType},
@@ -150,6 +152,8 @@ impl FightCardMgr {
                 skill_id
             }
         };
+        let resolved_skill_id =
+            resolve_with_euphoria(ctx.fight, exec_caster_uid, resolved_skill_id);
         let target_uid = if raw_target_uid > 0 {
             raw_target_uid
         } else {
@@ -362,17 +366,22 @@ impl FightCardMgr {
                         t => t,
                     };
                     preview_managers.buff_mgr.clear_step_deleted_buff_ids();
+                    let resolved_skill_id =
+                        resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
                     let per_behavior = self.skill_executor.execute_skill(
                         &preview_fight,
                         &mut preview_managers,
                         &mut preview_mechanics,
                         caster_uid,
                         target_uid,
-                        skill_id,
+                        resolved_skill_id,
                         &PhaseFilter::combat(),
                     )?;
-                    let mut op_effects =
-                        normalize_skill_effects_for_operation(per_behavior, caster_uid, skill_id);
+                    let mut op_effects = normalize_skill_effects_for_operation(
+                        per_behavior,
+                        caster_uid,
+                        resolved_skill_id,
+                    );
                     clamp_ai_add_ex_with_max_effects(
                         &preview_fight,
                         &preview_managers,
@@ -382,7 +391,8 @@ impl FightCardMgr {
                     if op_effects.is_empty() {
                         continue;
                     }
-                    let step = make_skill_step(caster_uid, target_uid, skill_id, 0, op_effects);
+                    let step =
+                        make_skill_step(caster_uid, target_uid, resolved_skill_id, 0, op_effects);
                     advance_ai_preview_after_cast(
                         &mut preview_fight,
                         &mut preview_managers,
@@ -543,17 +553,18 @@ impl FightCardMgr {
                 }
             };
 
+            let resolved_skill_id = resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
             let per_behavior = self.skill_executor.execute_skill(
                 &preview_fight,
                 &mut preview_managers,
                 &mut preview_mechanics,
                 caster_uid,
                 target_uid,
-                skill_id,
+                resolved_skill_id,
                 &PhaseFilter::combat(),
             )?;
             let mut op_effects =
-                normalize_skill_effects_for_operation(per_behavior, caster_uid, skill_id);
+                normalize_skill_effects_for_operation(per_behavior, caster_uid, resolved_skill_id);
             clamp_ai_add_ex_with_max_effects(
                 &preview_fight,
                 &preview_managers,
@@ -564,7 +575,7 @@ impl FightCardMgr {
                 continue;
             }
 
-            let step = make_skill_step(caster_uid, target_uid, skill_id, 0, op_effects);
+            let step = make_skill_step(caster_uid, target_uid, resolved_skill_id, 0, op_effects);
             advance_ai_preview_after_cast(
                 &mut preview_fight,
                 &mut preview_managers,
@@ -630,7 +641,8 @@ impl FightCardMgr {
 
         let mut out = Vec::new();
         let prep_skill_ids = collect_precast_skills_for_caster(ctx.fight, ctx.managers, caster_uid);
-        let seeded_cap = infer_precast_per_decr_seed_cap(ctx.managers, caster_uid, &prep_skill_ids);
+        let seeded_cap =
+            infer_precast_per_decr_seed_cap(ctx.fight, ctx.managers, caster_uid, &prep_skill_ids);
         let mut consume = seeded_cap
             .map(|cap| initial_consume.min(cap.max(0)))
             .unwrap_or(initial_consume)
@@ -751,7 +763,7 @@ impl FightCardMgr {
         }
 
         let cfg = config::configs::get();
-        let skill_effect_id = resolve_skill_effect_id(skill_id);
+        let skill_effect_id = resolve_skill_effect_id_for_entity(ctx.fight, caster_uid, skill_id);
         let Some(skill_row) = cfg.skill_effect.iter().find(|s| s.id == skill_effect_id) else {
             ctx.managers
                 .ex_point_mgr

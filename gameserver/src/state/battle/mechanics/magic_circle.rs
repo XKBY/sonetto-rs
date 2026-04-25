@@ -11,7 +11,7 @@ use config::magic_circle::MagicCircle;
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
-    buff_actions::add_passive_skills::for_each_add_passive_skill_id,
+    buff_actions::add_passive_skills::for_each_add_passive_skill_id_for_entity,
     context::FightContext,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, TriggerState},
@@ -130,6 +130,7 @@ fn magic_circle_aura_state(
 }
 
 fn collect_add_passive_skill_ids(
+    fight: &sonettobuf::Fight,
     effects: &[ActEffect],
     host_caster_uid: i64,
     skip_skill_id: i32,
@@ -155,7 +156,7 @@ fn collect_add_passive_skill_ids(
         if target_uid != host_caster_uid || buff_id <= 0 {
             continue;
         }
-        for_each_add_passive_skill_id(buff_id, |skill_id| {
+        for_each_add_passive_skill_id_for_entity(fight, host_caster_uid, buff_id, |skill_id| {
             if skill_id != skip_skill_id && !out.contains(&skill_id) {
                 out.push(skill_id);
             }
@@ -171,11 +172,16 @@ fn extend_with_active_add_passive_skill_ids(
     out: &mut Vec<i32>,
 ) {
     for instance in ctx.managers.buff_mgr.get(host_caster_uid) {
-        for_each_add_passive_skill_id(instance.buff_id, |skill_id| {
-            if skill_id != skip_skill_id && !out.contains(&skill_id) {
-                out.push(skill_id);
-            }
-        });
+        for_each_add_passive_skill_id_for_entity(
+            ctx.fight,
+            host_caster_uid,
+            instance.buff_id,
+            |skill_id| {
+                if skill_id != skip_skill_id && !out.contains(&skill_id) {
+                    out.push(skill_id);
+                }
+            },
+        );
     }
 }
 
@@ -196,7 +202,7 @@ pub(crate) fn build_magic_circle_self_skill_embeds(
         return Vec::new();
     };
     let mut followup_skill_ids =
-        collect_add_passive_skill_ids(&skill_effects, host_caster_uid, self_skill_id);
+        collect_add_passive_skill_ids(ctx.fight, &skill_effects, host_caster_uid, self_skill_id);
     extend_with_active_add_passive_skill_ids(
         ctx,
         host_caster_uid,

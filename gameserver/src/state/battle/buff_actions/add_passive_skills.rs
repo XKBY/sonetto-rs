@@ -4,6 +4,8 @@
 //! active. Runtime consumers use it to expand effective passive-skill sets and
 //! to infer follow-up/precast behavior from those injected passives.
 
+use sonettobuf::Fight;
+
 #[allow(dead_code)]
 pub const BUFF_ACT_ID: i32 = 865;
 
@@ -22,5 +24,19 @@ pub fn for_each_add_passive_skill_id(buff_id: i32, mut f: impl FnMut(i32)) {
                 }
             }
         }
+    });
+}
+
+pub fn for_each_add_passive_skill_id_for_entity(
+    fight: &Fight,
+    owner_uid: i64,
+    buff_id: i32,
+    mut f: impl FnMut(i32),
+) {
+    for_each_add_passive_skill_id(buff_id, |skill_id| {
+        let resolved = crate::state::battle::skill::euphoria::resolve_with_euphoria(
+            fight, owner_uid, skill_id,
+        );
+        f(resolved);
     });
 }

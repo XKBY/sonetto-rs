@@ -559,7 +559,8 @@ fn dispatch_impl(
                 current_ex
             };
             let prep_skill_ids = collect_precast_skills_for_caster(fight, managers, caster_uid);
-            let seeded_cap = infer_precast_per_decr_seed_cap(managers, caster_uid, &prep_skill_ids);
+            let seeded_cap =
+                infer_precast_per_decr_seed_cap(fight, managers, caster_uid, &prep_skill_ids);
             let mut consume = seeded_cap
                 .map(|cap| initial_consume.min(cap.max(0)))
                 .unwrap_or(initial_consume)

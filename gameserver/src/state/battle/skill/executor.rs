@@ -20,6 +20,7 @@ use super::{
     cache::{SKILL_CACHE, resolve_skill_effect_id},
     condition::{self, ConditionEval, buff::deleted_matches},
     damage::{calculate_damage, should_crit_hit},
+    euphoria,
     phase::{PhaseFilter, TriggerState},
     targets::{
         TargetResolver, alive_enemies, alive_enemies_by_position, get_ally_uids, get_entity,
@@ -126,6 +127,7 @@ impl SkillExecutor {
         phase: &PhaseFilter,
     ) -> Result<Vec<ActEffect>> {
         let exec_start = Instant::now();
+        let skill_id = euphoria::resolve_with_euphoria(fight, caster_uid, skill_id);
         let Some(_reentry_guard) = ReentryGuard::enter(caster_uid, target_uid, skill_id) else {
             tracing::warn!(
                 "[execute_skill] reentry loop blocked at skill={} caster={} target={}",

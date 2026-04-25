@@ -39,6 +39,7 @@ use super::super::{
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
         condition::parser::parse_condition,
+        euphoria::resolve_with_euphoria,
     },
     steps::{broadcast, ex_gain, step_normalize, trigger_embed},
     trigger::{
@@ -2163,9 +2164,12 @@ impl FightRoundMgr {
                         for piece in raw.split(',') {
                             if let Ok(skill_id) = piece.trim().parse::<i32>()
                                 && skill_id > 0
-                                && !skill_ids.contains(&skill_id)
                             {
-                                skill_ids.push(skill_id);
+                                let resolved_skill_id =
+                                    resolve_with_euphoria(ctx.fight, uid, skill_id);
+                                if !skill_ids.contains(&resolved_skill_id) {
+                                    skill_ids.push(resolved_skill_id);
+                                }
                             }
                         }
                     }

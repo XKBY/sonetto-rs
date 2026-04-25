@@ -3,6 +3,7 @@ mod behavior;
 pub mod cache;
 pub mod classification;
 pub mod condition;
+pub mod euphoria;
 
 pub mod damage;
 mod executor;
