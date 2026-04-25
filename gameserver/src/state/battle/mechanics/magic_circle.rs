@@ -171,7 +171,18 @@ fn extend_with_active_add_passive_skill_ids(
     skip_skill_id: i32,
     out: &mut Vec<i32>,
 ) {
+    // Only follow passive grants attached to buffs that came from someone
+    // ELSE — these are the magic-circle aura grants we want to chain. A
+    // self-sourced buff is the host's own private channel state (e.g.
+    // Sentinel's `31260201`, which carries `865#31260181` for her Hour of
+    // Repentance) and must NOT be harvested by the circle, otherwise the
+    // host wrongly fires its own enemy-action-gated reactives under its
+    // own card. LIVE confirms: under Blood Domain, only the
+    // Semmelweis-sourced followups appear in each ally's host.
     for instance in ctx.managers.buff_mgr.get(host_caster_uid) {
+        if instance.from_uid == 0 || instance.from_uid == host_caster_uid {
+            continue;
+        }
         for_each_add_passive_skill_id_for_entity(
             ctx.fight,
             host_caster_uid,
