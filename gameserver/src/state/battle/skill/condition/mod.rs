@@ -1,3 +1,4 @@
+mod action;
 mod bloodtithe;
 pub mod buff;
 mod career;
@@ -9,6 +10,8 @@ pub mod misc;
 
 pub mod parser;
 
+use self::action::Condition;
+
 use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
@@ -19,13 +22,13 @@ pub use crate::state::battle::types::condition::ConditionType;
 
 #[derive(Clone, Copy)]
 pub struct ConditionEval<'a> {
-    fight: &'a Fight,
-    buff_mgr: &'a BuffMgr,
-    ex_point_mgr: &'a ExPointMgr,
-    bloodtithe: &'a BloodtitheState,
-    caster_uid: i64,
-    target_uid: i64,
-    has_trigger_state: bool,
+    pub(super) fight: &'a Fight,
+    pub(super) buff_mgr: &'a BuffMgr,
+    pub(super) ex_point_mgr: &'a ExPointMgr,
+    pub(super) bloodtithe: &'a BloodtitheState,
+    pub(super) caster_uid: i64,
+    pub(super) target_uid: i64,
+    pub(super) has_trigger_state: bool,
 }
 
 impl<'a> ConditionEval<'a> {
@@ -84,32 +87,15 @@ impl<'a> ConditionEval<'a> {
             return false;
         }
 
-        enter_fight::check(
-            condition,
-            self.fight,
-            self.buff_mgr,
-            self.ex_point_mgr,
-            self.bloodtithe,
-            self.caster_uid,
-            self.target_uid,
-            self.has_trigger_state,
-        )
-        .or_else(|| buff::check(condition, self.buff_mgr, self.target_uid))
-        .or_else(|| career::check(condition, self.fight, self.caster_uid, self.target_uid))
-        .or_else(|| life::check(condition, self.fight, self.caster_uid))
-        .or_else(|| ex_point::check(condition, self.ex_point_mgr, self.caster_uid))
-        .or_else(|| combat::check(condition))
-        .or_else(|| bloodtithe::check(condition, self.bloodtithe))
-        .or_else(|| {
-            misc::check(
-                condition,
-                self.fight,
-                self.buff_mgr,
-                self.caster_uid,
-                self.target_uid,
-            )
-        })
-        .unwrap_or(false)
+        enter_fight::EnterFight::check(condition, self)
+            .or_else(|| buff::Buff::check(condition, self))
+            .or_else(|| career::Career::check(condition, self))
+            .or_else(|| life::Life::check(condition, self))
+            .or_else(|| ex_point::ExPoint::check(condition, self))
+            .or_else(|| combat::Combat::check(condition, self))
+            .or_else(|| bloodtithe::Bloodtithe::check(condition, self))
+            .or_else(|| misc::Misc::check(condition, self))
+            .unwrap_or(false)
     }
 
     pub fn check_with_random_target(

@@ -1,4 +1,6 @@
+use super::ConditionEval;
 use super::super::super::ConditionType;
+use super::action::Condition;
 use crate::state::battle::{
     manager::buff_mgr::BuffMgr,
     round_state::simulated_round,
@@ -7,6 +9,24 @@ use crate::state::battle::{
 };
 use sonettobuf::Fight;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+pub(super) struct Misc;
+
+impl Condition for Misc {
+    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+        parse(parts, cond_type)
+    }
+
+    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+        check(
+            condition,
+            ctx.fight,
+            ctx.buff_mgr,
+            ctx.caster_uid,
+            ctx.target_uid,
+        )
+    }
+}
 
 static ALLOW_HRI_EVAL: AtomicBool = AtomicBool::new(false);
 

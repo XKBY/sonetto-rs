@@ -1,6 +1,20 @@
+use super::ConditionEval;
 use super::ConditionType;
+use super::action::Condition;
 use crate::state::battle::manager::buff_mgr::BuffMgr;
 use std::collections::HashSet;
+
+pub(super) struct Buff;
+
+impl Condition for Buff {
+    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+        parse(parts, cond_type)
+    }
+
+    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+        check(condition, ctx.buff_mgr, ctx.target_uid)
+    }
+}
 
 fn resolve_buff_category(id: i32) -> Option<i32> {
     if id <= 0 {
