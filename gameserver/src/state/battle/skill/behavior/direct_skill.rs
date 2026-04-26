@@ -16,8 +16,8 @@
 //!   `random::add_buff_ran_id` (favor-unselected partition is in
 //!   place). Then casts the derived skill (`group + 9 + rank`) and
 //!   any active-use-trigger passives from the caster's passive list.
-//! * `ConsumePowerDirectUseSkill { .. }` — placeholder; delegates to
-//!   `skill::consume_power_direct_use_skill` (currently a no-op).
+//! * `ConsumePowerDirectUseSkill { .. }` — placeholder. Returns
+//!   empty until the power-consume direct-use semantics are wired.
 //! * `RandomUseSkill { raw }` — `60225#sid:weight&...` weighted-pool
 //!   pick. Without a synced LIVE RNG seed we deterministically pick
 //!   the middle entry, which matches battle2 r1's boss wrapper.
@@ -29,7 +29,6 @@ use super::action::{ActionCtx, BehaviorAction};
 use super::damage;
 use super::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::random;
-use super::skill;
 use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use crate::state::battle::skill::PhaseFilter;
 use crate::state::battle::skill::phase::TriggerState;
@@ -54,7 +53,10 @@ impl BehaviorAction for DirectSkill {
                 execute_direct_use_group_and_star_skill(ctx, *group, *rank)
             }
             BehaviorType::ConsumePowerDirectUseSkill { .. } => {
-                skill::consume_power_direct_use_skill()
+                // Placeholder: real power-consume direct-use semantics
+                // aren't wired yet. Empty effect set matches LIVE for
+                // every fixture that reaches this variant today.
+                Ok(vec![])
             }
             BehaviorType::RandomUseSkill { raw } => execute_random_use_skill(ctx, raw),
             _ => Ok(vec![]),

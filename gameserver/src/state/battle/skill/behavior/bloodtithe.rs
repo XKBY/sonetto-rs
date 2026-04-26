@@ -1,7 +1,45 @@
+use anyhow::Result;
 use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromType};
 
+use super::action::{ActionCtx, BehaviorAction};
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
+use crate::state::battle::types::behavior::BehaviorType;
+use crate::state::battle::types::condition::ConditionType;
+
+/// BloodPool action — handler for the two `BehaviorType` variants
+/// that mutate the bloodtithe pool directly via the
+/// `BloodtitheState::pending_effects` queue:
+/// `BloodPoolMaxChange { amount }` and `BloodPoolValueChange { amount }`.
+/// Both delegate to the existing `pool_max_change` / `pool_value_change`
+/// helpers in this module — the trait wrapper is purely the dispatch
+/// route.
+pub(super) struct BloodPool;
+
+impl BehaviorAction for BloodPool {
+    fn execute(
+        behavior: &BehaviorType,
+        ctx: &mut ActionCtx<'_, '_>,
+        _condition: &ConditionType,
+    ) -> Result<Vec<ActEffect>> {
+        let fight = ctx.behavior_ctx.fight;
+        match behavior {
+            BehaviorType::BloodPoolMaxChange { amount } => Ok(pool_max_change(
+                fight,
+                &mut ctx.mechanics.bloodtithe,
+                ctx.target,
+                *amount,
+            )),
+            BehaviorType::BloodPoolValueChange { amount } => Ok(pool_value_change(
+                fight,
+                &mut ctx.mechanics.bloodtithe,
+                ctx.target,
+                *amount,
+            )),
+            _ => Ok(vec![]),
+        }
+    }
+}
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::buff_mgr::BuffMgr;
 use crate::state::battle::manager::round_mgr::lookup_entry_max_hp;

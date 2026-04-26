@@ -22,7 +22,7 @@ pub mod result;
 pub mod use_skill_to_enemy;
 
 pub use crate::state::battle::context::effect_context::EffectContext;
-pub use heal::{heal, heal_by_two_attr};
+pub use heal::heal;
 pub use result::ActionResult;
 
 use super::{skill::SkillExecutor, types::effects::EffectType};

@@ -1,5 +1,6 @@
 mod action;
 mod add_buff;
+mod attr_modify;
 mod bloodtithe;
 mod buff;
 mod buff_helper;
@@ -9,10 +10,12 @@ mod disperse;
 mod ex_point;
 mod heal;
 mod lost_life;
+mod magic_circle;
 mod misc;
+mod nuodika_damage;
 pub(crate) mod precast;
 mod random;
-mod skill;
+mod skill_rate;
 mod stats;
 
 use self::action::{ActionCtx, BehaviorAction};
@@ -21,37 +24,18 @@ pub mod parser;
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, effect_type_enum::EffectType};
+use sonettobuf::ActEffect;
 
 use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
-    buff_actions::{
-        EffectContext, attr_replace::buff_get_attr_replace_permille, raspberry,
-    },
     context::behavior_context::BehaviorContext,
     manager::fight_data_mgr::Managers,
     mechanics::Mechanics,
     skill::cache::SKILL_CACHE,
     skill::condition::parser::parse_condition,
-    skill::targets::{TargetResolver, get_entity},
     types::{behavior::BehaviorType, condition::ConditionType},
-    utils::damage_with_hurt,
 };
-
-pub(crate) fn execute_nuo_di_ka_damage_for_target(
-    caster_uid: i64,
-    target_uid: i64,
-    damage: i32,
-    skill_id: i32,
-) -> Vec<ActEffect> {
-    if target_uid == 0 || target_uid == caster_uid {
-        return vec![];
-    }
-    vec![damage_with_hurt(
-        target_uid, damage, -1, skill_id, caster_uid,
-    )]
-}
 
 pub struct BehaviorExec<'a, 'ctx> {
     executor: &'a mut SkillExecutor,
@@ -179,7 +163,6 @@ fn dispatch_impl(
     condition_id: i32,
     condition: &ConditionType,
 ) -> Result<Vec<ActEffect>> {
-    let fight = behavior_ctx.fight;
     match behavior {
         // --- damage ---
         BehaviorType::Damage { .. } => {
@@ -313,18 +296,20 @@ fn dispatch_impl(
             };
             lost_life::LostLife::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::BloodPoolMaxChange { amount } => Ok(bloodtithe::pool_max_change(
-            fight,
-            &mut mechanics.bloodtithe,
-            target,
-            *amount,
-        )),
-        BehaviorType::BloodPoolValueChange { amount } => Ok(bloodtithe::pool_value_change(
-            fight,
-            &mut mechanics.bloodtithe,
-            target,
-            *amount,
-        )),
+        BehaviorType::BloodPoolMaxChange { .. } | BehaviorType::BloodPoolValueChange { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            bloodtithe::BloodPool::execute(behavior, &mut action_ctx, condition)
+        }
 
         // --- random ---
         BehaviorType::AddBuffRanId { .. } => {
@@ -341,8 +326,19 @@ fn dispatch_impl(
             };
             add_buff::AddBuff::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::AddMagicCircle { circle_id } => {
-            misc::add_magic_circle(fight, caster_uid, *circle_id)
+        BehaviorType::AddMagicCircle { .. } | BehaviorType::MagicCircleAttr { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            magic_circle::MagicCircle::execute(behavior, &mut action_ctx, condition)
         }
 
         // --- skill triggers ---
@@ -388,24 +384,20 @@ fn dispatch_impl(
             };
             ex_point::ExPoint::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::SkillRateUpBySelfBuffType { buff_type_id, rate } => {
-            let stacks = buff::sum_stacks_by_type(fight, managers, caster_uid, *buff_type_id);
-            if stacks <= 0 || *rate == 0 {
-                Ok(vec![])
-            } else {
-                executor.add_skill_rate_bonus(caster_uid, target, rate.saturating_mul(stacks));
-                Ok(vec![])
-            }
-        }
-        BehaviorType::SkillRateUpByBuffType { rate, buff_types } => {
-            if *rate == 0 || buff_types.is_empty() {
-                return Ok(vec![]);
-            }
-            let has_matching_type = buff::has_any_type(fight, managers, target, buff_types);
-            if has_matching_type {
-                executor.add_skill_rate_bonus(caster_uid, target, *rate);
-            }
-            Ok(vec![])
+        BehaviorType::SkillRateUpBySelfBuffType { .. }
+        | BehaviorType::SkillRateUpByBuffType { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            skill_rate::SkillRate::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::DirectUseGroupAndStarSkill { .. } => {
             let mut action_ctx = ActionCtx {
@@ -449,28 +441,61 @@ fn dispatch_impl(
             };
             direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::Summon { .. } => skill::summon(),
-        BehaviorType::Kill => skill::kill(),
-        BehaviorType::MonsterChange => skill::monster_change(),
 
-        // --- misc ---
-        BehaviorType::AttrModify { attr_id, amount }
-        | BehaviorType::AttrFix { attr_id, amount } => {
-            executor.add_attr_bonus(caster_uid, *attr_id, *amount);
-            Ok(vec![crate::state::battle::utils::attr_update(caster_uid)])
+        // --- misc skill ops (currently no-op placeholders) ---
+        BehaviorType::Summon { .. }
+        | BehaviorType::Kill
+        | BehaviorType::MonsterChange
+        | BehaviorType::BeAttackedAssassinate { .. }
+        | BehaviorType::CrystalAddCard
+        | BehaviorType::IgnoreSkillConfigDamageRate => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            misc::Misc::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::BeAttackedAssassinate { .. } => misc::be_attacked_assassinate(),
-        BehaviorType::SkillRateUp { rate } => {
-            executor.add_skill_rate_bonus(caster_uid, target, *rate);
-            Ok(vec![])
+
+        // --- attr modify ---
+        BehaviorType::AttrModify { .. }
+        | BehaviorType::AttrFix { .. }
+        | BehaviorType::RaspberryAddCount { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            attr_modify::AttrModify::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::RaspberryAddCount { attr_id, rate } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            raspberry::add_count(&mut ctx, executor, *attr_id, *rate)
+
+        // --- skill rate ---
+        BehaviorType::SkillRateUp { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            skill_rate::SkillRate::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::MagicCircleAttr { .. } => misc::magic_circle_attr(),
-        BehaviorType::CrystalAddCard => misc::crystal_add_card(),
-        BehaviorType::IgnoreSkillConfigDamageRate => Ok(vec![]),
         BehaviorType::LostAllLifeByAttr { .. } | BehaviorType::DamageRealLostLife { .. } => {
             let mut action_ctx = ActionCtx {
                 executor,
@@ -485,66 +510,34 @@ fn dispatch_impl(
             };
             lost_life::LostLife::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::NuoDiKaDamage {
-            primary_buff_id,
-            primary_rate,
-            secondary_buff_id,
-            secondary_rate,
-            self_loss_param,
-        } => {
-            let Some(caster) = get_entity(fight, caster_uid) else {
-                return Ok(vec![]);
+        BehaviorType::NuoDiKaDamage { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
             };
-            let current_hp = caster.current_hp.unwrap_or(0);
-            let max_hp = caster
-                .attr
-                .as_ref()
-                .and_then(|a| a.hp)
-                .unwrap_or(current_hp)
-                .max(current_hp)
-                .max(0);
-            let primary_permille = buff_get_attr_replace_permille(*primary_buff_id).unwrap_or(0);
-            let secondary_permille =
-                buff_get_attr_replace_permille(*secondary_buff_id).unwrap_or(0);
-            let total_permille = (primary_permille.saturating_mul(*primary_rate) / 1000)
-                .saturating_add(secondary_permille.saturating_mul(*secondary_rate) / 1000)
-                .max(0);
-            let self_loss_percent = (*self_loss_param / 5).max(0);
-            let self_loss = current_hp.saturating_mul(self_loss_percent) / 100;
-
-            let cfg = config::configs::get();
-            let logic_target = cfg
-                .skill_effect
-                .iter()
-                .find(|s| s.id == resolve_skill_effect_id(skill_id))
-                .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
-                .unwrap_or(0);
-            let damage_targets = TargetResolver::new(fight, caster_uid, target)
-                .behavior(logic_target)
-                .resolve();
-
-            let mut out = Vec::new();
-            if self_loss > 0 {
-                out.push(damage_with_hurt(
-                    caster_uid, self_loss, 30006, skill_id, caster_uid,
-                ));
-            }
-            if total_permille <= 0 {
-                return Ok(out);
-            }
-            let damage = (max_hp.saturating_mul(total_permille) / 1000).max(1);
-            for damage_target in damage_targets {
-                out.extend(execute_nuo_di_ka_damage_for_target(
-                    caster_uid,
-                    damage_target,
-                    damage,
-                    skill_id,
-                ));
-            }
-            Ok(out)
+            nuodika_damage::NuoDiKaDamage::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::ShellUseSkill { .. } => skill::shell_use_skill(),
-        BehaviorType::ShellAssign { .. } => skill::shell_assign(),
+        BehaviorType::ShellUseSkill { .. } | BehaviorType::ShellAssign { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            misc::Misc::execute(behavior, &mut action_ctx, condition)
+        }
         BehaviorType::PurifyX { .. } => {
             let mut action_ctx = ActionCtx {
                 executor,
@@ -560,9 +553,19 @@ fn dispatch_impl(
             disperse::Disperse::execute(behavior, &mut action_ctx, condition)
         }
 
-        BehaviorType::Unknown { raw } => {
-            tracing::warn!("Skipping unknown behavior: {}", raw);
-            Ok(vec![])
+        BehaviorType::Unknown { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            misc::Misc::execute(behavior, &mut action_ctx, condition)
         }
     }
 }

@@ -2,13 +2,54 @@ use anyhow::Result;
 use config::configs;
 use sonettobuf::{ActEffect, Fight, MagicCircleInfo};
 
+use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::targets::alive_allies;
+use crate::state::battle::types::behavior::BehaviorType;
+use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::types::effects::EffectType;
 use crate::state::battle::utils::{buff_add, for_each_buff_feature_chain};
 
-pub fn be_attacked_assassinate() -> Result<Vec<ActEffect>> {
-    Ok(vec![])
+/// Misc action — handler for the behavior variants that are
+/// currently no-ops or simple skill-execution placeholders. Each
+/// variant either emits nothing or logs a warning.
+///
+/// Variants owned (all currently emit `Ok(vec![])`):
+/// * `Summon { .. }` — placeholder; no live data uses this yet.
+/// * `Kill` — placeholder.
+/// * `MonsterChange` — placeholder.
+/// * `ShellUseSkill { .. }` — Shell-system placeholder.
+/// * `ShellAssign { .. }` — Shell-system placeholder.
+/// * `BeAttackedAssassinate { .. }` — placeholder.
+/// * `CrystalAddCard` — placeholder.
+/// * `IgnoreSkillConfigDamageRate` — flag-only behavior; the actual
+///   suppression happens elsewhere in the executor.
+/// * `Unknown { raw }` — log and skip.
+pub(super) struct Misc;
+
+impl BehaviorAction for Misc {
+    fn execute(
+        behavior: &BehaviorType,
+        _ctx: &mut ActionCtx<'_, '_>,
+        _condition: &ConditionType,
+    ) -> Result<Vec<ActEffect>> {
+        match behavior {
+            BehaviorType::Summon { .. }
+            | BehaviorType::Kill
+            | BehaviorType::MonsterChange
+            | BehaviorType::ShellUseSkill { .. }
+            | BehaviorType::ShellAssign { .. }
+            | BehaviorType::BeAttackedAssassinate { .. }
+            | BehaviorType::CrystalAddCard
+            | BehaviorType::IgnoreSkillConfigDamageRate
+            | BehaviorType::MagicCircleAttr { .. } => Ok(vec![]),
+            BehaviorType::Unknown { raw } => {
+                tracing::warn!("Skipping unknown behavior: {}", raw);
+                Ok(vec![])
+            }
+            _ => Ok(vec![]),
+        }
+    }
 }
 
 pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Result<Vec<ActEffect>> {
@@ -62,8 +103,5 @@ pub fn add_magic_circle(fight: &Fight, caster_uid: i64, circle_id: i32) -> Resul
 }
 
 pub fn magic_circle_attr() -> Result<Vec<ActEffect>> {
-    Ok(vec![])
-}
-pub fn crystal_add_card() -> Result<Vec<ActEffect>> {
     Ok(vec![])
 }
