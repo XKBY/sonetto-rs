@@ -8,7 +8,40 @@ use crate::state::battle::{
 };
 
 use super::EffectContext;
+use super::action::{BuffAction, BuffActCtx, BuffStage};
 use super::result::ActionResult;
+
+/// Halo buff_action — handles `MasterHalo` (active) and `SlaveHalo`
+/// (passive bookkeeping; the engine emits the actual halo effects
+/// from the master side).
+///
+/// The master side calls into `master(ctx, executor, slave_buff_id)`
+/// where `slave_buff_id` is taken from `parts[2]`.
+pub(super) struct Halo;
+
+impl BuffAction for Halo {
+    fn execute(
+        act_type: &str,
+        parts: &[&str],
+        ctx: &mut BuffActCtx<'_, '_>,
+        stage: BuffStage,
+    ) -> ActionResult {
+        if stage == BuffStage::BeforeBuffAdd {
+            return ActionResult::empty();
+        }
+        match act_type {
+            "MasterHalo" => {
+                let slave_buff_id = parts
+                    .get(2)
+                    .and_then(|v| v.trim().parse().ok())
+                    .unwrap_or(0);
+                master(ctx.effect_ctx, ctx.executor, slave_buff_id)
+            }
+            "SlaveHalo" => ActionResult::empty(),
+            _ => ActionResult::empty(),
+        }
+    }
+}
 
 /// Buff feature: MasterHalo — applies a slave buff to all allies as a side effect.
 /// Needs executor to queue the slave halo step.

@@ -245,11 +245,16 @@ pub fn dispatch_feature(
             ActionResult::empty()
         }
 
-        "MasterHalo" => {
-            let slave_buff_id = parse_parts(parts, 2);
-            halo::master(ctx, executor, slave_buff_id)
+        "MasterHalo" | "SlaveHalo" => {
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            halo::Halo::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
-        "SlaveHalo" => ActionResult::empty(),
 
         "LostHpCountAddBuff" => {
             let child_buff_id = parse_parts(parts, 1);
