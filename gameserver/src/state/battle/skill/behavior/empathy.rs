@@ -24,6 +24,11 @@ const SOLACE_CONFIG_EFFECT: i32 = 60039;
 /// not suppress the primary `damageRate` damage emission) from
 /// primary-damage behavior emissions.
 pub const SUBCONSCIOUS_BONUS_CONFIG_EFFECT: i32 = 60038;
+/// Marker value attached to Kakania's EX consume-and-bonus emission.
+/// Same role as `SUBCONSCIOUS_BONUS_CONFIG_EFFECT` for the executor's
+/// fallback gate, plus broadcast on the `StorageInjury(167)` reset
+/// emission so LIVE-side observers can tell the bank cleared.
+pub const EX_CONSUME_CONFIG_EFFECT: i32 = 60040;
 
 pub(super) struct Empathy;
 
@@ -40,6 +45,9 @@ impl BehaviorAction for Empathy {
             }
             BehaviorType::OriginDamageFromInjuryBank { multiplier_permille } => Some(Ok(self
                 .execute_subconscious_bonus(ctx, *multiplier_permille))),
+            BehaviorType::ConsumeInjuryBankAndDamage { multiplier_permille } => {
+                Some(Ok(self.execute_ex_consume(ctx, *multiplier_permille)))
+            }
             _ => None,
         }
     }
@@ -73,6 +81,110 @@ impl Empathy {
                 .config_effect(SUBCONSCIOUS_BONUS_CONFIG_EFFECT)
                 .build(),
         ]
+    }
+
+    fn execute_ex_consume(
+        &self,
+        ctx: &mut ActionCtx<'_, '_>,
+        multiplier_permille: i32,
+    ) -> Vec<ActEffect> {
+        // The EX behavior fires once per cast; if the caster has no
+        // Empathy yet, we still emit nothing (LIVE only emits the
+        // 167/130 pair when there is something to consume).
+        let current = ctx.mechanics.empathy.current(ctx.caster_uid);
+        if current <= 0 || multiplier_permille <= 0 || ctx.target == 0 {
+            return Vec::new();
+        }
+        let bonus = current.saturating_mul(multiplier_permille) / 1000;
+
+        // Caster max-HP needed by `sync_buff_state` to re-derive the
+        // storage cap; same lookup the Solace path uses below.
+        let max_hp = ctx
+            .behavior_ctx
+            .fight
+            .attacker
+            .as_ref()
+            .into_iter()
+            .flat_map(|side| side.entitys.iter().chain(side.sub_entitys.iter()))
+            .chain(
+                ctx.behavior_ctx
+                    .fight
+                    .defender
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|side| side.entitys.iter().chain(side.sub_entitys.iter())),
+            )
+            .find(|entity| entity.uid == Some(ctx.caster_uid))
+            .and_then(|entity| entity.attr.as_ref())
+            .and_then(|attr| attr.hp)
+            .unwrap_or(0);
+        let cap = EmpathyState::storage_cap(max_hp);
+
+        let (empathy_buff_id, buff_uid) = ctx
+            .managers
+            .buff_mgr
+            .find_instance_by_type_id(ctx.caster_uid, EMPATHY_TYPE_ID)
+            .map(|buff| (buff.buff_id, buff.uid))
+            .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0));
+
+        // LIVE r8 step[2] for skill 30800131 emits, in order:
+        //   et=167 StorageInjury cfx=60040 num=0 (Empathy reset
+        //          broadcast targeting the caster)
+        //   et=130 OriginDamage  cfx=60040 num=bonus ti=target
+        // The reset is what flags the bank-clear to downstream
+        // observers (heal-on-storage threshold listeners, etc.).
+        let mut effects = Vec::new();
+        effects.push(self.build_storage_injury_reset_marker(
+            ctx.caster_uid,
+            empathy_buff_id,
+            buff_uid,
+            cap,
+        ));
+        effects.push(
+            ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
+                .effect_num(bonus)
+                .config_effect(EX_CONSUME_CONFIG_EFFECT)
+                .build(),
+        );
+
+        // Reset the mechanic state AFTER computing the bonus and the
+        // reset marker, since the reset marker carries the new value
+        // (0). `sync_buff_state` writes both the in-memory cache and
+        // the buff's `actCommonParams` so subsequent behaviors see 0.
+        ctx.mechanics
+            .empathy
+            .sync_buff_state(&mut ctx.managers.buff_mgr, ctx.caster_uid, 0, max_hp);
+
+        effects
+    }
+
+    fn build_storage_injury_reset_marker(
+        &self,
+        caster_uid: i64,
+        empathy_buff_id: i32,
+        buff_uid: i64,
+        cap: i32,
+    ) -> ActEffect {
+        use sonettobuf::BuffInfo;
+        ActEffect {
+            effect_type: Some(EffectType::StorageInjury as i32),
+            target_id: Some(caster_uid),
+            effect_num: Some(0),
+            config_effect: Some(EX_CONSUME_CONFIG_EFFECT),
+            buff: Some(BuffInfo {
+                buff_id: Some(empathy_buff_id),
+                duration: Some(0),
+                uid: Some(buff_uid),
+                ex_info: Some(0),
+                from_uid: Some(caster_uid),
+                count: Some(0),
+                act_common_params: Some(format!("770#0#{}", cap.max(0))),
+                layer: Some(0),
+                r#type: Some(crate::state::battle::types::buff::BuffLayerType::Normal as i32),
+                act_info: vec![],
+            }),
+            ..Default::default()
+        }
     }
 
     fn execute_solace(

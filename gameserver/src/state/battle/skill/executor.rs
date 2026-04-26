@@ -1273,12 +1273,13 @@ fn is_damage_effect_type(effect_type: i32) -> bool {
 
 /// Returns true for damage effects whose `configEffect` marks them as
 /// a "bonus" emission that runs alongside the primary `damageRate`
-/// damage (Kakania's Subconscious Empathy bonus uses 60038, Kakania's
-/// Solace self-loss uses 60039). The fallback damage path uses these
-/// markers to know it should still emit the primary damage rate even
-/// when one of these bonus emissions has already fired.
+/// damage (Kakania's Subconscious Empathy bonus uses 60038, Solace
+/// self-loss uses 60039, EX consume-and-bonus uses 60040). The
+/// fallback damage path uses these markers to know it should still
+/// emit the primary damage rate even when one of these bonus
+/// emissions has already fired.
 fn is_bonus_damage_config_effect(config_effect: i32) -> bool {
-    matches!(config_effect, 60038 | 60039)
+    matches!(config_effect, 60038 | 60039 | 60040)
 }
 
 fn inject_empathy_storage_injuries(

@@ -45,6 +45,19 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             multiplier_permille: p1,
         };
     }
+    // Kakania's EX `Id, Ego and Superego` (skill 30800131,
+    // `behavior1 = 60040#10000#1#0`) is the consume-and-bonus version
+    // of `60038`: same Genesis-bonus formula, but the caster's
+    // stored Empathy is reset to 0 once the bonus has been computed.
+    // Per the in-game ability text: "1-target attack. Deals X% Mental
+    // DMG plus (Current [Empathy] × multiplier%) Genesis DMG to the
+    // target, resets [Empathy] to zero, and then starts recording
+    // the damage the target takes for the round."
+    if id == 60040 {
+        return BehaviorType::ConsumeInjuryBankAndDamage {
+            multiplier_permille: p1,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {

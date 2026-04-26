@@ -28,6 +28,18 @@ pub enum BehaviorType {
     OriginDamageFromInjuryBank {
         multiplier_permille: i32,
     },
+    /// Kakania's EX "Id, Ego and Superego" behavior — same Genesis
+    /// bonus formula as `OriginDamageFromInjuryBank` but the
+    /// caster's stored Empathy is RESET to 0 immediately after the
+    /// bonus is computed. Encoded as
+    /// `60040#multiplier_permille[#...]` per skill 30800131
+    /// (`behavior1 = 60040#10000#1#0`). The in-game ability text:
+    /// "1-target attack. Deals 400% Mental DMG plus
+    /// (Current [Empathy] × 1000%) Genesis DMG to the target,
+    /// resets [Empathy] to zero …"
+    ConsumeInjuryBankAndDamage {
+        multiplier_permille: i32,
+    },
     AddExPoint {
         amount: i32,
     },
