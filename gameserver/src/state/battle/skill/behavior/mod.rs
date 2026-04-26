@@ -1,6 +1,7 @@
 mod bloodtithe;
 mod buff;
 mod buff_helper;
+mod damage;
 mod misc;
 pub(crate) mod precast;
 mod random;
@@ -11,7 +12,7 @@ pub mod parser;
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, effect_type_enum::EffectType};
 
 use self::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::cache::resolve_skill_effect_id;
@@ -30,112 +31,6 @@ use crate::state::battle::{
     types::{behavior::BehaviorType, condition::ConditionType},
     utils::damage_with_hurt,
 };
-
-fn is_damage_effect_type(effect_type: Option<i32>) -> bool {
-    matches!(
-        effect_type,
-        Some(t)
-            if t == EffectType::Damage as i32
-                || t == EffectType::Crit as i32
-                || t == crate::state::battle::types::effects::EffectType::OriginDamage as i32
-                || t == crate::state::battle::types::effects::EffectType::OriginCrit as i32
-                || t == crate::state::battle::types::effects::EffectType::AdditionalDamage as i32
-                || t == crate::state::battle::types::effects::EffectType::AdditionalDamageCrit as i32
-    )
-}
-
-fn append_preview_bloodtithe_gain_effects(
-    executor: &mut SkillExecutor,
-    mechanics: &Mechanics,
-    fight: &Fight,
-    caster_uid: i64,
-    target_uid: i64,
-    effects: &mut Vec<ActEffect>,
-) {
-    if !mechanics.bloodtithe.initialized || target_uid == 0 {
-        return;
-    }
-    let Some(target_entity) = get_entity(fight, target_uid) else {
-        return;
-    };
-    let Some(team_type) = target_entity.team_type else {
-        return;
-    };
-
-    let raw_damage = effects
-        .iter()
-        .filter(|effect| {
-            effect.target_id == Some(target_uid) && is_damage_effect_type(effect.effect_type)
-        })
-        .map(|effect| effect.effect_num.unwrap_or(0).max(0))
-        .sum::<i32>();
-    if raw_damage <= 0 {
-        return;
-    }
-
-    // Nautika profile: HP lost from being attacked only contributes at 30% efficiency.
-    let converted_damage = if caster_uid != 0 && caster_uid.signum() != target_uid.signum() {
-        raw_damage * 300 / 1000
-    } else {
-        raw_damage
-    };
-    if converted_damage <= 0 {
-        return;
-    }
-
-    let max_value = mechanics.bloodtithe.get_max(team_type).max(0);
-    let (preview_value, preview_acc) = executor
-        .pending_bloodtithe_preview
-        .entry(team_type)
-        .or_insert_with(|| {
-            (
-                mechanics.bloodtithe.get_value(team_type).max(0),
-                mechanics.bloodtithe.get_acc(team_type).max(0),
-            )
-        });
-    *preview_acc += converted_damage;
-
-    let mut gained = 0;
-    while *preview_acc >= 3000 && *preview_value < max_value {
-        *preview_acc -= 3000;
-        *preview_value += 1;
-        gained += 1;
-    }
-
-    if gained > 0 {
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::Bloodpoolvaluechange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(team_type),
-            effect_num1: Some(gained),
-            ..Default::default()
-        });
-    }
-}
-
-pub(crate) fn execute_damage_for_target(
-    executor: &mut SkillExecutor,
-    managers: &mut Managers,
-    mechanics: &mut Mechanics,
-    fight: &Fight,
-    caster_uid: i64,
-    target_uid: i64,
-    rate: i32,
-    skill_id: i32,
-) -> Vec<ActEffect> {
-    let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target_uid);
-    let mut effects =
-        lost_life::apply(&mut ctx, Some(&executor.pending_attr_bonus), rate, skill_id);
-    append_preview_bloodtithe_gain_effects(
-        executor,
-        mechanics,
-        fight,
-        caster_uid,
-        target_uid,
-        &mut effects,
-    );
-    effects
-}
 
 pub(crate) fn execute_nuo_di_ka_damage_for_target(
     caster_uid: i64,
@@ -280,7 +175,7 @@ fn dispatch_impl(
     let fight = behavior_ctx.fight;
     match behavior {
         // --- damage ---
-        BehaviorType::Damage { rate } => Ok(execute_damage_for_target(
+        BehaviorType::Damage { rate } => Ok(damage::execute(
             executor, managers, mechanics, fight, caster_uid, target, *rate, skill_id,
         )),
 
@@ -693,7 +588,7 @@ fn dispatch_impl(
                     .map(|s| {
                         s.act_effect
                             .iter()
-                            .any(|ae| is_damage_effect_type(ae.effect_type))
+                            .any(|ae| damage::is_damage_effect_type(ae.effect_type))
                     })
                     .unwrap_or(false)
             };
