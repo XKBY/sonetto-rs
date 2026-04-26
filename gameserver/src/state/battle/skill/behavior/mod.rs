@@ -3,6 +3,7 @@ mod bloodtithe;
 mod buff;
 mod buff_helper;
 mod damage;
+mod ex_point;
 mod heal;
 mod misc;
 pub(crate) mod precast;
@@ -295,11 +296,36 @@ fn dispatch_impl(
         // calculate_mgr::play_effect_add_ex_point during play_step_data.
         // Mutating here AND letting play_step_data also mutate caused
         // double-application (heroes starting with 2x expected EX).
-        BehaviorType::AddExPoint { amount } => Ok(stats::add_ex_point(target, *amount)),
-        BehaviorType::AddExPointWithMax { amount } => Ok(stats::add_ex_point(target, *amount)),
-        BehaviorType::Bloodlust { amount } => Ok(stats::bloodlust(target, *amount)),
-        BehaviorType::ChangePower { amount } => Ok(stats::change_power(target, *amount)),
-        BehaviorType::AverageLife => Ok(stats::average_life(target)),
+        BehaviorType::AddExPoint { .. } | BehaviorType::AddExPointWithMax { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            ex_point::ExPoint::execute(behavior, &mut action_ctx, condition)
+        }
+        BehaviorType::Bloodlust { .. }
+        | BehaviorType::ChangePower { .. }
+        | BehaviorType::AverageLife => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            stats::Stats::execute(behavior, &mut action_ctx, condition)
+        }
 
         // --- bloodtithe ---
         BehaviorType::LostLife {
@@ -656,60 +682,19 @@ fn dispatch_impl(
 
             Ok(out)
         }
-        BehaviorType::ConsumeExPointAddAttr {
-            min_consume,
-            max_consume,
-        } => {
-            let consumed = managers
-                .ex_point_mgr
-                .get_recent_decr_ex_point(caster_uid)
-                .max(0);
-            let usable = consumed.clamp(*min_consume, *max_consume);
-            if usable <= 0 {
-                return Ok(vec![]);
-            }
-            // Encoding: 60174#attr_id#rate_per_point#min#max...
-            // The parser keeps min/max; pull rate_per_point from the config behavior string.
-            let mut rate_per_point = 0;
-            let cfg = config::configs::get();
-            let skill_effect_id =
-                crate::state::battle::skill::cache::resolve_skill_effect_id(skill_id);
-            if let Some(skill_row) = cfg.skill_effect.iter().find(|s| s.id == skill_effect_id) {
-                let raw_behaviors = [
-                    &skill_row.behavior1,
-                    &skill_row.behavior2,
-                    &skill_row.behavior3,
-                    &skill_row.behavior4,
-                    &skill_row.behavior5,
-                    &skill_row.behavior6,
-                    &skill_row.behavior7,
-                    &skill_row.behavior8,
-                    &skill_row.behavior9,
-                    &skill_row.behavior10,
-                ];
-                for raw in raw_behaviors {
-                    if raw.starts_with("60174#") {
-                        rate_per_point = raw
-                            .split('#')
-                            .nth(2)
-                            .and_then(|v| v.parse::<i32>().ok())
-                            .unwrap_or(0);
-                        if rate_per_point != 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-            if rate_per_point == 0 {
-                return Ok(vec![]);
-            }
-            executor.add_skill_rate_bonus(
+        BehaviorType::ConsumeExPointAddAttr { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
                 caster_uid,
-                caster_uid,
-                rate_per_point.saturating_mul(usable),
-            );
-            // Live payload does not emit an extra ATTR(26) step for this behavior.
-            Ok(vec![])
+                target,
+                skill_id,
+                condition_id,
+            };
+            ex_point::ExPoint::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::SkillRateUpBySelfBuffType { buff_type_id, rate } => {
             let stacks = buff::sum_stacks_by_type(fight, managers, caster_uid, *buff_type_id);
