@@ -22,6 +22,10 @@
 //!   from LIVE battle3 r2-r10: every BuffAdd of a Poison-family buff
 //!   (e.g. 31040005, 30980111, 30091129) is paired with one of these
 //!   effect-type markers in the same actEffect array.
+//! * **Status flags** — `Dizzy`, `Forbid`, `ImmunityExpointChange`.
+//!   Same pattern: BuffAdd → matching effect-type marker
+//!   (`Dizzy(20)`, `Forbid(30)`, `ImmunityExPointChange(66)`).
+//!   Verified from LIVE battle3 r2/r6/r8.
 
 use sonettobuf::ActEffect;
 
@@ -64,6 +68,9 @@ impl BuffAction for Markers {
             "Poison" => (EffectType::Poison as i32, 0),
             "LockPoison" => (EffectType::LockDot as i32, 0),
             "DeadlyPoison" => (EffectType::DeadlyPoison as i32, 0),
+            "Dizzy" => (EffectType::Dizzy as i32, 0),
+            "Forbid" => (EffectType::Forbid as i32, 0),
+            "ImmunityExpointChange" => (EffectType::ImmunityExPointChange as i32, 0),
             _ => return None,
         };
         Some(ActionResult::single(ActEffect {
