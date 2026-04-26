@@ -23,18 +23,19 @@ pub(super) struct Healing;
 
 impl BuffAction for Healing {
     fn execute(
+        &self,
         act_type: &str,
         _parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
         match act_type {
-            "CureUpByLostHp" => cure_up_by_lost_hp(ctx.effect_ctx),
-            "Revive" => revive(ctx.effect_ctx),
-            _ => ActionResult::empty(),
+            "CureUpByLostHp" => Some(cure_up_by_lost_hp(ctx.effect_ctx)),
+            "Revive" => Some(revive(ctx.effect_ctx)),
+            _ => None,
         }
     }
 }

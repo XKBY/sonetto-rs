@@ -25,18 +25,19 @@ pub(super) struct Bootstrap;
 
 impl BuffAction for Bootstrap {
     fn execute(
+        &self,
         act_type: &str,
         _parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
         match act_type {
-            "Raspberry" => ActionResult::none(ctx.effect_ctx.target),
-            "RaspberryBigSkill" | "MonitorContinueChannel" => ActionResult::empty(),
-            _ => ActionResult::empty(),
+            "Raspberry" => Some(ActionResult::none(ctx.effect_ctx.target)),
+            "RaspberryBigSkill" | "MonitorContinueChannel" => Some(ActionResult::empty()),
+            _ => None,
         }
     }
 }

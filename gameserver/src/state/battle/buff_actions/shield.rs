@@ -10,24 +10,24 @@ pub(super) struct Shield;
 
 impl BuffAction for Shield {
     fn execute(
+        &self,
         act_type: &str,
         parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
-
         match act_type {
             "Shield" => {
                 let permille = parts
                     .get(3)
                     .and_then(|v| v.trim().parse().ok())
                     .unwrap_or(0);
-                apply(ctx.effect_ctx, permille)
+                Some(apply(ctx.effect_ctx, permille))
             }
-            _ => ActionResult::empty(),
+            _ => None,
         }
     }
 }

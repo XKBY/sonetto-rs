@@ -21,13 +21,14 @@ pub(super) struct Halo;
 
 impl BuffAction for Halo {
     fn execute(
+        &self,
         act_type: &str,
         parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
         match act_type {
             "MasterHalo" => {
@@ -35,10 +36,10 @@ impl BuffAction for Halo {
                     .get(2)
                     .and_then(|v| v.trim().parse().ok())
                     .unwrap_or(0);
-                master(ctx.effect_ctx, ctx.executor, slave_buff_id)
+                Some(master(ctx.effect_ctx, ctx.executor, slave_buff_id))
             }
-            "SlaveHalo" => ActionResult::empty(),
-            _ => ActionResult::empty(),
+            "SlaveHalo" => Some(ActionResult::empty()),
+            _ => None,
         }
     }
 }

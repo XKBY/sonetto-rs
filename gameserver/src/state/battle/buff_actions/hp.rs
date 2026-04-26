@@ -20,13 +20,14 @@ pub(super) struct Hp;
 
 impl BuffAction for Hp {
     fn execute(
+        &self,
         act_type: &str,
         parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if act_type != "LostHpCountAddBuff" {
-            return ActionResult::empty();
+            return None;
         }
         let child_buff_id = parts
             .get(1)
@@ -45,7 +46,7 @@ impl BuffAction for Hp {
                     .retain(|e| e.effect_type == Some(EffectType::None as i32));
             }
         }
-        result
+        Some(result)
     }
 }
 

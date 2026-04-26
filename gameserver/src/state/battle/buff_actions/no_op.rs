@@ -18,14 +18,26 @@ pub(super) struct NoOp;
 
 impl BuffAction for NoOp {
     fn execute(
-        _act_type: &str,
+        &self,
+        act_type: &str,
         _parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
-        ActionResult::none(ctx.effect_ctx.target)
+        match act_type {
+            "FixAttrBySubBuffLayer"
+            | "AddPassiveSkills"
+            | "SubBuff"
+            | "Bullet"
+            | "CreateMaxHpAdditionalDamageAndRemove"
+            | "LifeAttackFixRate"
+            | "AddBuffByOtherExSkill"
+            | "ProbabilityAddBuff"
+            | "Poison" => Some(ActionResult::none(ctx.effect_ctx.target)),
+            _ => None,
+        }
     }
 }

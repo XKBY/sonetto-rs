@@ -25,13 +25,14 @@ pub(super) struct Markers;
 
 impl BuffAction for Markers {
     fn execute(
+        &self,
         act_type: &str,
         parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         if stage == BuffStage::BeforeBuffAdd {
-            return ActionResult::empty();
+            return None;
         }
         let target = ctx.effect_ctx.target;
         let (effect_type, effect_num) = match act_type {
@@ -52,13 +53,13 @@ impl BuffAction for Markers {
             "RealHarmFix" => (EffectType::RealHarmFix as i32, 0),
             "RealHurtSkillEffectFix" => (EffectType::RealHurtSkillEffectFix as i32, 0),
             "RealHarmSkillEffectFix" => (EffectType::RealHarmSkillEffectFix as i32, 0),
-            _ => return ActionResult::empty(),
+            _ => return None,
         };
-        ActionResult::single(ActEffect {
+        Some(ActionResult::single(ActEffect {
             effect_type: Some(effect_type),
             target_id: Some(target),
             effect_num: Some(effect_num),
             ..Default::default()
-        })
+        }))
     }
 }

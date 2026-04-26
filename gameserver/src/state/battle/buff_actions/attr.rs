@@ -27,24 +27,28 @@ pub(super) struct Attributes;
 
 impl BuffAction for Attributes {
     fn execute(
+        &self,
         act_type: &str,
         parts: &[&str],
         ctx: &mut BuffActCtx<'_, '_>,
         stage: BuffStage,
-    ) -> ActionResult {
+    ) -> Option<ActionResult> {
         match (act_type, stage) {
-            ("Attr", BuffStage::BeforeBuffAdd) => attr_before_apply(ctx, parts),
-            ("Attr", BuffStage::AfterBuffAdd) => on_apply(ctx.effect_ctx),
-            ("EachChangeAttr", BuffStage::BeforeBuffAdd) => each_change_attr_before(ctx, parts),
+            ("Attr", BuffStage::BeforeBuffAdd) => Some(attr_before_apply(ctx, parts)),
+            ("Attr", BuffStage::AfterBuffAdd) => Some(on_apply(ctx.effect_ctx)),
+            ("EachChangeAttr", BuffStage::BeforeBuffAdd) => {
+                Some(each_change_attr_before(ctx, parts))
+            }
             ("EachChangeAttr", BuffStage::AfterBuffAdd) => {
-                ActionResult::none(ctx.effect_ctx.target)
+                Some(ActionResult::none(ctx.effect_ctx.target))
             }
             ("AttrFromEntity", BuffStage::AfterBuffAdd) => {
-                from_entity(ctx.effect_ctx, ctx.buff_id)
+                Some(from_entity(ctx.effect_ctx, ctx.buff_id))
             }
+            ("AttrFromEntity", BuffStage::BeforeBuffAdd) => None,
             ("AttrOnlyCalDamageReplaceAttr", _)
-            | ("AttrOnlyCalDamageReplaceAttrADCreator", _) => ActionResult::empty(),
-            _ => ActionResult::empty(),
+            | ("AttrOnlyCalDamageReplaceAttrADCreator", _) => Some(ActionResult::empty()),
+            _ => None,
         }
     }
 }

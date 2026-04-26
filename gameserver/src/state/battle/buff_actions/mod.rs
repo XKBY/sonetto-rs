@@ -22,7 +22,7 @@ pub mod raspberry;
 pub mod round_end;
 pub mod shield;
 
-use self::action::{BuffAction, BuffActCtx, BuffStage};
+use self::action::{BUFF_ACTION_REGISTRY, BuffActCtx, BuffStage};
 
 pub mod result;
 pub mod use_skill_to_enemy;
@@ -111,31 +111,24 @@ fn run_before_add_feature(
     executor: &mut SkillExecutor,
     condition_id: i32,
 ) -> ActionResult {
-    // Before-add stage only handles feature-specific pre-broadcast behavior.
-    // Other features intentionally do nothing in this stage.
-    match act_type {
-        "Attr" | "EachChangeAttr" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id: 0,
-                condition_id,
-                has_bloodpool: false,
-            };
-            attr::Attributes::execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
+    // Iterate the registry; first cluster that owns this act_type +
+    // stage wins. Returns empty if no cluster claims it (most don't
+    // emit anything pre-stage).
+    let mut buff_ctx = BuffActCtx {
+        effect_ctx: ctx,
+        executor,
+        buff_id: 0,
+        condition_id,
+        has_bloodpool: false,
+    };
+    for cluster in BUFF_ACTION_REGISTRY {
+        if let Some(result) =
+            cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
+        {
+            return result;
         }
-        "LostHpCountAddBuff" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id: 0,
-                condition_id,
-                has_bloodpool: false,
-            };
-            hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
-        }
-        _ => ActionResult::empty(),
     }
+    ActionResult::empty()
 }
 
 fn run_after_add_feature(
@@ -146,20 +139,9 @@ fn run_after_add_feature(
     buff_id: i32,
     has_bloodpool: bool,
 ) -> ActionResult {
-    // LostHpCountAddBuff is split across stages: before emits the
-    // HP broadcasts (108/109), after emits the trailing None(0)
-    // marker. The Hp trait impl filters by stage internally.
-    if act_type == "LostHpCountAddBuff" {
-        let mut buff_ctx = BuffActCtx {
-            effect_ctx: ctx,
-            executor,
-            buff_id,
-            condition_id: 0,
-            has_bloodpool,
-        };
-        return hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd);
-    }
-
+    // The post-stage path used to special-case LostHpCountAddBuff
+    // before deferring to dispatch_feature; with the registry the
+    // single dispatcher handles every variant uniformly.
     dispatch_feature(act_type, parts, ctx, executor, buff_id, has_bloodpool)
 }
 
@@ -187,121 +169,25 @@ pub fn dispatch_feature(
     buff_id: i32,
     _has_bloodpool: bool,
 ) -> ActionResult {
-    match act_type {
-        "Attr"
-        | "EachChangeAttr"
-        | "AttrFromEntity"
-        | "AttrOnlyCalDamageReplaceAttr"
-        | "AttrOnlyCalDamageReplaceAttrADCreator" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            attr::Attributes::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+    let target = ctx.target;
+    let mut buff_ctx = BuffActCtx {
+        effect_ctx: ctx,
+        executor,
+        buff_id,
+        condition_id: 0,
+        has_bloodpool: _has_bloodpool,
+    };
+    for cluster in BUFF_ACTION_REGISTRY {
+        if let Some(result) =
+            cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+        {
+            return result;
         }
-
-        "MasterHalo" | "SlaveHalo" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            halo::Halo::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-
-        "LostHpCountAddBuff" => {
-            // Reachable only if a future caller invokes `dispatch_feature`
-            // directly (without going through the before/after pipeline).
-            // No such caller exists today; the trait route still produces
-            // the correct AfterBuffAdd result (None marker) if it gains one.
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-        "CureUpByLostHp" | "Revive" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            heal::Healing::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-        "Shield" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            shield::Shield::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-        "Rebound"
-        | "AddToTarget"
-        | "MonsterLabel"
-        | "ExPointOverflowBank"
-        | "ExPointMaxAdd"
-        | "TeammateInjuryCount"
-        | "PoisonSettleCanCrit"
-        | "RealHurtFix"
-        | "RealHarmFix"
-        | "RealHurtSkillEffectFix"
-        | "RealHarmSkillEffectFix" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            markers::Markers::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-
-        "Raspberry" | "RaspberryBigSkill" | "MonitorContinueChannel" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            bootstrap::Bootstrap::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-
-        // No-op at application time
-        "FixAttrBySubBuffLayer"
-        | "AddPassiveSkills"
-        | "SubBuff"
-        | "Bullet"
-        | "CreateMaxHpAdditionalDamageAndRemove"
-        | "LifeAttackFixRate"
-        | "AddBuffByOtherExSkill"
-        | "ProbabilityAddBuff"
-        | "Poison" => {
-            let mut buff_ctx = BuffActCtx {
-                effect_ctx: ctx,
-                executor,
-                buff_id,
-                condition_id: 0,
-                has_bloodpool: _has_bloodpool,
-            };
-            no_op::NoOp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        }
-
-        _ => ActionResult::none(ctx.target),
     }
+    // No cluster claimed this act_type — emit the legacy None(0)
+    // placeholder so the dispatcher's feature loop accounts for the
+    // slot.
+    ActionResult::none(target)
 }
 
 pub fn apply_before_buff_add_features(
