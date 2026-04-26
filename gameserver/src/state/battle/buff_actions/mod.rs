@@ -12,6 +12,7 @@ pub mod heal;
 pub mod hp;
 pub mod lost_life;
 pub mod magic_circle;
+mod markers;
 pub mod monitor_continue;
 pub mod nuodika;
 pub mod nuodika_cast;
@@ -274,80 +275,30 @@ pub fn dispatch_feature(
             };
             shield::Shield::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
-        "Rebound" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::Rebound as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "AddToTarget" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::AddToTarget as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
+        "Rebound"
+        | "AddToTarget"
+        | "MonsterLabel"
+        | "ExPointOverflowBank"
+        | "ExPointMaxAdd"
+        | "TeammateInjuryCount"
+        | "PoisonSettleCanCrit"
+        | "RealHurtFix"
+        | "RealHarmFix"
+        | "RealHurtSkillEffectFix"
+        | "RealHarmSkillEffectFix" => {
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            markers::Markers::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+        }
 
         "Raspberry" => ActionResult::none(ctx.target),
         "RaspberryBigSkill" => ActionResult::empty(),
         "MonitorContinueChannel" => ActionResult::empty(),
-
-        "MonsterLabel" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::MonsterLabelBuff as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "ExPointOverflowBank" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::ExPointOverflowBank as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "ExPointMaxAdd" => {
-            let amount = parse_parts(parts, 1);
-            ActionResult::single(ActEffect {
-                effect_type: Some(EffectType::ExPointMaxAdd as i32),
-                target_id: Some(ctx.target),
-                effect_num: Some(amount),
-                ..Default::default()
-            })
-        }
-        "TeammateInjuryCount" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::TeammateInjuryCount as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "PoisonSettleCanCrit" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::PoisonSettleCanCrit as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "RealHurtFix" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::RealHurtFix as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "RealHarmFix" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::RealHarmFix as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "RealHurtSkillEffectFix" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::RealHurtSkillEffectFix as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
-        "RealHarmSkillEffectFix" => ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::RealHarmSkillEffectFix as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }),
 
         // No-op at application time
         "FixAttrBySubBuffLayer"
