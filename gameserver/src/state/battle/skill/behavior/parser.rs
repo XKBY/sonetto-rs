@@ -33,6 +33,18 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             buff_id: p2,
         };
     }
+    // Kakania's Subconscious (basic 30800111/12/13) encodes the Empathy
+    // Genesis bonus as `60038#multiplier_permille`. Per the in-game
+    // ability description: "1-target attack. Deals X% Mental DMG plus
+    // (Current [Empathy] × multiplier%) Genesis DMG." The primary
+    // Mental damage still comes from `damageRate`; this behavior just
+    // carries the bonus multiplier (1800 / 2200 / 2600 = 180 / 220 /
+    // 260% scaling on stored Empathy).
+    if id == 60038 {
+        return BehaviorType::OriginDamageFromInjuryBank {
+            multiplier_permille: p1,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {

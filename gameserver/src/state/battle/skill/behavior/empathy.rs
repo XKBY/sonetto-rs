@@ -19,11 +19,63 @@ use crate::state::battle::{
 //   30800123: behavior2 = 60039#200#30800111
 const SOLACE_SKILL_IDS: [i32; 3] = [30800121, 30800122, 30800123];
 const SOLACE_CONFIG_EFFECT: i32 = 60039;
+/// Marker value attached to the Genesis bonus emission. The executor
+/// fallback gate uses this to distinguish bonus damage (which should
+/// not suppress the primary `damageRate` damage emission) from
+/// primary-damage behavior emissions.
+pub const SUBCONSCIOUS_BONUS_CONFIG_EFFECT: i32 = 60038;
 
 pub(super) struct Empathy;
 
 impl BehaviorAction for Empathy {
     fn execute(
+        &self,
+        behavior: &BehaviorType,
+        ctx: &mut ActionCtx<'_, '_>,
+        condition: &ConditionType,
+    ) -> Option<Result<Vec<ActEffect>>> {
+        match behavior {
+            BehaviorType::RealDamageSelfAndAddBuffToTarget { .. } => {
+                self.execute_solace(behavior, ctx, condition)
+            }
+            BehaviorType::OriginDamageFromInjuryBank { multiplier_permille } => Some(Ok(self
+                .execute_subconscious_bonus(ctx, *multiplier_permille))),
+            _ => None,
+        }
+    }
+}
+
+impl Empathy {
+    fn execute_subconscious_bonus(
+        &self,
+        ctx: &mut ActionCtx<'_, '_>,
+        multiplier_permille: i32,
+    ) -> Vec<ActEffect> {
+        // Bonus only fires when the caster has stored Empathy. The
+        // mechanic state is the source of truth; its values are
+        // (re)seeded each round from the Empathy buff's
+        // `actCommonParams`, so `current` is up to date here.
+        let current = ctx.mechanics.empathy.current(ctx.caster_uid);
+        if current <= 0 || multiplier_permille <= 0 || ctx.target == 0 {
+            return Vec::new();
+        }
+        let bonus = current.saturating_mul(multiplier_permille) / 1000;
+        if bonus <= 0 {
+            return Vec::new();
+        }
+        // Genesis DMG ignores defense — emit raw OriginDamage(130).
+        // `config_effect = 60038` flags this as a bonus emission so the
+        // executor's `has_damage_effect` gate still fires the primary
+        // `damageRate` damage path.
+        vec![
+            ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
+                .effect_num(bonus)
+                .config_effect(SUBCONSCIOUS_BONUS_CONFIG_EFFECT)
+                .build(),
+        ]
+    }
+
+    fn execute_solace(
         &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,

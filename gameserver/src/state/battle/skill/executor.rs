@@ -553,9 +553,20 @@ impl SkillExecutor {
         if let Some(skill) = skill_cfg
             && skill.damage_rate > 0
         {
-            let has_damage_effect = all_effects
-                .iter()
-                .any(|e| e.effect_type.map(is_damage_effect_type).unwrap_or(false));
+            // The fallback `damageRate` damage path should still fire
+            // even when behaviors emit "bonus" damage effects that
+            // ride alongside the primary damage (e.g. Kakania's
+            // Subconscious Empathy bonus, marked with
+            // `config_effect = 60038`). Standard primary-damage
+            // emissions from `lost_life::apply` carry
+            // `config_effect = -1` (and the fallback path itself
+            // emits the same value), so the bonus-only marker we
+            // need to ignore is specifically the positive
+            // bonus-config-effect family.
+            let has_damage_effect = all_effects.iter().any(|e| {
+                e.effect_type.map(is_damage_effect_type).unwrap_or(false)
+                    && !is_bonus_damage_config_effect(e.config_effect.unwrap_or(0))
+            });
             let ignore_config_damage = behaviors.iter().any(|b| {
                 matches!(
                     b.behavior,
@@ -1258,6 +1269,16 @@ fn is_damage_effect_type(effect_type: i32) -> bool {
         || effect_type == EffectType::EnchantDepresseDamage as i32
         || effect_type == EffectType::DeadlyPoisonOriginDamage as i32
         || effect_type == EffectType::DeadlyPoisonOriginCrit as i32
+}
+
+/// Returns true for damage effects whose `configEffect` marks them as
+/// a "bonus" emission that runs alongside the primary `damageRate`
+/// damage (Kakania's Subconscious Empathy bonus uses 60038, Kakania's
+/// Solace self-loss uses 60039). The fallback damage path uses these
+/// markers to know it should still emit the primary damage rate even
+/// when one of these bonus emissions has already fired.
+fn is_bonus_damage_config_effect(config_effect: i32) -> bool {
+    matches!(config_effect, 60038 | 60039)
 }
 
 fn inject_empathy_storage_injuries(

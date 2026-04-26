@@ -19,6 +19,15 @@ pub enum BehaviorType {
         amount_permille: i32,
         buff_id: i32,
     },
+    /// Genesis bonus damage scaling on the caster's stored Empathy
+    /// (a.k.a. injury bank). Encoded as `60038#multiplier_permille` on
+    /// skill_effect rows whose primary damage already comes from
+    /// `damageRate`. The bonus = `current_empathy × multiplier / 1000`
+    /// and emits as an additional `OriginDamage(130)` effect alongside
+    /// the primary damage. Genesis DMG ignores defense.
+    OriginDamageFromInjuryBank {
+        multiplier_permille: i32,
+    },
     AddExPoint {
         amount: i32,
     },
