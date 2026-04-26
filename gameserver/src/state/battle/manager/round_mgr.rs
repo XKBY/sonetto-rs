@@ -26,6 +26,7 @@ use super::super::{
         card_mgr::FightCardMgr,
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
+        wave_spawn,
     },
     mechanics::{
         advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter, magic_circle,
@@ -2152,7 +2153,14 @@ impl FightRoundMgr {
             steps.push(step);
         }
 
-        if self.check_battle_end(ctx.fight) {
+        let cur_wave = ctx.fight.cur_wave.unwrap_or(1);
+        let max_wave = self.get_max_wave(ctx.fight);
+        let battle_state = self.check_battle_state(ctx.fight, cur_wave, max_wave);
+        let wave_cleared = matches!(battle_state, BattleEndState::WaveCleared);
+        if matches!(
+            battle_state,
+            BattleEndState::Victory | BattleEndState::Defeat
+        ) {
             return Ok(());
         }
 
@@ -2183,6 +2191,24 @@ impl FightRoundMgr {
                 })
                 .build(),
         );
+        if wave_cleared {
+            let old_defender_uids: Vec<i64> = ctx
+                .fight
+                .defender
+                .as_ref()
+                .into_iter()
+                .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+                .filter_map(|entity| entity.uid)
+                .collect();
+            let wave_steps = wave_spawn::advance_wave(ctx.fight)?;
+            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            for uid in old_defender_uids {
+                ctx.managers.buff_mgr.clear(uid);
+            }
+            seed_entry_max_hp_from_fight(ctx.fight);
+            ctx.sync();
+            steps.extend(wave_steps);
+        }
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffect {

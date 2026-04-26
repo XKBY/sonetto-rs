@@ -28,54 +28,7 @@ impl Defender {
             .ok_or_else(|| anyhow::anyhow!("Battle {} not found", episode.battle_id))?;
 
         let max_round = battle.max_round;
-        let monster_max = battle.monster_max as usize;
-
-        // battle.monster_group_ids → one or more group IDs (split by #), one per wave
-        // For wave 1 we take the first group
-        let group_id: i32 = battle
-            .monster_group_ids
-            .split('#')
-            .next()
-            .and_then(|s| s.parse().ok())
-            .ok_or_else(|| anyhow::anyhow!("No monster group in battle {}", episode.battle_id))?;
-
-        let group = game_data
-            .monster_group
-            .iter()
-            .find(|g| g.id == group_id)
-            .ok_or_else(|| anyhow::anyhow!("MonsterGroup {} not found", group_id))?;
-
-        // group.monster → "30111001#30111003#30111003#30111002"
-        let monster_ids: Vec<i32> = group
-            .monster
-            .split('#')
-            .filter_map(|s| s.parse::<i32>().ok())
-            .collect();
-
-        // First monster_max spawn immediately, rest go into sub_entitys (position=-1)
-        let initial: Vec<i32> = monster_ids.iter().copied().take(monster_max).collect();
-        let queued: Vec<i32> = monster_ids.iter().copied().skip(monster_max).collect();
-
-        tracing::debug!(
-            "Defender: group={} total={} initial={} queued={}",
-            group_id,
-            monster_ids.len(),
-            initial.len(),
-            queued.len()
-        );
-
-        let mut entitys = Vec::new();
-        for (idx, monster_id) in initial.iter().enumerate() {
-            entitys.push(Self::build_enemy(*monster_id, idx, (idx + 1) as i32, 2)?);
-        }
-
-        // Queued monsters pre-built with position=-1, uid continues after active entities
-        let mut sub_entitys = Vec::new();
-        for (i, monster_id) in queued.iter().enumerate() {
-            let idx = initial.len() + i;
-            let position = -((i + 1) as i32); // -1, -2, -3, …
-            sub_entitys.push(Self::build_enemy(*monster_id, idx, position, 2)?);
-        }
+        let (entitys, sub_entitys) = Self::build_initial_wave_entities(episode.battle_id, 2)?;
 
         let player_entity = EntityBuilder::player(0, 2);
         let team = Team::build(
@@ -90,9 +43,141 @@ impl Defender {
         Ok(DefenderSetup { max_round, team })
     }
 
+    pub(crate) fn build_wave_entities(
+        battle_id: i32,
+        wave: i32,
+        team_type: i32,
+    ) -> Result<Vec<FightEntityInfo>> {
+        let game_data = configs::get();
+        let battle = game_data
+            .battle
+            .iter()
+            .find(|b| b.id == battle_id)
+            .ok_or_else(|| anyhow::anyhow!("Battle {} not found", battle_id))?;
+
+        let group_id: i32 = battle
+            .monster_group_ids
+            .split('#')
+            .nth(wave.saturating_sub(1) as usize)
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| {
+                anyhow::anyhow!("No monster group for battle {} wave {}", battle_id, wave)
+            })?;
+
+        let group = game_data
+            .monster_group
+            .iter()
+            .find(|g| g.id == group_id)
+            .ok_or_else(|| anyhow::anyhow!("MonsterGroup {} not found", group_id))?;
+
+        let monster_max = battle.monster_max.max(0) as usize;
+        let monster_ids: Vec<i32> = group
+            .monster
+            .split('#')
+            .filter_map(|s| s.parse::<i32>().ok())
+            .collect();
+        let spawn_count = if monster_max == 0 {
+            monster_ids.len()
+        } else {
+            monster_ids.len().min(monster_max)
+        };
+
+        tracing::debug!(
+            "Defender wave spawn: battle={} wave={} group={} total={} spawn={}",
+            battle_id,
+            wave,
+            group_id,
+            monster_ids.len(),
+            spawn_count
+        );
+
+        monster_ids
+            .into_iter()
+            .take(spawn_count)
+            .enumerate()
+            .map(|(idx, monster_id)| {
+                let position = (idx + 1) as i32;
+                let uid = -((2 * (wave as i64 - 1)) + position as i64);
+                Self::build_enemy_with_uid(monster_id, uid, position, team_type)
+            })
+            .collect()
+    }
+
+    fn build_initial_wave_entities(
+        battle_id: i32,
+        team_type: i32,
+    ) -> Result<(Vec<FightEntityInfo>, Vec<FightEntityInfo>)> {
+        let game_data = configs::get();
+        let battle = game_data
+            .battle
+            .iter()
+            .find(|b| b.id == battle_id)
+            .ok_or_else(|| anyhow::anyhow!("Battle {} not found", battle_id))?;
+        let monster_max = battle.monster_max as usize;
+
+        let group_id: i32 = battle
+            .monster_group_ids
+            .split('#')
+            .next()
+            .and_then(|s| s.parse().ok())
+            .ok_or_else(|| anyhow::anyhow!("No monster group in battle {}", battle_id))?;
+
+        let group = game_data
+            .monster_group
+            .iter()
+            .find(|g| g.id == group_id)
+            .ok_or_else(|| anyhow::anyhow!("MonsterGroup {} not found", group_id))?;
+
+        let monster_ids: Vec<i32> = group
+            .monster
+            .split('#')
+            .filter_map(|s| s.parse::<i32>().ok())
+            .collect();
+
+        let initial: Vec<i32> = monster_ids.iter().copied().take(monster_max).collect();
+        let queued: Vec<i32> = monster_ids.iter().copied().skip(monster_max).collect();
+
+        tracing::debug!(
+            "Defender: group={} total={} initial={} queued={}",
+            group_id,
+            monster_ids.len(),
+            initial.len(),
+            queued.len()
+        );
+
+        let mut entitys = Vec::new();
+        for (idx, monster_id) in initial.iter().enumerate() {
+            entitys.push(Self::build_enemy(
+                *monster_id,
+                idx,
+                (idx + 1) as i32,
+                team_type,
+            )?);
+        }
+
+        let mut sub_entitys = Vec::new();
+        for (i, monster_id) in queued.iter().enumerate() {
+            let idx = initial.len() + i;
+            let position = -((i + 1) as i32);
+            sub_entitys.push(Self::build_enemy(*monster_id, idx, position, team_type)?);
+        }
+
+        Ok((entitys, sub_entitys))
+    }
+
     fn build_enemy(
         monster_id: i32,
         idx: usize,
+        position: i32,
+        team_type: i32,
+    ) -> Result<FightEntityInfo> {
+        let uid = -((idx + 1) as i64);
+        Self::build_enemy_with_uid(monster_id, uid, position, team_type)
+    }
+
+    fn build_enemy_with_uid(
+        monster_id: i32,
+        uid: i64,
         position: i32,
         team_type: i32,
     ) -> Result<FightEntityInfo> {
@@ -158,7 +243,6 @@ impl Defender {
             .and_then(|s| s.parse::<i32>().ok())
             .unwrap_or(0);
 
-        let uid = -((idx + 1) as i64);
         let attr = HeroAttribute {
             hp: Some(hp),
             attack: Some(attack),

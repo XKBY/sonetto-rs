@@ -8,3 +8,4 @@ pub mod round_mgr;
 
 pub mod stage_mgr;
 pub mod traits;
+pub mod wave_spawn;
