@@ -41,7 +41,7 @@ use super::super::{
         steps::{refresh::build_refresh_step, transitions::build_pre_enemy_transition_steps},
     },
     skill::{
-        PhaseFilter,
+        PhaseFilter, SkillExecutor,
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
         condition::{misc::HriEvalGuard, parser::parse_condition},
@@ -2200,7 +2200,8 @@ impl FightRoundMgr {
                 .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
                 .filter_map(|entity| entity.uid)
                 .collect();
-            let wave_steps = wave_spawn::advance_wave(ctx.fight)?;
+            let mut wave_executor = SkillExecutor::new();
+            let wave_steps = wave_spawn::advance_wave(ctx, &mut wave_executor)?;
             sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
             for uid in old_defender_uids {
                 ctx.managers.buff_mgr.clear(uid);
