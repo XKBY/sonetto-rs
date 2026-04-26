@@ -73,7 +73,7 @@ pub async fn generate_begin_round_sequence(
 
     let mut out_rounds: Vec<(String, Value)> = Vec::new();
     for (name, deck, ai_deck, opers, ai_steps) in rounds {
-        let ai_override_steps = if ai_steps.is_empty() || has_duplicate_ai_casts(&ai_steps) {
+        let ai_override_steps = if should_replay_enemy_steps(&ai_deck, &ai_steps) {
             Some(ai_steps)
         } else {
             None
@@ -163,6 +163,23 @@ fn has_duplicate_ai_casts(steps: &[FightStep]) -> bool {
         }
     }
     false
+}
+
+fn should_replay_enemy_steps(ai_deck: &[CardInfo], ai_steps: &[FightStep]) -> bool {
+    if ai_steps.is_empty() || has_duplicate_ai_casts(ai_steps) {
+        return true;
+    }
+
+    let ai_skill_ids: std::collections::HashSet<i32> = ai_deck
+        .iter()
+        .filter_map(|card| card.skill_id)
+        .filter(|skill_id| *skill_id > 0)
+        .collect();
+
+    ai_steps.iter().any(|step| {
+        let skill_id = step.act_id.unwrap_or(0);
+        skill_id > 0 && !ai_skill_ids.contains(&skill_id)
+    })
 }
 
 fn apply_ex_point_seed_to_fight(fight: &mut Fight, ex_infos: &[FightExPointInfo]) {
