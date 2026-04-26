@@ -116,8 +116,39 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
                 .map(|id| vec![id])
                 .unwrap_or_default(),
         }),
+        "HasBuffGroup" => Some(ConditionType::HasBuffGroup {
+            group: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        }),
+        "NoBuffGroup" => Some(ConditionType::NoBuffGroup {
+            group: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        }),
         _ => None,
     }
+}
+
+/// True if the target carries at least one buff whose typeId's
+/// `bufftype.includeTypes` (`#`-delimited) contains `group` as a
+/// token. Used by `HasBuffGroup` / `NoBuffGroup` checks.
+fn target_has_buff_group(buff_mgr: &BuffMgr, target_uid: i64, group: i32) -> bool {
+    let cfg = config::configs::get();
+    let group_token = group.to_string();
+    let buffs = buff_mgr.get(target_uid);
+    if buffs.is_empty() {
+        return false;
+    }
+    buffs.iter().any(|instance| {
+        let Some(bufftype) = cfg
+            .skill_bufftype
+            .iter()
+            .find(|t| t.id == instance.type_id)
+        else {
+            return false;
+        };
+        bufftype
+            .include_types
+            .split('#')
+            .any(|tok| tok.trim() == group_token)
+    })
 }
 
 pub fn check(condition: &ConditionType, buff_mgr: &BuffMgr, condition_uid: i64) -> Option<bool> {
@@ -145,6 +176,12 @@ pub fn check(condition: &ConditionType, buff_mgr: &BuffMgr, condition_uid: i64) 
         }
         ConditionType::PerBuffIdCount { buff_ids } => {
             Some(buff_mgr.count_buff_ids(condition_uid, buff_ids) > 0)
+        }
+        ConditionType::HasBuffGroup { group } => {
+            Some(target_has_buff_group(buff_mgr, condition_uid, *group))
+        }
+        ConditionType::NoBuffGroup { group } => {
+            Some(!target_has_buff_group(buff_mgr, condition_uid, *group))
         }
         _ => None,
     }

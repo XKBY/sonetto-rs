@@ -197,6 +197,8 @@ impl PhaseFilter {
             | ConditionType::CombatNone
             | ConditionType::HasBuffId { .. }
             | ConditionType::NoBuffId { .. }
+            | ConditionType::HasBuffGroup { .. }
+            | ConditionType::NoBuffGroup { .. }
             | ConditionType::HasTypeIdBuffMoreThan { .. }
             | ConditionType::TypeIdBuffCountMoreThan { .. }
             | ConditionType::TypeIdBuffCountLessThan { .. }

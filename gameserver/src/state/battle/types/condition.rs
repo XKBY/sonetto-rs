@@ -15,6 +15,16 @@ pub enum ConditionType {
     TypeIdBuffCountLessThan { type_id: i32, max_count: i32 },
     HasTypeIdBuffEqual { type_id: i32, max_count: i32 },
 
+    /// Target has at least one buff whose `bufftype.includeTypes`
+    /// (`#`-delimited list) contains the matching `group` token.
+    /// Encoded as `77208#group` in skill_effect rows. Tuesday's
+    /// `In Mother's Arms` 30980121 uses `77208#7` for "target is in
+    /// [Poison] status" — Poison buffs all share `typeId 6003`
+    /// whose `includeTypes` is `"7"`.
+    HasBuffGroup { group: i32 },
+    /// Inverse of `HasBuffGroup`. Encoded as `78208#group`.
+    NoBuffGroup { group: i32 },
+
     LifeLess { threshold_permille: i32 },
     LifeMore { threshold_permille: i32 },
 

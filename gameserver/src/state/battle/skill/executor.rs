@@ -388,6 +388,23 @@ impl SkillExecutor {
                         } else {
                             raw
                         };
+                    // HasBuffGroup / NoBuffGroup are always evaluated against
+                    // the behavior's target (e.g. Tuesday's `In Mother's Arms`
+                    // 30980121 condition3 `77208#7` checks the enemy receiving
+                    // the buff, not Tuesday). condition_target=0 + logic_target=999
+                    // alone resolves to caster_uid, which would always evaluate
+                    // FALSE here. Override when target_uid is set.
+                    let raw = if target_uid != 0 && target_uid != condition_uid {
+                        match &b.condition {
+                            ConditionType::HasBuffGroup { .. }
+                            | ConditionType::NoBuffGroup { .. } => {
+                                condition_eval.for_target(target_uid).check(&b.condition)
+                            }
+                            _ => raw,
+                        }
+                    } else {
+                        raw
+                    };
                     if b.negated { !raw } else { raw }
                 }
             } else {
@@ -425,6 +442,19 @@ impl SkillExecutor {
                         }
                         ConditionType::NoBuffId { .. } => {
                             raw && condition_eval.for_target(target_uid).check(&b.condition)
+                        }
+                        _ => raw,
+                    }
+                } else {
+                    raw
+                };
+                // HasBuffGroup / NoBuffGroup are always evaluated against the
+                // behavior's target — see combat-path block above.
+                let raw = if target_uid != 0 && target_uid != condition_uid {
+                    match &b.condition {
+                        ConditionType::HasBuffGroup { .. }
+                        | ConditionType::NoBuffGroup { .. } => {
+                            condition_eval.for_target(target_uid).check(&b.condition)
                         }
                         _ => raw,
                     }
