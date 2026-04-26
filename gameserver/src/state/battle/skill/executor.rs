@@ -14,7 +14,7 @@ use super::super::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         fight_data_mgr::Managers,
     },
-    mechanics::Mechanics,
+    mechanics::{Mechanics, empathy::has_empathy_buff},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::buff_del,
 };
@@ -515,6 +515,14 @@ impl SkillExecutor {
                 b.condition_id,
                 &b.condition,
             )?;
+            let behavior_effects = inject_empathy_storage_injuries(
+                mechanics,
+                &mut sim_buff_mgr,
+                &mut managers.buff_mgr,
+                &sim_fight,
+                caster_uid,
+                behavior_effects,
+            );
             managers.buff_mgr.increment_skill_slot_round_usage(
                 caster_uid,
                 skill_effect_id,
@@ -589,6 +597,14 @@ impl SkillExecutor {
                         is_crit,
                     ));
                 }
+                let mut damage_effects = inject_empathy_storage_injuries(
+                    mechanics,
+                    &mut sim_buff_mgr,
+                    &mut managers.buff_mgr,
+                    &sim_fight,
+                    caster_uid,
+                    damage_effects,
+                );
                 damage_effects.extend(all_effects);
                 all_effects = damage_effects;
             }
@@ -1242,6 +1258,63 @@ fn is_damage_effect_type(effect_type: i32) -> bool {
         || effect_type == EffectType::EnchantDepresseDamage as i32
         || effect_type == EffectType::DeadlyPoisonOriginDamage as i32
         || effect_type == EffectType::DeadlyPoisonOriginCrit as i32
+}
+
+fn inject_empathy_storage_injuries(
+    mechanics: &mut Mechanics,
+    preview_buff_mgr: &mut BuffMgr,
+    live_buff_mgr: &mut BuffMgr,
+    fight: &Fight,
+    source_uid: i64,
+    effects: Vec<ActEffect>,
+) -> Vec<ActEffect> {
+    let mut effect_targets = Vec::new();
+    for effect in &effects {
+        let Some(target_uid) = effect.target_id else {
+            continue;
+        };
+        let Some(effect_type) = effect.effect_type else {
+            continue;
+        };
+        if effect_type == EffectType::DamageFromAbsorb as i32
+            || !is_damage_effect_type(effect_type)
+            || target_uid == source_uid
+            || effect_targets.contains(&target_uid)
+            || !has_empathy_buff(preview_buff_mgr, target_uid)
+        {
+            continue;
+        }
+        effect_targets.push(target_uid);
+    }
+
+    let mut out = effects;
+    for target_uid in effect_targets {
+        let Some(target) = get_entity(fight, target_uid) else {
+            continue;
+        };
+        let target_max_hp = target.attr.as_ref().and_then(|attr| attr.hp).unwrap_or(0);
+        if target_max_hp <= 0 {
+            continue;
+        }
+
+        out = mechanics
+            .empathy
+            .inject_storage_injury_for_damage_emissions(
+                preview_buff_mgr,
+                source_uid,
+                target_uid,
+                target_max_hp,
+                out,
+            );
+        mechanics.empathy.sync_buff_state(
+            live_buff_mgr,
+            target_uid,
+            mechanics.empathy.current(target_uid),
+            target_max_hp,
+        );
+    }
+
+    out
 }
 
 fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Vec<ActEffect> {

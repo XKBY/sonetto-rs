@@ -53,11 +53,7 @@ impl EmpathyState {
                     .buffs
                     .iter()
                     .chain(entity.no_effect_buffs.iter())
-                    .find(|buff| {
-                        buff.buff_id
-                            .map(is_empathy_buff)
-                            .unwrap_or(false)
-                    })
+                    .find(|buff| buff.buff_id.map(is_empathy_buff).unwrap_or(false))
                     .and_then(|buff| buff.act_common_params.as_deref())
                     .and_then(parse_empathy_value)
                     .unwrap_or(0);
@@ -119,6 +115,73 @@ impl EmpathyState {
         next
     }
 
+    pub fn sync_buff_state(
+        &mut self,
+        buff_mgr: &mut BuffMgr,
+        target_uid: i64,
+        current_total: i32,
+        target_max_hp: i32,
+    ) {
+        let cap = Self::storage_cap(target_max_hp);
+        let current_total = current_total.max(0).min(cap);
+        self.values.insert(target_uid, current_total);
+
+        let (_buff_id, buff_uid) = ensure_empathy_buff(buff_mgr, target_uid);
+        let _ = buff_mgr.set_instance_act_common_params(
+            target_uid,
+            buff_uid,
+            &build_empathy_params(current_total, cap),
+        );
+    }
+
+    /// When an Empathy holder takes incoming skill damage, emit the
+    /// cumulative `StorageInjury` marker before the damage packet and
+    /// update the preview buff state so later behavior slots see the
+    /// stored total immediately.
+    pub fn inject_storage_injury_for_damage_emissions(
+        &mut self,
+        buff_mgr: &mut BuffMgr,
+        source_uid: i64,
+        target_uid: i64,
+        target_max_hp: i32,
+        effects: Vec<ActEffect>,
+    ) -> Vec<ActEffect> {
+        if source_uid == target_uid
+            || target_uid == 0
+            || target_max_hp <= 0
+            || !has_empathy_buff(buff_mgr, target_uid)
+        {
+            return effects;
+        }
+
+        let cap = Self::storage_cap(target_max_hp);
+        let mut out = Vec::with_capacity(effects.len());
+        for effect in effects {
+            let should_inject = effect.target_id == Some(target_uid)
+                && is_incoming_damage_effect_type(effect.effect_type);
+            if !should_inject {
+                out.push(effect);
+                continue;
+            }
+
+            let damage = effect.effect_num.unwrap_or(0).max(0);
+            let storage = Self::compute_storage_amount(damage);
+            let current_total = self.apply_storage(buff_mgr, target_uid, storage, target_max_hp);
+            let (buff_id, buff_uid) = ensure_empathy_buff(buff_mgr, target_uid);
+            out.push(self.emit_storage_injury(
+                target_uid,
+                current_total,
+                buff_id,
+                buff_uid,
+                target_uid,
+                cap,
+            ));
+            out.push(effect);
+        }
+
+        out
+    }
+
     pub fn emit_storage_injury(
         &self,
         target_uid: i64,
@@ -176,6 +239,32 @@ impl EmpathyState {
             ..Default::default()
         }
     }
+}
+
+pub fn has_empathy_buff(buff_mgr: &BuffMgr, target_uid: i64) -> bool {
+    buff_mgr
+        .find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID)
+        .is_some()
+}
+
+fn is_incoming_damage_effect_type(effect_type: Option<i32>) -> bool {
+    matches!(
+        effect_type,
+        Some(t)
+            if t == EffectType::Damage as i32
+                || t == EffectType::Crit as i32
+                || t == EffectType::DamageExtra as i32
+                || t == EffectType::OriginDamage as i32
+                || t == EffectType::OriginCrit as i32
+                || t == EffectType::AdditionalDamage as i32
+                || t == EffectType::AdditionalDamageCrit as i32
+                || t == EffectType::FixedDamage as i32
+                || t == EffectType::DamageFromLostHp as i32
+                || t == EffectType::EnchantBurnDamage as i32
+                || t == EffectType::EnchantDepresseDamage as i32
+                || t == EffectType::DeadlyPoisonOriginDamage as i32
+                || t == EffectType::DeadlyPoisonOriginCrit as i32
+    )
 }
 
 /// Returns the active Empathy `(buff_id, buff_uid)` for `target_uid`,
