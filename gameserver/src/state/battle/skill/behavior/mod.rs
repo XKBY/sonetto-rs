@@ -4,6 +4,7 @@ mod bloodtithe;
 mod buff;
 mod buff_helper;
 mod damage;
+mod direct_skill;
 mod disperse;
 mod ex_point;
 mod heal;
@@ -22,7 +23,6 @@ use anyhow::Result;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, effect_type_enum::EffectType};
 
-use self::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
@@ -34,7 +34,7 @@ use crate::state::battle::{
     mechanics::Mechanics,
     skill::cache::SKILL_CACHE,
     skill::condition::parser::parse_condition,
-    skill::targets::{TargetResolver, alive_enemies, get_entity},
+    skill::targets::{TargetResolver, get_entity},
     types::{behavior::BehaviorType, condition::ConditionType},
     utils::damage_with_hurt,
 };
@@ -346,265 +346,33 @@ fn dispatch_impl(
         }
 
         // --- skill triggers ---
-        BehaviorType::DirectUseSkill { skill_id } => {
-            if *skill_id <= 0 {
-                return Ok(vec![]);
-            }
-            let out = executor.execute_skill(
+        BehaviorType::DirectUseSkill { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
                 rng,
-                fight,
                 managers,
                 mechanics,
+                behavior_ctx,
                 caster_uid,
                 target,
-                *skill_id,
-                &crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
-                        *skill_id,
-                    )
-                    .with_buff_mgr(&managers.buff_mgr),
-                ),
-            )?;
-
-            Ok(out)
+                skill_id,
+                condition_id,
+            };
+            direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::DirectUseBigSkill => {
-            let mut out = Vec::new();
-
-            let caster_team =
-                crate::state::battle::skill::targets::get_team_type(fight, caster_uid);
-            let wrapper_candidate = skill_id - 20;
-            let wrapper_effect_id = resolve_skill_effect_id(wrapper_candidate);
-            let ex_skill_id = if SKILL_CACHE.contains_key(&wrapper_effect_id) {
-                wrapper_candidate
-            } else {
-                crate::state::battle::skill::targets::get_entity(fight, caster_uid)
-                    .and_then(|e| e.ex_skill)
-                    .unwrap_or(0)
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
             };
-            if ex_skill_id == 0 {
-                return Ok(out);
-            }
-
-            // Derive consume range from the big skill's behavior block when available.
-            let (_min_consume, max_consume) = SKILL_CACHE
-                .get(&ex_skill_id)
-                .and_then(|rows| {
-                    rows.iter().find_map(|r| {
-                        if let BehaviorType::ConsumeExPointAddAttr {
-                            min_consume,
-                            max_consume,
-                        } = r.behavior
-                        {
-                            Some((min_consume, max_consume))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or((0, 0));
-            let need_ex = config::configs::get()
-                .skill_effect
-                .iter()
-                .find(|s| s.id == resolve_skill_effect_id(ex_skill_id))
-                .map(|s| {
-                    if s.need_ex_point > 0 {
-                        s.need_ex_point
-                    } else {
-                        max_consume
-                    }
-                })
-                .unwrap_or(max_consume)
-                .max(0);
-            let current_ex = managers.ex_point_mgr.get_ex_point(caster_uid).max(0);
-            // Live wrapper semantics: consume from EX-skill cost lane when
-            // present, but cap by current_ex so low-EX casts don't over-consume.
-            // (Refund cap = need_ex when present.)
-            let initial_consume = if need_ex > 0 {
-                need_ex.min(current_ex)
-            } else {
-                current_ex
-            };
-            let prep_skill_ids = collect_precast_skills_for_caster(fight, managers, caster_uid);
-            let seeded_cap =
-                infer_precast_per_decr_seed_cap(fight, managers, caster_uid, &prep_skill_ids);
-            let mut consume = seeded_cap
-                .map(|cap| initial_consume.min(cap.max(0)))
-                .unwrap_or(initial_consume)
-                .max(0);
-            let mut refund = if need_ex > 0 {
-                consume.min(need_ex)
-            } else {
-                consume
-            };
-            managers
-                .ex_point_mgr
-                .set_recent_decr_ex_point(caster_uid, consume);
-
-            // Some wrapper cards first fire a passive-side helper skill before
-            // forcing the EX cast.
-            for precast_id in prep_skill_ids {
-                let mut pre = {
-                    let phase = crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                        crate::state::battle::skill::phase::TriggerState::on_use_card()
-                            .with_buff_mgr(&managers.buff_mgr),
-                    );
-                    executor.execute_skill(
-                        rng, fight, managers, mechanics, caster_uid, caster_uid, precast_id, &phase,
-                    )?
-                };
-                out.append(&mut pre);
-            }
-
-            // If prep emitted a self-buff with layer, use that layer as consume cap.
-            // This keeps consume/refund aligned with config-driven prep state.
-            let prep_layer_cap = out
-                .iter()
-                .filter_map(|e| e.fight_step.as_ref())
-                .flat_map(|s| s.act_effect.iter())
-                .find_map(|ae| {
-                    if ae.effect_type != Some(EffectType::Buffadd as i32) {
-                        return None;
-                    }
-                    if ae.target_id != Some(caster_uid) {
-                        return None;
-                    }
-                    let buff = ae.buff.as_ref()?;
-                    Some(buff.layer.unwrap_or(0).max(0))
-                });
-
-            if let Some(cap) = prep_layer_cap {
-                consume = consume.min(cap.max(0)).max(0);
-                refund = if need_ex > 0 {
-                    consume.min(need_ex)
-                } else {
-                    consume
-                };
-            }
-            if consume != initial_consume {
-                managers
-                    .ex_point_mgr
-                    .set_recent_decr_ex_point(caster_uid, consume);
-            }
-
-            if consume > 0 {
-                // Don't mutate ex_point_mgr directly — the ExPointChange effect
-                // below is applied by calculate_mgr::play_effect_add_ex_point
-                // during play_step_data. Direct mutation + replay = double-apply.
-                out.push(ActEffect {
-                    effect_type: Some(EffectType::Expointchange as i32),
-                    target_id: Some(caster_uid),
-                    effect_num: Some(-consume),
-                    ..Default::default()
-                });
-                out.push(ActEffect {
-                    effect_type: Some(327),
-                    target_id: Some(caster_uid),
-                    effect_num: Some(0),
-                    ..Default::default()
-                });
-            }
-
-            let ex_target_uid = if crate::state::battle::skill::targets::get_team_type(
-                fight, target,
-            ) != caster_team
-                && crate::state::battle::skill::targets::get_entity(fight, target)
-                    .map(|e| e.current_hp.unwrap_or(0) > 0)
-                    .unwrap_or(false)
-            {
-                target
-            } else {
-                alive_enemies(fight, caster_uid)
-                    .into_iter()
-                    .next()
-                    .unwrap_or(target)
-            };
-
-            let mut ex = {
-                let phase = crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState::on_use_card()
-                        .with_buff_mgr(&managers.buff_mgr),
-                );
-                executor.execute_skill(
-                    rng,
-                    fight,
-                    managers,
-                    mechanics,
-                    caster_uid,
-                    ex_target_uid,
-                    ex_skill_id,
-                    &phase,
-                )?
-            };
-            // Some trigger chains can emit duplicate wrapper skill steps. If any same-act_id
-            // step carries damage, drop empty/attr-only duplicates for that act_id.
-            let is_ex_skill_step = |e: &ActEffect| {
-                e.effect_type == Some(EffectType::Fightstep as i32)
-                    && e.fight_step
-                        .as_ref()
-                        .map(|s| s.act_id == Some(ex_skill_id))
-                        .unwrap_or(false)
-            };
-            let ex_skill_step_has_damage = |e: &ActEffect| {
-                e.fight_step
-                    .as_ref()
-                    .map(|s| {
-                        s.act_effect
-                            .iter()
-                            .any(|ae| damage::is_damage_effect_type(ae.effect_type))
-                    })
-                    .unwrap_or(false)
-            };
-            let has_damage_ex_skill_step = ex
-                .iter()
-                .any(|e| is_ex_skill_step(e) && ex_skill_step_has_damage(e));
-            let mut kept_non_damage_ex_skill_step = false;
-            ex.retain(|e| {
-                if !is_ex_skill_step(e) {
-                    return true;
-                }
-                if ex_skill_step_has_damage(e) {
-                    return true;
-                }
-                if has_damage_ex_skill_step {
-                    return false;
-                }
-                if kept_non_damage_ex_skill_step {
-                    return false;
-                }
-                kept_non_damage_ex_skill_step = true;
-                true
-            });
-            if ex_skill_id == skill_id {
-                // Avoid self-nesting: this behavior can execute the same act_id as the
-                // current skill, and we only want one outward Skill step.
-                let mut flattened = Vec::new();
-                for mut effect in ex.drain(..) {
-                    if is_ex_skill_step(&effect) {
-                        if let Some(step) = effect.fight_step.take() {
-                            flattened.extend(step.act_effect);
-                        }
-                    } else {
-                        flattened.push(effect);
-                    }
-                }
-                ex = flattened;
-            }
-            out.append(&mut ex);
-
-            if refund > 0 {
-                // Don't mutate ex_point_mgr directly — calculate_mgr replays
-                // the ExPointChange below. See note above on consume.
-                out.push(ActEffect {
-                    effect_type: Some(EffectType::Expointchange as i32),
-                    target_id: Some(caster_uid),
-                    effect_num: Some(refund),
-                    ..Default::default()
-                });
-            }
-            managers.ex_point_mgr.clear_recent_decr_ex_point(caster_uid);
-
-            Ok(out)
+            direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::ConsumeExPointAddAttr { .. } => {
             let mut action_ctx = ActionCtx {
@@ -639,175 +407,47 @@ fn dispatch_impl(
             }
             Ok(vec![])
         }
-        BehaviorType::DirectUseGroupAndStarSkill { group, rank } => {
-            // Live gating: this derived cast lane should never fire from
-            // non-combat passive phases (battle-start / unconditional).
-            // It is only valid while running under combat-trigger contexts.
-            if !matches!(
-                behavior_ctx.phase,
-                crate::state::battle::skill::PhaseFilter::Combat(_)
-            ) {
-                return Ok(vec![]);
-            }
-
-            let mut out = Vec::new();
-            // Some configs encode buff-pool picks (20021#pool#count) through
-            // this behavior path. Route the pool-pick through the generic
-            // `random::add_buff_ran_id` so the partition-and-shuffle bias
-            // (favor buffs the target does not already have) and the
-            // simulator's seeded RNG apply uniformly across every random-pool
-            // mechanic, instead of taking the first `rank` entries
-            // deterministically. The `add_buff_ran_id` helper short-circuits
-            // when the pool is empty (single-buff config or non-pool id), so
-            // the derived-skill cast below still runs in that case.
-            if *group >= 10000 {
-                out.extend(random::add_buff_ran_id(
-                    executor,
-                    rng,
-                    fight,
-                    managers,
-                    mechanics,
-                    caster_uid,
-                    target,
-                    *group,
-                    *rank,
-                )?);
-            }
-
-            let chosen_skill_id = if *group >= 10000 {
-                // Live-style derived skill lane: base skill id + (9 + rank).
-                // Example: 20021#30630111#2 -> 30630122.
-                group.saturating_add(9 + (*rank).max(1))
-            } else {
-                crate::state::battle::skill::get_entity(fight, caster_uid)
-                    .and_then(|entity| {
-                        let idx = (*rank).saturating_sub(1) as usize;
-                        match *group {
-                            1 => entity.skill_group1.get(idx).copied(),
-                            2 => entity.skill_group2.get(idx).copied(),
-                            _ => None,
-                        }
-                    })
-                    .unwrap_or(0)
+        BehaviorType::DirectUseGroupAndStarSkill { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
             };
-            if chosen_skill_id <= 0 {
-                return Ok(out);
-            }
-
-            let mut derived_effects = executor.execute_skill(
-                rng,
-                fight,
-                managers,
-                mechanics,
-                caster_uid,
-                target,
-                chosen_skill_id,
-                &crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
-                        chosen_skill_id,
-                    )
-                    .with_buff_mgr(&managers.buff_mgr),
-                ),
-            )?;
-            if derived_effects.is_empty() {
-                let synthetic = ActEffect {
-                    effect_type: Some(EffectType::Fightstep as i32),
-                    target_id: Some(0),
-                    effect_num: Some(0),
-                    fight_step: Some(sonettobuf::FightStep {
-                        act_type: Some(sonettobuf::fight_step::ActType::Skill as i32),
-                        from_id: Some(caster_uid),
-                        to_id: Some(target),
-                        act_id: Some(chosen_skill_id),
-                        act_effect: vec![],
-                        card_index: Some(0),
-                        support_hero_id: Some(0),
-                        fake_timeline: Some(false),
-                        real_skill_type: Some(0),
-                        real_skin_id: Some(0),
-                    }),
-                    ..Default::default()
-                };
-                derived_effects.push(synthetic);
-            }
-            out.extend(derived_effects);
-
-            let passive_phase = crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                crate::state::battle::skill::phase::TriggerState::on_active_use_skill(
-                    chosen_skill_id,
-                )
-                .with_buff_mgr(&managers.buff_mgr),
-            );
-            let passive_skills: Vec<i32> =
-                crate::state::battle::skill::targets::get_entity(fight, caster_uid)
-                    .map(|e| e.passive_skill.clone())
-                    .unwrap_or_default();
-            for passive_skill_id in passive_skills {
-                if passive_skill_id <= 0
-                    || passive_skill_id == skill_id
-                    || passive_skill_id == chosen_skill_id
-                    || !has_active_use_trigger_condition(passive_skill_id)
-                {
-                    continue;
-                }
-                let passive_effects = executor.execute_skill(
-                    rng,
-                    fight,
-                    managers,
-                    mechanics,
-                    caster_uid,
-                    target,
-                    passive_skill_id,
-                    &passive_phase,
-                )?;
-                if !passive_effects.is_empty() {
-                    out.extend(passive_effects);
-                }
-            }
-            Ok(out)
+            direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::ConsumePowerDirectUseSkill { .. } => skill::consume_power_direct_use_skill(),
-        BehaviorType::RandomUseSkill { raw } => {
-            // `60225#sid:weight&sid:weight&...` — pick one entry and
-            // recursively execute it through the skill executor. Without
-            // a synced LIVE RNG seed we can't reproduce LIVE's pick
-            // exactly; pick the middle entry deterministically because
-            // battle2 r1's boss wrapper picks `530000752` (middle of
-            // `530000751:100&530000752:100&530000753:100`).
-            let pool: Vec<i32> = raw
-                .split('#')
-                .nth(1)
-                .map(|payload| {
-                    payload
-                        .split('&')
-                        .filter_map(|entry| {
-                            entry
-                                .split(':')
-                                .next()
-                                .and_then(|s| s.trim().parse::<i32>().ok())
-                                .filter(|sid| *sid > 0)
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            if pool.is_empty() {
-                return Ok(vec![]);
-            }
-            let pick = pool[pool.len() / 2];
-            let out = executor.execute_skill(
+        BehaviorType::ConsumePowerDirectUseSkill { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
                 rng,
-                fight,
                 managers,
                 mechanics,
+                behavior_ctx,
                 caster_uid,
                 target,
-                pick,
-                &crate::state::battle::skill::phase::PhaseFilter::combat_with(
-                    crate::state::battle::skill::phase::TriggerState::on_active_use_skill(pick)
-                        .with_buff_mgr(&managers.buff_mgr),
-                ),
-            )?;
-            Ok(out)
+                skill_id,
+                condition_id,
+            };
+            direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
+        }
+        BehaviorType::RandomUseSkill { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            direct_skill::DirectSkill::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::Summon { .. } => skill::summon(),
         BehaviorType::Kill => skill::kill(),
@@ -951,7 +591,7 @@ fn infer_enter_fight_seed_layer(skill_id: i32, buff_or_type_id: i32) -> Option<i
     })
 }
 
-fn has_active_use_trigger_condition(skill_id: i32) -> bool {
+pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);
     let Some(row) = cfg.skill_effect.iter().find(|s| s.id == effect_id) else {
