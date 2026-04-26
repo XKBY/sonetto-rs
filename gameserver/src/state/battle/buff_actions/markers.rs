@@ -14,6 +14,14 @@
 //!   `ExPointMaxAdd`, `TeammateInjuryCount`, `PoisonSettleCanCrit`,
 //!   `RealHurtFix`, `RealHarmFix`, `RealHurtSkillEffectFix`,
 //!   `RealHarmSkillEffectFix`.
+//! * **DOT family** — `Poison`, `LockPoison`, `DeadlyPoison`. Each
+//!   emits the matching effect-type marker (`Poison(213)`,
+//!   `LockDot(216)`, `DeadlyPoison(255)`) alongside its `BuffAdd`.
+//!   The actual DOT damage tick fires later via the buff settlement
+//!   phase; at apply time the marker is the only emission. Verified
+//!   from LIVE battle3 r2-r10: every BuffAdd of a Poison-family buff
+//!   (e.g. 31040005, 30980111, 30091129) is paired with one of these
+//!   effect-type markers in the same actEffect array.
 
 use sonettobuf::ActEffect;
 
@@ -53,6 +61,9 @@ impl BuffAction for Markers {
             "RealHarmFix" => (EffectType::RealHarmFix as i32, 0),
             "RealHurtSkillEffectFix" => (EffectType::RealHurtSkillEffectFix as i32, 0),
             "RealHarmSkillEffectFix" => (EffectType::RealHarmSkillEffectFix as i32, 0),
+            "Poison" => (EffectType::Poison as i32, 0),
+            "LockPoison" => (EffectType::LockDot as i32, 0),
+            "DeadlyPoison" => (EffectType::DeadlyPoison as i32, 0),
             _ => return None,
         };
         Some(ActionResult::single(ActEffect {
