@@ -6,6 +6,7 @@ mod damage;
 mod disperse;
 mod ex_point;
 mod heal;
+mod lost_life;
 mod misc;
 pub(crate) mod precast;
 mod random;
@@ -25,7 +26,7 @@ use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
     buff_actions::{
-        EffectContext, attr_replace::buff_get_attr_replace_permille, lost_life, raspberry,
+        EffectContext, attr_replace::buff_get_attr_replace_permille, raspberry,
     },
     context::behavior_context::BehaviorContext,
     manager::fight_data_mgr::Managers,
@@ -324,66 +325,19 @@ fn dispatch_impl(
         }
 
         // --- bloodtithe ---
-        BehaviorType::LostLife {
-            mode,
-            attr_id,
-            permille,
-            behavior_id,
-        } => {
-            let floor_permille = buff::ban_lost_life_floor_permille(fight, managers, target);
-            let effects = bloodtithe::lost_life(
-                fight,
-                &managers.buff_mgr,
-                &mut mechanics.bloodtithe,
+        BehaviorType::LostLife { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
                 caster_uid,
                 target,
-                *mode,
-                *attr_id,
-                *permille,
-                *behavior_id,
                 skill_id,
-                floor_permille,
-            );
-            let damage = effects
-                .iter()
-                .find(|e| {
-                    matches!(
-                        e.effect_type,
-                        Some(t)
-                            if t == EffectType::Damage as i32
-                                || t == EffectType::Crit as i32
-                                || t
-                                    == crate::state::battle::types::effects::EffectType::OriginDamage
-                                        as i32
-                                || t
-                                    == crate::state::battle::types::effects::EffectType::OriginCrit
-                                        as i32
-                    )
-                })
-                .and_then(|e| e.effect_num)
-                .unwrap_or(0);
-            tracing::warn!("LostLife: target={} damage={}", target, damage);
-            if damage > 0 {
-                managers.ex_point_mgr.apply_damage(target, damage);
-                mechanics.shadow_cloak.add(target, damage);
-            }
-            // In combat phases the emitted 111 effects are replayed later by
-            // calculate_mgr::play_effect_add_ex_point via play_step_data, so
-            // mutating ex_point_mgr here would double-apply. Battle-start /
-            // non-combat passive phases never hit play_step_data for LostLife,
-            // so we still need the direct mirror there.
-            if !behavior_ctx.phase.is_combat() {
-                for e in &effects {
-                    if e.effect_type == Some(111)
-                        && let Some(uid) = e.target_id
-                    {
-                        managers
-                            .ex_point_mgr
-                            .add_ex_point(uid, e.effect_num.unwrap_or(0));
-                    }
-                }
-            }
-            Ok(effects)
+                condition_id,
+            };
+            lost_life::LostLife::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::BloodPoolMaxChange { amount } => Ok(bloodtithe::pool_max_change(
             fight,
@@ -903,31 +857,19 @@ fn dispatch_impl(
         BehaviorType::MagicCircleAttr { .. } => misc::magic_circle_attr(),
         BehaviorType::CrystalAddCard => misc::crystal_add_card(),
         BehaviorType::IgnoreSkillConfigDamageRate => Ok(vec![]),
-        BehaviorType::LostAllLifeByAttr {
-            caster_attr,
-            caster_amount,
-            target_attr,
-            target_amount,
-        } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            Ok(lost_life::lost_all_life_by_attr(
-                &mut ctx,
-                *caster_attr,
-                *caster_amount,
-                *target_attr,
-                *target_amount,
+        BehaviorType::LostAllLifeByAttr { .. } | BehaviorType::DamageRealLostLife { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
                 skill_id,
-            ))
-        }
-        BehaviorType::DamageRealLostLife {
-            buff_id,
-            duration: _,
-            rate,
-        } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            Ok(lost_life::damage_real_lost_life(
-                &mut ctx, *buff_id, *rate, skill_id,
-            ))
+                condition_id,
+            };
+            lost_life::LostLife::execute(behavior, &mut action_ctx, condition)
         }
         BehaviorType::NuoDiKaDamage {
             primary_buff_id,
