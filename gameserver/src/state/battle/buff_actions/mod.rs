@@ -264,10 +264,15 @@ pub fn dispatch_feature(
             };
             heal::Healing::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
-
         "Shield" => {
-            let permille = parse_parts(parts, 3);
-            shield::apply(ctx, permille)
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            shield::Shield::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
         "Rebound" => ActionResult::single(ActEffect {
             effect_type: Some(EffectType::Rebound as i32),
