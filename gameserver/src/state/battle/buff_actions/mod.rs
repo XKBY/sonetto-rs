@@ -10,9 +10,12 @@ pub mod halo;
 pub mod heal;
 pub mod hp;
 pub mod lost_life;
+pub mod magic_circle;
 pub mod monitor_continue;
+pub mod nuodika;
 pub mod nuodika_cast;
 pub mod raspberry;
+pub mod round_end;
 pub mod shield;
 
 pub mod result;

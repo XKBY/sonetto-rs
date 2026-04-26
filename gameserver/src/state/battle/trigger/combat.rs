@@ -272,7 +272,7 @@ fn collect_bloodpool_gains_inner(
             let team_type = effect.effect_num.unwrap_or(0);
             let delta = effect.effect_num1.unwrap_or(0);
             let from_magic_circle = current_skill_id.is_some_and(
-                crate::state::battle::mechanics::magic_circle::is_magic_circle_self_skill,
+                crate::state::battle::buff_actions::magic_circle::is_magic_circle_self_skill,
             );
             if team_type > 0 && delta > 0 && !from_magic_circle {
                 push_team_metric(delta_out, team_type, delta);

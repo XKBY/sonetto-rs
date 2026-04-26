@@ -3,10 +3,11 @@ use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, figh
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::context::FightContext;
-use crate::state::battle::mechanics::{magic_circle, nuodika, round_end, shadowcloak};
+use crate::state::battle::mechanics::shadowcloak;
 use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_ex_point_step,
     buff_actions::raspberry::buff_get_raspberry_params,
+    buff_actions::{magic_circle, nuodika, round_end},
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
