@@ -380,8 +380,16 @@ pub fn apply(
             } else {
                 cfg_effect_count.max(0)
             };
-
-            if new_layer > existing_layer.max(1) {
+            if is_no_show {
+                effects.push(buff_update(
+                    target,
+                    caster_uid,
+                    buff_id,
+                    existing_uid,
+                    update_count,
+                    new_layer,
+                ));
+            } else if new_layer > existing_layer.max(1) {
                 for layer in (existing_layer.max(1) + 1)..=new_layer {
                     effects.push(buff_update(
                         target,
