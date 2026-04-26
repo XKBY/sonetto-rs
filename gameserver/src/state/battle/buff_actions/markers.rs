@@ -68,6 +68,16 @@ impl BuffAction for Markers {
             "Poison" => (EffectType::Poison as i32, 0),
             "LockPoison" => (EffectType::LockDot as i32, 0),
             "DeadlyPoison" => (EffectType::DeadlyPoison as i32, 0),
+            // Kakania's EX-applied InjuryLogback buff (30800121, feature
+            // `768#300`) tags the target so the in-game ability text's
+            // "deals (recorded damage taken × 30%) Genesis DMG" is
+            // resolved at end of round. The `et=168 InjuryLogBack`
+            // marker LIVE emits right after the BuffAdd is the
+            // presence flag for that pairing — verified from battle3
+            // r8 step[2] LIVE shape `[…, et=5 buff=30800121, et=168
+            // num=0, …]`. Damage settlement at round end stays a
+            // separate work item.
+            "InjuryLogback" => (EffectType::InjuryLogBack as i32, 0),
             "Dizzy" => (EffectType::Dizzy as i32, 0),
             "Forbid" => (EffectType::Forbid as i32, 0),
             "ImmunityExpointChange" => (EffectType::ImmunityExPointChange as i32, 0),
