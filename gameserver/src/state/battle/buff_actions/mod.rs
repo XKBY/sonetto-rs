@@ -15,6 +15,7 @@ pub mod lost_life;
 pub mod magic_circle;
 mod markers;
 pub mod monitor_continue;
+mod no_op;
 pub mod nuodika;
 pub mod nuodika_cast;
 pub mod raspberry;
@@ -322,7 +323,16 @@ pub fn dispatch_feature(
         | "LifeAttackFixRate"
         | "AddBuffByOtherExSkill"
         | "ProbabilityAddBuff"
-        | "Poison" => ActionResult::none(ctx.target),
+        | "Poison" => {
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            no_op::NoOp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+        }
 
         _ => ActionResult::none(ctx.target),
     }
