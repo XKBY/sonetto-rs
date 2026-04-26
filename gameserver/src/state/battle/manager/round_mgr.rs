@@ -14,8 +14,8 @@ use super::super::{
     card::CardOpType,
     context::{FightContext, RoundContext},
     fight_step::{
-        FightStepBuilder, effect_container_step, make_skill_step, split_step_by_effect_limit,
-        wrap_step,
+        ActEffectBuilder, FightStepBuilder, effect_container_step, make_skill_step,
+        split_step_by_effect_limit, wrap_step,
     },
     manager::{
         buff_mgr::{
@@ -53,7 +53,7 @@ use super::super::{
         passes::{build_belief_gain_step, sync_blood_value_baseline},
     },
     types::effects::EffectType,
-    utils::find_uid_by_hero_id,
+    utils::{buff_del, find_uid_by_hero_id},
 };
 
 enum BattleEndState {
@@ -2191,6 +2191,31 @@ impl FightRoundMgr {
                 })
                 .build(),
         );
+        // Skip the magic-circle duration tick when:
+        //   (a) the battle is already finishing (state.is_finish or
+        //       check_battle_end already true), OR
+        //   (b) all enemies are at HP=0 (battle is about to be marked
+        //       finished by a downstream Hour-of-Repentance / wave-end
+        //       path that hasn't run yet). LIVE doesn't tick the
+        //       circle on the round the battle ends.
+        // This protects battle2 r2 (Hour of Repentance terminal round)
+        // from a spurious et=140 update on circle 100051.
+        let any_enemy_alive = ctx
+            .fight
+            .defender
+            .as_ref()
+            .map(|d| {
+                d.entitys
+                    .iter()
+                    .any(|e| e.current_hp.unwrap_or(0) > 0)
+            })
+            .unwrap_or(false);
+        if any_enemy_alive && !state.is_finish && !self.check_battle_end(ctx.fight) {
+            if let Some(step) = Self::build_round_end_magic_circle_step(ctx) {
+                self.apply_step_and_maybe_sync(ctx, &step, true)?;
+                steps.push(step);
+            }
+        }
         if wave_cleared {
             let old_defender_uids: Vec<i64> = ctx
                 .fight
@@ -2309,6 +2334,85 @@ impl FightRoundMgr {
         );
 
         Ok(())
+    }
+
+    fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<FightStep> {
+        let circle = ctx.fight.magic_circle.as_ref()?.clone();
+        let current_round = circle.round.unwrap_or(0);
+        if current_round <= 0 {
+            return None;
+        }
+
+        let create_uid = circle.create_uid.unwrap_or(0);
+        let circle_id = circle.magic_circle_id.unwrap_or(0);
+
+        // Only circles that carry an enemy-side mechanic (enemy_buff or
+        // enemy_skills) tick down per round in LIVE. Self-only circles
+        // like Semmelweis's 100051 (`selfSkills`/`selfBuff` only) stay
+        // un-ticked — they don't emit `MagicCircleUpdate(140)` per round
+        // and are removed by other mechanisms (battle end, replacement
+        // by another array). This keeps battle2 r2 byte-identical.
+        let has_enemy_side = config::configs::get()
+            .magic_circle
+            .get(circle_id)
+            .map(|cfg| !cfg.enemy_buff.trim().is_empty() || !cfg.enemy_skills.trim().is_empty())
+            .unwrap_or(false);
+        if !has_enemy_side {
+            return None;
+        }
+        if current_round > 1 {
+            let mut updated = circle;
+            updated.round = Some(current_round - 1);
+            let inner = effect_container_step(
+                0,
+                0,
+                0,
+                vec![
+                    ActEffectBuilder::new(EffectType::MagicCircleUpdate as i32, create_uid)
+                        .reserve_id(circle_id as i64)
+                        .reserve_str("-1")
+                        .magic_circle(updated)
+                        .effect_num(0)
+                        .build(),
+                ],
+            );
+            return Some(build_effect_step(vec![wrap_step(inner)]));
+        }
+
+        let enemy_buff_id = config::configs::get()
+            .magic_circle
+            .get(circle_id)
+            .and_then(|cfg| cfg.enemy_buff.trim().parse::<i32>().ok())
+            .filter(|id| *id > 0);
+
+        let mut inner_effects = Vec::new();
+        if let Some(buff_id) = enemy_buff_id {
+            for enemy_uid in
+                crate::state::battle::skill::targets::alive_enemies(ctx.fight, create_uid)
+            {
+                if let Some(instance) = ctx
+                    .managers
+                    .buff_mgr
+                    .find_instance_by_buff_id(enemy_uid, buff_id)
+                {
+                    inner_effects.push(buff_del(
+                        enemy_uid,
+                        instance.uid,
+                        buff_id,
+                        instance.from_uid,
+                    ));
+                }
+            }
+        }
+        inner_effects.push(
+            ActEffectBuilder::new(EffectType::MagicCircleDelete as i32, create_uid)
+                .reserve_id(circle_id as i64)
+                .effect_num(0)
+                .build(),
+        );
+
+        let inner = effect_container_step(0, 0, 0, inner_effects);
+        Some(build_effect_step(vec![wrap_step(inner)]))
     }
 
     fn emit_terminal_round_steps(

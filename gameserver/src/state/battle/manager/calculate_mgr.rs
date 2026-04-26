@@ -193,6 +193,7 @@ impl FightCalculateDataMgr {
             }
             EffectType::MagicCircleAdd => self.play_effect_magic_circle_add(effect, fight),
             EffectType::MagicCircleDelete => self.play_effect_magic_circle_delete(effect, fight),
+            EffectType::MagicCircleUpdate => self.play_effect_magic_circle_update(effect, fight),
 
             EffectType::FightHurtDetail => self.play_effect_fight_hurt_detail(effect, fight),
 
@@ -712,6 +713,21 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
     ) -> Result<(), String> {
         fight.magic_circle = None;
+        Ok(())
+    }
+
+    fn play_effect_magic_circle_update(
+        &mut self,
+        effect: &ActEffect,
+        fight: &mut Fight,
+    ) -> Result<(), String> {
+        let new_mc = effect.magic_circle.ok_or("No magic circle info")?;
+        if let Some(existing) = fight.magic_circle.as_mut() {
+            existing.round = new_mc.round;
+            existing.electric_level = new_mc.electric_level;
+            existing.electric_progress = new_mc.electric_progress;
+            existing.max_electric_progress = new_mc.max_electric_progress;
+        }
         Ok(())
     }
 
