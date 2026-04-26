@@ -6,7 +6,38 @@ use crate::state::battle::{
 };
 
 use super::EffectContext;
+use super::action::{BuffAction, BuffActCtx, BuffStage};
 use super::result::ActionResult;
+
+/// Healing buff_action — handles the buff_act types that emit a
+/// healing-style ActEffect when the buff is applied:
+///
+/// * `CureUpByLostHp` — emit `CureUpByLostHp(347)` notification
+/// * `Revive` — emit `Cure(4)` placeholder
+///
+/// Bare `Cure` is intentionally unhandled here — the dispatcher
+/// falls through to its default no-op for that buff_act type because
+/// LIVE doesn't emit a per-feature effect for it (the cure happens
+/// at skill emission time via the heal helpers below).
+pub(super) struct Healing;
+
+impl BuffAction for Healing {
+    fn execute(
+        act_type: &str,
+        _parts: &[&str],
+        ctx: &mut BuffActCtx<'_, '_>,
+        stage: BuffStage,
+    ) -> ActionResult {
+        if stage == BuffStage::BeforeBuffAdd {
+            return ActionResult::empty();
+        }
+        match act_type {
+            "CureUpByLostHp" => cure_up_by_lost_hp(ctx.effect_ctx),
+            "Revive" => revive(ctx.effect_ctx),
+            _ => ActionResult::empty(),
+        }
+    }
+}
 
 /// Skill behavior: Heal — fixed rate heal from caster ATK.
 pub fn heal(ctx: &mut EffectContext, rate: i32) -> Vec<ActEffect> {

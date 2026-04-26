@@ -1,3 +1,4 @@
+mod action;
 pub mod add_passive_skills;
 pub mod attr;
 pub mod attr_replace;
@@ -17,6 +18,8 @@ pub mod nuodika_cast;
 pub mod raspberry;
 pub mod round_end;
 pub mod shield;
+
+use self::action::{BuffAction, BuffActCtx, BuffStage};
 
 pub mod result;
 pub mod use_skill_to_enemy;
@@ -251,8 +254,16 @@ pub fn dispatch_feature(
             let child_buff_id = parse_parts(parts, 1);
             hp::lost_hp_count_add_buff(ctx, child_buff_id)
         }
-        "CureUpByLostHp" => heal::cure_up_by_lost_hp(ctx),
-        "Revive" => heal::revive(ctx),
+        "CureUpByLostHp" | "Revive" => {
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            heal::Healing::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+        }
 
         "Shield" => {
             let permille = parse_parts(parts, 3);
