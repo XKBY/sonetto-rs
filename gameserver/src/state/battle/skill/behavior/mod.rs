@@ -835,30 +835,26 @@ fn dispatch_impl(
 
             let mut out = Vec::new();
             // Some configs encode buff-pool picks (20021#pool#count) through
-            // this behavior path. Preserve the existing derived-skill cast and
-            // also apply the pool buffs deterministically when `group` is a
-            // weighted pool id.
+            // this behavior path. Route the pool-pick through the generic
+            // `random::add_buff_ran_id` so the partition-and-shuffle bias
+            // (favor buffs the target does not already have) and the
+            // simulator's seeded RNG apply uniformly across every random-pool
+            // mechanic, instead of taking the first `rank` entries
+            // deterministically. The `add_buff_ran_id` helper short-circuits
+            // when the pool is empty (single-buff config or non-pool id), so
+            // the derived-skill cast below still runs in that case.
             if *group >= 10000 {
-                let pool_buff_ids = parse_weighted_pool_prefix(*group, *rank);
-                if !pool_buff_ids.is_empty() {
-                    let has_bloodpool = mechanics.bloodtithe.has_bloodpool();
-                    for pool_buff_id in pool_buff_ids {
-                        out.extend(buff::apply(
-                            executor,
-                            fight,
-                            managers,
-                            mechanics,
-                            caster_uid,
-                            target,
-                            pool_buff_id,
-                            0,
-                            has_bloodpool,
-                            skill_id,
-                            condition_id,
-                            condition,
-                        ));
-                    }
-                }
+                out.extend(random::add_buff_ran_id(
+                    executor,
+                    rng,
+                    fight,
+                    managers,
+                    mechanics,
+                    caster_uid,
+                    target,
+                    *group,
+                    *rank,
+                )?);
             }
 
             let chosen_skill_id = if *group >= 10000 {
@@ -1168,21 +1164,3 @@ fn has_active_use_trigger_condition(skill_id: i32) -> bool {
     })
 }
 
-fn parse_weighted_pool_prefix(pool_id: i32, count: i32) -> Vec<i32> {
-    let cfg = config::configs::get();
-    let wanted = count.max(0) as usize;
-    if wanted == 0 {
-        return Vec::new();
-    }
-    let Some(pool) = cfg.skill_buff.iter().find(|b| b.id == pool_id) else {
-        return Vec::new();
-    };
-    if !pool.features.contains(',') {
-        return Vec::new();
-    }
-    pool.features
-        .split('#')
-        .filter_map(|entry| entry.split(',').next()?.trim().parse::<i32>().ok())
-        .take(wanted)
-        .collect()
-}
