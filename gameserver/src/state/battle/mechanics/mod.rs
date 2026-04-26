@@ -1,5 +1,7 @@
+pub mod advanced_cure;
 pub mod bloodtithe;
 pub mod channel;
+pub mod dot;
 pub mod injury_counter;
 pub mod magic_circle;
 pub mod shadowcloak;

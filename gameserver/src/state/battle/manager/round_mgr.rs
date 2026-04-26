@@ -27,7 +27,10 @@ use super::super::{
         traits::Manager,
     },
     buff_actions::round_end as round_end_handler,
-    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, magic_circle},
+    mechanics::{
+        advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter,
+        magic_circle,
+    },
     passives::{
         collector::{CollectedPassives, collect},
         steps::skill::execute_skill as execute_passive_skill,
@@ -2141,6 +2144,15 @@ impl FightRoundMgr {
             steps.push(step);
         }
 
+        // Round-end DOT settlement — emits Poison/DeadlyPoison ticks for
+        // every poison-family stack on every alive entity. See
+        // `mechanics/dot.rs` for the emission shape (one 162 wrapper per
+        // stack with `Poison(213)` marker + `OriginDamage(130)` damage).
+        if let Some(step) = dot::build_round_end_dot_step(ctx) {
+            self.apply_step_and_maybe_sync(ctx, &step, true)?;
+            steps.push(step);
+        }
+
         if self.check_battle_end(ctx.fight) {
             return Ok(());
         }
@@ -2244,6 +2256,18 @@ impl FightRoundMgr {
             {
                 steps[flat_idx].act_effect = broadcast;
             }
+        }
+
+        // Round-end AdvancedCure HoT settlement — emits one 162-wrapped
+        // skill fightStep per (target, buff_id, caster) triple where
+        // the target carries an AdvancedCure buff. See
+        // `mechanics/advanced_cure.rs` for the emission shape (marker
+        // (0) + Heal (4)). The BuffUpdate(7) tail is intentionally
+        // omitted; the existing round-end-tick broadcast collector
+        // covers buff snapshot duties.
+        if let Some(step) = advanced_cure::build_round_end_advanced_cure_step(ctx) {
+            self.apply_step_and_maybe_sync(ctx, &step, true)?;
+            steps.push(step);
         }
 
         // Next-round deck snapshot marker.
