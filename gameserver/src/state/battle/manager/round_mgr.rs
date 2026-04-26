@@ -769,111 +769,6 @@ impl FightRoundMgr {
         host_step.act_effect.splice(insert_at..insert_at, wrappers);
     }
 
-    fn rewrite_first_nested_buff_snapshot(
-        effects: &mut [ActEffect],
-        buff_id: i32,
-        layer: i32,
-    ) -> bool {
-        for effect in effects.iter_mut() {
-            if effect.effect_type == Some(EffectType::BuffUpdate as i32)
-                && effect.buff.as_ref().and_then(|buff| buff.buff_id) == Some(buff_id)
-            {
-                if let Some(buff) = effect.buff.as_mut() {
-                    buff.layer = Some(layer);
-                }
-                return true;
-            }
-
-            if let Some(step) = effect.fight_step.as_mut()
-                && Self::rewrite_first_nested_buff_snapshot(&mut step.act_effect, buff_id, layer)
-            {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    // TODO(event-queue): Recoleta Monomythic Narrative snapshot
-    // consolidator (commit `c6cff4d8`). Buff `434425` has
-    // `isNoShow: 1` semantics — LIVE only emits start+end snapshots,
-    // not per-stack ticks. This post-execution rewriter walks the
-    // 31140131 host subtree and drops the intermediate layer ticks.
-    // EventQueue Phase 4 (`SkillEmitKind` + per-buff snapshot policy
-    // metadata on `BuffUpdate` events) replaces this with proper
-    // emission cadence at the queue level.
-    fn maybe_consolidate_recoleta_monomythic_snapshots(&self, host_step: &mut FightStep) {
-        const RECOLETA_ULT_ACT_ID: i32 = 31140131;
-        const MONOMYTHIC_BUFF_ID: i32 = 434425;
-
-        if host_step.act_type != Some(fight_step::ActType::Skill as i32)
-            || host_step.act_id != Some(RECOLETA_ULT_ACT_ID)
-        {
-            return;
-        }
-
-        for effect in host_step.act_effect.iter_mut() {
-            let Some(step) = effect.fight_step.as_mut() else {
-                continue;
-            };
-            if step.act_id != Some(MONOMYTHIC_BUFF_ID) {
-                continue;
-            }
-
-            let direct_updates: Vec<(usize, i32)> = step
-                .act_effect
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, effect)| {
-                    let buff = effect.buff.as_ref()?;
-                    if effect.effect_type != Some(EffectType::BuffUpdate as i32)
-                        || buff.buff_id != Some(MONOMYTHIC_BUFF_ID)
-                    {
-                        return None;
-                    }
-                    Some((idx, buff.layer.unwrap_or(0)))
-                })
-                .collect();
-
-            if direct_updates.len() < 2 {
-                continue;
-            }
-
-            let Some((_, min_layer)) = direct_updates.iter().min_by_key(|(_, layer)| *layer) else {
-                continue;
-            };
-            let Some((last_idx, end_layer)) = direct_updates.last().copied() else {
-                continue;
-            };
-            if *min_layer <= 0 || end_layer <= 0 {
-                continue;
-            }
-
-            let start_layer = (*min_layer).saturating_sub(1);
-            if start_layer > 0 {
-                let _ = Self::rewrite_first_nested_buff_snapshot(
-                    &mut step.act_effect,
-                    MONOMYTHIC_BUFF_ID,
-                    start_layer,
-                );
-            }
-
-            if let Some(buff) = step
-                .act_effect
-                .get_mut(last_idx)
-                .and_then(|effect| effect.buff.as_mut())
-            {
-                buff.layer = Some(end_layer);
-            }
-
-            for &(idx, _) in direct_updates.iter().rev() {
-                if idx != last_idx {
-                    step.act_effect.remove(idx);
-                }
-            }
-        }
-    }
-
     fn is_nautika_psychube_bundle_step(
         &self,
         step: &FightStep,
@@ -1861,7 +1756,6 @@ impl FightRoundMgr {
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
             self.maybe_embed_recoleta_boss_reactives(state, &mut host_step);
-            self.maybe_consolidate_recoleta_monomythic_snapshots(&mut host_step);
             if let Some((holder_uid, injury_count)) =
                 injury_counter::find_card_host_injury_marker_params(
                     ctx.fight,
