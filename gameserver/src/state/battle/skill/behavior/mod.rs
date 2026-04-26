@@ -1,12 +1,16 @@
+mod action;
 mod bloodtithe;
 mod buff;
 mod buff_helper;
 mod damage;
+mod heal;
 mod misc;
 pub(crate) mod precast;
 mod random;
 mod skill;
 mod stats;
+
+use self::action::{ActionCtx, BehaviorAction};
 
 pub mod parser;
 
@@ -19,8 +23,7 @@ use super::cache::resolve_skill_effect_id;
 use super::executor::SkillExecutor;
 use crate::state::battle::{
     buff_actions::{
-        EffectContext, attr_replace::buff_get_attr_replace_permille, heal, heal_by_two_attr,
-        lost_life, raspberry,
+        EffectContext, attr_replace::buff_get_attr_replace_permille, lost_life, raspberry,
     },
     context::behavior_context::BehaviorContext,
     manager::fight_data_mgr::Managers,
@@ -175,25 +178,35 @@ fn dispatch_impl(
     let fight = behavior_ctx.fight;
     match behavior {
         // --- damage ---
-        BehaviorType::Damage { rate } => Ok(damage::execute(
-            executor, managers, mechanics, fight, caster_uid, target, *rate, skill_id,
-        )),
+        BehaviorType::Damage { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            damage::Damage::execute(behavior, &mut action_ctx, condition)
+        }
 
         // --- healing ---
-        BehaviorType::Heal { rate } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            Ok(heal(&mut ctx, *rate))
-        }
-        BehaviorType::HealByTwoAttr {
-            missing_percent,
-            caster_hp_percent,
-        } => {
-            let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-            Ok(heal_by_two_attr(
-                &mut ctx,
-                *missing_percent,
-                *caster_hp_percent,
-            ))
+        BehaviorType::Heal { .. } | BehaviorType::HealByTwoAttr { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            heal::Heal::execute(behavior, &mut action_ctx, condition)
         }
 
         // --- buff ---

@@ -1,4 +1,4 @@
-//! Damage cluster — handlers for the six skill_behavior types that all
+//! Damage action — handler for the six skill_behavior types that all
 //! collapse into `BehaviorType::Damage { rate }`:
 //! `Damage`, `Damage2`, `Detonate`, `Detonate2`, `OriginDamage`, `OriginDamage2`.
 //!
@@ -7,39 +7,53 @@
 //! initialized. The preview is what mid-step lookups read before the
 //! authoritative bloodtithe accumulator settles at round close.
 
+use anyhow::Result;
 use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 
+use super::action::{ActionCtx, BehaviorAction};
 use super::super::executor::SkillExecutor;
 use super::super::targets::get_entity;
 use crate::state::battle::buff_actions::{EffectContext, lost_life};
-use crate::state::battle::manager::fight_data_mgr::Managers;
 use crate::state::battle::mechanics::Mechanics;
+use crate::state::battle::types::behavior::BehaviorType;
+use crate::state::battle::types::condition::ConditionType;
 
-/// Apply a damage behavior to a single target. Returns the lost-life
-/// effects emitted by the damage handler plus any preview bloodtithe
-/// gain effects produced by HP loss on a team with an initialized pool.
-pub fn execute(
-    executor: &mut SkillExecutor,
-    managers: &mut Managers,
-    mechanics: &mut Mechanics,
-    fight: &Fight,
-    caster_uid: i64,
-    target_uid: i64,
-    rate: i32,
-    skill_id: i32,
-) -> Vec<ActEffect> {
-    let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target_uid);
-    let mut effects =
-        lost_life::apply(&mut ctx, Some(&executor.pending_attr_bonus), rate, skill_id);
-    append_preview_bloodtithe_gain_effects(
-        executor,
-        mechanics,
-        fight,
-        caster_uid,
-        target_uid,
-        &mut effects,
-    );
-    effects
+/// Damage action — the single struct routed to from
+/// `BehaviorType::Damage` in the dispatcher.
+pub(super) struct Damage;
+
+impl BehaviorAction for Damage {
+    fn execute(
+        behavior: &BehaviorType,
+        ctx: &mut ActionCtx<'_, '_>,
+        _condition: &ConditionType,
+    ) -> Result<Vec<ActEffect>> {
+        let BehaviorType::Damage { rate } = behavior else {
+            return Ok(vec![]);
+        };
+        let mut effect_ctx = EffectContext::new(
+            ctx.behavior_ctx.fight,
+            ctx.managers,
+            ctx.mechanics,
+            ctx.caster_uid,
+            ctx.target,
+        );
+        let mut effects = lost_life::apply(
+            &mut effect_ctx,
+            Some(&ctx.executor.pending_attr_bonus),
+            *rate,
+            ctx.skill_id,
+        );
+        append_preview_bloodtithe_gain_effects(
+            ctx.executor,
+            ctx.mechanics,
+            ctx.behavior_ctx.fight,
+            ctx.caster_uid,
+            ctx.target,
+            &mut effects,
+        );
+        Ok(effects)
+    }
 }
 
 /// Whether `effect_type` is one of the six damage emission types
