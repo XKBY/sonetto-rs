@@ -1983,6 +1983,10 @@ impl FightRoundMgr {
             // Live broadcasts tick-expiring buffs with remaining duration=1.
             // Our manager decrements durations at true round-end; preview one tick
             // here for packet shaping, then restore runtime state.
+            // TODO(event-queue): the snapshot/restore preview pattern is a
+            // EventQueue Phase 5 migration target — replace with a typed
+            // PreviewRoundEndTick event that records the desired snapshot
+            // without committing buff_mgr state.
             let mut broadcast = if ctx.fight.cur_round.unwrap_or(1) == 1 {
                 let buff_snapshot = ctx.managers.buff_mgr.clone();
                 ctx.managers.buff_mgr.on_round_end();
@@ -2220,6 +2224,9 @@ impl FightRoundMgr {
         preview_round_end_tick: bool,
     ) -> Vec<ActEffect> {
         // Preview one duration tick for attacker-side round-end broadcast only.
+        // TODO(event-queue): same snapshot/restore preview pattern as the
+        // defender-side block at the call site for the round-end
+        // broadcast. Migrate to PreviewRoundEndTick event in Phase 5.
         let mut broadcast = if preview_round_end_tick || ctx.fight.cur_round.unwrap_or(1) == 1 {
             let buff_snapshot = ctx.managers.buff_mgr.clone();
             ctx.managers.buff_mgr.on_round_end();

@@ -147,6 +147,12 @@ fn merge_duplicate_pickles_child_steps(effect_steps: &mut Vec<ActEffect>, child_
     }
 }
 
+// TODO(event-queue): post-execution coalescer for Pickles 30630151 fanout
+// (see `09c4d5ed`). The coalescing IS the right semantic merge but it's
+// applied AFTER both behavior slots have already serialized into separate
+// SKILL wrappers. With EventQueue Phase 4 + Phase 5, the merge happens
+// during drain when sibling SkillEmit events with matching act_id share
+// the same parent — making this fn obsolete. See `_eventqueue_design.md`.
 fn coalesce_pickles_30630151_wrappers(skill_id: i32, effect_steps: &mut Vec<ActEffect>) {
     if skill_id != 30630151 {
         return;
