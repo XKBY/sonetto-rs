@@ -149,13 +149,18 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         },
         "AddMagicCircle" | "MagicCircleAddRound" => BehaviorType::AddMagicCircle { circle_id: p1 },
         "MagicCircleAttr" => {
+            // Encoding: `60076#side#attr#permille[#side2#attr2#permille2]...`.
+            // `parts[0]` is the behavior id (60076); subsequent parts come
+            // in (side, attr, permille) triples. `side`: 1 = caster's team,
+            // 2 = opposing team.
             let mut modifiers = Vec::new();
             let mut i = 1;
             while i + 2 < parts.len() {
+                let side: i32 = parts.get(i).and_then(|v| v.parse().ok()).unwrap_or(0);
                 let attr_id: i32 = parts.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(0);
-                let value: i32 = parts.get(i + 2).and_then(|v| v.parse().ok()).unwrap_or(0);
+                let permille: i32 = parts.get(i + 2).and_then(|v| v.parse().ok()).unwrap_or(0);
                 if attr_id != 0 {
-                    modifiers.push((attr_id, value));
+                    modifiers.push((side, attr_id, permille));
                 }
                 i += 3;
             }

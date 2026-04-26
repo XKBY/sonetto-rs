@@ -115,10 +115,16 @@ pub enum BehaviorType {
         circle_id: i32,
     },
 
-    /// Applies attribute modifiers to all allies while a magic circle (Array) is active.
-    /// TODO: implement with MagicCircleState mechanic
+    /// Applies attribute modifiers to entities on configured sides
+    /// (typically while a magic circle / array skill is active).
+    ///
+    /// Encoded as `60076#side#attr#permille[#side2#attr2#permille2]...`
+    /// where `side` is 1 (caster's team) or 2 (opposing team).
+    /// Each `(side, attr_id, permille)` tuple registers an attr
+    /// bonus on every entity on that side and emits one `Attr(26)`
+    /// marker per entity.
     MagicCircleAttr {
-        modifiers: Vec<(i32, i32)>,
+        modifiers: Vec<(i32, i32, i32)>,
     },
 
     DirectUseGroupAndStarSkill {

@@ -7,18 +7,81 @@
 //! (`selfSkills`). All derivations go through config — no circle id, state
 //! buff id, or self-skill id is hardcoded anywhere.
 
+use anyhow::Result;
 use config::magic_circle::MagicCircle;
-use sonettobuf::{ActEffect, FightStep, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, MagicCircleInfo, fight_step};
 
 use crate::state::battle::{
     buff_actions::add_passive_skills::for_each_add_passive_skill_id_for_entity,
     context::FightContext,
+    fight_step::ActEffectBuilder,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, TriggerState},
+    skill::targets::alive_allies,
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
+    utils::{buff_add, for_each_buff_feature_chain},
 };
+
+/// Summon a magic circle: emit the `MagicCircleAdd` ActEffect with the
+/// circle config + create-uid, plus the carrier state buff (`selfBuff`)
+/// the circle config advertises. When the state buff carries a
+/// `CureUpByLostHp` feature, LIVE emits paired (BuffAdd, CureUpByLostHp)
+/// packets per ally — see Semmelweis circle 100051 / buff 308801312.
+///
+/// Caller-side: `behavior::magic_circle::MagicCircle::execute` for the
+/// `AddMagicCircle { circle_id }` variant.
+pub fn add_magic_circle(
+    fight: &Fight,
+    caster_uid: i64,
+    circle_id: i32,
+) -> Result<Vec<ActEffect>> {
+    let circle = config::configs::get().magic_circle.get(circle_id).cloned();
+    let round = circle.as_ref().map(|circle| circle.round).unwrap_or(0);
+    let mut out = Vec::new();
+    if let Some(buff_id) = circle
+        .as_ref()
+        .and_then(|circle| circle.self_buff.trim().parse::<i32>().ok())
+        .filter(|id| *id > 0)
+    {
+        let mut has_cure_up_by_lost_hp = false;
+        for_each_buff_feature_chain(buff_id, |act_type, _| {
+            if act_type == "CureUpByLostHp" {
+                has_cure_up_by_lost_hp = true;
+            }
+        });
+
+        if has_cure_up_by_lost_hp {
+            for ally_uid in alive_allies(fight, caster_uid) {
+                out.push(buff_add(caster_uid, ally_uid, buff_id, 1));
+                out.push(
+                    ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
+                        .effect_num(0)
+                        .build(),
+                );
+            }
+        } else {
+            out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
+        }
+    }
+    out.push(
+        ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)
+            .effect_num(0)
+            .reserve_id(circle_id as i64)
+            .magic_circle(MagicCircleInfo {
+                magic_circle_id: Some(circle_id),
+                round: Some(round),
+                create_uid: Some(caster_uid),
+                electric_level: Some(0),
+                electric_progress: Some(0),
+                max_electric_progress: Some(0),
+            })
+            .build(),
+    );
+
+    Ok(out)
+}
 
 fn active_circle_row(fight: &sonettobuf::Fight) -> Option<&'static MagicCircle> {
     let circle = fight.magic_circle.as_ref()?;
