@@ -2191,26 +2191,15 @@ impl FightRoundMgr {
                 })
                 .build(),
         );
-        // Skip the magic-circle duration tick when:
-        //   (a) the battle is already finishing (state.is_finish or
-        //       check_battle_end already true), OR
-        //   (b) all enemies are at HP=0 (battle is about to be marked
-        //       finished by a downstream Hour-of-Repentance / wave-end
-        //       path that hasn't run yet). LIVE doesn't tick the
-        //       circle on the round the battle ends.
-        // This protects battle2 r2 (Hour of Repentance terminal round)
-        // from a spurious et=140 update on circle 100051.
-        let any_enemy_alive = ctx
-            .fight
-            .defender
-            .as_ref()
-            .map(|d| {
-                d.entitys
-                    .iter()
-                    .any(|e| e.current_hp.unwrap_or(0) > 0)
-            })
-            .unwrap_or(false);
-        if any_enemy_alive && !state.is_finish && !self.check_battle_end(ctx.fight) {
+        // Skip the magic-circle duration tick only when the battle
+        // itself is finishing (state.is_finish or check_battle_end true).
+        // LIVE keeps ticking the circle through wave-clear rounds — the
+        // tick fires BEFORE wave-spawn even when the current wave just
+        // got wiped out (see battle3 r5 step[21] tick → step[22] et=337
+        // wave-spawn). Self-only circles (Semmelweis 100051) are still
+        // skipped inside `build_round_end_magic_circle_step` via the
+        // `has_enemy_side` config check, so battle2 r2 stays clean.
+        if !state.is_finish && !self.check_battle_end(ctx.fight) {
             if let Some(step) = Self::build_round_end_magic_circle_step(ctx) {
                 self.apply_step_and_maybe_sync(ctx, &step, true)?;
                 steps.push(step);
@@ -2379,24 +2368,33 @@ impl FightRoundMgr {
             return Some(build_effect_step(vec![wrap_step(inner)]));
         }
 
-        let enemy_buff_id = config::configs::get()
-            .magic_circle
-            .get(circle_id)
+        let circle_cfg = config::configs::get().magic_circle.get(circle_id).cloned();
+        let enemy_buff_id = circle_cfg
+            .as_ref()
             .and_then(|cfg| cfg.enemy_buff.trim().parse::<i32>().ok())
             .filter(|id| *id > 0);
+        let end_skills_id = circle_cfg
+            .as_ref()
+            .and_then(|cfg| cfg.end_skills.trim().parse::<i32>().ok())
+            .filter(|id| *id > 0);
+
+        // Snapshot alive enemies BEFORE building the cleanup so the
+        // endSkills marker can target one of them — at this point the
+        // BuffDel + Delete hasn't been applied yet, so the same enemies
+        // that carry the enemy_buff are still on the field.
+        let alive_enemy_uids =
+            crate::state::battle::skill::targets::alive_enemies(ctx.fight, create_uid);
 
         let mut inner_effects = Vec::new();
         if let Some(buff_id) = enemy_buff_id {
-            for enemy_uid in
-                crate::state::battle::skill::targets::alive_enemies(ctx.fight, create_uid)
-            {
+            for enemy_uid in &alive_enemy_uids {
                 if let Some(instance) = ctx
                     .managers
                     .buff_mgr
-                    .find_instance_by_buff_id(enemy_uid, buff_id)
+                    .find_instance_by_buff_id(*enemy_uid, buff_id)
                 {
                     inner_effects.push(buff_del(
-                        enemy_uid,
+                        *enemy_uid,
                         instance.uid,
                         buff_id,
                         instance.from_uid,
@@ -2411,8 +2409,24 @@ impl FightRoundMgr {
                 .build(),
         );
 
-        let inner = effect_container_step(0, 0, 0, inner_effects);
-        Some(build_effect_step(vec![wrap_step(inner)]))
+        let cleanup = effect_container_step(0, 0, 0, inner_effects);
+        let mut wrappers = vec![wrap_step(cleanup)];
+
+        // Arrays that carry an `endSkills` slot fire it when the array
+        // expires or is replaced. For Tuesday's "Horror Story Night"
+        // (circle 22100003) the in-game description says the array
+        // immediately resolves Poison on all enemies after ending; the
+        // actual Poison settlement happens earlier in the round through
+        // the standard DOT path, so LIVE only emits an empty SKILL
+        // marker here (`et=162` wrapping a SKILL step whose `actId` is
+        // the endSkills id and whose inner effects are empty).
+        if let Some(end_skills_id) = end_skills_id {
+            let target_uid = alive_enemy_uids.first().copied().unwrap_or(0);
+            let end_marker = FightStepBuilder::skill(create_uid, target_uid, end_skills_id).build();
+            wrappers.push(wrap_step(end_marker));
+        }
+
+        Some(build_effect_step(wrappers))
     }
 
     fn emit_terminal_round_steps(
