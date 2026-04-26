@@ -60,7 +60,8 @@ pub fn master(
 
         // Emit "before BUFFADD" side effects for this slave buff on this ally
         // (e.g. HP snapshots for Attr/EachChangeAttr style features).
-        let before_add_effects = super::apply_before_buff_add_features(ctx, slave_buff_id, 0);
+        let before_add_effects =
+            super::apply_before_buff_add_features(ctx, executor, slave_buff_id, 0);
         slave_effects.extend(before_add_effects);
 
         let effect = buff_add_slave(ally_uid, ctx.caster_uid(), slave_buff_id, 0);

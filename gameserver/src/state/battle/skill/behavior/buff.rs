@@ -184,6 +184,7 @@ pub fn apply(
     // Run pre-buff feature stage for all AddBuff sources (including equip passives),
     // to preserve live ordering for HP pre-broadcast features.
     effects.extend(pre_buff_effects(
+        executor,
         fight,
         managers,
         mechanics,

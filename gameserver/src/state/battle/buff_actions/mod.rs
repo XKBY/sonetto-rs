@@ -108,16 +108,16 @@ fn run_before_add_feature(
     act_type: &str,
     parts: &[&str],
     ctx: &mut EffectContext,
+    executor: &mut SkillExecutor,
     condition_id: i32,
 ) -> ActionResult {
     // Before-add stage only handles feature-specific pre-broadcast behavior.
     // Other features intentionally do nothing in this stage.
     match act_type {
         "Attr" | "EachChangeAttr" => {
-            let mut throwaway_executor = SkillExecutor::new();
             let mut buff_ctx = BuffActCtx {
                 effect_ctx: ctx,
-                executor: &mut throwaway_executor,
+                executor,
                 buff_id: 0,
                 condition_id,
                 has_bloodpool: false,
@@ -125,10 +125,9 @@ fn run_before_add_feature(
             attr::Attributes::execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
         }
         "LostHpCountAddBuff" => {
-            let mut throwaway_executor = SkillExecutor::new();
             let mut buff_ctx = BuffActCtx {
                 effect_ctx: ctx,
-                executor: &mut throwaway_executor,
+                executor,
                 buff_id: 0,
                 condition_id,
                 has_bloodpool: false,
@@ -307,6 +306,7 @@ pub fn dispatch_feature(
 
 pub fn apply_before_buff_add_features(
     ctx: &mut EffectContext,
+    executor: &mut SkillExecutor,
     buff_id: i32,
     condition_id: i32,
 ) -> Vec<ActEffect> {
@@ -321,8 +321,8 @@ pub fn apply_before_buff_add_features(
         if !should_run_in_stage(spec.timing, FeatureStage::BeforeBuffAdd) {
             return;
         }
-        let result = run_before_add_feature(act_type, parts, ctx, condition_id);
-        apply_action_result(&mut effects, result, None);
+        let result = run_before_add_feature(act_type, parts, ctx, executor, condition_id);
+        apply_action_result(&mut effects, result, Some(executor));
     });
 
     effects

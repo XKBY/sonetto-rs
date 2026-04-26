@@ -24,6 +24,7 @@ pub fn apply_buff_effects(
 
 #[allow(clippy::too_many_arguments)]
 pub fn pre_buff_effects(
+    executor: &mut SkillExecutor,
     fight: &Fight,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
@@ -33,5 +34,5 @@ pub fn pre_buff_effects(
     condition_id: i32,
 ) -> Vec<ActEffect> {
     let mut ctx = EffectContext::new(fight, managers, mechanics, caster_uid, target);
-    buff_actions::apply_before_buff_add_features(&mut ctx, buff_id, condition_id)
+    buff_actions::apply_before_buff_add_features(&mut ctx, executor, buff_id, condition_id)
 }
