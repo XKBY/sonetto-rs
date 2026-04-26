@@ -22,8 +22,8 @@
 //!   owned but no-op for this `stage`. The registry iteration falls
 //!   through to the next cluster.
 
-use super::EffectContext;
 use super::super::skill::SkillExecutor;
+use super::EffectContext;
 use super::result::ActionResult;
 use super::{attr, bootstrap, halo, heal, hp, markers, no_op, shield};
 

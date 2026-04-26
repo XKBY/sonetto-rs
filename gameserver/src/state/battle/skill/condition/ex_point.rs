@@ -28,9 +28,9 @@ impl Condition for ExPoint {
             ConditionType::PerExPoint { threshold } => {
                 Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) >= *threshold)
             }
-            ConditionType::PerDecrExPoint { threshold } => Some(
-                ctx.ex_point_mgr.get_recent_decr_ex_point(ctx.caster_uid) >= *threshold,
-            ),
+            ConditionType::PerDecrExPoint { threshold } => {
+                Some(ctx.ex_point_mgr.get_recent_decr_ex_point(ctx.caster_uid) >= *threshold)
+            }
             ConditionType::ExpointMoreThan { threshold } => {
                 Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) >= *threshold)
             }

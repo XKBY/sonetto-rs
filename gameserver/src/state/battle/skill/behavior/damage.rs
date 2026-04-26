@@ -10,9 +10,9 @@
 use anyhow::Result;
 use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 
-use super::action::{ActionCtx, BehaviorAction};
 use super::super::executor::SkillExecutor;
 use super::super::targets::get_entity;
+use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::buff_actions::{EffectContext, lost_life};
 use crate::state::battle::mechanics::Mechanics;
 use crate::state::battle::types::behavior::BehaviorType;

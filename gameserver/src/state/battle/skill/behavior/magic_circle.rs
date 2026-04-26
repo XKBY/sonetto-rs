@@ -23,6 +23,7 @@ use anyhow::Result;
 use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
+use crate::state::battle::buff_actions::EffectContext;
 use crate::state::battle::mechanics::magic_circle as magic_circle_mechanic;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
@@ -38,7 +39,16 @@ impl BehaviorAction for MagicCircle {
     ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
             BehaviorType::AddMagicCircle { circle_id } => {
+                let mut effect_ctx = EffectContext::new(
+                    ctx.behavior_ctx.fight,
+                    ctx.managers,
+                    ctx.mechanics,
+                    ctx.caster_uid,
+                    ctx.target,
+                );
                 Some(magic_circle_mechanic::add_magic_circle(
+                    &mut effect_ctx,
+                    ctx.executor,
                     ctx.behavior_ctx.fight,
                     ctx.caster_uid,
                     *circle_id,

@@ -1,5 +1,5 @@
-use super::ConditionEval;
 use super::super::super::ConditionType;
+use super::ConditionEval;
 use super::action::Condition;
 use crate::state::battle::{
     manager::buff_mgr::BuffMgr,

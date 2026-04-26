@@ -13,11 +13,13 @@ use sonettobuf::{ActEffect, Fight, FightStep, MagicCircleInfo, fight_step};
 
 use crate::state::battle::{
     buff_actions::add_passive_skills::for_each_add_passive_skill_id_for_entity,
+    buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
     fight_step::ActEffectBuilder,
+    manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::steps::skill::execute_skill as execute_passive_skill,
-    skill::{PhaseFilter, TriggerState},
-    skill::targets::alive_allies,
+    skill::targets::{alive_allies, alive_enemies},
+    skill::{PhaseFilter, SkillExecutor, TriggerState},
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
@@ -33,6 +35,8 @@ use crate::state::battle::{
 /// Caller-side: `behavior::magic_circle::MagicCircle::execute` for the
 /// `AddMagicCircle { circle_id }` variant.
 pub fn add_magic_circle(
+    ctx: &mut EffectContext<'_>,
+    executor: &mut SkillExecutor,
     fight: &Fight,
     caster_uid: i64,
     circle_id: i32,
@@ -64,6 +68,25 @@ pub fn add_magic_circle(
         } else {
             out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
         }
+    }
+    if let Some(buff_id) = circle
+        .as_ref()
+        .and_then(|circle| circle.enemy_buff.trim().parse::<i32>().ok())
+        .filter(|id| *id > 0)
+    {
+        let original_target = ctx.target_uid();
+        for enemy_uid in alive_enemies(fight, caster_uid) {
+            ctx.target = enemy_uid;
+            let effect = buff_add(enemy_uid, caster_uid, buff_id, 1);
+            if let Some(buff_uid) = effect.buff.as_ref().and_then(|buff| buff.uid) {
+                observe_explicit_buff_uid_for_target(enemy_uid, buff_uid);
+                ctx.buff_mgr_mut()
+                    .add_with_uid(enemy_uid, buff_id, caster_uid, 0, 1, buff_uid);
+            }
+            out.push(effect);
+            out.extend(apply_after_buff_add_features(ctx, executor, buff_id, false));
+        }
+        ctx.target = original_target;
     }
     out.push(
         ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)

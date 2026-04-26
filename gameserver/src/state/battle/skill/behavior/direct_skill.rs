@@ -25,11 +25,11 @@
 use anyhow::Result;
 use sonettobuf::{ActEffect, FightStep, effect_type_enum::EffectType, fight_step};
 
+use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::action::{ActionCtx, BehaviorAction};
 use super::damage;
 use super::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::random;
-use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use crate::state::battle::skill::PhaseFilter;
 use crate::state::battle::skill::phase::TriggerState;
 use crate::state::battle::skill::targets::{alive_enemies, get_entity, get_team_type};
@@ -134,7 +134,11 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         })
         .unwrap_or(max_consume)
         .max(0);
-    let current_ex = ctx.managers.ex_point_mgr.get_ex_point(ctx.caster_uid).max(0);
+    let current_ex = ctx
+        .managers
+        .ex_point_mgr
+        .get_ex_point(ctx.caster_uid)
+        .max(0);
     // Live wrapper semantics: consume from EX-skill cost lane when
     // present, but cap by current_ex so low-EX casts don't over-consume.
     // (Refund cap = need_ex when present.)
@@ -394,7 +398,8 @@ fn execute_direct_use_group_and_star_skill(
         ctx.target,
         chosen_skill_id,
         &PhaseFilter::combat_with(
-            TriggerState::on_active_use_skill(chosen_skill_id).with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(chosen_skill_id)
+                .with_buff_mgr(&ctx.managers.buff_mgr),
         ),
     )?;
     if derived_effects.is_empty() {

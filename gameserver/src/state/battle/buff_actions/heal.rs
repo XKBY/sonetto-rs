@@ -6,7 +6,7 @@ use crate::state::battle::{
 };
 
 use super::EffectContext;
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 /// Healing buff_action — handles the buff_act types that emit a

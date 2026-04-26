@@ -29,7 +29,7 @@
 
 use sonettobuf::ActEffect;
 
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 use crate::state::battle::types::effects::EffectType;
 

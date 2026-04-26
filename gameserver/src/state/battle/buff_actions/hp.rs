@@ -3,7 +3,7 @@ use sonettobuf::ActEffect;
 use crate::state::battle::{types::effects::EffectType, utils::effect_none};
 
 use super::EffectContext;
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 /// HP buff_action — handles `LostHpCountAddBuff`, the only buff_act

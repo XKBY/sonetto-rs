@@ -18,7 +18,7 @@
 //!   in `mechanics::channel` is built once at battle start, not on
 //!   per-buff apply.
 
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 pub(super) struct Bootstrap;

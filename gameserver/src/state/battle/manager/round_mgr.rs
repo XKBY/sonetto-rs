@@ -10,6 +10,7 @@ use std::{
 use super::super::{
     ConditionType,
     buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
+    buff_actions::round_end as round_end_handler,
     card::CardOpType,
     context::{FightContext, RoundContext},
     fight_step::{
@@ -26,10 +27,8 @@ use super::super::{
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
     },
-    buff_actions::round_end as round_end_handler,
     mechanics::{
-        advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter,
-        magic_circle,
+        advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter, magic_circle,
     },
     passives::{
         collector::{CollectedPassives, collect},

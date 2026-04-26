@@ -58,11 +58,7 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
             let Some(caster) = get_entity(ctx.fight, instance.from_uid) else {
                 continue;
             };
-            let caster_atk = caster
-                .attr
-                .as_ref()
-                .and_then(|a| a.attack)
-                .unwrap_or(0);
+            let caster_atk = caster.attr.as_ref().and_then(|a| a.attack).unwrap_or(0);
             if caster_atk <= 0 {
                 continue;
             }

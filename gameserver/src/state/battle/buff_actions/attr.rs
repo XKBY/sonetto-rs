@@ -3,7 +3,7 @@ use sonettobuf::ActEffect;
 use crate::state::battle::{types::effects::EffectType, utils::attr_update};
 
 use super::EffectContext;
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 /// Attributes buff_action — handles every attr-side buff_act type:
@@ -46,8 +46,9 @@ impl BuffAction for Attributes {
                 Some(from_entity(ctx.effect_ctx, ctx.buff_id))
             }
             ("AttrFromEntity", BuffStage::BeforeBuffAdd) => None,
-            ("AttrOnlyCalDamageReplaceAttr", _)
-            | ("AttrOnlyCalDamageReplaceAttrADCreator", _) => Some(ActionResult::empty()),
+            ("AttrOnlyCalDamageReplaceAttr", _) | ("AttrOnlyCalDamageReplaceAttrADCreator", _) => {
+                Some(ActionResult::empty())
+            }
             _ => None,
         }
     }
@@ -67,9 +68,7 @@ fn parse_part(parts: &[&str], idx: usize) -> i32 {
 fn attr_before_apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let char_attr_id = parse_part(parts, 1);
     let rate = parse_part(parts, 2);
-    if !(char_attr_id == 101
-        && (ctx.condition_id == 5 || ctx.condition_id == 5021))
-    {
+    if !(char_attr_id == 101 && (ctx.condition_id == 5 || ctx.condition_id == 5021)) {
         return ActionResult::empty();
     }
     let base_hp = ctx

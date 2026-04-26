@@ -1,9 +1,9 @@
 use anyhow::Result;
 use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromType};
 
-use super::action::{ActionCtx, BehaviorAction};
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
+use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 

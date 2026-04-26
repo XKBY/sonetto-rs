@@ -452,8 +452,7 @@ impl SkillExecutor {
                 // behavior's target — see combat-path block above.
                 let raw = if target_uid != 0 && target_uid != condition_uid {
                     match &b.condition {
-                        ConditionType::HasBuffGroup { .. }
-                        | ConditionType::NoBuffGroup { .. } => {
+                        ConditionType::HasBuffGroup { .. } | ConditionType::NoBuffGroup { .. } => {
                             condition_eval.for_target(target_uid).check(&b.condition)
                         }
                         _ => raw,

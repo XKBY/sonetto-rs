@@ -14,7 +14,7 @@
 //! `Poison` was previously here as a no-op; it now lives in
 //! `markers.rs` and emits its `Poison(213)` marker.
 
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 pub(super) struct NoOp;

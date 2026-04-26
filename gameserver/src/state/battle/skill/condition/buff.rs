@@ -117,10 +117,16 @@ pub fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
                 .unwrap_or_default(),
         }),
         "HasBuffGroup" => Some(ConditionType::HasBuffGroup {
-            group: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+            group: parts
+                .get(1)
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0),
         }),
         "NoBuffGroup" => Some(ConditionType::NoBuffGroup {
-            group: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+            group: parts
+                .get(1)
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0),
         }),
         _ => None,
     }
@@ -137,11 +143,7 @@ fn target_has_buff_group(buff_mgr: &BuffMgr, target_uid: i64, group: i32) -> boo
         return false;
     }
     buffs.iter().any(|instance| {
-        let Some(bufftype) = cfg
-            .skill_bufftype
-            .iter()
-            .find(|t| t.id == instance.type_id)
-        else {
+        let Some(bufftype) = cfg.skill_bufftype.iter().find(|t| t.id == instance.type_id) else {
             return false;
         };
         bufftype

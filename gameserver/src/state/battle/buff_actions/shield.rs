@@ -3,7 +3,7 @@ use sonettobuf::ActEffect;
 use crate::state::battle::types::effects::EffectType;
 
 use super::EffectContext;
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 pub(super) struct Shield;

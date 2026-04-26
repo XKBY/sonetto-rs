@@ -8,7 +8,7 @@ use crate::state::battle::{
 };
 
 use super::EffectContext;
-use super::action::{BuffAction, BuffActCtx, BuffStage};
+use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;
 
 /// Halo buff_action — handles `MasterHalo` (active) and `SlaveHalo`

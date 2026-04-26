@@ -236,4 +236,3 @@ pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
         )
     })
 }
-
