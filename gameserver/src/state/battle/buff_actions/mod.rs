@@ -180,12 +180,20 @@ fn run_before_add_feature(
             }
         }
         "LostHpCountAddBuff" => {
-            let child_buff_id = parse_parts(parts, 1);
-            let mut result = hp::lost_hp_count_add_buff(ctx, child_buff_id);
-            result
-                .effects
-                .retain(|e| matches!(e.effect_type, Some(108) | Some(109)));
-            result
+            // Pre-stage handlers don't take the executor — `Hp::execute` only
+            // reads `ctx.effect_ctx`. A throwaway `SkillExecutor` keeps the
+            // BuffActCtx shape uniform without threading the real executor
+            // through `apply_before_buff_add_features` (which has callers in
+            // `buff/apply.rs` and `halo.rs` that don't have one to thread).
+            let mut throwaway_executor = SkillExecutor::new();
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor: &mut throwaway_executor,
+                buff_id: 0,
+                condition_id,
+                has_bloodpool: false,
+            };
+            hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
         }
         _ => ActionResult::empty(),
     }
@@ -199,17 +207,18 @@ fn run_after_add_feature(
     buff_id: i32,
     has_bloodpool: bool,
 ) -> ActionResult {
-    // LostHpCountAddBuff is split across stages:
-    // - before: HP broadcasts (108/109)
-    // - after: trailing marker only (None/0)
+    // LostHpCountAddBuff is split across stages: before emits the
+    // HP broadcasts (108/109), after emits the trailing None(0)
+    // marker. The Hp trait impl filters by stage internally.
     if act_type == "LostHpCountAddBuff" {
-        let child_buff_id = parse_parts(parts, 1);
-        let mut result = hp::lost_hp_count_add_buff(ctx, child_buff_id);
-        // Keep post-pass marker only; HP broadcasts are emitted in pre-pass.
-        result
-            .effects
-            .retain(|e| e.effect_type == Some(EffectType::None as i32));
-        return result;
+        let mut buff_ctx = BuffActCtx {
+            effect_ctx: ctx,
+            executor,
+            buff_id,
+            condition_id: 0,
+            has_bloodpool,
+        };
+        return hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd);
     }
 
     dispatch_feature(act_type, parts, ctx, executor, buff_id, has_bloodpool)
@@ -259,8 +268,18 @@ pub fn dispatch_feature(
         }
 
         "LostHpCountAddBuff" => {
-            let child_buff_id = parse_parts(parts, 1);
-            hp::lost_hp_count_add_buff(ctx, child_buff_id)
+            // Reachable only if a future caller invokes `dispatch_feature`
+            // directly (without going through the before/after pipeline).
+            // No such caller exists today; the trait route still produces
+            // the correct AfterBuffAdd result (None marker) if it gains one.
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            hp::Hp::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
         "CureUpByLostHp" | "Revive" => {
             let mut buff_ctx = BuffActCtx {
