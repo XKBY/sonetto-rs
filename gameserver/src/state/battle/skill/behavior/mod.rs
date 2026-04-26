@@ -1,4 +1,5 @@
 mod action;
+mod add_buff;
 mod bloodtithe;
 mod buff;
 mod buff_helper;
@@ -213,20 +214,20 @@ fn dispatch_impl(
         }
 
         // --- buff ---
-        BehaviorType::AddBuff { buff_id, count } => Ok(buff::apply(
-            executor,
-            fight,
-            managers,
-            mechanics,
-            caster_uid,
-            target,
-            *buff_id,
-            *count,
-            mechanics.bloodtithe.has_bloodpool(),
-            skill_id,
-            condition_id,
-            condition,
-        )),
+        BehaviorType::AddBuff { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            add_buff::AddBuff::execute(behavior, &mut action_ctx, condition)
+        }
         BehaviorType::Disperse
         | BehaviorType::DisperseForce { .. }
         | BehaviorType::Purify
@@ -245,46 +246,19 @@ fn dispatch_impl(
             };
             disperse::Disperse::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::ConsumeBloodAddBuff {
-            consume,
-            buff_id,
-            count,
-        }
-        | BehaviorType::ConsumeBloodAddBuff2 {
-            consume,
-            buff_id,
-            count,
-        } => {
-            let current = mechanics.bloodtithe.get_value(1);
-            if current < *consume {
-                return Ok(vec![]);
-            }
-            mechanics.bloodtithe.set_value(1, current - consume);
-
-            // Emit BloodPoolValueChange as a side-effect sibling of the skill 162,
-            // not inline inside the skill act_effect payload.
-            executor.side_effects.push(ActEffect {
-                effect_type: Some(EffectType::Bloodpoolvaluechange as i32),
-                target_id: Some(target),
-                effect_num: Some(1), // team_type = attacker side
-                effect_num1: Some(-consume),
-                ..Default::default()
-            });
-
-            Ok(buff::apply(
+        BehaviorType::ConsumeBloodAddBuff { .. } | BehaviorType::ConsumeBloodAddBuff2 { .. } => {
+            let mut action_ctx = ActionCtx {
                 executor,
-                fight,
+                rng,
                 managers,
                 mechanics,
+                behavior_ctx,
                 caster_uid,
                 target,
-                *buff_id,
-                *count,
-                mechanics.bloodtithe.has_bloodpool(),
                 skill_id,
                 condition_id,
-                condition,
-            ))
+            };
+            add_buff::AddBuff::execute(behavior, &mut action_ctx, condition)
         }
 
         // --- stats ---
@@ -353,20 +327,20 @@ fn dispatch_impl(
         )),
 
         // --- random ---
-        BehaviorType::AddBuffRanId {
-            pool_buff_id,
-            count,
-        } => random::add_buff_ran_id(
-            executor,
-            rng,
-            fight,
-            managers,
-            mechanics,
-            caster_uid,
-            target,
-            *pool_buff_id,
-            *count,
-        ),
+        BehaviorType::AddBuffRanId { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            add_buff::AddBuff::execute(behavior, &mut action_ctx, condition)
+        }
         BehaviorType::AddMagicCircle { circle_id } => {
             misc::add_magic_circle(fight, caster_uid, *circle_id)
         }
