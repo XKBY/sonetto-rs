@@ -33,18 +33,6 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             buff_id: p2,
         };
     }
-    // Kakania's Subconscious (basic 30800111/12/13) encodes the Empathy
-    // Genesis bonus as `60038#multiplier_permille`. Per the in-game
-    // ability description: "1-target attack. Deals X% Mental DMG plus
-    // (Current [Empathy] × multiplier%) Genesis DMG." The primary
-    // Mental damage still comes from `damageRate`; this behavior just
-    // carries the bonus multiplier (1800 / 2200 / 2600 = 180 / 220 /
-    // 260% scaling on stored Empathy).
-    if id == 60038 {
-        return BehaviorType::OriginDamageFromInjuryBank {
-            multiplier_permille: p1,
-        };
-    }
     // Kakania's EX `Id, Ego and Superego` (skill 30800131,
     // `behavior1 = 60040#10000#1#0`) is the consume-and-bonus version
     // of `60038`: same Genesis-bonus formula, but the caster's
@@ -77,6 +65,20 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         "Damage" | "Damage2" | "Detonate" | "Detonate2" | "OriginDamage" | "OriginDamage2" => {
             BehaviorType::Damage { rate: p1 }
         }
+        // Kakania's Empathy Genesis bonus family. Both Subconscious's
+        // basic (`60038#multiplier`) and the Insight III heal-trigger
+        // reactive (skill 30800161/2/3 with `60052#multiplier`) share
+        // the same skill_behavior `type`. Per the in-game ability
+        // description for Subconscious: "1-target attack. Deals X%
+        // Mental DMG plus (Current [Empathy] × multiplier%) Genesis
+        // DMG." The Insight III variant fires the same bonus
+        // emission off a heal trigger via the standard
+        // OriginDamageFromInjuryBank path. Multiplier is permille
+        // (1800 / 2200 / 2600 / 1000 / 1200 across Lv1-3 + Insight
+        // ranks).
+        "OriginDamageFromInjuryBankBuff" => BehaviorType::OriginDamageFromInjuryBank {
+            multiplier_permille: p1,
+        },
         "Heal" | "HealCantCrit" => BehaviorType::Heal { rate: p1 },
         "HealByTwoAttr" => BehaviorType::HealByTwoAttr {
             missing_percent: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
