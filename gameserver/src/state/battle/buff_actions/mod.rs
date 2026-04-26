@@ -5,6 +5,7 @@ pub mod attr_replace;
 pub mod ban_lost_life;
 pub mod blood_pool_ex;
 pub mod blood_value_use_skill;
+mod bootstrap;
 pub mod bullet;
 pub mod ex_point_overflow_bank;
 pub mod halo;
@@ -301,9 +302,16 @@ pub fn dispatch_feature(
             markers::Markers::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
         }
 
-        "Raspberry" => ActionResult::none(ctx.target),
-        "RaspberryBigSkill" => ActionResult::empty(),
-        "MonitorContinueChannel" => ActionResult::empty(),
+        "Raspberry" | "RaspberryBigSkill" | "MonitorContinueChannel" => {
+            let mut buff_ctx = BuffActCtx {
+                effect_ctx: ctx,
+                executor,
+                buff_id,
+                condition_id: 0,
+                has_bloodpool: _has_bloodpool,
+            };
+            bootstrap::Bootstrap::execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
+        }
 
         // No-op at application time
         "FixAttrBySubBuffLayer"
