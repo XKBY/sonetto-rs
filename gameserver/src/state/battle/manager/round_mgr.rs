@@ -26,8 +26,8 @@ use super::super::{
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
     },
-    buff_actions::{magic_circle, round_end as round_end_handler},
-    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter},
+    buff_actions::round_end as round_end_handler,
+    mechanics::{bloodtithe, channel as channel_mechanics, injury_counter, magic_circle},
     passives::{
         collector::{CollectedPassives, collect},
         steps::skill::execute_skill as execute_passive_skill,

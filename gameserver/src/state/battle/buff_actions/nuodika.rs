@@ -6,7 +6,6 @@ use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::types::effects::EffectType;
 use crate::state::battle::{
     buff_actions::attr_replace::buff_get_attr_replace_permille,
-    buff_actions::magic_circle,
     buff_actions::nuodika_cast::buff_get_nuodika_channel_params,
     context::FightContext,
     fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
@@ -15,7 +14,7 @@ use crate::state::battle::{
         ex_point_mgr::ExPointMgr,
         round_mgr::{FightRoundMgr, lookup_entry_max_hp},
     },
-    mechanics::injury_counter,
+    mechanics::{injury_counter, magic_circle},
     passives::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },

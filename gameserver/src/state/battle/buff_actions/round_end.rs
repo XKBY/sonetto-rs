@@ -3,9 +3,8 @@ use sonettobuf::FightStep;
 use crate::state::battle::buff_actions::use_skill_to_enemy::buff_get_use_skill_to_enemy_params;
 use crate::state::battle::fight_step::{ActEffectBuilder, effect_container_step, wrap_step};
 use crate::state::battle::{
-    buff_actions::magic_circle,
     context::FightContext,
-    mechanics::injury_counter,
+    mechanics::{injury_counter, magic_circle},
     passives::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },

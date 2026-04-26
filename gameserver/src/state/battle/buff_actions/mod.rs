@@ -12,7 +12,6 @@ pub mod halo;
 pub mod heal;
 pub mod hp;
 pub mod lost_life;
-pub mod magic_circle;
 mod markers;
 pub mod monitor_continue;
 mod no_op;

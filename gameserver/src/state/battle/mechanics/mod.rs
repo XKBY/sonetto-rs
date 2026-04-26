@@ -1,6 +1,7 @@
 pub mod bloodtithe;
 pub mod channel;
 pub mod injury_counter;
+pub mod magic_circle;
 pub mod shadowcloak;
 
 use bloodtithe::BloodtitheState;
