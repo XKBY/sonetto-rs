@@ -18,25 +18,26 @@ pub(super) struct BloodPool;
 
 impl BehaviorAction for BloodPool {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
-            BehaviorType::BloodPoolMaxChange { amount } => Ok(pool_max_change(
+            BehaviorType::BloodPoolMaxChange { amount } => Some(Ok(pool_max_change(
                 fight,
                 &mut ctx.mechanics.bloodtithe,
                 ctx.target,
                 *amount,
-            )),
-            BehaviorType::BloodPoolValueChange { amount } => Ok(pool_value_change(
+            ))),
+            BehaviorType::BloodPoolValueChange { amount } => Some(Ok(pool_value_change(
                 fight,
                 &mut ctx.mechanics.bloodtithe,
                 ctx.target,
                 *amount,
-            )),
-            _ => Ok(vec![]),
+            ))),
+            _ => None,
         }
     }
 }

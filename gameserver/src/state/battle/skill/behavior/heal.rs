@@ -24,10 +24,11 @@ pub(super) struct Heal;
 
 impl BehaviorAction for Heal {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let mut effect_ctx = EffectContext::new(
             ctx.behavior_ctx.fight,
             ctx.managers,
@@ -36,16 +37,16 @@ impl BehaviorAction for Heal {
             ctx.target,
         );
         match behavior {
-            BehaviorType::Heal { rate } => Ok(heal_handler::heal(&mut effect_ctx, *rate)),
+            BehaviorType::Heal { rate } => Some(Ok(heal_handler::heal(&mut effect_ctx, *rate))),
             BehaviorType::HealByTwoAttr {
                 missing_percent,
                 caster_hp_percent,
-            } => Ok(heal_handler::heal_by_two_attr(
+            } => Some(Ok(heal_handler::heal_by_two_attr(
                 &mut effect_ctx,
                 *missing_percent,
                 *caster_hp_percent,
-            )),
-            _ => Ok(vec![]),
+            ))),
+            _ => None,
         }
     }
 }

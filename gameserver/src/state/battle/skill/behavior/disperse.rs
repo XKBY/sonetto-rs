@@ -30,39 +30,42 @@ pub(super) struct Disperse;
 
 impl BehaviorAction for Disperse {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
-            BehaviorType::Disperse => Ok(buff::disperse(fight, ctx.managers, ctx.target)),
-            BehaviorType::DisperseForce { buff_id } => Ok(buff::disperse_force(
+            BehaviorType::Disperse => Some(Ok(buff::disperse(fight, ctx.managers, ctx.target))),
+            BehaviorType::DisperseForce { buff_id } => Some(Ok(buff::disperse_force(
                 fight,
                 ctx.managers,
                 ctx.target,
                 *buff_id,
-            )),
+            ))),
             BehaviorType::Purify | BehaviorType::PurifyX { .. } => {
                 // TODO: PurifyX should filter by type_ids; today it
                 // matches plain Purify behavior. Mirrored from the
                 // pre-migration dispatcher.
-                Ok(buff::purify(fight, ctx.managers, ctx.target))
+                Some(Ok(buff::purify(fight, ctx.managers, ctx.target)))
             }
-            BehaviorType::ConsumeBuffByTypeId { type_id, count } => Ok(buff::consume_by_type(
-                fight,
-                ctx.managers,
-                ctx.target,
-                *type_id,
-                ctx.skill_id,
-                *count,
-            )),
+            BehaviorType::ConsumeBuffByTypeId { type_id, count } => {
+                Some(Ok(buff::consume_by_type(
+                    fight,
+                    ctx.managers,
+                    ctx.target,
+                    *type_id,
+                    ctx.skill_id,
+                    *count,
+                )))
+            }
             BehaviorType::ReplaceBuff2 {
                 source_buff_ids,
                 replacement_buff_id,
                 duration,
                 count,
-            } => Ok(buff::replace_buff2(
+            } => Some(Ok(buff::replace_buff2(
                 fight,
                 ctx.managers,
                 ctx.caster_uid,
@@ -71,8 +74,8 @@ impl BehaviorAction for Disperse {
                 *replacement_buff_id,
                 *duration,
                 *count,
-            )),
-            _ => Ok(vec![]),
+            ))),
+            _ => None,
         }
     }
 }

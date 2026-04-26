@@ -22,16 +22,19 @@ pub(super) struct MagicCircle;
 
 impl BehaviorAction for MagicCircle {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
-            BehaviorType::AddMagicCircle { circle_id } => {
-                misc::add_magic_circle(ctx.behavior_ctx.fight, ctx.caster_uid, *circle_id)
-            }
-            BehaviorType::MagicCircleAttr { .. } => misc::magic_circle_attr(),
-            _ => Ok(vec![]),
+            BehaviorType::AddMagicCircle { circle_id } => Some(misc::add_magic_circle(
+                ctx.behavior_ctx.fight,
+                ctx.caster_uid,
+                *circle_id,
+            )),
+            BehaviorType::MagicCircleAttr { .. } => Some(misc::magic_circle_attr()),
+            _ => None,
         }
     }
 }

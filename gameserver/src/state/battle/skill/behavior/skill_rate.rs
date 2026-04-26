@@ -24,33 +24,34 @@ pub(super) struct SkillRate;
 
 impl BehaviorAction for SkillRate {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
             BehaviorType::SkillRateUp { rate } => {
                 ctx.executor
                     .add_skill_rate_bonus(ctx.caster_uid, ctx.target, *rate);
-                Ok(vec![])
+                Some(Ok(vec![]))
             }
             BehaviorType::SkillRateUpBySelfBuffType { buff_type_id, rate } => {
                 let stacks =
                     buff::sum_stacks_by_type(fight, ctx.managers, ctx.caster_uid, *buff_type_id);
                 if stacks <= 0 || *rate == 0 {
-                    return Ok(vec![]);
+                    return Some(Ok(vec![]));
                 }
                 ctx.executor.add_skill_rate_bonus(
                     ctx.caster_uid,
                     ctx.target,
                     rate.saturating_mul(stacks),
                 );
-                Ok(vec![])
+                Some(Ok(vec![]))
             }
             BehaviorType::SkillRateUpByBuffType { rate, buff_types } => {
                 if *rate == 0 || buff_types.is_empty() {
-                    return Ok(vec![]);
+                    return Some(Ok(vec![]));
                 }
                 let has_matching_type =
                     buff::has_any_type(fight, ctx.managers, ctx.target, buff_types);
@@ -58,9 +59,9 @@ impl BehaviorAction for SkillRate {
                     ctx.executor
                         .add_skill_rate_bonus(ctx.caster_uid, ctx.target, *rate);
                 }
-                Ok(vec![])
+                Some(Ok(vec![]))
             }
-            _ => Ok(vec![]),
+            _ => None,
         }
     }
 }

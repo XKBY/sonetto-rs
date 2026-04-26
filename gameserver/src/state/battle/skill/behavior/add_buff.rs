@@ -31,13 +31,14 @@ pub(super) struct AddBuff;
 
 impl BehaviorAction for AddBuff {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
-            BehaviorType::AddBuff { buff_id, count } => Ok(buff::apply(
+            BehaviorType::AddBuff { buff_id, count } => Some(Ok(buff::apply(
                 ctx.executor,
                 fight,
                 ctx.managers,
@@ -50,7 +51,7 @@ impl BehaviorAction for AddBuff {
                 ctx.skill_id,
                 ctx.condition_id,
                 condition,
-            )),
+            ))),
 
             BehaviorType::ConsumeBloodAddBuff {
                 consume,
@@ -64,7 +65,7 @@ impl BehaviorAction for AddBuff {
             } => {
                 let current = ctx.mechanics.bloodtithe.get_value(1);
                 if current < *consume {
-                    return Ok(vec![]);
+                    return Some(Ok(vec![]));
                 }
                 ctx.mechanics.bloodtithe.set_value(1, current - consume);
 
@@ -78,7 +79,7 @@ impl BehaviorAction for AddBuff {
                     ..Default::default()
                 });
 
-                Ok(buff::apply(
+                Some(Ok(buff::apply(
                     ctx.executor,
                     fight,
                     ctx.managers,
@@ -91,13 +92,13 @@ impl BehaviorAction for AddBuff {
                     ctx.skill_id,
                     ctx.condition_id,
                     condition,
-                ))
+                )))
             }
 
             BehaviorType::AddBuffRanId {
                 pool_buff_id,
                 count,
-            } => random::add_buff_ran_id(
+            } => Some(random::add_buff_ran_id(
                 ctx.executor,
                 ctx.rng,
                 fight,
@@ -107,9 +108,9 @@ impl BehaviorAction for AddBuff {
                 ctx.target,
                 *pool_buff_id,
                 *count,
-            ),
+            )),
 
-            _ => Ok(vec![]),
+            _ => None,
         }
     }
 }

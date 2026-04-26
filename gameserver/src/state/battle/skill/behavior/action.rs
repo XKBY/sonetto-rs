@@ -1,21 +1,32 @@
-//! Trait + context bundle every behavior action module implements.
+//! Trait + context bundle + registry every behavior action module
+//! implements / consults.
 //!
 //! Each `BehaviorType` variant is owned by exactly one action module
 //! under `behavior/`. The module exposes a unit struct (e.g.
 //! `damage::Damage`, `heal::Heal`) that implements [`BehaviorAction`].
-//! The dispatcher in `behavior/mod.rs::dispatch_impl` matches on the
-//! enum variant and routes to the corresponding `Action::execute`.
+//! The dispatcher in `behavior/mod.rs::dispatch_impl` iterates
+//! [`BEHAVIOR_REGISTRY`] and picks the first cluster whose `execute`
+//! returns `Some(...)`.
 //!
-//! This trait gives every action a uniform signature:
-//! `(behavior, ctx, condition) -> Result<Vec<ActEffect>>`. New actions
-//! get added by (1) creating a module, (2) implementing the trait,
-//! (3) adding one routing arm to the dispatcher's match.
+//! Adding a new behavior cluster:
+//! 1. Create the module under `behavior/`.
+//! 2. Add `pub(super) struct ClusterName;` and `impl BehaviorAction
+//!    for ClusterName { ... }`.
+//! 3. Add `&cluster::ClusterName` to `BEHAVIOR_REGISTRY` below.
+//!
+//! Return semantics: `Some(Ok(effects))` = handled; `None` = foreign
+//! variant (let the registry continue iterating). The dispatcher
+//! emits `Ok(vec![])` if no cluster claims the variant.
 
 use anyhow::Result;
 use rand::rngs::StdRng;
 use sonettobuf::ActEffect;
 
 use super::super::executor::SkillExecutor;
+use super::{
+    add_buff, attr_modify, bloodtithe, damage, direct_skill, disperse, ex_point, heal, lost_life,
+    magic_circle, misc, nuodika_damage, skill_rate, stats,
+};
 use crate::state::battle::{
     context::behavior_context::BehaviorContext, manager::fight_data_mgr::Managers,
     mechanics::Mechanics, types::behavior::BehaviorType, types::condition::ConditionType,
@@ -26,11 +37,6 @@ use crate::state::battle::{
 /// (action modules under `behavior/`) can read them directly without
 /// an accessor explosion. The dispatcher constructs this once per
 /// target inside `dispatch_impl`.
-///
-/// Some fields (e.g. `rng`, `condition_id`) are unused by the actions
-/// migrated so far — they'll be used by upcoming AddBuff / AddBuffRanId
-/// migrations. Suppress the dead-code warning until the surface is
-/// fully migrated.
 #[allow(dead_code)]
 pub(super) struct ActionCtx<'a, 'ctx> {
     pub executor: &'a mut SkillExecutor,
@@ -44,18 +50,39 @@ pub(super) struct ActionCtx<'a, 'ctx> {
     pub condition_id: i32,
 }
 
-/// Contract for every behavior action module. The trait is sealed to
-/// the `behavior` module tree — each variant of `BehaviorType` has
-/// exactly one implementation, and the dispatcher's match arms guard
-/// which struct each variant routes to.
+/// Contract for every behavior action module.
 ///
-/// Implementations should pattern-match the variant they own at the
-/// top of `execute` and return `Ok(vec![])` for any other variant
-/// (defensive, but the dispatcher won't hand them off-pattern input).
+/// Each cluster pattern-matches the `BehaviorType` variants it owns
+/// inside `execute` and returns `None` for foreign variants. The
+/// registry's iteration falls through to the next cluster on `None`.
 pub(super) trait BehaviorAction {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>>;
+    ) -> Option<Result<Vec<ActEffect>>>;
 }
+
+/// Ordered registry of every behavior action cluster the dispatcher
+/// consults. First cluster to return `Some(...)` wins.
+///
+/// Order matches the Phase 1+2+3 dispatch sequence so the same
+/// fall-through behavior holds when two clusters could claim
+/// overlapping variants.
+pub(super) const BEHAVIOR_REGISTRY: &[&dyn BehaviorAction] = &[
+    &damage::Damage,
+    &heal::Heal,
+    &add_buff::AddBuff,
+    &disperse::Disperse,
+    &ex_point::ExPoint,
+    &stats::Stats,
+    &lost_life::LostLife,
+    &bloodtithe::BloodPool,
+    &direct_skill::DirectSkill,
+    &magic_circle::MagicCircle,
+    &nuodika_damage::NuoDiKaDamage,
+    &skill_rate::SkillRate,
+    &attr_modify::AttrModify,
+    &misc::Misc,
+];

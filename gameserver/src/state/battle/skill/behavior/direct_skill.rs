@@ -42,24 +42,27 @@ pub(super) struct DirectSkill;
 
 impl BehaviorAction for DirectSkill {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
-            BehaviorType::DirectUseSkill { skill_id } => execute_direct_use_skill(ctx, *skill_id),
-            BehaviorType::DirectUseBigSkill => execute_direct_use_big_skill(ctx),
+            BehaviorType::DirectUseSkill { skill_id } => {
+                Some(execute_direct_use_skill(ctx, *skill_id))
+            }
+            BehaviorType::DirectUseBigSkill => Some(execute_direct_use_big_skill(ctx)),
             BehaviorType::DirectUseGroupAndStarSkill { group, rank } => {
-                execute_direct_use_group_and_star_skill(ctx, *group, *rank)
+                Some(execute_direct_use_group_and_star_skill(ctx, *group, *rank))
             }
             BehaviorType::ConsumePowerDirectUseSkill { .. } => {
                 // Placeholder: real power-consume direct-use semantics
                 // aren't wired yet. Empty effect set matches LIVE for
                 // every fixture that reaches this variant today.
-                Ok(vec![])
+                Some(Ok(vec![]))
             }
-            BehaviorType::RandomUseSkill { raw } => execute_random_use_skill(ctx, raw),
-            _ => Ok(vec![]),
+            BehaviorType::RandomUseSkill { raw } => Some(execute_random_use_skill(ctx, raw)),
+            _ => None,
         }
     }
 }

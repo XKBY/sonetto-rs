@@ -37,10 +37,11 @@ pub(super) struct LostLife;
 
 impl BehaviorAction for LostLife {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
             BehaviorType::LostLife {
@@ -99,7 +100,7 @@ impl BehaviorAction for LostLife {
                         }
                     }
                 }
-                Ok(effects)
+                Some(Ok(effects))
             }
 
             BehaviorType::LostAllLifeByAttr {
@@ -115,14 +116,14 @@ impl BehaviorAction for LostLife {
                     ctx.caster_uid,
                     ctx.target,
                 );
-                Ok(lost_life_handler::lost_all_life_by_attr(
+                Some(Ok(lost_life_handler::lost_all_life_by_attr(
                     &mut effect_ctx,
                     *caster_attr,
                     *caster_amount,
                     *target_attr,
                     *target_amount,
                     ctx.skill_id,
-                ))
+                )))
             }
 
             BehaviorType::DamageRealLostLife {
@@ -137,15 +138,15 @@ impl BehaviorAction for LostLife {
                     ctx.caster_uid,
                     ctx.target,
                 );
-                Ok(lost_life_handler::damage_real_lost_life(
+                Some(Ok(lost_life_handler::damage_real_lost_life(
                     &mut effect_ctx,
                     *buff_id,
                     *rate,
                     ctx.skill_id,
-                ))
+                )))
             }
 
-            _ => Ok(vec![]),
+            _ => None,
         }
     }
 }

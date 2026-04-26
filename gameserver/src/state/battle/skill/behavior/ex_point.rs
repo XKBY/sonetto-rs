@@ -26,19 +26,24 @@ pub(super) struct ExPoint;
 
 impl BehaviorAction for ExPoint {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
             BehaviorType::AddExPoint { amount } | BehaviorType::AddExPointWithMax { amount } => {
-                Ok(vec![moxie_change(ctx.target, *amount)])
+                Some(Ok(vec![moxie_change(ctx.target, *amount)]))
             }
             BehaviorType::ConsumeExPointAddAttr {
                 min_consume,
                 max_consume,
-            } => execute_consume_ex_point_add_attr(ctx, *min_consume, *max_consume),
-            _ => Ok(vec![]),
+            } => Some(execute_consume_ex_point_add_attr(
+                ctx,
+                *min_consume,
+                *max_consume,
+            )),
+            _ => None,
         }
     }
 }

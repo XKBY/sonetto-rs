@@ -29,10 +29,11 @@ pub(super) struct Misc;
 
 impl BehaviorAction for Misc {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         _ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
             BehaviorType::Summon { .. }
             | BehaviorType::Kill
@@ -42,12 +43,12 @@ impl BehaviorAction for Misc {
             | BehaviorType::BeAttackedAssassinate { .. }
             | BehaviorType::CrystalAddCard
             | BehaviorType::IgnoreSkillConfigDamageRate
-            | BehaviorType::MagicCircleAttr { .. } => Ok(vec![]),
+            | BehaviorType::MagicCircleAttr { .. } => Some(Ok(vec![])),
             BehaviorType::Unknown { raw } => {
                 tracing::warn!("Skipping unknown behavior: {}", raw);
-                Ok(vec![])
+                Some(Ok(vec![]))
             }
-            _ => Ok(vec![]),
+            _ => None,
         }
     }
 }

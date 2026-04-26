@@ -23,17 +23,18 @@ pub(super) struct AttrModify;
 
 impl BehaviorAction for AttrModify {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
             BehaviorType::AttrModify { attr_id, amount }
             | BehaviorType::AttrFix { attr_id, amount } => {
                 ctx.executor
                     .add_attr_bonus(ctx.caster_uid, *attr_id, *amount);
-                Ok(vec![attr_update(ctx.caster_uid)])
+                Some(Ok(vec![attr_update(ctx.caster_uid)]))
             }
             BehaviorType::RaspberryAddCount { attr_id, rate } => {
                 let mut effect_ctx = EffectContext::new(
@@ -43,9 +44,14 @@ impl BehaviorAction for AttrModify {
                     ctx.caster_uid,
                     ctx.target,
                 );
-                raspberry::add_count(&mut effect_ctx, ctx.executor, *attr_id, *rate)
+                Some(raspberry::add_count(
+                    &mut effect_ctx,
+                    ctx.executor,
+                    *attr_id,
+                    *rate,
+                ))
             }
-            _ => Ok(vec![]),
+            _ => None,
         }
     }
 }

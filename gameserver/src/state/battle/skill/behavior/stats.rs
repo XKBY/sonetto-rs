@@ -27,16 +27,17 @@ pub(super) struct Stats;
 
 impl BehaviorAction for Stats {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let target = ctx.target;
         match behavior {
-            BehaviorType::Bloodlust { amount } => Ok(bloodlust(target, *amount)),
-            BehaviorType::ChangePower { amount } => Ok(change_power(target, *amount)),
-            BehaviorType::AverageLife => Ok(average_life(target)),
-            _ => Ok(vec![]),
+            BehaviorType::Bloodlust { amount } => Some(Ok(bloodlust(target, *amount))),
+            BehaviorType::ChangePower { amount } => Some(Ok(change_power(target, *amount))),
+            BehaviorType::AverageLife => Some(Ok(average_life(target))),
+            _ => None,
         }
     }
 }

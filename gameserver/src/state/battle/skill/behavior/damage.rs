@@ -24,12 +24,13 @@ pub(super) struct Damage;
 
 impl BehaviorAction for Damage {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let BehaviorType::Damage { rate } = behavior else {
-            return Ok(vec![]);
+            return None;
         };
         let mut effect_ctx = EffectContext::new(
             ctx.behavior_ctx.fight,
@@ -52,7 +53,7 @@ impl BehaviorAction for Damage {
             ctx.target,
             &mut effects,
         );
-        Ok(effects)
+        Some(Ok(effects))
     }
 }
 

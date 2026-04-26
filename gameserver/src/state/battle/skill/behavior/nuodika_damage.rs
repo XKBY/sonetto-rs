@@ -24,10 +24,11 @@ pub(super) struct NuoDiKaDamage;
 
 impl BehaviorAction for NuoDiKaDamage {
     fn execute(
+        &self,
         behavior: &BehaviorType,
         ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
-    ) -> Result<Vec<ActEffect>> {
+    ) -> Option<Result<Vec<ActEffect>>> {
         let BehaviorType::NuoDiKaDamage {
             primary_buff_id,
             primary_rate,
@@ -36,12 +37,12 @@ impl BehaviorAction for NuoDiKaDamage {
             self_loss_param,
         } = behavior
         else {
-            return Ok(vec![]);
+            return None;
         };
 
         let fight = ctx.behavior_ctx.fight;
         let Some(caster) = get_entity(fight, ctx.caster_uid) else {
-            return Ok(vec![]);
+            return Some(Ok(vec![]));
         };
         let current_hp = caster.current_hp.unwrap_or(0);
         let max_hp = caster
@@ -81,7 +82,7 @@ impl BehaviorAction for NuoDiKaDamage {
             ));
         }
         if total_permille <= 0 {
-            return Ok(out);
+            return Some(Ok(out));
         }
         let damage = (max_hp.saturating_mul(total_permille) / 1000).max(1);
         for damage_target in damage_targets {
@@ -96,6 +97,6 @@ impl BehaviorAction for NuoDiKaDamage {
                 ctx.caster_uid,
             ));
         }
-        Ok(out)
+        Some(Ok(out))
     }
 }
