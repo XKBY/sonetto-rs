@@ -11,16 +11,16 @@ use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
-    utils::{damage_with_buff_act, find_entity},
+    utils::{damage_with_buff_act, find_entity, find_uid_by_hero_id},
 };
 
 const DAMAGE_PER_POINT: i32 = 3000;
 const BASE_MAX: i32 = 24;
 const PER_ALLY_BONUS: i32 = 16;
-const SEMMELWEIS_UID: i64 = 205497633;
-const NAUTIKA_UID: i64 = 240494379;
-const SEMMELWEIS_HOST_ACT_ID: i32 = 308801311;
-const NAUTIKA_HOST_ACT_ID: i32 = 31200193;
+/// Skill 308801311 hosts the Semmelweis-class bloodtithe transition bundle.
+const BLOODTITHE_TRANSITION_HOST_SKILL: i32 = 308801311;
+/// Skill 31200193 hosts the Nautika-class psychube bundle.
+const FAITH_PSYCHUBE_BUNDLE_HOST_SKILL: i32 = 31200193;
 
 static GAINED: Lazy<Mutex<i32>> = Lazy::new(|| Mutex::new(0));
 
@@ -250,14 +250,14 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
         out.push(step);
     }
 
-    merge_bloodtithe_transition_hosts(&mut out);
+    merge_bloodtithe_transition_hosts(ctx.fight, &mut out);
 
     out
 }
 
-fn merge_bloodtithe_transition_hosts(out: &mut Vec<FightStep>) {
-    let semm_host_idx = find_transition_host_index(out, SEMMELWEIS_HOST_ACT_ID);
-    let naut_host_idx = find_transition_host_index(out, NAUTIKA_HOST_ACT_ID);
+fn merge_bloodtithe_transition_hosts(fight: &Fight, out: &mut Vec<FightStep>) {
+    let semm_host_idx = find_transition_host_index(out, BLOODTITHE_TRANSITION_HOST_SKILL);
+    let naut_host_idx = find_transition_host_index(out, FAITH_PSYCHUBE_BUNDLE_HOST_SKILL);
 
     if semm_host_idx.is_none() && naut_host_idx.is_none() {
         return;
@@ -273,7 +273,7 @@ fn merge_bloodtithe_transition_hosts(out: &mut Vec<FightStep>) {
         }
 
         let Some(host) =
-            classify_transition_ancillary_step(&out[idx], idx, semm_host_idx, naut_host_idx)
+            classify_transition_ancillary_step(fight, &out[idx], idx, semm_host_idx, naut_host_idx)
         else {
             continue;
         };
@@ -343,12 +343,13 @@ fn transition_host_act_id(step: &FightStep) -> Option<i32> {
 }
 
 fn classify_transition_ancillary_step(
+    fight: &Fight,
     step: &FightStep,
     _idx: usize,
     _semm_host_idx: Option<usize>,
     _naut_host_idx: Option<usize>,
 ) -> Option<TransitionHost> {
-    let ownership = inspect_step_ownership(step);
+    let ownership = inspect_step_ownership(fight, step);
 
     if ownership.skill_from_nautika {
         return Some(TransitionHost::Nautika);
@@ -382,42 +383,53 @@ struct StepOwnership {
     skill_from_nautika: bool,
 }
 
-fn inspect_step_ownership(step: &FightStep) -> StepOwnership {
+fn inspect_step_ownership(fight: &Fight, step: &FightStep) -> StepOwnership {
+    let semmelweis_uid = find_uid_by_hero_id(fight, 3088);
+    let nautika_uid = find_uid_by_hero_id(fight, 3120);
     let mut ownership = StepOwnership::default();
-    collect_step_ownership(step, &mut ownership);
+    collect_step_ownership(step, semmelweis_uid, nautika_uid, &mut ownership);
     ownership
 }
 
-fn collect_step_ownership(step: &FightStep, ownership: &mut StepOwnership) {
-    match step.from_id {
-        Some(SEMMELWEIS_UID) => ownership.from_semmelweis = true,
-        Some(NAUTIKA_UID) => ownership.from_nautika = true,
-        _ => {}
+fn collect_step_ownership(
+    step: &FightStep,
+    semmelweis_uid: Option<i64>,
+    nautika_uid: Option<i64>,
+    ownership: &mut StepOwnership,
+) {
+    if step.from_id.is_some() && step.from_id == semmelweis_uid {
+        ownership.from_semmelweis = true;
+    }
+    if step.from_id.is_some() && step.from_id == nautika_uid {
+        ownership.from_nautika = true;
     }
 
-    match step.to_id {
-        Some(SEMMELWEIS_UID) => ownership.to_semmelweis = true,
-        Some(NAUTIKA_UID) => ownership.to_nautika = true,
-        _ => {}
+    if step.to_id.is_some() && step.to_id == semmelweis_uid {
+        ownership.to_semmelweis = true;
+    }
+    if step.to_id.is_some() && step.to_id == nautika_uid {
+        ownership.to_nautika = true;
     }
 
     if step.act_type == Some(fight_step::ActType::Skill as i32) {
-        match step.from_id {
-            Some(SEMMELWEIS_UID) => ownership.skill_from_semmelweis = true,
-            Some(NAUTIKA_UID) => ownership.skill_from_nautika = true,
-            _ => {}
+        if step.from_id.is_some() && step.from_id == semmelweis_uid {
+            ownership.skill_from_semmelweis = true;
+        }
+        if step.from_id.is_some() && step.from_id == nautika_uid {
+            ownership.skill_from_nautika = true;
         }
     }
 
     for effect in &step.act_effect {
-        match effect.target_id {
-            Some(SEMMELWEIS_UID) => ownership.targets_semmelweis = true,
-            Some(NAUTIKA_UID) => ownership.targets_nautika = true,
-            _ => {}
+        if effect.target_id.is_some() && effect.target_id == semmelweis_uid {
+            ownership.targets_semmelweis = true;
+        }
+        if effect.target_id.is_some() && effect.target_id == nautika_uid {
+            ownership.targets_nautika = true;
         }
 
         if let Some(child) = effect.fight_step.as_ref() {
-            collect_step_ownership(child, ownership);
+            collect_step_ownership(child, semmelweis_uid, nautika_uid, ownership);
         }
     }
 }

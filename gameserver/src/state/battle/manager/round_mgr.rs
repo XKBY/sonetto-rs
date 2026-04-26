@@ -52,6 +52,7 @@ use super::super::{
         passes::{build_belief_gain_step, sync_blood_value_baseline},
     },
     types::effects::EffectType,
+    utils::find_uid_by_hero_id,
 };
 
 enum BattleEndState {
@@ -687,7 +688,12 @@ impl FightRoundMgr {
         .then_some(nested.clone())
     }
 
-    fn is_nautika_psychube_bundle_step(&self, step: &FightStep, host_act_id: i32) -> bool {
+    fn is_nautika_psychube_bundle_step(
+        &self,
+        step: &FightStep,
+        host_act_id: i32,
+        host_uid: i64,
+    ) -> bool {
         if step.act_type != Some(fight_step::ActType::Effect as i32) {
             return false;
         }
@@ -705,6 +711,8 @@ impl FightRoundMgr {
             .map(|wrapped| {
                 wrapped.act_type == Some(fight_step::ActType::Effect as i32)
                     && wrapped.act_id == Some(host_act_id)
+                    && wrapped.from_id == Some(host_uid)
+                    && wrapped.to_id == Some(host_uid)
             })
             .unwrap_or(false)
     }
@@ -786,8 +794,11 @@ impl FightRoundMgr {
             })
     }
 
-    fn consolidate_boss_cycle_broadcasts_into_nautika_bundle(&self, steps: &mut Vec<FightStep>) {
-        const SEMMELWEIS_UID: i64 = 205497633;
+    fn consolidate_boss_cycle_broadcasts_into_nautika_bundle(
+        &self,
+        fight: &Fight,
+        steps: &mut Vec<FightStep>,
+    ) {
         const NAUTIKA_HOST_ACT_ID: i32 = 31200193;
         const BOSS_CYCLE_ACT_ID: i32 = 530000151;
         const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
@@ -798,6 +809,13 @@ impl FightRoundMgr {
             effect_idx: usize,
             from_id: i64,
         }
+
+        let Some(semmelweis_uid) = find_uid_by_hero_id(fight, 3088) else {
+            return;
+        };
+        let Some(nautika_uid) = find_uid_by_hero_id(fight, 3120) else {
+            return;
+        };
 
         if !steps
             .iter()
@@ -815,10 +833,9 @@ impl FightRoundMgr {
             return;
         };
 
-        let Some(nautika_bundle_idx) = steps
-            .iter()
-            .position(|step| self.is_nautika_psychube_bundle_step(step, NAUTIKA_HOST_ACT_ID))
-        else {
+        let Some(nautika_bundle_idx) = steps.iter().position(|step| {
+            self.is_nautika_psychube_bundle_step(step, NAUTIKA_HOST_ACT_ID, nautika_uid)
+        }) else {
             return;
         };
 
@@ -863,8 +880,8 @@ impl FightRoundMgr {
                     self.wrapped_skill_from_effect(effect)
                         .map(|skill| {
                             skill.act_id == Some(BOSS_CYCLE_ACT_ID)
-                                && skill.from_id == Some(SEMMELWEIS_UID)
-                                && skill.to_id == Some(SEMMELWEIS_UID)
+                                && skill.from_id == Some(semmelweis_uid)
+                                && skill.to_id == Some(semmelweis_uid)
                         })
                         .unwrap_or(false)
                 })
@@ -873,7 +890,7 @@ impl FightRoundMgr {
 
         let semm_wrapper = ally_wrappers
             .iter()
-            .find(|wrapper| wrapper.from_id == SEMMELWEIS_UID)
+            .find(|wrapper| wrapper.from_id == semmelweis_uid)
             .copied();
 
         if !host_already_has_semm_broadcast
@@ -882,7 +899,7 @@ impl FightRoundMgr {
             && let Some(source_effect) = source_step.act_effect.get(wrapper_loc.effect_idx)
             && let Some(mut normalized) = self.normalize_wrapped_skill_effect(source_effect)
         {
-            self.ensure_boss_cycle_tail_marker(&mut normalized, SEMMELWEIS_UID);
+            self.ensure_boss_cycle_tail_marker(&mut normalized, semmelweis_uid);
             if let Some(host_step) = steps.get_mut(nautika_bundle_idx) {
                 host_step.act_effect.push(normalized);
             }
@@ -1135,7 +1152,7 @@ impl FightRoundMgr {
         .await?;
         self.merge_post_turn_reactives_into_host(&mut open.steps);
         self.strip_redundant_change_round_markers(&mut open.steps);
-        self.consolidate_boss_cycle_broadcasts_into_nautika_bundle(&mut open.steps);
+        self.consolidate_boss_cycle_broadcasts_into_nautika_bundle(ctx.fight, &mut open.steps);
         self.strip_post_turn_enemy_cycle_and_attr_noise(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)

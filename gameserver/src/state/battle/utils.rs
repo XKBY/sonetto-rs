@@ -744,6 +744,33 @@ pub fn find_entity(fight: &Fight, uid: i64) -> Option<&FightEntityInfo> {
     None
 }
 
+/// Resolve the runtime UID of an attacker-side entity by its stable hero_id.
+/// Returns None when no entity matches the current battle composition.
+pub fn find_uid_by_hero_id(fight: &Fight, hero_id: i32) -> Option<i64> {
+    fight
+        .attacker
+        .as_ref()?
+        .entitys
+        .iter()
+        .chain(fight.attacker.as_ref()?.sub_entitys.iter())
+        .find(|entity| entity.model_id == Some(hero_id))
+        .and_then(|entity| entity.uid)
+}
+
+/// Resolve the runtime UID of a defender-side entity by its stable hero_id.
+/// Returns None when no entity matches the current battle composition.
+#[allow(dead_code)]
+pub fn find_defender_uid_by_hero_id(fight: &Fight, hero_id: i32) -> Option<i64> {
+    fight
+        .defender
+        .as_ref()?
+        .entitys
+        .iter()
+        .chain(fight.defender.as_ref()?.sub_entitys.iter())
+        .find(|entity| entity.model_id == Some(hero_id))
+        .and_then(|entity| entity.uid)
+}
+
 pub fn check_career_restraint(attacker_career: i32, defender_career: i32) -> bool {
     let attacker = CareerType::from(attacker_career);
     let defender = CareerType::from(defender_career);
