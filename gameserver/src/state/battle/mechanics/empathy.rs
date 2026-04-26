@@ -7,8 +7,31 @@ use crate::state::battle::{
     types::{buff::BuffLayerType, effects::EffectType},
 };
 
-pub const EMPATHY_BUFF_ID: i32 = 30800141;
+/// Canonical Kakania Empathy bufftype id. Used for `BuffMgr` lookups so
+/// the engine matches Kakania's portrait/rank variants too — buffs
+/// 30800141 / 30800142 / 30800143 all share `typeId 30800141` per
+/// `data/excel2json/skill_bufftype.json`. The variants only differ in
+/// scaling params (storage cap, secondary buff id) but represent the
+/// same Empathy mechanic, so type-id matching is more durable than
+/// buff-id matching when destiny/portrait swaps are active.
+pub const EMPATHY_TYPE_ID: i32 = 30800141;
+/// Default buff id used when Kakania first acquires Empathy (before any
+/// destiny/portrait variant is active). Insight I's battle-start passive
+/// 30800141 applies this canonical id.
+pub const EMPATHY_DEFAULT_BUFF_ID: i32 = 30800141;
 const EMPATHY_ACT_ID: i32 = 770;
+
+/// Returns `true` if the given `buff_id` belongs to the Empathy bufftype
+/// family (any of 30800141 / 30800142 / 30800143 or future portrait
+/// variants), via config lookup.
+fn is_empathy_buff(buff_id: i32) -> bool {
+    config::configs::get()
+        .skill_buff
+        .iter()
+        .find(|b| b.id == buff_id)
+        .map(|b| b.type_id == EMPATHY_TYPE_ID)
+        .unwrap_or(false)
+}
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct EmpathyState {
@@ -30,7 +53,11 @@ impl EmpathyState {
                     .buffs
                     .iter()
                     .chain(entity.no_effect_buffs.iter())
-                    .find(|buff| buff.buff_id == Some(EMPATHY_BUFF_ID))
+                    .find(|buff| {
+                        buff.buff_id
+                            .map(is_empathy_buff)
+                            .unwrap_or(false)
+                    })
                     .and_then(|buff| buff.act_common_params.as_deref())
                     .and_then(parse_empathy_value)
                     .unwrap_or(0);
@@ -50,10 +77,18 @@ impl EmpathyState {
         }
     }
 
+    /// Insight I rule: "10% of that damage is stored as Empathy".
+    /// TODO: portrait/destiny variants may scale this — buff 30800143's
+    /// features `770#101#300#30800162#20#100#150` suggest different
+    /// rate/cap params. Parse those from the active variant's features
+    /// when destiny/portrait support lands.
     pub fn compute_storage_amount(damage: i32) -> i32 {
         damage.max(0) / 10
     }
 
+    /// Insight I rule: "can store up to 20% of Kakania's Max HP".
+    /// TODO: scale via active variant's features (see above) once
+    /// destiny/portrait support is wired.
     pub fn storage_cap(max_hp: i32) -> i32 {
         max_hp.max(0).saturating_mul(2) / 10
     }
@@ -74,7 +109,7 @@ impl EmpathyState {
         let next = current.saturating_add(amount.max(0)).min(cap);
         self.values.insert(kakania_uid, next);
 
-        let buff_uid = ensure_empathy_buff(buff_mgr, kakania_uid);
+        let (_buff_id, buff_uid) = ensure_empathy_buff(buff_mgr, kakania_uid);
         let _ = buff_mgr.set_instance_act_common_params(
             kakania_uid,
             buff_uid,
@@ -88,6 +123,7 @@ impl EmpathyState {
         &self,
         target_uid: i64,
         amount: i32,
+        buff_id: i32,
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
@@ -97,7 +133,7 @@ impl EmpathyState {
             target_id: Some(target_uid),
             effect_num: Some(amount.max(0)),
             buff: Some(BuffInfo {
-                buff_id: Some(EMPATHY_BUFF_ID),
+                buff_id: Some(buff_id),
                 duration: Some(0),
                 uid: Some(buff_uid),
                 ex_info: Some(0),
@@ -116,6 +152,7 @@ impl EmpathyState {
         &self,
         target_uid: i64,
         amount: i32,
+        buff_id: i32,
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
@@ -125,7 +162,7 @@ impl EmpathyState {
             target_id: Some(target_uid),
             effect_num: Some(0),
             buff: Some(BuffInfo {
-                buff_id: Some(EMPATHY_BUFF_ID),
+                buff_id: Some(buff_id),
                 duration: Some(0),
                 uid: Some(buff_uid),
                 ex_info: Some(0),
@@ -141,16 +178,20 @@ impl EmpathyState {
     }
 }
 
-fn ensure_empathy_buff(buff_mgr: &mut BuffMgr, target_uid: i64) -> i64 {
-    if let Some(existing) = buff_mgr.find_instance_by_buff_id(target_uid, EMPATHY_BUFF_ID) {
-        return existing.uid;
+/// Returns the active Empathy `(buff_id, buff_uid)` for `target_uid`,
+/// matching by `EMPATHY_TYPE_ID` so portrait/rank variants
+/// (30800142/30800143) are handled. If no instance exists yet,
+/// creates one using `EMPATHY_DEFAULT_BUFF_ID` (canonical 30800141).
+fn ensure_empathy_buff(buff_mgr: &mut BuffMgr, target_uid: i64) -> (i32, i64) {
+    if let Some(existing) = buff_mgr.find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID) {
+        return (existing.buff_id, existing.uid);
     }
 
-    buff_mgr.add(target_uid, EMPATHY_BUFF_ID, target_uid, 0, 0);
+    buff_mgr.add(target_uid, EMPATHY_DEFAULT_BUFF_ID, target_uid, 0, 0);
     buff_mgr
-        .find_instance_by_buff_id(target_uid, EMPATHY_BUFF_ID)
-        .map(|buff| buff.uid)
-        .unwrap_or(0)
+        .find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID)
+        .map(|buff| (buff.buff_id, buff.uid))
+        .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0))
 }
 
 fn parse_empathy_value(params: &str) -> Option<i32> {

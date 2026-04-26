@@ -157,6 +157,18 @@ impl BuffMgr {
             .and_then(|buffs| buffs.iter().find(|buff| buff.buff_id == buff_id))
     }
 
+    /// Find a buff instance on `target_uid` by its `type_id` (the `bufftype.id`
+    /// it belongs to, NOT the buff_id). Used when a mechanic family has
+    /// rank/portrait variants with different buff_ids that all share one
+    /// canonical typeId — e.g. Kakania's Empathy buffs 30800141 / 30800142 /
+    /// 30800143 all carry `typeId = 30800141`, so portrait upgrades that
+    /// swap the active variant still match.
+    pub fn find_instance_by_type_id(&self, target_uid: i64, type_id: i32) -> Option<&BuffInstance> {
+        self.active
+            .get(&target_uid)
+            .and_then(|buffs| buffs.iter().find(|buff| buff.type_id == type_id))
+    }
+
     #[allow(dead_code)]
     pub fn all_instances(&self) -> Vec<(i64, BuffInstance)> {
         let mut out = Vec::new();
