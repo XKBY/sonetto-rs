@@ -15,6 +15,10 @@ pub enum BehaviorType {
         buff_id: i32,
         count: i32,
     },
+    RealDamageSelfAndAddBuffToTarget {
+        amount_permille: i32,
+        buff_id: i32,
+    },
     AddExPoint {
         amount: i32,
     },

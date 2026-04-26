@@ -2,12 +2,14 @@ pub mod advanced_cure;
 pub mod bloodtithe;
 pub mod channel;
 pub mod dot;
+pub mod empathy;
 pub mod injury_counter;
 pub mod magic_circle;
 pub mod shadowcloak;
 
 use bloodtithe::BloodtitheState;
 use channel::ChannelState;
+use empathy::EmpathyState;
 use shadowcloak::ShadowCloakState;
 
 use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
@@ -17,6 +19,7 @@ use sonettobuf::{Fight, FightStep};
 pub struct Mechanics {
     pub bloodtithe: BloodtitheState,
     pub channel: ChannelState,
+    pub empathy: EmpathyState,
     pub shadow_cloak: ShadowCloakState,
 }
 
@@ -25,12 +28,14 @@ impl Mechanics {
         Self {
             bloodtithe: BloodtitheState::new(),
             channel: ChannelState::new(),
+            empathy: EmpathyState::new(),
             shadow_cloak: ShadowCloakState::new(),
         }
     }
 
     pub fn init(&mut self, fight: &Fight) {
         self.channel.init(fight);
+        self.empathy.init(fight);
         self.shadow_cloak.init(fight);
     }
 

@@ -7,6 +7,7 @@ mod buff_helper;
 mod damage;
 mod direct_skill;
 mod disperse;
+mod empathy;
 mod ex_point;
 mod heal;
 mod lost_life;

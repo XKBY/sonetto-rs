@@ -151,6 +151,12 @@ impl BuffMgr {
         self.active.get(&uid).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
+    pub fn find_instance_by_buff_id(&self, target_uid: i64, buff_id: i32) -> Option<&BuffInstance> {
+        self.active
+            .get(&target_uid)
+            .and_then(|buffs| buffs.iter().find(|buff| buff.buff_id == buff_id))
+    }
+
     #[allow(dead_code)]
     pub fn all_instances(&self) -> Vec<(i64, BuffInstance)> {
         let mut out = Vec::new();
@@ -179,6 +185,21 @@ impl BuffMgr {
             && let Some(buff) = buffs.iter_mut().find(|b| b.uid == buff_uid)
         {
             buff.layer = layer.max(0);
+            return true;
+        }
+        false
+    }
+
+    pub fn set_instance_act_common_params(
+        &mut self,
+        target_uid: i64,
+        buff_uid: i64,
+        params: &str,
+    ) -> bool {
+        if let Some(buffs) = self.active.get_mut(&target_uid)
+            && let Some(buff) = buffs.iter_mut().find(|b| b.uid == buff_uid)
+        {
+            buff.act_common_params = params.to_string();
             return true;
         }
         false
@@ -626,6 +647,11 @@ pub fn sync_from_fight(fight: &Fight, mgr: &mut BuffMgr) {
                 }
                 observe_explicit_buff_uid_for_target(target_uid, buff_uid);
                 mgr.add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+                let _ = mgr.set_instance_act_common_params(
+                    target_uid,
+                    buff_uid,
+                    b.act_common_params.as_deref().unwrap_or_default(),
+                );
             }
         }
     };

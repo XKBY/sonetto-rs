@@ -59,6 +59,8 @@ pub enum ConditionType {
     TargetCareer {
         career_ids: Vec<i32>,
     },
+    TargetIsSelf,
+    TargetIsTeamNoMe,
     UseExSkill,
     UseSkillId,
     TriggerBullet,

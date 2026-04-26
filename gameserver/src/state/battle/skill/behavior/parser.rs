@@ -27,6 +27,12 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             count: p2,
         };
     }
+    if id == 60039 {
+        return BehaviorType::RealDamageSelfAndAddBuffToTarget {
+            amount_permille: p1,
+            buff_id: p2,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {

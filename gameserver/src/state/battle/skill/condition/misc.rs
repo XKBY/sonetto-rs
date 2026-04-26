@@ -142,6 +142,10 @@ pub fn check(
             };
             Some(pass)
         }
+        ConditionType::TargetIsSelf => Some(caster_uid == target_uid),
+        ConditionType::TargetIsTeamNoMe => {
+            Some(caster_uid != target_uid && caster_uid.signum() == target_uid.signum())
+        }
         ConditionType::Random { permille } => {
             Some(deterministic_roll_permille(fight, caster_uid, target_uid, *permille) < *permille)
         }

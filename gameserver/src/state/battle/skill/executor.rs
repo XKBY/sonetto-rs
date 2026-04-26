@@ -336,7 +336,16 @@ impl SkillExecutor {
                 if let Some(raw) = combat_raw {
                     if b.negated { !raw } else { raw }
                 } else {
-                    let condition_uid = if b.condition_target != 0 {
+                    let condition_uid = if matches!(
+                        b.condition,
+                        ConditionType::TargetIsSelf | ConditionType::TargetIsTeamNoMe
+                    ) {
+                        if target_uid != 0 {
+                            target_uid
+                        } else {
+                            caster_uid
+                        }
+                    } else if b.condition_target != 0 {
                         TargetResolver::new(&sim_fight, caster_uid, target_uid)
                             .behavior(b.condition_target)
                             .logic(b.logic_target)
@@ -408,7 +417,16 @@ impl SkillExecutor {
                     if b.negated { !raw } else { raw }
                 }
             } else {
-                let condition_uid = if b.condition_target != 0 {
+                let condition_uid = if matches!(
+                    b.condition,
+                    ConditionType::TargetIsSelf | ConditionType::TargetIsTeamNoMe
+                ) {
+                    if target_uid != 0 {
+                        target_uid
+                    } else {
+                        caster_uid
+                    }
+                } else if b.condition_target != 0 {
                     TargetResolver::new(&sim_fight, caster_uid, target_uid)
                         .behavior(b.condition_target)
                         .logic(b.logic_target)
@@ -1304,6 +1322,11 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                         buff.layer.unwrap_or(0),
                         buff.uid.unwrap_or(0),
                     );
+                    let _ = buff_mgr.set_instance_act_common_params(
+                        target_uid,
+                        buff.uid.unwrap_or(0),
+                        buff.act_common_params.as_deref().unwrap_or_default(),
+                    );
                 }
             }
             x if x == EffectType::BuffDel as i32 => {
@@ -1327,6 +1350,11 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                         buff.count.unwrap_or(0),
                         buff.layer.unwrap_or(0),
                         buff.uid.unwrap_or(0),
+                    );
+                    let _ = buff_mgr.set_instance_act_common_params(
+                        target_uid,
+                        buff.uid.unwrap_or(0),
+                        buff.act_common_params.as_deref().unwrap_or_default(),
                     );
                 }
             }

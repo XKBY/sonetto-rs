@@ -36,6 +36,12 @@ pub fn parse_single(raw: &str) -> ConditionType {
 
     let parts: Vec<&str> = raw.split('#').collect();
     let id: i32 = parts[0].parse().unwrap_or(0);
+    if id == 585208 {
+        return ConditionType::TargetIsSelf;
+    }
+    if id == 586208 {
+        return ConditionType::TargetIsTeamNoMe;
+    }
 
     let cond_type = cfg
         .skill_behavior_condition

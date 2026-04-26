@@ -206,6 +206,8 @@ impl PhaseFilter {
             | ConditionType::LifeLess { .. }
             | ConditionType::LifeMore { .. }
             | ConditionType::TargetCareer { .. }
+            | ConditionType::TargetIsSelf
+            | ConditionType::TargetIsTeamNoMe
             | ConditionType::ExpointMoreThan { .. }
             | ConditionType::ExpointLessThan { .. }
             | ConditionType::Random { .. }
