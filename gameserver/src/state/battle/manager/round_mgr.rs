@@ -688,6 +688,12 @@ impl FightRoundMgr {
         .then_some(nested.clone())
     }
 
+    // TODO(event-queue): Recoleta-ult-specific boss-reactive injector
+    // (commit `972a4561`). Hardcodes `31140131` because the LIVE shape
+    // depends on the specific ult's per-target damage chain. EventQueue
+    // Phase 4 (`SkillEmitKind::TriggerReactive`) replaces this with a
+    // generic "boss reactive on damage" event tied to the actual damage
+    // emission sequence. See `_eventqueue_design.md`.
     fn maybe_embed_recoleta_boss_reactives(&self, state: &RoundState, host_step: &mut FightStep) {
         const RECOLETA_ULT_ACT_ID: i32 = 31140131;
         const BOSS_REACTIVE_ACT_ID: i32 = 530000411;
@@ -788,6 +794,14 @@ impl FightRoundMgr {
         false
     }
 
+    // TODO(event-queue): Recoleta Monomythic Narrative snapshot
+    // consolidator (commit `c6cff4d8`). Buff `434425` has
+    // `isNoShow: 1` semantics — LIVE only emits start+end snapshots,
+    // not per-stack ticks. This post-execution rewriter walks the
+    // 31140131 host subtree and drops the intermediate layer ticks.
+    // EventQueue Phase 4 (`SkillEmitKind` + per-buff snapshot policy
+    // metadata on `BuffUpdate` events) replaces this with proper
+    // emission cadence at the queue level.
     fn maybe_consolidate_recoleta_monomythic_snapshots(&self, host_step: &mut FightStep) {
         const RECOLETA_ULT_ACT_ID: i32 = 31140131;
         const MONOMYTHIC_BUFF_ID: i32 = 434425;
