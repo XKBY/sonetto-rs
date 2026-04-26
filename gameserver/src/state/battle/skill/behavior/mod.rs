@@ -3,6 +3,7 @@ mod bloodtithe;
 mod buff;
 mod buff_helper;
 mod damage;
+mod disperse;
 mod ex_point;
 mod heal;
 mod misc;
@@ -225,29 +226,24 @@ fn dispatch_impl(
             condition_id,
             condition,
         )),
-        BehaviorType::Disperse => Ok(buff::disperse(fight, managers, target)),
-        BehaviorType::DisperseForce { buff_id } => {
-            Ok(buff::disperse_force(fight, managers, target, *buff_id))
+        BehaviorType::Disperse
+        | BehaviorType::DisperseForce { .. }
+        | BehaviorType::Purify
+        | BehaviorType::ReplaceBuff2 { .. }
+        | BehaviorType::ConsumeBuffByTypeId { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            disperse::Disperse::execute(behavior, &mut action_ctx, condition)
         }
-        BehaviorType::Purify => Ok(buff::purify(fight, managers, target)),
-        BehaviorType::ReplaceBuff2 {
-            source_buff_ids,
-            replacement_buff_id,
-            duration,
-            count,
-        } => Ok(buff::replace_buff2(
-            fight,
-            managers,
-            caster_uid,
-            target,
-            source_buff_ids,
-            *replacement_buff_id,
-            *duration,
-            *count,
-        )),
-        BehaviorType::ConsumeBuffByTypeId { type_id, count } => Ok(buff::consume_by_type(
-            fight, managers, target, *type_id, skill_id, *count,
-        )),
         BehaviorType::ConsumeBloodAddBuff {
             consume,
             buff_id,
@@ -993,7 +989,20 @@ fn dispatch_impl(
         }
         BehaviorType::ShellUseSkill { .. } => skill::shell_use_skill(),
         BehaviorType::ShellAssign { .. } => skill::shell_assign(),
-        BehaviorType::PurifyX { .. } => Ok(buff::purify(fight, managers, target)), // TODO: filter by type_ids
+        BehaviorType::PurifyX { .. } => {
+            let mut action_ctx = ActionCtx {
+                executor,
+                rng,
+                managers,
+                mechanics,
+                behavior_ctx,
+                caster_uid,
+                target,
+                skill_id,
+                condition_id,
+            };
+            disperse::Disperse::execute(behavior, &mut action_ctx, condition)
+        }
 
         BehaviorType::Unknown { raw } => {
             tracing::warn!("Skipping unknown behavior: {}", raw);
