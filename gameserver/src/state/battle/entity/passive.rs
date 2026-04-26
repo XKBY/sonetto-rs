@@ -55,7 +55,18 @@ impl Passive {
         // Destiny passives that have no config link — keyed by destinyStone ID.
         // These skills exist in skill_effect but are absent from skill_passive_level
         // and character_destiny_facets.exchangeSkills. Add more stones here as discovered.
+        //
+        // Sotheby (3009) Tier IV adds the Duality Potion mechanic (per prydwen):
+        // 30090144 (condition 5 → grants 30091118 HealingBoost on round-start),
+        // 30090145 (condition 5 → grants 30091119), and
+        // 30090146 (condition 100/None → grants 30091120 Duality Potion which
+        // cascades AddBuffBoth: 300901412 Poison-extra to enemies + 30091111
+        // Cure to allies). None of these surface in skill_passive_level or any
+        // destiny tier exchangeSkills — they're hardcoded here per the same
+        // pattern as 3062/3063/3088. battle3 replay reads the passives off
+        // the input fight protobuf so this entry is for fresh-battle builds.
         let destiny_passive_map: &[(i32, &[i32])] = &[
+            (300901, &[30090144, 30090145, 30090146]),    // 3009
             (306201, &[30620144, 30620147]),              // 3062
             (306301, &[30630151, 30630161, 30630171]),    // 3063
             (308801, &[308801911, 308801921, 308802111]), // 3088
