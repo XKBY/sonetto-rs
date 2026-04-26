@@ -4,6 +4,7 @@ mod passives;
 
 pub mod context;
 pub mod end_fight;
+pub mod event_queue;
 pub mod types;
 
 pub mod manager;
