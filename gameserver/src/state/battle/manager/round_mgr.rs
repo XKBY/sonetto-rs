@@ -688,6 +688,81 @@ impl FightRoundMgr {
         .then_some(nested.clone())
     }
 
+    fn maybe_embed_recoleta_boss_reactives(&self, state: &RoundState, host_step: &mut FightStep) {
+        const RECOLETA_ULT_ACT_ID: i32 = 31140131;
+        const BOSS_REACTIVE_ACT_ID: i32 = 530000411;
+
+        if host_step.act_type != Some(fight_step::ActType::Skill as i32)
+            || host_step.act_id != Some(RECOLETA_ULT_ACT_ID)
+            || host_step.from_id.unwrap_or(0) <= 0
+        {
+            return;
+        }
+        if host_step.act_effect.iter().any(|effect| {
+            self.wrapped_skill_from_effect(effect)
+                .map(|step| step.act_id == Some(BOSS_REACTIVE_ACT_ID))
+                .unwrap_or(false)
+        }) {
+            return;
+        }
+
+        let reactive_caster_uid = state
+            .ai_cards
+            .iter()
+            .find(|card| card.skill_id == Some(BOSS_REACTIVE_ACT_ID) && card.uid.unwrap_or(0) < 0)
+            .and_then(|card| card.uid)
+            .unwrap_or(0);
+        if reactive_caster_uid >= 0 {
+            return;
+        }
+
+        let mut targets = Vec::new();
+        for effect in &host_step.act_effect {
+            let effect_type = effect.effect_type.unwrap_or(0);
+            let is_damage = effect_type == EffectType::Damage as i32
+                || effect_type == EffectType::Crit as i32
+                || effect_type == EffectType::DamageExtra as i32
+                || effect_type == EffectType::OriginDamage as i32
+                || effect_type == EffectType::OriginCrit as i32;
+            let target_uid = effect.target_id.unwrap_or(0);
+            if is_damage && target_uid < 0 && !targets.contains(&target_uid) {
+                targets.push(target_uid);
+            }
+        }
+        if targets.is_empty() {
+            return;
+        }
+
+        let wrappers: Vec<ActEffect> = targets
+            .into_iter()
+            .map(|target_uid| {
+                let buff_uid = next_buff_uid_for_target(target_uid);
+                let effect = crate::state::battle::utils::buff_update(
+                    target_uid,
+                    reactive_caster_uid,
+                    BOSS_REACTIVE_ACT_ID,
+                    buff_uid,
+                    0,
+                    0,
+                );
+                wrap_step(effect_container_step(
+                    reactive_caster_uid,
+                    target_uid,
+                    BOSS_REACTIVE_ACT_ID,
+                    vec![effect],
+                ))
+            })
+            .collect();
+
+        let insert_at = host_step
+            .act_effect
+            .iter()
+            .rposition(|effect| effect.target_id.unwrap_or(0) < 0)
+            .map(|idx| idx + 1)
+            .unwrap_or_else(|| self.host_trigger_insert_index(host_step));
+        host_step.act_effect.splice(insert_at..insert_at, wrappers);
+    }
+
     fn is_nautika_psychube_bundle_step(
         &self,
         step: &FightStep,
@@ -1674,6 +1749,7 @@ impl FightRoundMgr {
             }
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
+            self.maybe_embed_recoleta_boss_reactives(state, &mut host_step);
             if let Some((holder_uid, injury_count)) =
                 injury_counter::find_card_host_injury_marker_params(
                     ctx.fight,
