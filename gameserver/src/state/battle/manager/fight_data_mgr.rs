@@ -13,6 +13,7 @@ use super::super::{
 use super::round_mgr::seed_entry_max_hp_from_fight;
 
 use anyhow::Result;
+use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::{BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightStep};
 
 use crate::state::battle::{
@@ -80,11 +81,11 @@ impl FightDataMgr {
     }
 
     pub fn ctx(&mut self) -> FightContext<'_> {
-        FightContext {
-            fight: &mut self.fight,
-            managers: &mut self.managers,
-            mechanics: &mut self.mechanics,
-        }
+        FightContext::new(&mut self.fight, &mut self.managers, &mut self.mechanics)
+    }
+
+    pub fn ctx_with_rng<'a>(&'a mut self, rng: &mut StdRng) -> FightContext<'a> {
+        self.ctx().with_rng(rng)
     }
 
     pub fn build_initial_round(
@@ -98,7 +99,9 @@ impl FightDataMgr {
 
         let mut steps: Vec<FightStep> = Vec::new();
         let passive_steps = {
-            let mut ctx = self.ctx();
+            let seed = self.fight.cur_round.unwrap_or(0) as u64;
+            let mut rng = StdRng::seed_from_u64(seed);
+            let mut ctx = self.ctx_with_rng(&mut rng);
             run_battle_start(&mut ctx, battle_id)
         };
         steps.extend(passive_steps);

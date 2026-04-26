@@ -10,6 +10,7 @@ mod stats;
 pub mod parser;
 
 use anyhow::Result;
+use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 
 use self::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
@@ -152,6 +153,7 @@ pub(crate) fn execute_nuo_di_ka_damage_for_target(
 
 pub struct BehaviorExec<'a, 'ctx> {
     executor: &'a mut SkillExecutor,
+    rng: &'a mut StdRng,
     managers: &'a mut Managers,
     mechanics: &'a mut Mechanics,
     behavior_ctx: &'a BehaviorContext<'ctx>,
@@ -164,12 +166,14 @@ pub struct BehaviorExec<'a, 'ctx> {
 impl<'a, 'ctx> BehaviorExec<'a, 'ctx> {
     pub fn new(
         executor: &'a mut SkillExecutor,
+        rng: &'a mut StdRng,
         managers: &'a mut Managers,
         mechanics: &'a mut Mechanics,
         behavior_ctx: &'a BehaviorContext<'ctx>,
     ) -> Self {
         Self {
             executor,
+            rng,
             managers,
             mechanics,
             behavior_ctx,
@@ -203,6 +207,7 @@ impl<'a, 'ctx> BehaviorExec<'a, 'ctx> {
     pub fn run(self, behavior: &BehaviorType, condition: &ConditionType) -> Result<Vec<ActEffect>> {
         dispatch_impl(
             self.executor,
+            self.rng,
             self.managers,
             self.mechanics,
             self.behavior_ctx,
@@ -219,6 +224,7 @@ impl<'a, 'ctx> BehaviorExec<'a, 'ctx> {
 #[allow(clippy::too_many_arguments)]
 pub fn execute_behavior(
     executor: &mut SkillExecutor,
+    rng: &mut StdRng,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
     behavior_ctx: &BehaviorContext<'_>,
@@ -246,7 +252,7 @@ pub fn execute_behavior(
     let mut effects = Vec::new();
     for target in targets {
         effects.extend(
-            BehaviorExec::new(executor, managers, mechanics, behavior_ctx)
+            BehaviorExec::new(executor, rng, managers, mechanics, behavior_ctx)
                 .caster(caster_uid)
                 .for_target(target)
                 .skill(skill_id)
@@ -260,6 +266,7 @@ pub fn execute_behavior(
 #[allow(clippy::too_many_arguments)]
 fn dispatch_impl(
     executor: &mut SkillExecutor,
+    rng: &mut StdRng,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
     behavior_ctx: &BehaviorContext<'_>,
@@ -467,6 +474,7 @@ fn dispatch_impl(
             count,
         } => random::add_buff_ran_id(
             executor,
+            rng,
             fight,
             managers,
             mechanics,
@@ -485,6 +493,7 @@ fn dispatch_impl(
                 return Ok(vec![]);
             }
             let out = executor.execute_skill(
+                rng,
                 fight,
                 managers,
                 mechanics,
@@ -583,7 +592,7 @@ fn dispatch_impl(
                             .with_buff_mgr(&managers.buff_mgr),
                     );
                     executor.execute_skill(
-                        fight, managers, mechanics, caster_uid, caster_uid, precast_id, &phase,
+                        rng, fight, managers, mechanics, caster_uid, caster_uid, precast_id, &phase,
                     )?
                 };
                 out.append(&mut pre);
@@ -659,6 +668,7 @@ fn dispatch_impl(
                         .with_buff_mgr(&managers.buff_mgr),
                 );
                 executor.execute_skill(
+                    rng,
                     fight,
                     managers,
                     mechanics,
@@ -872,6 +882,7 @@ fn dispatch_impl(
             }
 
             let mut derived_effects = executor.execute_skill(
+                rng,
                 fight,
                 managers,
                 mechanics,
@@ -927,6 +938,7 @@ fn dispatch_impl(
                     continue;
                 }
                 let passive_effects = executor.execute_skill(
+                    rng,
                     fight,
                     managers,
                     mechanics,
@@ -970,6 +982,7 @@ fn dispatch_impl(
             }
             let pick = pool[pool.len() / 2];
             let out = executor.execute_skill(
+                rng,
                 fight,
                 managers,
                 mechanics,

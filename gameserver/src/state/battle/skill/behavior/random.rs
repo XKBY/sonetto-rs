@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rand::seq::SliceRandom;
+use rand::{rngs::StdRng, seq::SliceRandom};
 use sonettobuf::{ActEffect, Fight};
 
 use super::super::executor::SkillExecutor;
@@ -10,6 +10,7 @@ use crate::state::battle::types::condition::ConditionType;
 #[allow(clippy::too_many_arguments)]
 pub fn add_buff_ran_id(
     executor: &mut SkillExecutor,
+    rng: &mut StdRng,
     fight: &Fight,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
@@ -35,9 +36,8 @@ pub fn add_buff_ran_id(
         return Ok(vec![]);
     }
 
-    let mut rng = rand::thread_rng();
     let mut chosen = pool;
-    chosen.shuffle(&mut rng);
+    chosen.shuffle(rng);
     chosen.truncate(count as usize);
 
     let has_bloodpool = mechanics.bloodtithe.has_bloodpool();

@@ -459,11 +459,11 @@ fn build_display_only_consume_channel_embeds(
     let mut shadow_fight = ctx.fight.clone();
     let mut shadow_managers = ctx.managers.clone();
     let mut shadow_mechanics = ctx.mechanics.clone();
-    let mut shadow_ctx = FightContext {
-        fight: &mut shadow_fight,
-        managers: &mut shadow_managers,
-        mechanics: &mut shadow_mechanics,
-    };
+    let mut shadow_ctx = FightContext::new(
+        &mut shadow_fight,
+        &mut shadow_managers,
+        &mut shadow_mechanics,
+    );
     let phase = PhaseFilter::combat_with(
         TriggerState::on_active_use_skill(emit_effect_id)
             .with_buff_mgr(&shadow_ctx.managers.buff_mgr),

@@ -53,7 +53,7 @@ impl BattleSimulator {
     ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
-        let mut fight_ctx = self.data.ctx();
+        let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
         let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
         let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
         let round = self

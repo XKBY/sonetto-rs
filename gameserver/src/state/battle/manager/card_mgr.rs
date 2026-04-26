@@ -85,7 +85,7 @@ impl FightCardMgr {
 
     async fn play_card(
         &mut self,
-        _rng: &mut StdRng,
+        rng: &mut StdRng,
         ctx: &mut FightContext<'_>,
         state: &mut RoundState,
         oper: BeginRoundOper,
@@ -184,11 +184,12 @@ impl FightCardMgr {
                 .unwrap_or(false);
 
         let mut raw_skill_effects = if is_direct_ex_card {
-            self.build_direct_ex_card_prefix(ctx, exec_caster_uid, resolved_skill_id)?
+            self.build_direct_ex_card_prefix(rng, ctx, exec_caster_uid, resolved_skill_id)?
         } else {
             Vec::new()
         };
         let mut main_skill_effects = self.skill_executor.execute_skill(
+            rng,
             ctx.fight,
             ctx.managers,
             ctx.mechanics,
@@ -208,6 +209,7 @@ impl FightCardMgr {
         if is_temp_card && skill_effects.is_empty() {
             for fallback_phase in [PhaseFilter::unconditional(), PhaseFilter::enter_fight()] {
                 let retry = self.skill_executor.execute_skill(
+                    rng,
                     ctx.fight,
                     ctx.managers,
                     ctx.mechanics,
@@ -229,6 +231,7 @@ impl FightCardMgr {
         }
         if is_temp_card && skill_effects.is_empty() {
             let mut fallback = self.build_temp_direct_bigskill_fallback(
+                rng,
                 ctx,
                 exec_caster_uid,
                 target_uid,
@@ -369,6 +372,7 @@ impl FightCardMgr {
                     let resolved_skill_id =
                         resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
                     let per_behavior = self.skill_executor.execute_skill(
+                        rng,
                         &preview_fight,
                         &mut preview_managers,
                         &mut preview_mechanics,
@@ -555,6 +559,7 @@ impl FightCardMgr {
 
             let resolved_skill_id = resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
             let per_behavior = self.skill_executor.execute_skill(
+                rng,
                 &preview_fight,
                 &mut preview_managers,
                 &mut preview_mechanics,
@@ -589,6 +594,7 @@ impl FightCardMgr {
 
     fn build_temp_direct_bigskill_fallback(
         &mut self,
+        rng: &mut StdRng,
         ctx: &mut FightContext<'_>,
         caster_uid: i64,
         target_uid: i64,
@@ -658,6 +664,7 @@ impl FightCardMgr {
 
         for &prep_id in &prep_skill_ids {
             let mut pre = self.skill_executor.execute_skill(
+                rng,
                 ctx.fight,
                 ctx.managers,
                 ctx.mechanics,
@@ -720,6 +727,7 @@ impl FightCardMgr {
         }
 
         let mut ex = self.skill_executor.execute_skill(
+            rng,
             ctx.fight,
             ctx.managers,
             ctx.mechanics,
@@ -750,6 +758,7 @@ impl FightCardMgr {
 
     fn build_direct_ex_card_prefix(
         &mut self,
+        rng: &mut StdRng,
         ctx: &mut FightContext<'_>,
         caster_uid: i64,
         skill_id: i32,
@@ -812,6 +821,7 @@ impl FightCardMgr {
                 .set_recent_decr_ex_point(caster_uid, attr_consume);
             for &prep_id in &prep_skill_ids {
                 let mut pre = self.skill_executor.execute_skill(
+                    rng,
                     ctx.fight,
                     ctx.managers,
                     ctx.mechanics,
@@ -839,6 +849,7 @@ impl FightCardMgr {
                 .set_recent_decr_ex_point(caster_uid, point_cost);
             for &prep_id in &prep_skill_ids {
                 let mut pre = self.skill_executor.execute_skill(
+                    rng,
                     ctx.fight,
                     ctx.managers,
                     ctx.mechanics,

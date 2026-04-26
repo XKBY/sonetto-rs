@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::{ActEffect, BuffInfo, Fight, FightStep, fight_step};
 use std::{
     cell::RefCell,
@@ -192,6 +193,7 @@ impl SkillExecutor {
     #[allow(clippy::too_many_arguments, clippy::extend_with_drain)]
     pub fn execute_skill(
         &mut self,
+        rng: &mut StdRng,
         fight: &Fight,
         managers: &mut Managers,
         mechanics: &mut Mechanics,
@@ -458,6 +460,7 @@ impl SkillExecutor {
             );
             let behavior_effects = execute_behavior(
                 self,
+                rng,
                 managers,
                 mechanics,
                 &behavior_ctx,
@@ -672,6 +675,7 @@ impl SkillExecutor {
         let triggers: Vec<(i64, i32)> = self.pending_monitor_triggers.drain(..).collect();
         for (trigger_uid, trigger_skill_id) in triggers {
             match Self::execute_trigger_skill(
+                rng,
                 &sim_fight,
                 managers,
                 mechanics,
@@ -817,6 +821,7 @@ impl SkillExecutor {
     /// Execute a trigger skill and wrap as a 162 inline step.
     /// Used for CreateMaxHpAdditionalDamageAndRemove / RaspberryBigSkill procs.
     fn execute_trigger_skill(
+        rng: &mut StdRng,
         fight: &Fight,
         managers: &mut Managers,
         mechanics: &mut Mechanics,
@@ -842,8 +847,9 @@ impl SkillExecutor {
             bloodpool_value_attacker: Some(mechanics.bloodtithe.get_value(1)),
         });
 
-        let mut results = inner_executor
-            .execute_skill(fight, managers, mechanics, caster_uid, -1, skill_id, &phase)?;
+        let mut results = inner_executor.execute_skill(
+            rng, fight, managers, mechanics, caster_uid, -1, skill_id, &phase,
+        )?;
 
         let buff_dels = inner_executor.pending_buff_dels.drain(..).collect();
 
@@ -1398,13 +1404,19 @@ pub fn build_skill_act_effect(
     phase: &PhaseFilter,
 ) -> Result<Vec<ActEffect>> {
     let mut executor = SkillExecutor::new();
+    let seed = ctx.fight.cur_round.unwrap_or(0) as u64;
+    let mut fallback_rng = StdRng::seed_from_u64(seed);
+    let rng = match ctx.rng_ptr() {
+        Some(mut rng) => {
+            // SAFETY: FightContext only stores pointers captured from live mutable RNG refs.
+            unsafe { rng.as_mut() }
+        }
+        None => &mut fallback_rng,
+    };
+    let fight = &*ctx.fight;
+    let managers = &mut *ctx.managers;
+    let mechanics = &mut *ctx.mechanics;
     executor.execute_skill(
-        ctx.fight,
-        ctx.managers,
-        ctx.mechanics,
-        caster_uid,
-        target_uid,
-        skill_id,
-        phase,
+        rng, fight, managers, mechanics, caster_uid, target_uid, skill_id, phase,
     )
 }
