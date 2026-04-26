@@ -8,7 +8,7 @@ use super::action::Condition;
 pub(super) struct Combat;
 
 impl Condition for Combat {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         match cond_type {
             "UseExSkill" => Some(ConditionType::UseExSkill),
             "UseSkillId" => Some(ConditionType::UseSkillId),
@@ -51,7 +51,7 @@ impl Condition for Combat {
         }
     }
 
-    fn check(condition: &ConditionType, _ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, _ctx: &ConditionEval<'_>) -> Option<bool> {
         // Event-driven conditions are now handled by PhaseFilter::check_combat via CombatEvent.
         // This function only handles conditions that are unconditionally false in combat.
         match condition {

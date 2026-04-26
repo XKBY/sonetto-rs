@@ -7,11 +7,11 @@ use std::collections::HashSet;
 pub(super) struct Buff;
 
 impl Condition for Buff {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         parse(parts, cond_type)
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         check(condition, ctx.buff_mgr, ctx.target_uid)
     }
 }

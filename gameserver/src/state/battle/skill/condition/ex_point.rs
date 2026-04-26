@@ -5,7 +5,7 @@ use super::action::Condition;
 pub(super) struct ExPoint;
 
 impl Condition for ExPoint {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         match cond_type {
             "PerExPoint" => Some(ConditionType::PerExPoint {
                 threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
@@ -23,7 +23,7 @@ impl Condition for ExPoint {
         }
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         match condition {
             ConditionType::PerExPoint { threshold } => {
                 Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) >= *threshold)

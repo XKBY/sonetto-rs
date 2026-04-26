@@ -1,6 +1,5 @@
 use super::super::super::ConditionType;
-use super::action::Condition;
-use super::{bloodtithe, buff, career, combat, enter_fight, ex_point, life, misc};
+use super::action::CONDITION_REGISTRY;
 use config::configs;
 
 pub fn parse_condition(raw: &str) -> (ConditionType, bool) {
@@ -45,14 +44,9 @@ pub fn parse_single(raw: &str) -> ConditionType {
         .map(|c| c.r#type.as_str())
         .unwrap_or("");
 
-    enter_fight::EnterFight::parse(&parts, cond_type)
-        .or_else(|| buff::Buff::parse(&parts, cond_type))
-        .or_else(|| career::Career::parse(&parts, cond_type))
-        .or_else(|| life::Life::parse(&parts, cond_type))
-        .or_else(|| ex_point::ExPoint::parse(&parts, cond_type))
-        .or_else(|| combat::Combat::parse(&parts, cond_type))
-        .or_else(|| misc::Misc::parse(&parts, cond_type))
-        .or_else(|| bloodtithe::Bloodtithe::parse(&parts, cond_type))
+    CONDITION_REGISTRY
+        .iter()
+        .find_map(|cluster| cluster.parse(&parts, cond_type))
         .unwrap_or_else(|| {
             if !cond_type.is_empty() {
                 tracing::warn!("Unknown condition type: {} (id={})", cond_type, id);

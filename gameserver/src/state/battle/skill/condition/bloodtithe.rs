@@ -5,7 +5,7 @@ use super::action::Condition;
 pub(super) struct Bloodtithe;
 
 impl Condition for Bloodtithe {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         match cond_type {
             "BloodPoolMax" => Some(ConditionType::BloodPoolMax {
                 min: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
@@ -19,7 +19,7 @@ impl Condition for Bloodtithe {
         }
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         match condition {
             ConditionType::BloodPoolMax { min, max } => {
                 // 1 = attacker side

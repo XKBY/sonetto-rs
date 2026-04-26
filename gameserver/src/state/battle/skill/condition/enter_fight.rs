@@ -5,7 +5,7 @@ use super::action::Condition;
 pub(super) struct EnterFight;
 
 impl Condition for EnterFight {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         // The first part is the raw condition id; the rest live in
         // sibling clusters. EnterFight only needs the id, so it
         // extracts it here from `parts[0]`.
@@ -29,7 +29,7 @@ impl Condition for EnterFight {
         }
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         match condition {
             ConditionType::None | ConditionType::CombatNone | ConditionType::EnterFight { .. } => {
                 Some(true)

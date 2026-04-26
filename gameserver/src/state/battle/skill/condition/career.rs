@@ -6,7 +6,7 @@ use crate::state::battle::skill::targets::get_entity;
 pub(super) struct Career;
 
 impl Condition for Career {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         match cond_type {
             "TargetCareer" => {
                 let ids = parts[1..]
@@ -32,7 +32,7 @@ impl Condition for Career {
         }
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         match condition {
             ConditionType::TargetCareer { career_ids } => {
                 let career = get_entity(ctx.fight, ctx.target_uid).and_then(|e| e.career);

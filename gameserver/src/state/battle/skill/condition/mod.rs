@@ -10,7 +10,7 @@ pub mod misc;
 
 pub mod parser;
 
-use self::action::Condition;
+use self::action::CONDITION_REGISTRY;
 
 use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
@@ -87,15 +87,12 @@ impl<'a> ConditionEval<'a> {
             return false;
         }
 
-        enter_fight::EnterFight::check(condition, self)
-            .or_else(|| buff::Buff::check(condition, self))
-            .or_else(|| career::Career::check(condition, self))
-            .or_else(|| life::Life::check(condition, self))
-            .or_else(|| ex_point::ExPoint::check(condition, self))
-            .or_else(|| combat::Combat::check(condition, self))
-            .or_else(|| bloodtithe::Bloodtithe::check(condition, self))
-            .or_else(|| misc::Misc::check(condition, self))
-            .unwrap_or(false)
+        for cluster in CONDITION_REGISTRY {
+            if let Some(result) = cluster.check(condition, self) {
+                return result;
+            }
+        }
+        false
     }
 
     pub fn check_with_random_target(

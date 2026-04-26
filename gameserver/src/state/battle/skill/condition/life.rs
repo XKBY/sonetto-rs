@@ -7,7 +7,7 @@ use super::action::Condition;
 pub(super) struct Life;
 
 impl Condition for Life {
-    fn parse(parts: &[&str], cond_type: &str) -> Option<ConditionType> {
+    fn parse(&self, parts: &[&str], cond_type: &str) -> Option<ConditionType> {
         match cond_type {
             "LifeLess" => Some(ConditionType::LifeLess {
                 threshold_permille: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
@@ -20,7 +20,7 @@ impl Condition for Life {
         }
     }
 
-    fn check(condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+    fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
         match condition {
             ConditionType::LifeLess { threshold_permille } => Some(
                 get_entity(ctx.fight, ctx.caster_uid)
