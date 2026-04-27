@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use gameserver::state::{BattleSimulator, FightDataMgr};
 use serde_json::{Value, json};
 use sonettobuf::{
-    ActEffect, BeginRoundOper, BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound,
-    FightStep, StartDungeonReply, fight_step,
+    ActEffect, BeginRoundOper, BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightStep,
+    StartDungeonReply, fight_step,
 };
 
 use crate::parser::start_dungeon::InitialBuffAddSeed;
@@ -277,7 +277,10 @@ fn collect_poisoned_enemy_targets(step: &FightStep) -> Vec<i64> {
             continue;
         };
         let target_uid = effect.target_id.unwrap_or(0);
-        if target_uid == 0 || target_uid.signum() == caster_uid.signum() || !is_poison_family_buff(buff_id) {
+        if target_uid == 0
+            || target_uid.signum() == caster_uid.signum()
+            || !is_poison_family_buff(buff_id)
+        {
             continue;
         }
         if !out.contains(&target_uid) {
@@ -300,7 +303,12 @@ fn poison_marker(target_uid: i64) -> ActEffect {
     }
 }
 
-fn build_effect_wrapper(from_uid: i64, to_uid: i64, act_id: i32, effects: Vec<ActEffect>) -> ActEffect {
+fn build_effect_wrapper(
+    from_uid: i64,
+    to_uid: i64,
+    act_id: i32,
+    effects: Vec<ActEffect>,
+) -> ActEffect {
     ActEffect {
         effect_type: Some(162),
         target_id: Some(0),
@@ -407,7 +415,8 @@ fn rewrite_sotheby_duality_wrapper_output(step: &mut FightStep) -> bool {
         }
     }
 
-    step.act_effect.splice(wrapper_idx..wrapper_idx, replacements);
+    step.act_effect
+        .splice(wrapper_idx..wrapper_idx, replacements);
     true
 }
 

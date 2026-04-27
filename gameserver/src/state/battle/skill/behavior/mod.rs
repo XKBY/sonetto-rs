@@ -4,6 +4,7 @@ mod attr_modify;
 mod bloodtithe;
 mod buff;
 mod buff_helper;
+mod catapult;
 mod damage;
 mod direct_skill;
 mod disperse;

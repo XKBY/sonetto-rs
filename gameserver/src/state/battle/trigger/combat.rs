@@ -459,7 +459,10 @@ pub(crate) fn run_combat_passives_pass(
             let trace_target = matches!(skill_id, 30090146 | 31040141 | 30980142);
             if is_enter_fight_only_passive(skill_id) {
                 if trace_target {
-                    eprintln!("trace passive skill={} uid={} skipped=enter_fight_only", skill_id, uid);
+                    eprintln!(
+                        "trace passive skill={} uid={} skipped=enter_fight_only",
+                        skill_id, uid
+                    );
                 }
                 continue;
             }
@@ -511,7 +514,10 @@ pub(crate) fn run_combat_passives_pass(
             // fired inline inside the card step — skip them here to avoid duplicates.
             if event.used_card(uid) && is_active_use_skill_passive(skill_id) {
                 if trace_target {
-                    eprintln!("trace passive skill={} uid={} skipped=already_inline", skill_id, uid);
+                    eprintln!(
+                        "trace passive skill={} uid={} skipped=already_inline",
+                        skill_id, uid
+                    );
                 }
                 continue;
             }
