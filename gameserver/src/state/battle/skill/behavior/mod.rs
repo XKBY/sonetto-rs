@@ -2,7 +2,7 @@ mod action;
 mod add_buff;
 mod attr_modify;
 mod bloodtithe;
-mod buff;
+pub(crate) mod buff;
 mod buff_helper;
 mod catapult;
 mod damage;

@@ -1,4 +1,5 @@
 mod action;
+pub mod add_buff_both;
 pub mod add_passive_skills;
 pub mod attr;
 pub mod attr_replace;
@@ -17,6 +18,7 @@ pub mod monitor_continue;
 mod no_op;
 pub mod nuodika;
 pub mod nuodika_cast;
+pub mod probability_add_buff;
 pub mod raspberry;
 pub mod round_end;
 pub mod shield;

@@ -155,10 +155,7 @@ impl BuffMgr {
         } else if Self::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.duration = existing.duration.max(instance.duration);
-                existing.layer = existing
-                    .layer
-                    .max(1)
-                    .saturating_add(instance.layer.max(1));
+                existing.layer = existing.layer.max(1).saturating_add(instance.layer.max(1));
             } else {
                 entry.push(instance);
             }
@@ -456,10 +453,7 @@ impl BuffMgr {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.uid = buff_uid;
                 existing.duration = existing.duration.max(instance.duration);
-                existing.layer = existing
-                    .layer
-                    .max(1)
-                    .saturating_add(instance.layer.max(1));
+                existing.layer = existing.layer.max(1).saturating_add(instance.layer.max(1));
             } else {
                 entry.push(instance);
             }

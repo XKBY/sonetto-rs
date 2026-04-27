@@ -9,7 +9,7 @@
 //! Variants owned:
 //! `FixAttrBySubBuffLayer`, `AddPassiveSkills`, `SubBuff`, `Bullet`,
 //! `CreateMaxHpAdditionalDamageAndRemove`, `LifeAttackFixRate`,
-//! `AddBuffByOtherExSkill`, `ProbabilityAddBuff`.
+//! `AddBuffByOtherExSkill`.
 //!
 //! `Poison` was previously here as a no-op; it now lives in
 //! `markers.rs` and emits its `Poison(213)` marker.
@@ -37,8 +37,7 @@ impl BuffAction for NoOp {
             | "Bullet"
             | "CreateMaxHpAdditionalDamageAndRemove"
             | "LifeAttackFixRate"
-            | "AddBuffByOtherExSkill"
-            | "ProbabilityAddBuff" => Some(ActionResult::none(ctx.effect_ctx.target)),
+            | "AddBuffByOtherExSkill" => Some(ActionResult::none(ctx.effect_ctx.target)),
             _ => None,
         }
     }

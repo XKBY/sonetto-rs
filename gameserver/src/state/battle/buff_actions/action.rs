@@ -25,7 +25,9 @@
 use super::super::skill::SkillExecutor;
 use super::EffectContext;
 use super::result::ActionResult;
-use super::{attr, bootstrap, halo, heal, hp, markers, no_op, shield};
+use super::{
+    add_buff_both, attr, bootstrap, halo, heal, hp, markers, no_op, probability_add_buff, shield,
+};
 
 /// When a buff feature runs relative to the BuffAdd emission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +81,8 @@ pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
     &attr::Attributes,
     &heal::Healing,
     &shield::Shield,
+    &add_buff_both::AddBuffBothAction,
+    &probability_add_buff::ProbabilityAddBuffAction,
     &markers::Markers,
     &halo::Halo,
     &hp::Hp,

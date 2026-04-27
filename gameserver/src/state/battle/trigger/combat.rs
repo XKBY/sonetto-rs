@@ -17,8 +17,8 @@ use crate::state::battle::{
     skill::euphoria::resolve_with_euphoria,
     skill::{PhaseFilter, TriggerState},
     trigger::passes::{
-        BloodPoolSyncPass, BloodValueUseSkillPass, CardEnergySyncPass, CombatPassivesPass,
-        ExPointSyncPass, HpSyncPass, TriggerPass,
+        BloodPoolSyncPass, BloodValueUseSkillPass, BuffFeatureReactivesPass, CardEnergySyncPass,
+        CombatPassivesPass, ExPointSyncPass, HpSyncPass, TriggerPass,
     },
 };
 
@@ -396,8 +396,9 @@ pub fn fire_combat_triggers(
     collected: &CollectedPassives,
     event: &TriggerEvent,
 ) -> Vec<FightStep> {
-    let passes: [&dyn TriggerPass; 6] = [
+    let passes: [&dyn TriggerPass; 7] = [
         &CombatPassivesPass,
+        &BuffFeatureReactivesPass,
         &BloodValueUseSkillPass,
         &ExPointSyncPass,
         &HpSyncPass,

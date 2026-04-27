@@ -6,6 +6,7 @@ use crate::state::battle::{
 
 mod blood_pool_sync;
 mod blood_value_use_skill;
+mod buff_feature_reactives;
 mod card_energy_sync;
 mod combat_passives;
 mod ex_point_sync;
@@ -13,6 +14,7 @@ mod hp_sync;
 
 pub use blood_pool_sync::BloodPoolSyncPass;
 pub use blood_value_use_skill::{BloodValueUseSkillPass, sync_blood_value_baseline};
+pub use buff_feature_reactives::BuffFeatureReactivesPass;
 pub use card_energy_sync::{CardEnergySyncPass, build_belief_gain_step};
 pub use combat_passives::CombatPassivesPass;
 pub use ex_point_sync::ExPointSyncPass;

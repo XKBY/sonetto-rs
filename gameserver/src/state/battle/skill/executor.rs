@@ -42,6 +42,10 @@ pub struct SkillExecutor {
     pub pending_target_rate_bonus: HashMap<i64, i32>,
     /// Global damage-rate bonus applied to all fallback damage targets.
     pub pending_global_rate_bonus: i32,
+    /// Current executing skill context `(skill_id, selected_target_uid)`.
+    /// Nested direct-skill chains temporarily overwrite this and restore it
+    /// on unwind so buff-action fanout can resolve the active hostile targets.
+    current_skill_context: Option<(i32, i64)>,
     /// Per-entity temporary attribute bonuses for this skill execution.
     /// Key: (entity_uid, attr_id)
     pub pending_attr_bonus: HashMap<(i64, i32), i32>,
@@ -62,6 +66,21 @@ impl Drop for DepthGuard {
         // SAFETY: `depth` points to `self.call_depth` for the lifetime of execute_skill.
         unsafe {
             *self.depth = (*self.depth).saturating_sub(1);
+        }
+    }
+}
+
+struct SkillContextGuard {
+    current: *mut Option<(i32, i64)>,
+    previous: Option<(i32, i64)>,
+}
+
+impl Drop for SkillContextGuard {
+    fn drop(&mut self) {
+        // SAFETY: `current` points to `self.current_skill_context` for the
+        // lifetime of `execute_skill`.
+        unsafe {
+            *self.current = self.previous;
         }
     }
 }
@@ -185,6 +204,7 @@ impl SkillExecutor {
             pending_buff_dels: Vec::new(),
             pending_target_rate_bonus: HashMap::new(),
             pending_global_rate_bonus: 0,
+            current_skill_context: None,
             pending_attr_bonus: HashMap::new(),
             pending_bloodtithe_preview: HashMap::new(),
             override_damage_targets: None,
@@ -227,6 +247,11 @@ impl SkillExecutor {
         self.call_depth += 1;
         let _depth_guard = DepthGuard {
             depth: &mut self.call_depth as *mut usize,
+        };
+        let previous_skill_context = self.current_skill_context.replace((skill_id, target_uid));
+        let _skill_context_guard = SkillContextGuard {
+            current: &mut self.current_skill_context as *mut Option<(i32, i64)>,
+            previous: previous_skill_context,
         };
         if self.call_depth > 64 {
             tracing::warn!(
@@ -1041,6 +1066,10 @@ impl SkillExecutor {
 
     pub fn get_ally_uids(&self, fight: &Fight, caster_uid: i64) -> Vec<i64> {
         get_ally_uids(fight, caster_uid)
+    }
+
+    pub fn current_skill_context(&self) -> Option<(i32, i64)> {
+        self.current_skill_context
     }
 
     pub fn add_skill_rate_bonus(&mut self, caster_uid: i64, target_uid: i64, amount: i32) {
