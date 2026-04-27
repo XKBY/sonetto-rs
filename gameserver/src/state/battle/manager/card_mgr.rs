@@ -377,6 +377,24 @@ impl FightCardMgr {
                         }
                         t => t,
                     };
+                    if !entity_exists(&preview_fight, caster_uid) {
+                        tracing::warn!(
+                            "ai_override skip step caster={} target={} skill={} reason=entity_missing",
+                            caster_uid,
+                            target_uid,
+                            skill_id
+                        );
+                        continue;
+                    }
+                    if target_uid != 0 && !entity_exists(&preview_fight, target_uid) {
+                        tracing::warn!(
+                            "ai_override skip step caster={} target={} skill={} reason=entity_missing",
+                            caster_uid,
+                            target_uid,
+                            skill_id
+                        );
+                        continue;
+                    }
                     preview_managers.buff_mgr.clear_step_deleted_buff_ids();
                     let resolved_skill_id =
                         resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
@@ -961,6 +979,10 @@ fn replay_primary_damage_targets(effects: &[ActEffect]) -> Vec<i64> {
         targets.push(target_uid);
     }
     targets
+}
+
+fn entity_exists(fight: &Fight, uid: i64) -> bool {
+    find_entity(fight, uid).is_some()
 }
 
 fn normalize_skill_effects_for_operation(
