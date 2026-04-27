@@ -41,6 +41,7 @@ use crate::state::battle::{
     round::step_shape::build_effect_step,
     skill::get_entity,
     types::effects::EffectType,
+    utils::apply_real_hurt_fix,
 };
 
 /// Build the round-end DOT settlement step (one outer container holding
@@ -62,7 +63,11 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
             if caster_atk <= 0 {
                 continue;
             }
-            let damage = caster_atk * permille / 1000;
+            let damage = apply_real_hurt_fix(
+                &ctx.managers.buff_mgr,
+                victim_uid,
+                caster_atk * permille / 1000,
+            );
             if damage <= 0 {
                 continue;
             }

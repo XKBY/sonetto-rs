@@ -7,7 +7,7 @@ use crate::state::battle::{
     fight_step::ActEffectBuilder,
     mechanics::empathy::{EMPATHY_DEFAULT_BUFF_ID, EMPATHY_TYPE_ID, EmpathyState},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
-    utils::effect_none,
+    utils::{apply_real_hurt_fix, effect_none},
 };
 
 // Solace ranks 1/2/3 = skill_effect 30800121/22/23. The self-loss
@@ -80,7 +80,11 @@ impl Empathy {
         // `damageRate` damage path.
         vec![
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
-                .effect_num(bonus)
+                .effect_num(apply_real_hurt_fix(
+                    &ctx.managers.buff_mgr,
+                    ctx.target,
+                    bonus,
+                ))
                 .config_effect(SUBCONSCIOUS_BONUS_CONFIG_EFFECT)
                 .build(),
         ]
@@ -145,7 +149,11 @@ impl Empathy {
         ));
         effects.push(
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
-                .effect_num(bonus)
+                .effect_num(apply_real_hurt_fix(
+                    &ctx.managers.buff_mgr,
+                    ctx.target,
+                    bonus,
+                ))
                 .config_effect(EX_CONSUME_CONFIG_EFFECT)
                 .build(),
         );
@@ -270,7 +278,11 @@ impl Empathy {
         ));
         effects.push(
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.caster_uid)
-                .effect_num(self_damage)
+                .effect_num(apply_real_hurt_fix(
+                    &ctx.managers.buff_mgr,
+                    ctx.caster_uid,
+                    self_damage,
+                ))
                 .config_effect(SOLACE_CONFIG_EFFECT)
                 .build(),
         );

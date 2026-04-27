@@ -347,6 +347,43 @@ pub fn buff_has_bloodpool(buff_id: i32) -> bool {
     })
 }
 
+/// Sum the target's active `RealHurtFix(519)` feature permille.
+/// Tuesday's "Genesis DMG Taken +X%" debuff encodes here as `519#150`,
+/// `519#250`, `519#350`, etc.
+pub fn target_real_hurt_fix_permille(buff_mgr: &BuffMgr, target_uid: i64) -> i32 {
+    let cfg = config::configs::get();
+    let mut total = 0;
+    for instance in buff_mgr.get(target_uid) {
+        let Some(buff) = cfg.skill_buff.iter().find(|b| b.id == instance.buff_id) else {
+            continue;
+        };
+        for entry in buff.features.split('|') {
+            let mut parts = entry.split('#');
+            let act_id = parts
+                .next()
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            if act_id != 519 {
+                continue;
+            }
+            let permille = parts
+                .next()
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .unwrap_or(0);
+            total += permille;
+        }
+    }
+    total
+}
+
+pub fn apply_real_hurt_fix(buff_mgr: &BuffMgr, target_uid: i64, base_damage: i32) -> i32 {
+    let multiplier_permille = 1000 + target_real_hurt_fix_permille(buff_mgr, target_uid);
+    base_damage
+        .max(0)
+        .saturating_mul(multiplier_permille.max(0))
+        / 1000
+}
+
 pub fn for_each_buff_feature_chain(buff_id: i32, mut f: impl FnMut(&str, &[&str])) {
     let cfg = config::configs::get();
     let mut stack = vec![buff_id];

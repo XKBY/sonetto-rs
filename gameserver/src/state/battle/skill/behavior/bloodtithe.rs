@@ -48,7 +48,7 @@ use crate::state::battle::mechanics::bloodtithe::{
     BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
 };
 use crate::state::battle::types::effects::EffectType;
-use crate::state::battle::utils::damage_with_hurt;
+use crate::state::battle::utils::{apply_real_hurt_fix, damage_with_hurt};
 
 fn attr_value(entity: &sonettobuf::FightEntityInfo, attr_id: i32) -> i32 {
     let attr = entity.attr.as_ref();
@@ -204,10 +204,10 @@ pub fn lost_life(
         effects.push(ActEffect {
             effect_type: Some(EffectType::OriginDamage as i32),
             target_id: Some(target),
-            effect_num: Some(actual_loss),
+            effect_num: Some(apply_real_hurt_fix(buff_mgr, target, actual_loss)),
             buff_act_id: (act_id > 0).then_some(act_id),
             hurt_info: Some(FightHurtInfo {
-                damage: Some(actual_loss),
+                damage: Some(apply_real_hurt_fix(buff_mgr, target, actual_loss)),
                 reduce_hp: Some(0),
                 reduce_shield: Some(0),
                 career_restraint: Some(false),

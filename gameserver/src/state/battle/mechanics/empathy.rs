@@ -7,7 +7,7 @@ use crate::state::battle::{
     manager::buff_mgr::BuffMgr,
     skill::targets::{alive_allies, alive_enemies, get_entity, get_team_type},
     types::{buff::BuffLayerType, effects::EffectType},
-    utils::find_uid_by_hero_id,
+    utils::{apply_real_hurt_fix, find_uid_by_hero_id},
 };
 
 /// Canonical Kakania Empathy bufftype id. Used for `BuffMgr` lookups so
@@ -379,7 +379,12 @@ impl EmpathyState {
             .collect()
     }
 
-    pub fn build_insight_iii_bounce(&self, fight: &Fight, holder_uid: i64) -> Option<ActEffect> {
+    pub fn build_insight_iii_bounce(
+        &self,
+        buff_mgr: &BuffMgr,
+        fight: &Fight,
+        holder_uid: i64,
+    ) -> Option<ActEffect> {
         let current_empathy = self.current(holder_uid);
         if current_empathy <= 0 {
             return None;
@@ -390,7 +395,7 @@ impl EmpathyState {
             .into_iter()
             .map(|enemy_uid| {
                 ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
-                    .effect_num(bonus)
+                    .effect_num(apply_real_hurt_fix(buff_mgr, enemy_uid, bonus))
                     .config_effect(INSIGHT_III_BOUNCE_CONFIG_EFFECT)
                     .build()
             })
@@ -431,7 +436,8 @@ impl EmpathyState {
                 );
             let target_uid = effect.target_id.unwrap_or(0);
             out.push(effect);
-            if should_inject && let Some(bounce) = self.build_insight_iii_bounce(fight, target_uid)
+            if should_inject
+                && let Some(bounce) = self.build_insight_iii_bounce(buff_mgr, fight, target_uid)
             {
                 out.push(bounce);
             }
