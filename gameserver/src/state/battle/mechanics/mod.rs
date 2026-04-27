@@ -39,6 +39,20 @@ impl Mechanics {
         self.shadow_cloak.init(fight);
     }
 
+    /// Pull live buff-act state from `BuffMgr` into mechanics caches.
+    ///
+    /// Some `BuffMgr::set_instance_act_common_params` writes (e.g.
+    /// Kakania's Empathy storage updates) only land on the runtime
+    /// BuffMgr — the per-entity `BuffInfo` snapshot in `fight.entity.
+    /// buffs` is not currently kept in sync. Without this refresh,
+    /// re-initializing mechanics from `Fight` between rounds resets
+    /// the stored values to the pre-round snapshot. Run this AFTER
+    /// `init(&Fight)` so the cumulative totals match what the engine
+    /// actually wrote during the round being simulated.
+    pub fn sync_from_buff_mgr(&mut self, buff_mgr: &BuffMgr) {
+        self.empathy.sync_from_buff_mgr(buff_mgr);
+    }
+
     pub fn on_bloodpool_init(&self) -> Option<FightStep> {
         self.bloodtithe.bloodpool_init_step()
     }

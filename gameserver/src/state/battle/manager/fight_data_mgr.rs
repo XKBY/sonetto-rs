@@ -243,6 +243,12 @@ impl FightDataMgr {
         // Refresh mechanics after that replay so Rubuska Shadow Cloak reads
         // the effective post-bootstrap baseline rather than the raw fight payload.
         self.mechanics.init(&self.fight);
+        // Some buff-act state (e.g. Kakania's Empathy `actCommonParams`)
+        // only lives in `BuffMgr` after the initial-round replay; the
+        // entity buff snapshot in `fight` doesn't carry it forward. Pull
+        // it into the mechanics caches so cumulative totals like the
+        // Empathy injury bank don't regress between rounds.
+        self.mechanics.sync_from_buff_mgr(&self.managers.buff_mgr);
         self.reseed_bloodtithe_from_round(initial_round);
         self.reseed_shadow_cloak_from_round(initial_round);
         seed_blood_pool_ex_tracker(

@@ -73,6 +73,31 @@ impl EmpathyState {
         }
     }
 
+    /// Refresh in-memory cumulative totals from the live BuffMgr.
+    ///
+    /// `init(&Fight)` reads from `entity.buffs`, but
+    /// `set_instance_act_common_params` only writes to `BuffMgr`'s
+    /// internal state — the per-entity `BuffInfo` snapshot does NOT
+    /// receive the storage update. When the round simulator advances
+    /// to the next round and calls `Mechanics::init` again, reading
+    /// from `entity.buffs` resets the value to whatever was on the
+    /// pre-round snapshot. Reading from `BuffMgr` instead picks up
+    /// the live state from the round-being-simulated. Call this AFTER
+    /// the standard `init(fight)` so it overrides the stale values
+    /// with whatever the runtime BuffMgr knows.
+    pub fn sync_from_buff_mgr(&mut self, buff_mgr: &BuffMgr) {
+        for (uid, instance) in buff_mgr.all_instances() {
+            if !is_empathy_buff(instance.buff_id) {
+                continue;
+            }
+            if let Some(value) = parse_empathy_value(&instance.act_common_params)
+                && value > 0
+            {
+                self.values.insert(uid, value);
+            }
+        }
+    }
+
     /// Insight I rule: "10% of that damage is stored as Empathy".
     /// TODO: portrait/destiny variants may scale this — buff 30800143's
     /// features `770#101#300#30800162#20#100#150` suggest different
