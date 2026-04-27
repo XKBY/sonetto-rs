@@ -204,6 +204,7 @@ impl FightCalculateDataMgr {
             EffectType::AddToTarget => self.play_effect_add_to_target(effect),
             EffectType::Rebound => self.play_effect_rebound(effect),
             EffectType::BuffUpdate => self.play_effect_update_buff(effect, buff_mgr),
+            EffectType::StorageInjury => self.play_effect_storage_injury(effect, buff_mgr),
             EffectType::PowerChange => self.play_effect_power_change(effect, fight),
 
             // Client-only display effects — no server state change needed
@@ -357,10 +358,49 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         buff_mgr: &mut BuffMgr,
     ) -> Result<(), String> {
-        let target_id = effect.target_id.ok_or("No target ID")?;
-        let buff = effect.buff.as_ref().ok_or("No buff data")?;
-        let buff_id = buff.buff_id.ok_or("No buff ID")?;
-        let buff_uid = buff.uid.ok_or("No buff UID")?;
+        let Some(target_id) = effect.target_id else {
+            return Ok(());
+        };
+        let Some(buff) = effect.buff.as_ref() else {
+            return Ok(());
+        };
+        let Some(buff_id) = buff.buff_id else {
+            return Ok(());
+        };
+        let Some(buff_uid) = buff.uid else {
+            return Ok(());
+        };
+        let from_uid = buff.from_uid.unwrap_or(0);
+        let count = buff.count.unwrap_or(0);
+        let layer = buff.layer.unwrap_or(0);
+
+        observe_explicit_buff_uid_for_target(target_id, buff_uid);
+        buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+        let _ = buff_mgr.set_instance_act_common_params(
+            target_id,
+            buff_uid,
+            buff.act_common_params.as_deref().unwrap_or_default(),
+        );
+        Ok(())
+    }
+
+    fn play_effect_storage_injury(
+        &mut self,
+        effect: &ActEffect,
+        buff_mgr: &mut BuffMgr,
+    ) -> Result<(), String> {
+        let Some(target_id) = effect.target_id else {
+            return Ok(());
+        };
+        let Some(buff) = effect.buff.as_ref() else {
+            return Ok(());
+        };
+        let Some(buff_id) = buff.buff_id else {
+            return Ok(());
+        };
+        let Some(buff_uid) = buff.uid else {
+            return Ok(());
+        };
         let from_uid = buff.from_uid.unwrap_or(0);
         let count = buff.count.unwrap_or(0);
         let layer = buff.layer.unwrap_or(0);

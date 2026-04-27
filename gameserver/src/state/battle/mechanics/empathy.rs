@@ -86,16 +86,20 @@ impl EmpathyState {
     /// the standard `init(fight)` so it overrides the stale values
     /// with whatever the runtime BuffMgr knows.
     pub fn sync_from_buff_mgr(&mut self, buff_mgr: &BuffMgr) {
+        let mut seen = std::collections::HashSet::new();
         for (uid, instance) in buff_mgr.all_instances() {
             if !is_empathy_buff(instance.buff_id) {
                 continue;
             }
-            if let Some(value) = parse_empathy_value(&instance.act_common_params)
-                && value > 0
-            {
+            seen.insert(uid);
+            let value = parse_empathy_value(&instance.act_common_params).unwrap_or(0);
+            if value > 0 {
                 self.values.insert(uid, value);
+            } else {
+                self.values.remove(&uid);
             }
         }
+        self.values.retain(|uid, _| seen.contains(uid));
     }
 
     /// Insight I rule: "10% of that damage is stored as Empathy".
@@ -149,7 +153,11 @@ impl EmpathyState {
     ) {
         let cap = Self::storage_cap(target_max_hp);
         let current_total = current_total.max(0).min(cap);
-        self.values.insert(target_uid, current_total);
+        if current_total > 0 {
+            self.values.insert(target_uid, current_total);
+        } else {
+            self.values.remove(&target_uid);
+        }
 
         let (_buff_id, buff_uid) = ensure_empathy_buff(buff_mgr, target_uid);
         let _ = buff_mgr.set_instance_act_common_params(

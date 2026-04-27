@@ -1560,6 +1560,7 @@ impl FightRoundMgr {
                 &mut ctx.managers.ex_point_mgr,
             )
             .map_err(anyhow::Error::msg)?;
+        ctx.mechanics.sync_from_buff_mgr(&ctx.managers.buff_mgr);
         if sync_snapshot {
             sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
         }
