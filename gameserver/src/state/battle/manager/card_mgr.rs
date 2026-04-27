@@ -371,6 +371,11 @@ impl FightCardMgr {
                     preview_managers.buff_mgr.clear_step_deleted_buff_ids();
                     let resolved_skill_id =
                         resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
+                    let replay_damage_targets = replay_primary_damage_targets(&step.act_effect);
+                    if !replay_damage_targets.is_empty() {
+                        self.skill_executor
+                            .set_override_damage_targets(replay_damage_targets);
+                    }
                     let per_behavior = self.skill_executor.execute_skill(
                         rng,
                         &preview_fight,
@@ -917,6 +922,31 @@ impl FightCardMgr {
             ..Default::default()
         }
     }
+}
+
+fn replay_primary_damage_targets(effects: &[ActEffect]) -> Vec<i64> {
+    let mut targets = Vec::new();
+    for effect in effects {
+        let Some(effect_type) = effect.effect_type else {
+            continue;
+        };
+        if !matches!(
+            effect_type,
+            x if x == EffectType::Damage as i32
+                || x == EffectType::Crit as i32
+                || x == EffectType::DamageExtra as i32
+        ) {
+            continue;
+        }
+        let Some(target_uid) = effect.target_id else {
+            continue;
+        };
+        if target_uid <= 0 || targets.contains(&target_uid) {
+            continue;
+        }
+        targets.push(target_uid);
+    }
+    targets
 }
 
 fn normalize_skill_effects_for_operation(

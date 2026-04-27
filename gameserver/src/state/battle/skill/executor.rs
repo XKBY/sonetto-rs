@@ -49,6 +49,7 @@ pub struct SkillExecutor {
     /// This lets combat damage emit live-like positive 335 packets without mutating
     /// authoritative bloodtithe state before play_step_data replays the step.
     pub pending_bloodtithe_preview: HashMap<i32, (i32, i32)>,
+    override_damage_targets: Option<Vec<i64>>,
     call_depth: usize,
 }
 
@@ -186,8 +187,17 @@ impl SkillExecutor {
             pending_global_rate_bonus: 0,
             pending_attr_bonus: HashMap::new(),
             pending_bloodtithe_preview: HashMap::new(),
+            override_damage_targets: None,
             call_depth: 0,
         }
+    }
+
+    pub fn set_override_damage_targets(&mut self, targets: Vec<i64>) {
+        self.override_damage_targets = Some(targets);
+    }
+
+    pub fn take_override_damage_targets(&mut self) -> Option<Vec<i64>> {
+        self.override_damage_targets.take()
     }
 
     #[allow(clippy::too_many_arguments, clippy::extend_with_drain)]
@@ -231,6 +241,7 @@ impl SkillExecutor {
         let skill_effect_id = resolve_skill_effect_id(skill_id);
         let cfg = config::configs::get();
         let skill_cfg = cfg.skill_effect.get(skill_effect_id);
+        let override_damage_targets = self.take_override_damage_targets();
         self.pending_target_rate_bonus.clear();
         self.pending_global_rate_bonus = 0;
         self.pending_attr_bonus.clear();
@@ -581,6 +592,7 @@ impl SkillExecutor {
                     caster_uid,
                     target_uid,
                     skill.logic_target.trim().parse::<i32>().unwrap_or(0),
+                    override_damage_targets.as_deref(),
                 ) {
                     let bonus = self.pending_global_rate_bonus
                         + self
@@ -1472,7 +1484,14 @@ fn fallback_damage_targets(
     caster_uid: i64,
     selected_target_uid: i64,
     logic_target: i32,
+    override_damage_targets: Option<&[i64]>,
 ) -> Vec<i64> {
+    if let Some(override_damage_targets) = override_damage_targets
+        && !override_damage_targets.is_empty()
+    {
+        return override_damage_targets.to_vec();
+    }
+
     // Live-like fallback targeting:
     // - default(single): selected target
     // - logicTarget=201: selected target + one more enemy
