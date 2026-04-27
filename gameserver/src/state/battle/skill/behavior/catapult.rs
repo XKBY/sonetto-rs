@@ -41,45 +41,56 @@ impl BehaviorAction for Catapult {
         let has_bloodpool = ctx.mechanics.bloodtithe.has_bloodpool();
         let mut effects = Vec::new();
 
-        effects.extend(buff::apply(
-            ctx.executor,
-            fight,
-            ctx.managers,
-            ctx.mechanics,
-            ctx.caster_uid,
-            ctx.target,
-            *buff_id,
-            *primary_stacks,
-            has_bloodpool,
-            ctx.skill_id,
-            ctx.condition_id,
-            condition,
-        ));
-
-        let mut other_enemies: Vec<i64> = alive_enemies(fight, ctx.caster_uid)
-            .into_iter()
-            .filter(|uid| *uid != ctx.target)
-            .collect();
-        other_enemies.shuffle(ctx.rng);
-
-        for enemy_uid in other_enemies
-            .into_iter()
-            .take(catapult_cap.max(&0).to_owned() as usize)
-        {
+        // LIVE emits one BuffAdd per stack (count=0 layer=0), not a
+        // single BuffAdd with layer=N. Calling `buff::apply` once with
+        // `count=N` would collapse N stacks into a single emission with
+        // `layer=N`, which is the wrong shape — match LIVE by calling
+        // `buff::apply` per stack with count=1.
+        for _ in 0..(*primary_stacks).max(0) {
             effects.extend(buff::apply(
                 ctx.executor,
                 fight,
                 ctx.managers,
                 ctx.mechanics,
                 ctx.caster_uid,
-                enemy_uid,
+                ctx.target,
                 *buff_id,
-                *catapult_stacks,
+                1,
                 has_bloodpool,
                 ctx.skill_id,
                 ctx.condition_id,
                 condition,
             ));
+        }
+
+        // The catapult spread can land on ANY alive enemy including the
+        // primary target. Verified from battle3 r2 step[8] LIVE shape:
+        // primary -1 gets 2 initial stacks, then catapult lands on -2
+        // and bounces back to -1, producing 4 BuffAdds total (2 +
+        // catapult_cap=2 spreads).
+        let mut all_enemies: Vec<i64> = alive_enemies(fight, ctx.caster_uid);
+        all_enemies.shuffle(ctx.rng);
+
+        for enemy_uid in all_enemies
+            .into_iter()
+            .take(catapult_cap.max(&0).to_owned() as usize)
+        {
+            for _ in 0..(*catapult_stacks).max(0) {
+                effects.extend(buff::apply(
+                    ctx.executor,
+                    fight,
+                    ctx.managers,
+                    ctx.mechanics,
+                    ctx.caster_uid,
+                    enemy_uid,
+                    *buff_id,
+                    1,
+                    has_bloodpool,
+                    ctx.skill_id,
+                    ctx.condition_id,
+                    condition,
+                ));
+            }
         }
 
         Some(Ok(effects))
