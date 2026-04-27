@@ -5,8 +5,9 @@ use sonettobuf::{ActEffect, BuffInfo, Fight};
 use crate::state::battle::{
     fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::buff_mgr::BuffMgr,
-    skill::targets::{alive_allies, alive_enemies},
+    skill::targets::{alive_allies, alive_enemies, get_entity, get_team_type},
     types::{buff::BuffLayerType, effects::EffectType},
+    utils::find_uid_by_hero_id,
 };
 
 /// Canonical Kakania Empathy bufftype id. Used for `BuffMgr` lookups so
@@ -22,6 +23,7 @@ pub const EMPATHY_TYPE_ID: i32 = 30800141;
 /// 30800141 applies this canonical id.
 pub const EMPATHY_DEFAULT_BUFF_ID: i32 = 30800141;
 const EMPATHY_ACT_ID: i32 = 770;
+const KAKANIA_HERO_ID: i32 = 3080;
 /// Insight III feature params currently live on the Empathy buff's
 /// `770#101#200#30800161#30#100#100` payload. Keep these hardcoded
 /// until the buff-feature parser exposes them directly.
@@ -244,6 +246,105 @@ impl EmpathyState {
                 fight,
                 target_uid,
                 target_max_hp,
+                thresholds_crossed,
+            ));
+        }
+
+        out
+    }
+
+    /// Insight I redirect: when an enemy damages one of Kakania's allies,
+    /// divert 50% of that packet to Kakania as `DamageFromAbsorb` and bank
+    /// 10% of the absorbed amount as Empathy before the original damage.
+    pub fn inject_damage_redirect(
+        &mut self,
+        preview_buff_mgr: &mut BuffMgr,
+        live_buff_mgr: &mut BuffMgr,
+        fight: &Fight,
+        source_uid: i64,
+        effects: Vec<ActEffect>,
+    ) -> Vec<ActEffect> {
+        let Some(kakania_uid) = find_uid_by_hero_id(fight, KAKANIA_HERO_ID) else {
+            return effects;
+        };
+        let Some(kakania) = get_entity(fight, kakania_uid) else {
+            return effects;
+        };
+        let Some(kakania_team) = get_team_type(fight, kakania_uid) else {
+            return effects;
+        };
+        let Some(source_team) = get_team_type(fight, source_uid) else {
+            return effects;
+        };
+        let kakania_max_hp = kakania.attr.as_ref().and_then(|attr| attr.hp).unwrap_or(0);
+        if source_uid == kakania_uid
+            || source_team == kakania_team
+            || kakania.current_hp.unwrap_or(0) <= 0
+            || kakania_max_hp <= 0
+            || !has_empathy_buff(preview_buff_mgr, kakania_uid)
+        {
+            return effects;
+        }
+
+        let cap = Self::storage_cap(kakania_max_hp);
+        let mut out = Vec::with_capacity(effects.len().saturating_mul(3));
+        for mut effect in effects {
+            let Some(target_uid) = effect.target_id else {
+                out.push(effect);
+                continue;
+            };
+            let Some(target_team) = get_team_type(fight, target_uid) else {
+                out.push(effect);
+                continue;
+            };
+            if target_uid == source_uid
+                || target_uid == kakania_uid
+                || target_team != kakania_team
+                || !is_incoming_damage_effect_type(effect.effect_type)
+            {
+                out.push(effect);
+                continue;
+            }
+
+            let original_damage = effect.effect_num.unwrap_or(0).max(0);
+            let requested_absorb = original_damage / 2;
+            let remaining_storage = cap.saturating_sub(self.current(kakania_uid).max(0));
+            let absorb_cap = remaining_storage.saturating_mul(10);
+            let absorbed_damage = requested_absorb.min(absorb_cap);
+            if absorbed_damage <= 0 {
+                out.push(effect);
+                continue;
+            }
+
+            let storage = Self::compute_storage_amount(absorbed_damage);
+            let (current_total, thresholds_crossed) = self.apply_storage_with_threshold(
+                preview_buff_mgr,
+                kakania_uid,
+                storage,
+                kakania_max_hp,
+            );
+            self.sync_buff_state(live_buff_mgr, kakania_uid, current_total, kakania_max_hp);
+
+            let (buff_id, buff_uid) = ensure_empathy_buff(preview_buff_mgr, kakania_uid);
+            out.push(self.emit_storage_injury(
+                kakania_uid,
+                current_total,
+                buff_id,
+                buff_uid,
+                kakania_uid,
+                cap,
+            ));
+            out.push(
+                ActEffectBuilder::new(EffectType::DamageFromAbsorb as i32, kakania_uid)
+                    .effect_num(absorbed_damage)
+                    .build(),
+            );
+            effect.effect_num = Some(original_damage.saturating_sub(absorbed_damage));
+            out.push(effect);
+            out.extend(self.build_insight_iii_threshold_heals(
+                fight,
+                kakania_uid,
+                kakania_max_hp,
                 thresholds_crossed,
             ));
         }

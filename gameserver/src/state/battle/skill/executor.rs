@@ -1303,6 +1303,14 @@ fn inject_empathy_storage_injuries(
     source_uid: i64,
     effects: Vec<ActEffect>,
 ) -> Vec<ActEffect> {
+    let effects = mechanics.empathy.inject_damage_redirect(
+        preview_buff_mgr,
+        live_buff_mgr,
+        fight,
+        source_uid,
+        effects,
+    );
+
     let mut effect_targets = Vec::new();
     for effect in &effects {
         let Some(target_uid) = effect.target_id else {
