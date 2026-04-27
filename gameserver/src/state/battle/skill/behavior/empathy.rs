@@ -4,8 +4,9 @@ use sonettobuf::ActEffect;
 use super::action::{ActionCtx, BehaviorAction};
 use super::buff;
 use crate::state::battle::{
-    fight_step::ActEffectBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     mechanics::empathy::{EMPATHY_DEFAULT_BUFF_ID, EMPATHY_TYPE_ID, EmpathyState},
+    skill::targets::{alive_allies, alive_enemies},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::effect_none,
 };
@@ -29,6 +30,9 @@ pub const SUBCONSCIOUS_BONUS_CONFIG_EFFECT: i32 = 60038;
 /// fallback gate, plus broadcast on the `StorageInjury(167)` reset
 /// emission so LIVE-side observers can tell the bank cleared.
 pub const EX_CONSUME_CONFIG_EFFECT: i32 = 60040;
+const INSIGHT_III_BOUNCE_SKILL_ID: i32 = 30800161;
+const INSIGHT_III_BOUNCE_CONFIG_EFFECT: i32 = 60052;
+const INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE: i32 = 1000;
 
 pub(super) struct Empathy;
 
@@ -43,11 +47,14 @@ impl BehaviorAction for Empathy {
             BehaviorType::RealDamageSelfAndAddBuffToTarget { .. } => {
                 self.execute_solace(behavior, ctx, condition)
             }
-            BehaviorType::OriginDamageFromInjuryBank { multiplier_permille } => Some(Ok(self
-                .execute_subconscious_bonus(ctx, *multiplier_permille))),
-            BehaviorType::ConsumeInjuryBankAndDamage { multiplier_permille } => {
-                Some(Ok(self.execute_ex_consume(ctx, *multiplier_permille)))
-            }
+            BehaviorType::OriginDamageFromInjuryBank {
+                multiplier_permille,
+            } => Some(Ok(
+                self.execute_subconscious_bonus(ctx, *multiplier_permille)
+            )),
+            BehaviorType::ConsumeInjuryBankAndDamage {
+                multiplier_permille,
+            } => Some(Ok(self.execute_ex_consume(ctx, *multiplier_permille))),
             _ => None,
         }
     }
@@ -151,9 +158,12 @@ impl Empathy {
         // reset marker, since the reset marker carries the new value
         // (0). `sync_buff_state` writes both the in-memory cache and
         // the buff's `actCommonParams` so subsequent behaviors see 0.
-        ctx.mechanics
-            .empathy
-            .sync_buff_state(&mut ctx.managers.buff_mgr, ctx.caster_uid, 0, max_hp);
+        ctx.mechanics.empathy.sync_buff_state(
+            &mut ctx.managers.buff_mgr,
+            ctx.caster_uid,
+            0,
+            max_hp,
+        );
 
         effects
     }
@@ -230,12 +240,13 @@ impl Empathy {
         let self_damage = max_hp.saturating_mul(*amount_permille) / 1000;
         let storage_amount = EmpathyState::compute_storage_amount(self_damage);
         let cap = EmpathyState::storage_cap(max_hp);
-        let current_total = ctx.mechanics.empathy.apply_storage(
-            &mut ctx.managers.buff_mgr,
-            ctx.caster_uid,
-            storage_amount,
-            max_hp,
-        );
+        let (current_total, thresholds_crossed) =
+            ctx.mechanics.empathy.apply_storage_with_threshold(
+                &mut ctx.managers.buff_mgr,
+                ctx.caster_uid,
+                storage_amount,
+                max_hp,
+            );
         // Look up by typeId so portrait/destiny variants
         // (30800142/30800143) match the same Empathy mechanic — see
         // `mechanics/empathy.rs::EMPATHY_TYPE_ID`. Falls back to the
@@ -247,28 +258,31 @@ impl Empathy {
             .map(|buff| (buff.buff_id, buff.uid))
             .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0));
 
-        let mut effects = vec![
-            ctx.mechanics.empathy.emit_storage_injury(
-                ctx.caster_uid,
-                current_total,
-                empathy_buff_id,
-                buff_uid,
-                ctx.caster_uid,
-                cap,
-            ),
-            ctx.mechanics.empathy.emit_buff_update(
-                ctx.caster_uid,
-                current_total,
-                empathy_buff_id,
-                buff_uid,
-                ctx.caster_uid,
-                cap,
-            ),
+        let mut effects = vec![ctx.mechanics.empathy.emit_storage_injury(
+            ctx.caster_uid,
+            current_total,
+            empathy_buff_id,
+            buff_uid,
+            ctx.caster_uid,
+            cap,
+        )];
+        let threshold_heals =
+            self.build_insight_iii_threshold_heals(ctx, max_hp, thresholds_crossed);
+        let kakania_healed = threshold_heals
+            .iter()
+            .any(|effect| effect.target_id == Some(ctx.caster_uid));
+        effects.extend(threshold_heals);
+        if kakania_healed {
+            if let Some(bounce) = self.build_insight_iii_bounce(ctx, current_total) {
+                effects.push(bounce);
+            }
+        }
+        effects.push(
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.caster_uid)
                 .effect_num(self_damage)
                 .config_effect(SOLACE_CONFIG_EFFECT)
                 .build(),
-        ];
+        );
         effects.extend(buff::apply(
             ctx.executor,
             ctx.behavior_ctx.fight,
@@ -286,5 +300,61 @@ impl Empathy {
         effects.push(effect_none(ctx.target));
 
         Some(Ok(effects))
+    }
+
+    fn build_insight_iii_threshold_heals(
+        &self,
+        ctx: &mut ActionCtx<'_, '_>,
+        caster_max_hp: i32,
+        thresholds_crossed: i32,
+    ) -> Vec<ActEffect> {
+        if thresholds_crossed <= 0 {
+            return Vec::new();
+        }
+
+        let heal_amount =
+            EmpathyState::insight_iii_heal_amount(caster_max_hp).saturating_mul(thresholds_crossed);
+        if heal_amount <= 0 {
+            return Vec::new();
+        }
+
+        alive_allies(ctx.behavior_ctx.fight, ctx.caster_uid)
+            .into_iter()
+            .map(|ally_uid| {
+                ActEffectBuilder::new(EffectType::InjuryBankHeal as i32, ally_uid)
+                    .effect_num(heal_amount)
+                    .build()
+            })
+            .collect()
+    }
+
+    fn build_insight_iii_bounce(
+        &self,
+        ctx: &mut ActionCtx<'_, '_>,
+        current_empathy: i32,
+    ) -> Option<ActEffect> {
+        if current_empathy <= 0 {
+            return None;
+        }
+
+        let bonus = current_empathy.saturating_mul(INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE) / 1000;
+        let bounce_effects = alive_enemies(ctx.behavior_ctx.fight, ctx.caster_uid)
+            .into_iter()
+            .map(|enemy_uid| {
+                ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
+                    .effect_num(bonus)
+                    .config_effect(INSIGHT_III_BOUNCE_CONFIG_EFFECT)
+                    .build()
+            })
+            .collect::<Vec<_>>();
+        if bounce_effects.is_empty() {
+            return None;
+        }
+
+        Some(
+            FightStepBuilder::skill(ctx.caster_uid, ctx.caster_uid, INSIGHT_III_BOUNCE_SKILL_ID)
+                .with_many(bounce_effects)
+                .wrap(),
+        )
     }
 }

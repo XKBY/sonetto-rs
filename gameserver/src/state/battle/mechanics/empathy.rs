@@ -20,6 +20,11 @@ pub const EMPATHY_TYPE_ID: i32 = 30800141;
 /// 30800141 applies this canonical id.
 pub const EMPATHY_DEFAULT_BUFF_ID: i32 = 30800141;
 const EMPATHY_ACT_ID: i32 = 770;
+/// Insight III feature params currently live on the Empathy buff's
+/// `770#101#200#30800161#30#100#100` payload. Keep these hardcoded
+/// until the buff-feature parser exposes them directly.
+const INSIGHT_III_STORAGE_THRESHOLD_PERMILLE: i32 = 30;
+const INSIGHT_III_HEAL_PERMILLE: i32 = 100;
 
 /// Returns `true` if the given `buff_id` belongs to the Empathy bufftype
 /// family (any of 30800141 / 30800142 / 30800143 or future portrait
@@ -129,8 +134,21 @@ impl EmpathyState {
         amount: i32,
         caster_max_hp: i32,
     ) -> i32 {
+        self.apply_storage_with_threshold(buff_mgr, kakania_uid, amount, caster_max_hp)
+            .0
+    }
+
+    /// Apply a storage gain and return both the new cumulative total
+    /// and the number of Insight III storage thresholds crossed.
+    pub fn apply_storage_with_threshold(
+        &mut self,
+        buff_mgr: &mut BuffMgr,
+        kakania_uid: i64,
+        amount: i32,
+        caster_max_hp: i32,
+    ) -> (i32, i32) {
         let cap = Self::storage_cap(caster_max_hp);
-        let current = self.current(kakania_uid);
+        let current = self.current(kakania_uid).max(0);
         let next = current.saturating_add(amount.max(0)).min(cap);
         self.values.insert(kakania_uid, next);
 
@@ -141,7 +159,12 @@ impl EmpathyState {
             &build_empathy_params(next, cap),
         );
 
-        next
+        let crossed = Self::storage_threshold(caster_max_hp)
+            .filter(|threshold| *threshold > 0)
+            .map(|threshold| (next / threshold - current / threshold).max(0))
+            .unwrap_or(0);
+
+        (next, crossed)
     }
 
     pub fn sync_buff_state(
@@ -271,6 +294,18 @@ impl EmpathyState {
             }),
             ..Default::default()
         }
+    }
+
+    pub fn storage_threshold(max_hp: i32) -> Option<i32> {
+        let threshold = max_hp
+            .max(0)
+            .saturating_mul(INSIGHT_III_STORAGE_THRESHOLD_PERMILLE)
+            / 1000;
+        (threshold > 0).then_some(threshold)
+    }
+
+    pub fn insight_iii_heal_amount(max_hp: i32) -> i32 {
+        max_hp.max(0).saturating_mul(INSIGHT_III_HEAL_PERMILLE) / 1000
     }
 }
 

@@ -1244,7 +1244,8 @@ fn apply_preview_effects_to_sim_fight(fight: &mut Fight, effects: &[ActEffect]) 
             }
             x if x == EffectType::Heal as i32
                 || x == EffectType::HealCrit as i32
-                || x == EffectType::Cure2 as i32 =>
+                || x == EffectType::Cure2 as i32
+                || x == EffectType::InjuryBankHeal as i32 =>
             {
                 update_hp(fight, target, effect.effect_num.unwrap_or(0));
             }
