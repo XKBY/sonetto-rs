@@ -8,6 +8,7 @@ use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_ex_point_step,
     buff_actions::raspberry::buff_get_raspberry_params,
     buff_actions::{nuodika, round_end},
+    event_queue::{BattleEvent, serialize_leaf_event},
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
@@ -436,7 +437,11 @@ fn collect_step_ownership(
 }
 
 pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
-    ActEffectBuilder::bloodpool_value_change(target_uid, 1, new_total)
+    serialize_leaf_event(BattleEvent::BloodpoolValueChange {
+        team_type: 1,
+        target: target_uid,
+        delta: new_total,
+    })
 }
 
 pub fn set_gain(value: i32) {
@@ -444,11 +449,18 @@ pub fn set_gain(value: i32) {
 }
 
 pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect {
-    ActEffectBuilder::bloodpool_max_change(change_type, amount)
+    serialize_leaf_event(BattleEvent::BloodpoolMaxChange {
+        team_type: change_type,
+        max: amount,
+    })
 }
 
 pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect {
-    ActEffectBuilder::bloodpool_value_change(target_uid, change_type, amount)
+    serialize_leaf_event(BattleEvent::BloodpoolValueChange {
+        team_type: change_type,
+        target: target_uid,
+        delta: amount,
+    })
 }
 
 impl BloodtitheState {

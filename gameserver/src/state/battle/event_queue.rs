@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 
-use sonettobuf::{ActEffect, Fight, FightHurtInfo as HurtInfo};
+use sonettobuf::{ActEffect, Fight, FightHurtInfo as HurtInfo, effect_type_enum::EffectType};
 
-use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
+use crate::state::battle::{
+    fight_step::ActEffectBuilder,
+    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+};
 
 /// A typed event recording a state mutation or visual emission
 /// that should land in the FightStep stream.
@@ -44,6 +47,15 @@ pub enum BattleEvent {
     },
     PowerChange {
         delta: i32,
+    },
+    BloodpoolValueChange {
+        team_type: i32,
+        target: i64,
+        delta: i32,
+    },
+    BloodpoolMaxChange {
+        team_type: i32,
+        max: i32,
     },
     SkillEmit {
         skill_id: i32,
@@ -105,8 +117,50 @@ pub struct EventContext<'a> {
 /// fill it in incrementally as each migrated leaf adds its own
 /// case.
 pub fn drain_to_fight_steps(
-    _events: Vec<BattleEvent>,
+    events: Vec<BattleEvent>,
     _ctx: &mut EventContext<'_>,
 ) -> Vec<ActEffect> {
-    Vec::new()
+    let mut out = Vec::with_capacity(events.len());
+
+    for event in events {
+        match event {
+            BattleEvent::PowerChange { delta } => out.push(ActEffect {
+                effect_type: Some(EffectType::Powerchange as i32),
+                effect_num: Some(delta),
+                ..Default::default()
+            }),
+            BattleEvent::BloodpoolValueChange {
+                team_type,
+                target,
+                delta,
+            } => out.push(ActEffectBuilder::bloodpool_value_change(
+                target, team_type, delta,
+            )),
+            BattleEvent::BloodpoolMaxChange { team_type, max } => {
+                out.push(ActEffectBuilder::bloodpool_max_change(team_type, max));
+            }
+            _ => {}
+        }
+    }
+
+    out
+}
+
+pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
+    let mut queue = EventQueue::new();
+    queue.push(event);
+
+    let mut fight = Fight::default();
+    let mut buff_mgr = BuffMgr::new();
+    let mut ex_point_mgr = ExPointMgr::new();
+    let mut ctx = EventContext {
+        fight: &mut fight,
+        buff_mgr: &mut buff_mgr,
+        ex_point_mgr: &mut ex_point_mgr,
+    };
+
+    drain_to_fight_steps(queue.drain(), &mut ctx)
+        .into_iter()
+        .next()
+        .expect("leaf event should serialize to a single ActEffect")
 }

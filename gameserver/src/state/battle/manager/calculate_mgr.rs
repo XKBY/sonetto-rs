@@ -6,6 +6,7 @@ use super::super::{
     buff_actions::{
         ex_point_overflow_bank::buff_get_ex_point_overflow, raspberry::BUFF_ACT_ID_RASPBERRY,
     },
+    event_queue::{BattleEvent, serialize_leaf_event},
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         entity_mgr::{EntityLocation, FightEntityDataMgr, get_entity_mut_by_location},
@@ -795,7 +796,11 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
     ) -> Result<(), String> {
-        let amount = effect.effect_num.unwrap_or(0);
+        let amount = serialize_leaf_event(BattleEvent::PowerChange {
+            delta: effect.effect_num.unwrap_or(0),
+        })
+        .effect_num
+        .unwrap_or(0);
         if let Some(attacker) = fight.attacker.as_mut() {
             let current = attacker.power.unwrap_or(0);
             attacker.power = Some((current + amount).max(0));
