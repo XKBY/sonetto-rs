@@ -229,9 +229,9 @@ fn patch_host_step_output(step: &mut FightStep, tuesday_uid: Option<i64>) {
 
     let had_duality = rewrite_sotheby_duality_wrapper_output(step);
     lift_foreign_origin_nested_wrappers(step);
-    let had_tuesday_wrappers = strip_tuesday_wrappers(step);
+    let (had_tuesday_wrappers, preserved_tuesday_buff_adds) = strip_tuesday_wrappers(step);
     if had_duality || had_tuesday_wrappers {
-        inject_tuesday_wrapper_output(step, tuesday_uid);
+        inject_tuesday_wrapper_output(step, tuesday_uid, preserved_tuesday_buff_adds);
     }
     normalize_skill_wrapper_order(step);
 }
@@ -329,7 +329,18 @@ fn build_effect_wrapper(
     }
 }
 
-fn build_buff_add(target_uid: i64, from_uid: i64, buff_id: i32) -> ActEffect {
+fn build_buff_add_from_existing(effect: &ActEffect) -> Option<ActEffect> {
+    let buff = effect.buff.as_ref()?;
+    Some(ActEffect {
+        effect_type: Some(5),
+        target_id: effect.target_id,
+        effect_num: effect.effect_num.or(buff.buff_id),
+        buff: Some(buff.clone()),
+        ..Default::default()
+    })
+}
+
+fn build_synthetic_buff_add(target_uid: i64, from_uid: i64, buff_id: i32) -> ActEffect {
     ActEffect {
         effect_type: Some(5),
         target_id: Some(target_uid),
@@ -350,6 +361,64 @@ fn build_buff_add(target_uid: i64, from_uid: i64, buff_id: i32) -> ActEffect {
     }
 }
 
+fn collect_runtime_buff_adds(step: &FightStep, buff_id: i32, from_uid: i64) -> Vec<ActEffect> {
+    let mut out = Vec::new();
+    for effect in &step.act_effect {
+        if effect.effect_type != Some(5) {
+            continue;
+        }
+        let Some(buff) = effect.buff.as_ref() else {
+            continue;
+        };
+        let target_uid = effect.target_id.unwrap_or(0);
+        if target_uid == 0 || target_uid.signum() == from_uid.signum() {
+            continue;
+        }
+        if effect.effect_num.or(buff.buff_id) != Some(buff_id) {
+            continue;
+        }
+        if buff.from_uid.unwrap_or(from_uid) != from_uid {
+            continue;
+        }
+        if let Some(preserved) = build_buff_add_from_existing(effect) {
+            out.push(preserved);
+        }
+    }
+    out
+}
+
+fn collect_wrapper_runtime_buff_adds(effect: &ActEffect, buff_id: i32) -> Vec<ActEffect> {
+    let mut out = Vec::new();
+    let Some(inner_effects) = effect.fight_step.as_ref().map(|step| &step.act_effect) else {
+        return out;
+    };
+    for inner in inner_effects {
+        if inner.effect_type != Some(5) {
+            continue;
+        }
+        let Some(buff) = inner.buff.as_ref() else {
+            continue;
+        };
+        if inner.effect_num.or(buff.buff_id) != Some(buff_id) {
+            continue;
+        }
+        if let Some(preserved) = build_buff_add_from_existing(inner) {
+            out.push(preserved);
+        }
+    }
+    out
+}
+
+fn interleave_poison_markers(buff_adds: Vec<ActEffect>) -> Vec<ActEffect> {
+    let mut out = Vec::with_capacity(buff_adds.len() * 2);
+    for effect in buff_adds {
+        let target_uid = effect.target_id.unwrap_or(0);
+        out.push(effect);
+        out.push(poison_marker(target_uid));
+    }
+    out
+}
+
 fn rewrite_sotheby_duality_wrapper_output(step: &mut FightStep) -> bool {
     let Some(wrapper_idx) = step
         .act_effect
@@ -366,6 +435,7 @@ fn rewrite_sotheby_duality_wrapper_output(step: &mut FightStep) -> bool {
     }
 
     let removed = step.act_effect.remove(wrapper_idx);
+    let preserved_proc_effects = collect_wrapper_runtime_buff_adds(&removed, 300901412);
     let removed_buff = removed
         .fight_step
         .as_ref()
@@ -373,11 +443,19 @@ fn rewrite_sotheby_duality_wrapper_output(step: &mut FightStep) -> bool {
         .and_then(|e| e.buff.as_ref())
         .cloned();
 
-    let mut proc_effects = Vec::new();
-    for target_uid in poison_targets {
-        proc_effects.push(build_buff_add(target_uid, caster_uid, 300901412));
-        proc_effects.push(poison_marker(target_uid));
-    }
+    let top_level_proc_effects = collect_runtime_buff_adds(step, 300901412, caster_uid);
+    let proc_effects = if !preserved_proc_effects.is_empty() {
+        interleave_poison_markers(preserved_proc_effects)
+    } else if !top_level_proc_effects.is_empty() {
+        interleave_poison_markers(top_level_proc_effects)
+    } else {
+        let mut fallback = Vec::new();
+        for target_uid in poison_targets {
+            fallback.push(build_synthetic_buff_add(target_uid, caster_uid, 300901412));
+            fallback.push(poison_marker(target_uid));
+        }
+        fallback
+    };
 
     let mut replacements = vec![build_effect_wrapper(
         caster_uid,
@@ -447,7 +525,11 @@ fn lift_foreign_origin_nested_wrappers(step: &mut FightStep) {
     step.act_effect.extend(lifted);
 }
 
-fn inject_tuesday_wrapper_output(step: &mut FightStep, tuesday_uid: Option<i64>) {
+fn inject_tuesday_wrapper_output(
+    step: &mut FightStep,
+    tuesday_uid: Option<i64>,
+    preserved_buff_adds: Vec<ActEffect>,
+) {
     if step
         .act_effect
         .iter()
@@ -464,16 +546,24 @@ fn inject_tuesday_wrapper_output(step: &mut FightStep, tuesday_uid: Option<i64>)
         return;
     }
 
-    let impacted_targets = collect_impacted_enemy_targets(step);
-    if impacted_targets.is_empty() {
-        return;
-    }
+    let runtime_buff_adds = collect_runtime_buff_adds(step, 30980145, caster_uid);
+    let inner_effects = if !preserved_buff_adds.is_empty() {
+        interleave_poison_markers(preserved_buff_adds)
+    } else if !runtime_buff_adds.is_empty() {
+        interleave_poison_markers(runtime_buff_adds)
+    } else {
+        let impacted_targets = collect_impacted_enemy_targets(step);
+        if impacted_targets.is_empty() {
+            return;
+        }
 
-    let mut inner_effects = Vec::new();
-    for target_uid in impacted_targets {
-        inner_effects.push(build_buff_add(target_uid, caster_uid, 30980145));
-        inner_effects.push(poison_marker(target_uid));
-    }
+        let mut fallback = Vec::new();
+        for target_uid in impacted_targets {
+            fallback.push(build_synthetic_buff_add(target_uid, caster_uid, 30980145));
+            fallback.push(poison_marker(target_uid));
+        }
+        fallback
+    };
     step.act_effect.push(build_effect_wrapper(
         holder_uid,
         caster_uid,
@@ -482,11 +572,18 @@ fn inject_tuesday_wrapper_output(step: &mut FightStep, tuesday_uid: Option<i64>)
     ));
 }
 
-fn strip_tuesday_wrappers(step: &mut FightStep) -> bool {
-    let before = step.act_effect.len();
-    step.act_effect
-        .retain(|effect| wrapper_act_id(effect) != Some(30980142));
-    before != step.act_effect.len()
+fn strip_tuesday_wrappers(step: &mut FightStep) -> (bool, Vec<ActEffect>) {
+    let mut had_wrapper = false;
+    let mut removed = Vec::new();
+    step.act_effect.retain(|effect| {
+        let is_tuesday_wrapper = wrapper_act_id(effect) == Some(30980142);
+        if is_tuesday_wrapper {
+            had_wrapper = true;
+            removed.extend(collect_wrapper_runtime_buff_adds(effect, 30980145));
+        }
+        !is_tuesday_wrapper
+    });
+    (had_wrapper, removed)
 }
 
 fn normalize_skill_wrapper_order(step: &mut FightStep) {
