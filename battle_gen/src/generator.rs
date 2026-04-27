@@ -389,21 +389,22 @@ fn collect_runtime_buff_adds(step: &FightStep, buff_id: i32, from_uid: i64) -> V
 
 fn collect_wrapper_runtime_buff_adds(effect: &ActEffect, buff_id: i32) -> Vec<ActEffect> {
     let mut out = Vec::new();
-    let Some(inner_effects) = effect.fight_step.as_ref().map(|step| &step.act_effect) else {
+    let Some(root_effects) = effect.fight_step.as_ref().map(|step| &step.act_effect) else {
         return out;
     };
-    for inner in inner_effects {
-        if inner.effect_type != Some(5) {
-            continue;
-        }
-        let Some(buff) = inner.buff.as_ref() else {
-            continue;
-        };
-        if inner.effect_num.or(buff.buff_id) != Some(buff_id) {
-            continue;
-        }
-        if let Some(preserved) = build_buff_add_from_existing(inner) {
+
+    let mut stack: Vec<&ActEffect> = root_effects.iter().collect();
+    while let Some(inner) = stack.pop() {
+        if inner.effect_type == Some(5)
+            && let Some(buff) = inner.buff.as_ref()
+            && inner.effect_num.or(buff.buff_id) == Some(buff_id)
+            && let Some(preserved) = build_buff_add_from_existing(inner)
+        {
             out.push(preserved);
+        }
+
+        if let Some(step) = inner.fight_step.as_ref() {
+            stack.extend(step.act_effect.iter());
         }
     }
     out

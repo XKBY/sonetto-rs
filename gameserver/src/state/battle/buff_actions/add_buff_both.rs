@@ -55,7 +55,14 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let mut inner_effects = Vec::new();
 
     for target_uid in
-        add_buff_both_targets(ctx.executor, fight, caster_uid, original_target, buff_a)
+        add_buff_both_targets(
+            ctx.executor,
+            fight,
+            &ctx.effect_ctx.managers.buff_mgr,
+            caster_uid,
+            original_target,
+            buff_a,
+        )
     {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
@@ -83,7 +90,14 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     }
 
     for target_uid in
-        add_buff_both_targets(ctx.executor, fight, caster_uid, original_target, buff_b)
+        add_buff_both_targets(
+            ctx.executor,
+            fight,
+            &ctx.effect_ctx.managers.buff_mgr,
+            caster_uid,
+            original_target,
+            buff_b,
+        )
     {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
@@ -125,6 +139,7 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
 fn add_buff_both_targets(
     executor: &SkillExecutor,
     fight: &sonettobuf::Fight,
+    buff_store: &crate::state::battle::manager::buff_mgr::BuffMgr,
     caster_uid: i64,
     original_target: i64,
     child_buff_id: i32,
@@ -139,6 +154,10 @@ fn add_buff_both_targets(
         if !hostile_targets.is_empty() {
             return hostile_targets;
         }
+        let poisoned_targets = poisoned_enemy_targets(buff_store, fight, caster_uid);
+        if !poisoned_targets.is_empty() {
+            return poisoned_targets;
+        }
     }
 
     if is_good_buff(child_buff_id) {
@@ -149,6 +168,41 @@ fn add_buff_both_targets(
     }
 
     vec![original_target]
+}
+
+fn poisoned_enemy_targets(
+    buff_store: &crate::state::battle::manager::buff_mgr::BuffMgr,
+    fight: &sonettobuf::Fight,
+    caster_uid: i64,
+) -> Vec<i64> {
+    alive_enemies_by_position(fight, caster_uid)
+        .into_iter()
+        .filter(|target_uid| {
+            buff_store
+                .get(*target_uid)
+                .iter()
+                .any(|instance| {
+                    instance.from_uid == caster_uid && is_poison_family(instance.buff_id)
+                })
+        })
+        .collect()
+}
+
+fn is_poison_family(buff_id: i32) -> bool {
+    config::configs::get()
+        .skill_buff
+        .iter()
+        .find(|row| row.id == buff_id)
+        .map(|row| {
+            row.features.split('|').any(|entry| {
+                entry
+                    .split('#')
+                    .next()
+                    .and_then(|v| v.trim().parse::<i32>().ok())
+                    .is_some_and(|act_id| matches!(act_id, 803 | 844))
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn current_hostile_targets(

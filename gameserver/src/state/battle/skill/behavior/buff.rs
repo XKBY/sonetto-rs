@@ -61,6 +61,26 @@ fn is_poison_family(buff_id: i32) -> bool {
     })
 }
 
+fn should_rerun_post_add_features_on_update(buff_id: i32) -> bool {
+    let cfg = config::configs::get();
+    let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+        return false;
+    };
+
+    buff_cfg.features.split('|').any(|entry| {
+        let act_id = entry
+            .split('#')
+            .next()
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        cfg.buff_act
+            .iter()
+            .find(|row| row.id == act_id)
+            .map(|row| row.r#type == "AddBuffBoth")
+            .unwrap_or(false)
+    })
+}
+
 fn infer_enter_fight_seed_buff_for_target(
     fight: &Fight,
     target_uid: i64,
@@ -233,6 +253,7 @@ pub fn apply(
     });
 
     if let Some(existing_uid) = existing_uid {
+        let rerun_post_add_features = should_rerun_post_add_features_on_update(buff_id);
         let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
         let include_types = cfg
             .skill_bufftype
@@ -465,6 +486,19 @@ pub fn apply(
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.add_with_uid(target, buff_id, caster_uid, new_count, 0, existing_uid);
             });
+        }
+
+        if rerun_post_add_features {
+            effects.extend(apply_buff_effects(
+                executor,
+                fight,
+                managers,
+                mechanics,
+                caster_uid,
+                target,
+                buff_id,
+                has_bloodpool,
+            ));
         }
     } else {
         let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
