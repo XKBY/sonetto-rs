@@ -333,8 +333,7 @@ impl SkillExecutor {
                                 .unwrap_or(false),
                     ),
                     ConditionType::UseSpecificSkill { skill_id } => Some(
-                        event.active_use_skill
-                            && skill_matches_specific(event.skill_id, *skill_id),
+                        event.active_use_skill && skill_matches_specific(event.skill_id, *skill_id),
                     ),
                     ConditionType::UseHurtSkill => {
                         Some(event.active_use_skill && skill_is_hurt(event.skill_id))

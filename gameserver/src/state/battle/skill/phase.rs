@@ -256,9 +256,7 @@ impl PhaseFilter {
             ConditionType::UseSpecificSkill { skill_id } => {
                 event.active_use_skill && skill_matches_specific(event.skill_id, *skill_id)
             }
-            ConditionType::UseHurtSkill => {
-                event.active_use_skill && skill_is_hurt(event.skill_id)
-            }
+            ConditionType::UseHurtSkill => event.active_use_skill && skill_is_hurt(event.skill_id),
             ConditionType::UseExSkill => event.active_use_skill && event.used_ex_skill,
             ConditionType::TeammateUseExSkill => event.teammate_use_ex_skill,
             ConditionType::BeAttacked => event.be_attacked,
