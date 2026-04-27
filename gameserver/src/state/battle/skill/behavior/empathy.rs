@@ -4,9 +4,8 @@ use sonettobuf::ActEffect;
 use super::action::{ActionCtx, BehaviorAction};
 use super::buff;
 use crate::state::battle::{
-    fight_step::{ActEffectBuilder, FightStepBuilder},
+    fight_step::ActEffectBuilder,
     mechanics::empathy::{EMPATHY_DEFAULT_BUFF_ID, EMPATHY_TYPE_ID, EmpathyState},
-    skill::targets::{alive_allies, alive_enemies},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::effect_none,
 };
@@ -30,9 +29,6 @@ pub const SUBCONSCIOUS_BONUS_CONFIG_EFFECT: i32 = 60038;
 /// fallback gate, plus broadcast on the `StorageInjury(167)` reset
 /// emission so LIVE-side observers can tell the bank cleared.
 pub const EX_CONSUME_CONFIG_EFFECT: i32 = 60040;
-const INSIGHT_III_BOUNCE_SKILL_ID: i32 = 30800161;
-const INSIGHT_III_BOUNCE_CONFIG_EFFECT: i32 = 60052;
-const INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE: i32 = 1000;
 
 pub(super) struct Empathy;
 
@@ -266,17 +262,12 @@ impl Empathy {
             ctx.caster_uid,
             cap,
         )];
-        let threshold_heals =
-            self.build_insight_iii_threshold_heals(ctx, max_hp, thresholds_crossed);
-        let kakania_healed = threshold_heals
-            .iter()
-            .any(|effect| effect.target_id == Some(ctx.caster_uid));
-        effects.extend(threshold_heals);
-        if kakania_healed {
-            if let Some(bounce) = self.build_insight_iii_bounce(ctx, current_total) {
-                effects.push(bounce);
-            }
-        }
+        effects.extend(ctx.mechanics.empathy.build_insight_iii_threshold_heals(
+            ctx.behavior_ctx.fight,
+            ctx.caster_uid,
+            max_hp,
+            thresholds_crossed,
+        ));
         effects.push(
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.caster_uid)
                 .effect_num(self_damage)
@@ -300,61 +291,5 @@ impl Empathy {
         effects.push(effect_none(ctx.target));
 
         Some(Ok(effects))
-    }
-
-    fn build_insight_iii_threshold_heals(
-        &self,
-        ctx: &mut ActionCtx<'_, '_>,
-        caster_max_hp: i32,
-        thresholds_crossed: i32,
-    ) -> Vec<ActEffect> {
-        if thresholds_crossed <= 0 {
-            return Vec::new();
-        }
-
-        let heal_amount =
-            EmpathyState::insight_iii_heal_amount(caster_max_hp).saturating_mul(thresholds_crossed);
-        if heal_amount <= 0 {
-            return Vec::new();
-        }
-
-        alive_allies(ctx.behavior_ctx.fight, ctx.caster_uid)
-            .into_iter()
-            .map(|ally_uid| {
-                ActEffectBuilder::new(EffectType::InjuryBankHeal as i32, ally_uid)
-                    .effect_num(heal_amount)
-                    .build()
-            })
-            .collect()
-    }
-
-    fn build_insight_iii_bounce(
-        &self,
-        ctx: &mut ActionCtx<'_, '_>,
-        current_empathy: i32,
-    ) -> Option<ActEffect> {
-        if current_empathy <= 0 {
-            return None;
-        }
-
-        let bonus = current_empathy.saturating_mul(INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE) / 1000;
-        let bounce_effects = alive_enemies(ctx.behavior_ctx.fight, ctx.caster_uid)
-            .into_iter()
-            .map(|enemy_uid| {
-                ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
-                    .effect_num(bonus)
-                    .config_effect(INSIGHT_III_BOUNCE_CONFIG_EFFECT)
-                    .build()
-            })
-            .collect::<Vec<_>>();
-        if bounce_effects.is_empty() {
-            return None;
-        }
-
-        Some(
-            FightStepBuilder::skill(ctx.caster_uid, ctx.caster_uid, INSIGHT_III_BOUNCE_SKILL_ID)
-                .with_many(bounce_effects)
-                .wrap(),
-        )
     }
 }

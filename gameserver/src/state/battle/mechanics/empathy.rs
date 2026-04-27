@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use sonettobuf::{ActEffect, BuffInfo, Fight};
 
 use crate::state::battle::{
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::buff_mgr::BuffMgr,
+    skill::targets::{alive_allies, alive_enemies},
     types::{buff::BuffLayerType, effects::EffectType},
 };
 
@@ -25,6 +27,9 @@ const EMPATHY_ACT_ID: i32 = 770;
 /// until the buff-feature parser exposes them directly.
 const INSIGHT_III_STORAGE_THRESHOLD_PERMILLE: i32 = 30;
 const INSIGHT_III_HEAL_PERMILLE: i32 = 100;
+pub const INSIGHT_III_BOUNCE_SKILL_ID: i32 = 30800161;
+pub const INSIGHT_III_BOUNCE_CONFIG_EFFECT: i32 = 60052;
+const INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE: i32 = 1000;
 
 /// Returns `true` if the given `buff_id` belongs to the Empathy bufftype
 /// family (any of 30800141 / 30800142 / 30800143 or future portrait
@@ -197,6 +202,7 @@ impl EmpathyState {
     pub fn inject_storage_injury_for_damage_emissions(
         &mut self,
         buff_mgr: &mut BuffMgr,
+        fight: &Fight,
         source_uid: i64,
         target_uid: i64,
         target_max_hp: i32,
@@ -222,7 +228,8 @@ impl EmpathyState {
 
             let damage = effect.effect_num.unwrap_or(0).max(0);
             let storage = Self::compute_storage_amount(damage);
-            let current_total = self.apply_storage(buff_mgr, target_uid, storage, target_max_hp);
+            let (current_total, thresholds_crossed) =
+                self.apply_storage_with_threshold(buff_mgr, target_uid, storage, target_max_hp);
             let (buff_id, buff_uid) = ensure_empathy_buff(buff_mgr, target_uid);
             out.push(self.emit_storage_injury(
                 target_uid,
@@ -233,6 +240,100 @@ impl EmpathyState {
                 cap,
             ));
             out.push(effect);
+            out.extend(self.build_insight_iii_threshold_heals(
+                fight,
+                target_uid,
+                target_max_hp,
+                thresholds_crossed,
+            ));
+        }
+
+        out
+    }
+
+    pub fn build_insight_iii_threshold_heals(
+        &self,
+        fight: &Fight,
+        holder_uid: i64,
+        holder_max_hp: i32,
+        thresholds_crossed: i32,
+    ) -> Vec<ActEffect> {
+        if thresholds_crossed <= 0 {
+            return Vec::new();
+        }
+
+        let heal_amount =
+            Self::insight_iii_heal_amount(holder_max_hp).saturating_mul(thresholds_crossed);
+        if heal_amount <= 0 {
+            return Vec::new();
+        }
+
+        alive_allies(fight, holder_uid)
+            .into_iter()
+            .map(|ally_uid| {
+                ActEffectBuilder::new(EffectType::InjuryBankHeal as i32, ally_uid)
+                    .effect_num(heal_amount)
+                    .build()
+            })
+            .collect()
+    }
+
+    pub fn build_insight_iii_bounce(&self, fight: &Fight, holder_uid: i64) -> Option<ActEffect> {
+        let current_empathy = self.current(holder_uid);
+        if current_empathy <= 0 {
+            return None;
+        }
+
+        let bonus = current_empathy.saturating_mul(INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE) / 1000;
+        let bounce_effects = alive_enemies(fight, holder_uid)
+            .into_iter()
+            .map(|enemy_uid| {
+                ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
+                    .effect_num(bonus)
+                    .config_effect(INSIGHT_III_BOUNCE_CONFIG_EFFECT)
+                    .build()
+            })
+            .collect::<Vec<_>>();
+        if bounce_effects.is_empty() {
+            return None;
+        }
+
+        Some(
+            FightStepBuilder::skill(holder_uid, holder_uid, INSIGHT_III_BOUNCE_SKILL_ID)
+                .with_many(bounce_effects)
+                .wrap(),
+        )
+    }
+
+    pub fn inject_insight_iii_bounces_for_heal_emissions(
+        &self,
+        buff_mgr: &BuffMgr,
+        fight: &Fight,
+        effects: Vec<ActEffect>,
+    ) -> Vec<ActEffect> {
+        let mut out = Vec::with_capacity(effects.len());
+        for mut effect in effects {
+            if let Some(step) = effect.fight_step.as_mut() {
+                let inner = std::mem::take(&mut step.act_effect);
+                step.act_effect =
+                    self.inject_insight_iii_bounces_for_heal_emissions(buff_mgr, fight, inner);
+            }
+            let should_inject = effect
+                .target_id
+                .filter(|target_uid| has_empathy_buff(buff_mgr, *target_uid))
+                .is_some()
+                && matches!(
+                    effect.effect_type,
+                    Some(t)
+                        if t == EffectType::Heal as i32
+                            || t == EffectType::InjuryBankHeal as i32
+                );
+            let target_uid = effect.target_id.unwrap_or(0);
+            out.push(effect);
+            if should_inject && let Some(bounce) = self.build_insight_iii_bounce(fight, target_uid)
+            {
+                out.push(bounce);
+            }
         }
 
         out

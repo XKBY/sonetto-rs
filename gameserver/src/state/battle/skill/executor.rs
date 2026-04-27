@@ -1324,6 +1324,7 @@ fn inject_empathy_storage_injuries(
             .empathy
             .inject_storage_injury_for_damage_emissions(
                 preview_buff_mgr,
+                fight,
                 source_uid,
                 target_uid,
                 target_max_hp,
@@ -1337,7 +1338,9 @@ fn inject_empathy_storage_injuries(
         );
     }
 
-    out
+    mechanics
+        .empathy
+        .inject_insight_iii_bounces_for_heal_emissions(preview_buff_mgr, fight, out)
 }
 
 fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Vec<ActEffect> {
