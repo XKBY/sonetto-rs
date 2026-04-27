@@ -47,6 +47,20 @@ fn excluded_buff_or_type_ids(buff_id: i32) -> Vec<i32> {
         .collect()
 }
 
+fn is_poison_family(buff_id: i32) -> bool {
+    let cfg = config::configs::get();
+    let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+        return false;
+    };
+    buff_cfg.features.split('|').any(|entry| {
+        entry
+            .split('#')
+            .next()
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .is_some_and(|act_id| matches!(act_id, 803 | 844))
+    })
+}
+
 fn infer_enter_fight_seed_buff_for_target(
     fight: &Fight,
     target_uid: i64,
@@ -204,6 +218,7 @@ pub fn apply(
     let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
     let has_features = buff_cfg.map(|b| !b.features.is_empty()).unwrap_or(false);
     let is_no_show = buff_cfg.map(|b| b.is_no_show == 1).unwrap_or(false);
+    let is_poison_family = is_poison_family(buff_id);
 
     let effect_count = buff_cfg.map(|b| b.effect_count).unwrap_or(0);
 
@@ -354,7 +369,7 @@ pub fn apply(
             add_count
         };
 
-        if is_layer_stackable {
+        if is_layer_stackable || is_poison_family {
             let existing_layer = with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx
                     .buffs(target)

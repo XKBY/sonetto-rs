@@ -154,19 +154,10 @@ impl FightCardMgr {
         };
         let resolved_skill_id =
             resolve_with_euphoria(ctx.fight, exec_caster_uid, resolved_skill_id);
-        let target_uid = if raw_target_uid > 0 {
-            raw_target_uid
+        let target_uid = if raw_target_uid != 0 {
+            resolve_requested_target_uid(ctx.fight, raw_target_uid)
         } else {
-            ctx.fight
-                .defender
-                .as_ref()
-                .and_then(|d| {
-                    d.entitys
-                        .iter()
-                        .find(|e| e.current_hp.unwrap_or(0) > 0)
-                        .and_then(|e| e.uid)
-                })
-                .unwrap_or(raw_target_uid)
+            first_alive_uid_on_side(ctx.fight, false).unwrap_or(raw_target_uid)
         };
         let is_direct_ex_card = !is_temp_card
             && ctx
@@ -581,7 +572,7 @@ impl FightCardMgr {
             preview_managers.buff_mgr.clear_step_deleted_buff_ids();
 
             let target_uid = match target_uid_opt {
-                Some(t) if t != 0 => t,
+                Some(t) if t != 0 => resolve_requested_target_uid(&preview_fight, t),
                 _ => {
                     let t = players[rng.gen_range(0..players.len())];
                     state.ai_cards[i].target_uid = Some(t);
@@ -983,6 +974,32 @@ fn replay_primary_damage_targets(effects: &[ActEffect]) -> Vec<i64> {
 
 fn entity_exists(fight: &Fight, uid: i64) -> bool {
     find_entity(fight, uid).is_some()
+}
+
+fn entity_alive(fight: &Fight, uid: i64) -> bool {
+    find_entity(fight, uid)
+        .map(|entity| entity.current_hp.unwrap_or(0) > 0)
+        .unwrap_or(false)
+}
+
+fn first_alive_uid_on_side(fight: &Fight, attacker_side: bool) -> Option<i64> {
+    let team = if attacker_side {
+        fight.attacker.as_ref()
+    } else {
+        fight.defender.as_ref()
+    }?;
+    team.entitys
+        .iter()
+        .chain(team.sub_entitys.iter())
+        .find(|entity| entity.position.unwrap_or(-1) > 0 && entity.current_hp.unwrap_or(0) > 0)
+        .and_then(|entity| entity.uid)
+}
+
+fn resolve_requested_target_uid(fight: &Fight, requested_uid: i64) -> i64 {
+    if requested_uid == 0 || entity_alive(fight, requested_uid) {
+        return requested_uid;
+    }
+    first_alive_uid_on_side(fight, requested_uid > 0).unwrap_or(requested_uid)
 }
 
 fn normalize_skill_effects_for_operation(

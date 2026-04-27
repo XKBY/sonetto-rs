@@ -90,6 +90,20 @@ impl BuffMgr {
         matches!(include_type, "10" | "12" | "14" | "15")
     }
 
+    fn is_poison_family(buff_id: i32) -> bool {
+        let cfg = config::configs::get();
+        let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+            return false;
+        };
+        buff_cfg.features.split('|').any(|entry| {
+            entry
+                .split('#')
+                .next()
+                .and_then(|v| v.trim().parse::<i32>().ok())
+                .is_some_and(|act_id| matches!(act_id, 803 | 844))
+        })
+    }
+
     #[allow(dead_code)]
     fn is_drop_dmg_attr_buff(buff_id: i32) -> bool {
         let cfg = config::configs::get();
@@ -138,6 +152,16 @@ impl BuffMgr {
 
         if Self::is_stacked_include_type(buff_id) {
             entry.push(instance);
+        } else if Self::is_poison_family(buff_id) {
+            if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
+                existing.duration = existing.duration.max(instance.duration);
+                existing.layer = existing
+                    .layer
+                    .max(1)
+                    .saturating_add(instance.layer.max(1));
+            } else {
+                entry.push(instance);
+            }
         } else if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
@@ -428,6 +452,17 @@ impl BuffMgr {
 
         if Self::is_stacked_include_type(buff_id) {
             entry.push(instance);
+        } else if Self::is_poison_family(buff_id) {
+            if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
+                existing.uid = buff_uid;
+                existing.duration = existing.duration.max(instance.duration);
+                existing.layer = existing
+                    .layer
+                    .max(1)
+                    .saturating_add(instance.layer.max(1));
+            } else {
+                entry.push(instance);
+            }
         } else if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
             existing.uid = buff_uid;
             existing.duration = existing.duration.max(instance.duration);

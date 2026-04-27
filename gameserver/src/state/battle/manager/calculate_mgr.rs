@@ -8,7 +8,7 @@ use super::super::{
     },
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
-        entity_mgr::{FightEntityDataMgr, get_entity_mut_by_location},
+        entity_mgr::{EntityLocation, FightEntityDataMgr, get_entity_mut_by_location},
         ex_point_mgr::ExPointMgr,
     },
     mechanics::bloodtithe::BloodtitheState,
@@ -26,6 +26,25 @@ pub struct FightCalculateDataMgr {
 
 impl FightCalculateDataMgr {
     const MAX_NESTED_STEP_DEPTH: usize = 256;
+
+    fn entity_location_or_skip(
+        &self,
+        target_id: i64,
+        effect_name: &str,
+    ) -> Result<Option<EntityLocation>, String> {
+        match self.entity_mgr.get_location(target_id) {
+            Some(location) => Ok(Some(location)),
+            None if target_id < 0 => {
+                tracing::warn!(
+                    "calculate_mgr skip effect={} target={} reason=entity_missing",
+                    effect_name,
+                    target_id
+                );
+                Ok(None)
+            }
+            None => Err(format!("Entity {} not found", target_id)),
+        }
+    }
 
     fn step_contains_positive_bloodpool_delta(step: &FightStep) -> bool {
         let mut stack: Vec<&FightStep> = vec![step];
@@ -233,10 +252,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let damage = effect.effect_num.ok_or("No damage amount")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "damage")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
@@ -291,10 +309,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let heal = effect.effect_num.ok_or("No heal amount")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "heal")? else {
+            return Ok(());
+        };
 
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
@@ -448,10 +465,9 @@ impl FightCalculateDataMgr {
     fn play_effect_death(&mut self, effect: &ActEffect, fight: &mut Fight) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "death")? else {
+            return Ok(());
+        };
 
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
@@ -466,10 +482,9 @@ impl FightCalculateDataMgr {
     fn play_effect_kill(&mut self, effect: &ActEffect, fight: &mut Fight) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "kill")? else {
+            return Ok(());
+        };
 
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
@@ -485,10 +500,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let shield = effect.effect_num.ok_or("No shield amount")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "shield")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
@@ -510,10 +524,9 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "shield_del")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
         entity.shield_value = Some(0);
@@ -525,10 +538,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let hp = effect.effect_num.ok_or("No HP amount")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "set_hp")? else {
+            return Ok(());
+        };
 
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
@@ -547,10 +559,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let max_hp = effect.effect_num.ok_or("No max HP amount")?;
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "set_max_hp")? else {
+            return Ok(());
+        };
 
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
@@ -575,10 +586,9 @@ impl FightCalculateDataMgr {
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let hp = effect.effect_num.ok_or("No HP amount")?;
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "current_hp_change")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
         let current_hp = entity.current_hp.unwrap_or(0);
@@ -609,10 +619,9 @@ impl FightCalculateDataMgr {
             .find_map(|b| buff_get_ex_point_overflow(b.buff_id))
             .unwrap_or(0);
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "ex_point_change")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
@@ -653,10 +662,9 @@ impl FightCalculateDataMgr {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let amount = effect.effect_num.unwrap_or(0);
 
-        let location = self
-            .entity_mgr
-            .get_location(target_id)
-            .ok_or_else(|| format!("Entity {} not found", target_id))?;
+        let Some(location) = self.entity_location_or_skip(target_id, "ex_point_del")? else {
+            return Ok(());
+        };
         let entity = get_entity_mut_by_location(fight, location)
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
