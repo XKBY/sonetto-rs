@@ -25,7 +25,7 @@ use sonettobuf::ActEffect;
 use super::super::executor::SkillExecutor;
 use super::{
     add_buff, attr_modify, bloodtithe, catapult, damage, direct_skill, disperse, empathy, ex_point,
-    heal, lost_life, magic_circle, misc, nuodika_damage, skill_rate, stats,
+    heal, lost_life, magic_circle, misc, nuodika_damage, poison_priority, skill_rate, stats,
 };
 use crate::state::battle::{
     context::behavior_context::BehaviorContext, manager::fight_data_mgr::Managers,
@@ -76,6 +76,7 @@ pub(super) const BEHAVIOR_REGISTRY: &[&dyn BehaviorAction] = &[
     &empathy::Empathy,
     &add_buff::AddBuff,
     &catapult::Catapult,
+    &poison_priority::PoisonPriority,
     &disperse::Disperse,
     &ex_point::ExPoint,
     &stats::Stats,

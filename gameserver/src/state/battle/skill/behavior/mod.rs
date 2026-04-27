@@ -15,6 +15,7 @@ mod lost_life;
 mod magic_circle;
 mod misc;
 mod nuodika_damage;
+mod poison_priority;
 pub(crate) mod precast;
 mod random;
 mod skill_rate;

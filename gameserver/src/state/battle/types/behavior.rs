@@ -22,6 +22,12 @@ pub enum BehaviorType {
         catapult_stacks: i32,
         catapult_cap: i32,
     },
+    AddTargetBuffByPoison {
+        stack_count: i32,
+        duration: i32,
+        buff_id: i32,
+        max_targets: i32,
+    },
     RealDamageSelfAndAddBuffToTarget {
         amount_permille: i32,
         buff_id: i32,

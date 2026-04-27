@@ -95,6 +95,12 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             catapult_stacks: parts.get(5).and_then(|v| v.parse().ok()).unwrap_or(0),
             catapult_cap: parts.get(6).and_then(|v| v.parse().ok()).unwrap_or(0),
         },
+        "AddTargetBuffByPoison" => BehaviorType::AddTargetBuffByPoison {
+            stack_count: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            duration: parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0),
+            buff_id: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+            max_targets: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
         "CreateAdditionalDamageAddBuff" => BehaviorType::AddBuff {
             buff_id: parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0),
             count: 0,
