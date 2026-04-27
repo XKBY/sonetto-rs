@@ -456,14 +456,7 @@ pub(crate) fn run_combat_passives_pass(
         let mut entity_step_effects: Vec<ActEffect> = Vec::new();
 
         for skill_id in skill_ids {
-            let trace_target = matches!(skill_id, 30090146 | 31040141 | 30980142);
             if is_enter_fight_only_passive(skill_id) {
-                if trace_target {
-                    eprintln!(
-                        "trace passive skill={} uid={} skipped=enter_fight_only",
-                        skill_id, uid
-                    );
-                }
                 continue;
             }
             if skill_id == 31260181
@@ -479,12 +472,6 @@ pub(crate) fn run_combat_passives_pass(
             if !is_buff_granted_has_buff_skill
                 && !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass)
             {
-                if trace_target {
-                    eprintln!(
-                        "trace passive skill={} uid={} skipped=no_combat_reactive_condition",
-                        skill_id, uid
-                    );
-                }
                 continue;
             }
             let should_fire = if is_buff_granted_has_buff_skill {
@@ -498,27 +485,12 @@ pub(crate) fn run_combat_passives_pass(
                     teammate_injury_not_reset,
                 )
             };
-            if trace_target {
-                eprintln!(
-                    "trace passive skill={} uid={} should_fire={} actor={:?}",
-                    skill_id,
-                    uid,
-                    should_fire,
-                    event.skill_used_for_passive_owner(uid)
-                );
-            }
             if !should_fire {
                 continue;
             }
             // ActiveUseSkill/CombatNone passives for the main caster are already
             // fired inline inside the card step — skip them here to avoid duplicates.
             if event.used_card(uid) && is_active_use_skill_passive(skill_id) {
-                if trace_target {
-                    eprintln!(
-                        "trace passive skill={} uid={} skipped=already_inline",
-                        skill_id, uid
-                    );
-                }
                 continue;
             }
             // Build a TriggerState that reflects what actually happened for this entity.
@@ -592,14 +564,6 @@ pub(crate) fn run_combat_passives_pass(
                     &PhaseFilter::combat_with(trigger_state),
                 ) {
                     Ok(mut skill_effects) if !skill_effects.is_empty() => {
-                        if trace_target {
-                            eprintln!(
-                                "trace passive skill={} uid={} emitted={}",
-                                skill_id,
-                                uid,
-                                skill_effects.len()
-                            );
-                        }
                         for effect in &mut skill_effects {
                             if effect.effect_type == Some(EffectType::Fightstep as i32)
                                 && let Some(step) = effect.fight_step.as_mut()
@@ -611,11 +575,7 @@ pub(crate) fn run_combat_passives_pass(
                         // both 162 wrappers and flat effects in arrival order.
                         entity_step_effects.extend(skill_effects);
                     }
-                    Ok(_) => {
-                        if trace_target {
-                            eprintln!("trace passive skill={} uid={} emitted=0", skill_id, uid);
-                        }
-                    }
+                    Ok(_) => {}
                     Err(e) => {
                         tracing::warn!("trigger skill={} uid={}: {}", skill_id, uid, e)
                     }
