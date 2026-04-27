@@ -7,7 +7,7 @@ use crate::state::battle::{
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
-    skill::cache::resolve_skill_effect_id,
+    skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
     skill::classification::{
         CombatPassiveScanMode, has_combat_reactive_condition, has_injury_reactive_condition,
     },
@@ -20,6 +20,7 @@ use crate::state::battle::{
         ExPointSyncPass, HpSyncPass, TriggerPass,
     },
 };
+use crate::state::battle::types::behavior::BehaviorType;
 
 /// Context passed to each trigger check describing what just happened.
 #[derive(Debug, Clone)]
@@ -28,6 +29,8 @@ pub struct TriggerEvent {
     pub caster_uid: i64,
     /// Skill id used by the caster for this step.
     pub skill_id: i32,
+    /// 1-based action slot for the current acting unit in the round, when known.
+    pub action_order_index: i32,
     /// Primary target from the originating root step (card/skill target).
     pub primary_target_uid: i64,
     /// Whether this step used the caster's ex skill.
@@ -211,6 +214,7 @@ pub fn event_from_step(
     TriggerEvent {
         caster_uid: effective_caster_uid,
         skill_id: effective_skill_id,
+        action_order_index: 0,
         primary_target_uid,
         used_ex_skill,
         from_wrapper_card,
@@ -471,6 +475,7 @@ pub(crate) fn run_combat_passives_pass(
             let trigger_state_base = TriggerState {
                 active_use_skill,
                 skill_id: uid_skill_id,
+                action_order_index: event.action_order_index,
                 used_ex_skill: uid_used_ex,
                 teammate_use_ex_skill: event.teammate_used_ex_skill(uid),
                 trigger_bullet: event.triggered_bullet_for(uid),
@@ -706,6 +711,10 @@ fn is_active_use_skill_passive(skill_id: i32) -> bool {
         match condition {
             ConditionType::ActiveUseSkill
             | ConditionType::ActiveUseSkillId { .. }
+            | ConditionType::ActOrder { .. }
+            | ConditionType::UseSkillEffectTag { .. }
+            | ConditionType::UseSpecificSkill { .. }
+            | ConditionType::UseHurtSkill
             | ConditionType::CombatNone => {}
             _ => return false,
         }
@@ -881,6 +890,33 @@ fn condition_fires_for(
                 .map(|(sid, _, _)| skill_ids.contains(&sid))
                 .unwrap_or(false),
         ),
+        ConditionType::ActOrder { order_index } => Some(
+            event.skill_used_by(uid).is_some()
+                && event.action_order_index > 0
+                && event.action_order_index == *order_index,
+        ),
+        ConditionType::UseSkillEffectTag { effect_tag } => Some(
+            event
+                .skill_used_by(uid)
+                .map(|(sid, _, _)| {
+                    active_skill_effect_tag(sid)
+                        .map(|tag| tag == *effect_tag)
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false),
+        ),
+        ConditionType::UseSpecificSkill { skill_id } => Some(
+            event
+                .skill_used_by(uid)
+                .map(|(sid, _, _)| skill_matches_specific(sid, *skill_id))
+                .unwrap_or(false),
+        ),
+        ConditionType::UseHurtSkill => Some(
+            event
+                .skill_used_by(uid)
+                .map(|(sid, _, _)| skill_is_hurt(sid))
+                .unwrap_or(false),
+        ),
         ConditionType::CombatNone => Some(
             event.skill_used_by(uid).is_some() || event.took_damage(uid) || event.dealt_damage(uid),
         ),
@@ -1002,6 +1038,64 @@ fn skill_logic_target(skill_id: i32) -> i32 {
         .find(|s| s.id == effect_id)
         .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
         .unwrap_or(0)
+}
+
+fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
+    if skill_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    cfg.skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.effect_tag)
+}
+
+fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
+    if skill_id <= 0 || wanted <= 0 {
+        return false;
+    }
+    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
+        return true;
+    }
+
+    let cfg = config::configs::get();
+    let Some(skill) = cfg.skill.get(skill_id) else {
+        return false;
+    };
+
+    if wanted <= 3 && skill.skill_rank == wanted {
+        return true;
+    }
+
+    wanted == 4
+}
+
+fn skill_is_hurt(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    if cfg
+        .skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.damage_rate > 0)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    SKILL_CACHE
+        .get(&effect_id)
+        .map(|rows| {
+            rows.iter()
+                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
+        })
+        .unwrap_or(false)
 }
 
 fn collect_deleted_buff_ids(effects: &[ActEffect], out: &mut Vec<i32>) {

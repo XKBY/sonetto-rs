@@ -195,6 +195,7 @@ fn magic_circle_aura_state(
         TriggerState {
             active_use_skill: true,
             skill_id: host_step.act_id.unwrap_or(0),
+            action_order_index: 0,
             used_ex_skill: event.used_ex_skill,
             teammate_use_ex_skill: event.teammate_used_ex_skill(host_caster_uid),
             trigger_bullet: event.triggered_bullet_for(host_caster_uid),

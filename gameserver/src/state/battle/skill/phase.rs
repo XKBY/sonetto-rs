@@ -1,5 +1,6 @@
 use super::super::manager::buff_mgr::BuffMgr;
 use super::super::{BehaviorType, ConditionType};
+use super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::condition::{self, buff::deleted_matches};
 
 /// Which conditions are active for this trigger event.
@@ -7,6 +8,7 @@ use super::condition::{self, buff::deleted_matches};
 pub struct TriggerState {
     pub active_use_skill: bool,
     pub skill_id: i32,
+    pub action_order_index: i32,
     pub used_ex_skill: bool,
     pub teammate_use_ex_skill: bool,
     pub trigger_bullet: bool,
@@ -28,23 +30,25 @@ pub struct TriggerState {
 }
 
 impl TriggerState {
-    pub fn on_use_card() -> Self {
+    pub fn on_active_use_skill(skill_id: i32) -> Self {
         Self {
             active_use_skill: true,
-            skill_id: 0,
+            skill_id,
+            action_order_index: 0,
             used_ex_skill: false,
             teammate_use_ex_skill: false,
             ..Default::default()
         }
     }
-    pub fn on_active_use_skill(skill_id: i32) -> Self {
-        Self {
-            active_use_skill: true,
-            skill_id,
-            used_ex_skill: false,
-            teammate_use_ex_skill: false,
-            ..Default::default()
-        }
+
+    pub fn with_action_order_index(mut self, action_order_index: i32) -> Self {
+        self.action_order_index = action_order_index;
+        self
+    }
+
+    pub fn with_used_ex_skill(mut self, used_ex_skill: bool) -> Self {
+        self.used_ex_skill = used_ex_skill;
+        self
     }
     /// Populate `deleted_buff_ids` from the live per-step buff-deletion
     /// tracker on `BuffMgr`. Used by mid-step passive/trigger sites that don't
@@ -238,6 +242,23 @@ impl PhaseFilter {
             ConditionType::ActiveUseSkillId { skill_ids } => {
                 event.active_use_skill && skill_ids.contains(&event.skill_id)
             }
+            ConditionType::ActOrder { order_index } => {
+                event.active_use_skill
+                    && event.action_order_index > 0
+                    && event.action_order_index == *order_index
+            }
+            ConditionType::UseSkillEffectTag { effect_tag } => {
+                event.active_use_skill
+                    && active_skill_effect_tag(event.skill_id)
+                        .map(|tag| tag == *effect_tag)
+                        .unwrap_or(false)
+            }
+            ConditionType::UseSpecificSkill { skill_id } => {
+                event.active_use_skill && skill_matches_specific(event.skill_id, *skill_id)
+            }
+            ConditionType::UseHurtSkill => {
+                event.active_use_skill && skill_is_hurt(event.skill_id)
+            }
             ConditionType::UseExSkill => event.active_use_skill && event.used_ex_skill,
             ConditionType::TeammateUseExSkill => event.teammate_use_ex_skill,
             ConditionType::BeAttacked => event.be_attacked,
@@ -260,4 +281,64 @@ impl PhaseFilter {
             _ => false,
         }
     }
+}
+
+fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
+    if skill_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    cfg.skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.effect_tag)
+}
+
+fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
+    if skill_id <= 0 || wanted <= 0 {
+        return false;
+    }
+    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
+        return true;
+    }
+
+    let cfg = config::configs::get();
+    let Some(skill) = cfg.skill.get(skill_id) else {
+        return false;
+    };
+
+    if wanted <= 3 && skill.skill_rank == wanted {
+        return true;
+    }
+
+    // LIVE wrapper rows that use `66210#4` fan out across normal card casts
+    // regardless of the concrete skill id. Treat `4` as the active-card family.
+    wanted == 4
+}
+
+fn skill_is_hurt(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    if cfg
+        .skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.damage_rate > 0)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    SKILL_CACHE
+        .get(&effect_id)
+        .map(|rows| {
+            rows.iter()
+                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
+        })
+        .unwrap_or(false)
 }

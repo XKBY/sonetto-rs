@@ -321,6 +321,24 @@ impl SkillExecutor {
                     ConditionType::ActiveUseSkillId { skill_ids } => {
                         Some(event.active_use_skill && skill_ids.contains(&event.skill_id))
                     }
+                    ConditionType::ActOrder { order_index } => Some(
+                        event.active_use_skill
+                            && event.action_order_index > 0
+                            && event.action_order_index == *order_index,
+                    ),
+                    ConditionType::UseSkillEffectTag { effect_tag } => Some(
+                        event.active_use_skill
+                            && active_skill_effect_tag(event.skill_id)
+                                .map(|tag| tag == *effect_tag)
+                                .unwrap_or(false),
+                    ),
+                    ConditionType::UseSpecificSkill { skill_id } => Some(
+                        event.active_use_skill
+                            && skill_matches_specific(event.skill_id, *skill_id),
+                    ),
+                    ConditionType::UseHurtSkill => {
+                        Some(event.active_use_skill && skill_is_hurt(event.skill_id))
+                    }
                     ConditionType::UseExSkill => {
                         Some(event.active_use_skill && event.used_ex_skill)
                     }
@@ -918,6 +936,7 @@ impl SkillExecutor {
         let phase = PhaseFilter::combat_with(TriggerState {
             active_use_skill: false,
             skill_id: 0,
+            action_order_index: 0,
             used_ex_skill: false,
             teammate_use_ex_skill: false,
             trigger_bullet: false,
@@ -1102,6 +1121,10 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
             cond,
             ConditionType::ActiveUseSkill
                 | ConditionType::ActiveUseSkillId { .. }
+                | ConditionType::ActOrder { .. }
+                | ConditionType::UseSkillEffectTag { .. }
+                | ConditionType::UseSpecificSkill { .. }
+                | ConditionType::UseHurtSkill
                 | ConditionType::UseExSkill
                 | ConditionType::TeammateUseExSkill
                 | ConditionType::BeAttacked
@@ -1129,6 +1152,64 @@ fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
         }
         _ => false,
     }
+}
+
+fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
+    if skill_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    cfg.skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.effect_tag)
+}
+
+fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
+    if skill_id <= 0 || wanted <= 0 {
+        return false;
+    }
+    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
+        return true;
+    }
+
+    let cfg = config::configs::get();
+    let Some(skill) = cfg.skill.get(skill_id) else {
+        return false;
+    };
+
+    if wanted <= 3 && skill.skill_rank == wanted {
+        return true;
+    }
+
+    wanted == 4
+}
+
+fn skill_is_hurt(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    if cfg
+        .skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.damage_rate > 0)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    SKILL_CACHE
+        .get(&effect_id)
+        .map(|rows| {
+            rows.iter()
+                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
+        })
+        .unwrap_or(false)
 }
 
 fn apply_no_act_seed_hint(

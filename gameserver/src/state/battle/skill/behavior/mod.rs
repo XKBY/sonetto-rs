@@ -233,7 +233,12 @@ pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
         let (cond, _) = parse_condition(raw);
         matches!(
             cond,
-            ConditionType::ActiveUseSkill | ConditionType::ActiveUseSkillId { .. }
+            ConditionType::ActiveUseSkill
+                | ConditionType::ActiveUseSkillId { .. }
+                | ConditionType::ActOrder { .. }
+                | ConditionType::UseSkillEffectTag { .. }
+                | ConditionType::UseSpecificSkill { .. }
+                | ConditionType::UseHurtSkill
         )
     })
 }

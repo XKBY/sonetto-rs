@@ -186,6 +186,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
         let trigger_state = TriggerState {
             active_use_skill: true,
             skill_id: root_step.act_id.unwrap_or(0),
+            action_order_index: 0,
             used_ex_skill: event.used_ex_skill,
             teammate_use_ex_skill: event.teammate_used_ex_skill(caster_uid),
             trigger_bullet: true,

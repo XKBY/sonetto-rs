@@ -167,7 +167,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     // forcing the EX cast.
     for precast_id in prep_skill_ids {
         let phase = PhaseFilter::combat_with(
-            TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(precast_id).with_buff_mgr(&ctx.managers.buff_mgr),
         );
         let mut pre = ctx.executor.execute_skill(
             ctx.rng,
@@ -246,7 +246,9 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
 
     let mut ex = {
         let phase = PhaseFilter::combat_with(
-            TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(ex_skill_id)
+                .with_used_ex_skill(true)
+                .with_buff_mgr(&ctx.managers.buff_mgr),
         );
         ctx.executor.execute_skill(
             ctx.rng,

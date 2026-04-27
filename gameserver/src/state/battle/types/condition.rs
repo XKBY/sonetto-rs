@@ -98,6 +98,16 @@ pub enum ConditionType {
     ActiveUseSkillId {
         skill_ids: Vec<i32>,
     },
+    ActOrder {
+        order_index: i32,
+    },
+    UseSkillEffectTag {
+        effect_tag: i32,
+    },
+    UseSpecificSkill {
+        skill_id: i32,
+    },
+    UseHurtSkill,
     PerBuffIdCount {
         buff_ids: Vec<i32>,
     },

@@ -73,6 +73,10 @@ impl<'a> ConditionEval<'a> {
                     | ConditionType::ActiveUseSkill
                     | ConditionType::TeammateUseExSkill
                     | ConditionType::ActiveUseSkillId { .. }
+                    | ConditionType::ActOrder { .. }
+                    | ConditionType::UseSkillEffectTag { .. }
+                    | ConditionType::UseSpecificSkill { .. }
+                    | ConditionType::UseHurtSkill
                     | ConditionType::TriggerBullet
                     | ConditionType::BeAttacked
                     | ConditionType::HurtNotRestraint
@@ -164,6 +168,10 @@ fn is_grouped_combat_event_condition(condition: &ConditionType) -> bool {
         ConditionType::CombatNone
             | ConditionType::ActiveUseSkill
             | ConditionType::ActiveUseSkillId { .. }
+            | ConditionType::ActOrder { .. }
+            | ConditionType::UseSkillEffectTag { .. }
+            | ConditionType::UseSpecificSkill { .. }
+            | ConditionType::UseHurtSkill
             | ConditionType::UseExSkill
             | ConditionType::TeammateUseExSkill
             | ConditionType::TriggerBullet

@@ -91,6 +91,10 @@ pub fn is_combat_event_condition(
     condition::fold(condition, &mut |cond| match cond {
         ConditionType::ActiveUseSkill
         | ConditionType::ActiveUseSkillId { .. }
+        | ConditionType::ActOrder { .. }
+        | ConditionType::UseSkillEffectTag { .. }
+        | ConditionType::UseSpecificSkill { .. }
+        | ConditionType::UseHurtSkill
         | ConditionType::CombatNone
         | ConditionType::UseExSkill
         | ConditionType::TeammateUseExSkill

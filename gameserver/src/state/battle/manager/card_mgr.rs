@@ -182,6 +182,20 @@ impl FightCardMgr {
                 .and_then(|e| e.ex_skill)
                 .map(|ex_skill| ex_skill == resolved_skill_id)
                 .unwrap_or(false);
+        let action_order_index = state.used_cards.len() as i32 + 1;
+        let used_ex_skill = ctx
+            .fight
+            .attacker
+            .as_ref()
+            .and_then(|a| {
+                a.entitys
+                    .iter()
+                    .chain(a.sub_entitys.iter())
+                    .find(|e| e.uid == Some(exec_caster_uid))
+            })
+            .and_then(|e| e.ex_skill)
+            .map(|ex| ex == resolved_skill_id)
+            .unwrap_or(false);
 
         let mut raw_skill_effects = if is_direct_ex_card {
             self.build_direct_ex_card_prefix(rng, ctx, exec_caster_uid, resolved_skill_id)?
@@ -197,7 +211,10 @@ impl FightCardMgr {
             target_uid,
             resolved_skill_id,
             &PhaseFilter::combat_with(
-                TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+                TriggerState::on_active_use_skill(resolved_skill_id)
+                    .with_action_order_index(action_order_index)
+                    .with_used_ex_skill(used_ex_skill)
+                    .with_buff_mgr(&ctx.managers.buff_mgr),
             ),
         )?;
         raw_skill_effects.append(&mut main_skill_effects);
@@ -247,25 +264,17 @@ impl FightCardMgr {
         // inside the card skill step's actEffect.
         let collected = collect(ctx.fight, 0);
         let passive_phase = PhaseFilter::combat_with(
-            TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(resolved_skill_id)
+                .with_action_order_index(action_order_index)
+                .with_used_ex_skill(used_ex_skill)
+                .with_buff_mgr(&ctx.managers.buff_mgr),
         );
         let use_card_event = TriggerEvent {
             caster_uid: exec_caster_uid,
             skill_id: resolved_skill_id,
+            action_order_index,
             primary_target_uid: target_uid,
-            used_ex_skill: ctx
-                .fight
-                .attacker
-                .as_ref()
-                .and_then(|a| {
-                    a.entitys
-                        .iter()
-                        .chain(a.sub_entitys.iter())
-                        .find(|e| e.uid == Some(exec_caster_uid))
-                })
-                .and_then(|e| e.ex_skill)
-                .map(|ex| ex == resolved_skill_id)
-                .unwrap_or(false),
+            used_ex_skill,
             from_wrapper_card: display_caster_uid == 0,
             nested_skill_uses: vec![],
             damaged_uids: vec![],
@@ -677,7 +686,8 @@ impl FightCardMgr {
                 caster_uid,
                 prep_id,
                 &PhaseFilter::combat_with(
-                    TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+                    TriggerState::on_active_use_skill(prep_id)
+                        .with_buff_mgr(&ctx.managers.buff_mgr),
                 ),
             )?;
             out.append(&mut pre);
@@ -740,7 +750,9 @@ impl FightCardMgr {
             target_uid,
             ex_skill_id,
             &PhaseFilter::combat_with(
-                TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+                TriggerState::on_active_use_skill(ex_skill_id)
+                    .with_used_ex_skill(true)
+                    .with_buff_mgr(&ctx.managers.buff_mgr),
             ),
         )?;
         out.append(&mut ex);
@@ -834,7 +846,8 @@ impl FightCardMgr {
                     caster_uid,
                     prep_id,
                     &PhaseFilter::combat_with(
-                        TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+                        TriggerState::on_active_use_skill(prep_id)
+                            .with_buff_mgr(&ctx.managers.buff_mgr),
                     ),
                 )?;
                 out.append(&mut pre);
@@ -862,7 +875,8 @@ impl FightCardMgr {
                     caster_uid,
                     prep_id,
                     &PhaseFilter::combat_with(
-                        TriggerState::on_use_card().with_buff_mgr(&ctx.managers.buff_mgr),
+                        TriggerState::on_active_use_skill(prep_id)
+                            .with_buff_mgr(&ctx.managers.buff_mgr),
                     ),
                 )?;
                 out.append(&mut pre);

@@ -12,6 +12,16 @@ impl Condition for Combat {
         match cond_type {
             "UseExSkill" => Some(ConditionType::UseExSkill),
             "UseSkillId" => Some(ConditionType::UseSkillId),
+            "ActOrder" => Some(ConditionType::ActOrder {
+                order_index: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            }),
+            "UseSkillEffectTag" => Some(ConditionType::UseSkillEffectTag {
+                effect_tag: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            }),
+            "UseSpecificSkill" => Some(ConditionType::UseSpecificSkill {
+                skill_id: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            }),
+            "UseHurtSkill" => Some(ConditionType::UseHurtSkill),
             "TriggerBullet" => Some(ConditionType::TriggerBullet),
             "TeammateInjuryCountNotReset" => Some(ConditionType::TeammateInjuryCountNotReset {
                 threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1),
