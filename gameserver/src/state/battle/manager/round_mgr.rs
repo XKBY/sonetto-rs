@@ -19,12 +19,7 @@ use super::super::{
         split_step_by_effect_limit, wrap_step,
     },
     manager::{
-        buff_mgr::{
-            BuffMgr, DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint,
-            defender_buff_uid_checkpoint, next_buff_uid_for_target, reset_buff_uid_to,
-            sync_buff_uid_counters_from_mgr,
-            sync_from_fight_preserve_runtime as sync_buffs_from_fight,
-        },
+        buff_mgr::{BuffMgr, next_buff_uid_for_target, reset_buff_uid_to},
         card_mgr::FightCardMgr,
         ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
@@ -35,14 +30,15 @@ use super::super::{
         nautika_psychube_bundle,
     },
     passives::{
-        collector::{CollectedPassives, collect},
+        collector::CollectedPassives,
         steps::skill::execute_skill as execute_passive_skill,
     },
     round::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
         step_shape::{build_effect_step, split_updates_and_wrap_rest},
-        steps::{refresh::build_refresh_step, transitions::build_pre_enemy_transition_steps},
+        steps::transitions::build_pre_enemy_transition_steps,
     },
+    phase,
     round_end_emission,
     skill::{
         PhaseFilter, SkillExecutor,
@@ -66,16 +62,6 @@ enum BattleEndState {
     WaveCleared, // all enemies dead, more waves remain
     Victory,     // all waves cleared
     Defeat,      // all heroes dead
-}
-
-struct RoundOpenPhaseData {
-    state: RoundState,
-    steps: Vec<FightStep>,
-    collected: CollectedPassives,
-    selected_for_round_end: Vec<CardInfo>,
-    selected_non_temp: Vec<CardInfo>,
-    deck_num: i32,
-    defender_uid_checkpoint: i64,
 }
 
 static ENTRY_MAX_HP: Lazy<Mutex<HashMap<(i32, i64), i32>>> =
@@ -210,7 +196,7 @@ pub(crate) fn lookup_entry_max_hp(fight: &Fight, uid: i64) -> i32 {
         .unwrap_or(0)
 }
 
-fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> {
+pub(crate) fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> {
     let cloth_id = fight
         .attacker
         .as_ref()
@@ -222,7 +208,7 @@ fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> 
         .cloned()
 }
 
-fn parse_cloth_recover_delta(recover: &str, round_index: i32) -> i32 {
+pub(crate) fn parse_cloth_recover_delta(recover: &str, round_index: i32) -> i32 {
     recover
         .split('|')
         .filter_map(|entry| {
@@ -239,7 +225,10 @@ fn parse_cloth_recover_delta(recover: &str, round_index: i32) -> i32 {
         .sum()
 }
 
-fn seed_attacker_power_from_cloth(fight: &mut Fight, cloth: &config::cloth_level::ClothLevel) {
+pub(crate) fn seed_attacker_power_from_cloth(
+    fight: &mut Fight,
+    cloth: &config::cloth_level::ClothLevel,
+) {
     if let Some(attacker) = fight.attacker.as_mut()
         && attacker.power.is_none()
     {
@@ -247,7 +236,11 @@ fn seed_attacker_power_from_cloth(fight: &mut Fight, cloth: &config::cloth_level
     }
 }
 
-fn apply_cloth_power_delta(fight: &mut Fight, cloth: &config::cloth_level::ClothLevel, delta: i32) {
+pub(crate) fn apply_cloth_power_delta(
+    fight: &mut Fight,
+    cloth: &config::cloth_level::ClothLevel,
+    delta: i32,
+) {
     let Some(attacker) = fight.attacker.as_mut() else {
         return;
     };
@@ -568,7 +561,7 @@ impl FightRoundMgr {
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
     ) -> Result<FightRound> {
-        let mut open = self.phase_round_open(
+        let mut open = phase::round_open::run(
             round_ctx,
             &current_deck,
             &ai_deck,
@@ -608,172 +601,11 @@ impl FightRoundMgr {
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
 
-    fn phase_round_open(
-        &self,
-        round_ctx: &mut RoundContext<'_, '_>,
-        current_deck: &[CardInfo],
-        ai_deck: &[CardInfo],
-        ai_override_steps: Option<&[FightStep]>,
-        operations: &[BeginRoundOper],
-    ) -> RoundOpenPhaseData {
-        round_ctx.sync();
-        tracing::warn!("process_round round_index={}", round_ctx.round_index);
-        let ctx = &mut *round_ctx.fight_ctx;
-        let battle_id = ctx.fight.battle_id.unwrap_or(0);
-        injury_counter::sync_round_injury_index(battle_id, 1, round_ctx.round_index);
-        injury_counter::sync_round_injury_index(battle_id, 2, round_ctx.round_index);
-        seed_entry_max_hp_from_fight(ctx.fight);
-        sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
-        sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
-        sync_buff_uid_counters_from_mgr(&ctx.managers.buff_mgr);
-        if let Some(cloth) = active_cloth_level(ctx.fight) {
-            seed_attacker_power_from_cloth(ctx.fight, &cloth);
-            let recover_delta = parse_cloth_recover_delta(&cloth.recover, round_ctx.round_index);
-            if recover_delta != 0 {
-                apply_cloth_power_delta(ctx.fight, &cloth, recover_delta);
-            }
-        }
-
-        if let Some(a) = &ctx.fight.attacker {
-            for e in &a.entitys {
-                tracing::warn!(
-                    "process_round ctx.fight uid={} hp={}",
-                    e.uid.unwrap_or(0),
-                    e.current_hp.unwrap_or(0)
-                );
-            }
-        }
-
-        let mut state = RoundState::new(ctx.fight);
-        let attacker_uid_checkpoint = attacker_buff_uid_checkpoint();
-        let mut defender_uid_checkpoint = defender_buff_uid_checkpoint();
-        if defender_uid_checkpoint < DEFENDER_BUFF_UID_START {
-            defender_uid_checkpoint = DEFENDER_BUFF_UID_START;
-        }
-        reset_buff_uid_to(attacker_uid_checkpoint.max(0));
-
-        state.player_deck = current_deck
-            .iter()
-            .filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false))
-            .cloned()
-            .collect();
-        state.ai_cards = ai_deck.to_vec();
-        state.ai_override_steps = ai_override_steps.map(|steps| steps.to_vec());
-
-        tracing::warn!("=== ROUND START ===");
-        tracing::warn!("current_deck ({} cards):", current_deck.len());
-        for (i, c) in current_deck.iter().enumerate() {
-            tracing::warn!(
-                "  [{}] uid={:?} hero={:?} skill={:?}",
-                i,
-                c.uid,
-                c.hero_id,
-                c.skill_id
-            );
-        }
-        tracing::warn!(
-            "player_deck after filter ({} cards):",
-            state.player_deck.len()
-        );
-        for (i, c) in state.player_deck.iter().enumerate() {
-            tracing::warn!(
-                "  [{}] uid={:?} hero={:?} skill={:?}",
-                i,
-                c.uid,
-                c.hero_id,
-                c.skill_id
-            );
-        }
-        tracing::warn!("operations ({}):", operations.len());
-        for (i, o) in operations.iter().enumerate() {
-            tracing::warn!(
-                "  [{}] type={:?} param1={:?} to_id={:?}",
-                i,
-                o.oper_type,
-                o.param1,
-                o.to_id
-            );
-        }
-
-        let mut sim_deck = state.player_deck.clone();
-        let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
-
-        tracing::warn!("=== CARD SELECTION ===");
-        for op in operations {
-            let op_type = op.oper_type.unwrap_or(0);
-            let to_id = op.to_id.unwrap_or(0);
-            let is_play = op_type == 2 || (op_type == 1 && to_id != 0);
-            if is_play {
-                let idx = (op.param1.unwrap_or(1) - 1) as usize;
-                tracing::warn!("  pick idx={} from deck of {} cards:", idx, sim_deck.len());
-                for (i, c) in sim_deck.iter().enumerate() {
-                    tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-                }
-                if idx < sim_deck.len() {
-                    let card = sim_deck.remove(idx);
-                    tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
-                    selected_pairs.push((selected_pairs.len(), card));
-                } else {
-                    tracing::warn!(
-                        "  -> idx {} OUT OF RANGE (deck size {})",
-                        idx,
-                        sim_deck.len()
-                    );
-                }
-            }
-        }
-
-        let selected_cards: Vec<sonettobuf::CardInfo> =
-            selected_pairs.into_iter().map(|(_, c)| c).collect();
-        let selected_temp: Vec<sonettobuf::CardInfo> = selected_cards
-            .iter()
-            .filter(|c| c.temp_card.unwrap_or(false))
-            .cloned()
-            .collect();
-        let selected_non_temp: Vec<sonettobuf::CardInfo> = selected_cards
-            .iter()
-            .filter(|c| !c.temp_card.unwrap_or(false))
-            .cloned()
-            .collect();
-        let mut selected_for_round_end = selected_non_temp.clone();
-        selected_for_round_end.extend(selected_temp);
-        let remaining_hand = sim_deck;
-
-        tracing::warn!("=== RESULT ===");
-        tracing::warn!("selected ({}):", selected_cards.len());
-        for (i, c) in selected_cards.iter().enumerate() {
-            tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-        }
-        tracing::warn!("remaining ({}):", remaining_hand.len());
-        for (i, c) in remaining_hand.iter().enumerate() {
-            tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-        }
-
-        let attacker_count = ctx
-            .fight
-            .attacker
-            .as_ref()
-            .map(|a| a.entitys.len())
-            .unwrap_or(0);
-        let deck_num = (attacker_count as i32) * 16;
-        let steps = vec![build_refresh_step(selected_cards, remaining_hand, deck_num)];
-        let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
-
-        RoundOpenPhaseData {
-            state,
-            steps,
-            collected,
-            selected_for_round_end,
-            selected_non_temp,
-            deck_num,
-            defender_uid_checkpoint,
-        }
-    }
 
     fn build_round_output(
         &self,
         round_ctx: &mut RoundContext<'_, '_>,
-        mut open: RoundOpenPhaseData,
+        mut open: phase::round_open::RoundOpenPhaseData,
         current_deck: Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
     ) -> Result<FightRound> {
