@@ -29,7 +29,9 @@ use crate::state::battle::{
         traits::Manager,
     },
     mechanics::bloodtithe,
-    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
+    passives::{
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
+    },
     round::step_shape::build_effect_step,
     skill::PhaseFilter,
     steps::broadcast,
@@ -130,7 +132,10 @@ pub(crate) fn collect_terminal_round_end_broadcast(
         return broadcast;
     }
 
-    if !mgr.collect_battle_rule_skills(ctx.fight).contains(&530000151) {
+    if !mgr
+        .collect_battle_rule_skills(ctx.fight)
+        .contains(&530000151)
+    {
         return broadcast;
     }
 
@@ -173,8 +178,7 @@ pub(crate) fn build_terminal_attacker_round_end_passive_step(
 
     for uid in collected.attacker_uids() {
         for skill_id in collected.merged_for(uid) {
-            if battle_rule_skills.contains(&skill_id)
-                || !skill_has_no_act_round_condition(skill_id)
+            if battle_rule_skills.contains(&skill_id) || !skill_has_no_act_round_condition(skill_id)
             {
                 continue;
             }

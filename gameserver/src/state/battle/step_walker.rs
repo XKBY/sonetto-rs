@@ -13,10 +13,7 @@
 
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
-use crate::state::battle::{
-    steps::trigger_embed,
-    types::effects::EffectType,
-};
+use crate::state::battle::{steps::trigger_embed, types::effects::EffectType};
 
 /// True when `step.act_effect` carries any direct effect with the
 /// matching `effect_type`. Does NOT recurse into nested fight_steps.
@@ -127,8 +124,7 @@ pub fn wrapped_skill_from_effect(effect: &ActEffect) -> Option<&FightStep> {
         return Some(wrapped);
     }
 
-    if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-        || wrapped.act_effect.len() != 1
+    if wrapped.act_type != Some(fight_step::ActType::Effect as i32) || wrapped.act_effect.len() != 1
     {
         return None;
     }
@@ -153,8 +149,7 @@ pub fn wrapped_skill_from_effect_mut(effect: &mut ActEffect) -> Option<&mut Figh
         return Some(wrapped);
     }
 
-    if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-        || wrapped.act_effect.len() != 1
+    if wrapped.act_type != Some(fight_step::ActType::Effect as i32) || wrapped.act_effect.len() != 1
     {
         return None;
     }
@@ -183,8 +178,7 @@ pub fn normalize_wrapped_skill_effect(effect: &ActEffect) -> Option<ActEffect> {
         return Some(effect.clone());
     }
 
-    if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-        || wrapped.act_effect.len() != 1
+    if wrapped.act_type != Some(fight_step::ActType::Effect as i32) || wrapped.act_effect.len() != 1
     {
         return None;
     }
@@ -202,9 +196,7 @@ pub fn normalize_wrapped_skill_effect(effect: &ActEffect) -> Option<ActEffect> {
 /// with all-zero ids. Returns the nested effect Vec inside that
 /// step's first 162-wrapped Effect-typed child, or `None` when no
 /// suitable bootstrap step is present.
-pub fn find_bootstrap_nested_effects_mut(
-    steps: &mut [FightStep],
-) -> Option<&mut Vec<ActEffect>> {
+pub fn find_bootstrap_nested_effects_mut(steps: &mut [FightStep]) -> Option<&mut Vec<ActEffect>> {
     let preferred_step_idx = steps.iter().rposition(|step| {
         step.act_effect.iter().any(|effect| {
             wrapped_skill_from_effect(effect).map(|s| s.act_id) == Some(Some(530000151))

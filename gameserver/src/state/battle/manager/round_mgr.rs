@@ -24,8 +24,7 @@ use super::super::{
     },
     mechanics::{injury_counter, nautika_psychube_bundle},
     passives::{
-        collector::CollectedPassives,
-        steps::skill::execute_skill as execute_passive_skill,
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
     phase,
     round::{
@@ -444,7 +443,6 @@ impl FightRoundMgr {
         host_step.act_effect.splice(insert_at..insert_at, wrappers);
     }
 
-
     #[allow(clippy::too_many_arguments)]
     pub async fn process_round(
         &self,
@@ -497,7 +495,6 @@ impl FightRoundMgr {
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
-
 
     fn build_round_output(
         &self,
@@ -1164,7 +1161,10 @@ impl FightRoundMgr {
             .unwrap_or(false)
     }
 
-    pub(crate) fn collect_battle_rule_skills(&self, fight: &Fight) -> std::collections::HashSet<i32> {
+    pub(crate) fn collect_battle_rule_skills(
+        &self,
+        fight: &Fight,
+    ) -> std::collections::HashSet<i32> {
         let mut out = std::collections::HashSet::new();
         let episode_id = fight.episode_id.unwrap_or(0);
         let cfg = config::configs::get();
@@ -1231,4 +1231,3 @@ impl FightRoundMgr {
             && skill.behavior1.trim().starts_with("1#")
     }
 }
-

@@ -191,7 +191,8 @@ pub(crate) async fn run(
                         }
                     }
                     if !fallback_nested.is_empty() {
-                        let insert_at = trigger_embed::find_trigger_insert_index(&nested.act_effect);
+                        let insert_at =
+                            trigger_embed::find_trigger_insert_index(&nested.act_effect);
                         nested
                             .act_effect
                             .splice(insert_at..insert_at, fallback_nested);

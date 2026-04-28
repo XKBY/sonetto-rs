@@ -30,8 +30,7 @@ use crate::state::battle::{
     phase,
     round::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
-        step_shape::build_effect_step,
-        steps::transitions::build_pre_enemy_transition_steps,
+        step_shape::build_effect_step, steps::transitions::build_pre_enemy_transition_steps,
     },
     round_end_emission,
     skill::SkillExecutor,
@@ -115,16 +114,17 @@ pub(crate) async fn run(
             collected,
             boss_subtree,
             &reactive_target_skills,
-            &|ctx, collected, root, deleted| mgr.expand_trigger_chain(ctx, collected, root, deleted),
+            &|ctx, collected, root, deleted| {
+                mgr.expand_trigger_chain(ctx, collected, root, deleted)
+            },
             &|before, after| mgr.deleted_buff_ids_from_delta(before, after),
         );
     }
 
     reset_buff_uid_to(defender_uid_checkpoint);
     phase::enemy_actions::run(mgr, rng, ctx, card_mgr, state, collected, steps).await?;
-    let injected_channel_buffs = channel_mechanics::inject_channel_followup_buffs_if_missing(
-        mgr, ctx, collected, steps,
-    );
+    let injected_channel_buffs =
+        channel_mechanics::inject_channel_followup_buffs_if_missing(mgr, ctx, collected, steps);
 
     // Live parity: run a passive combat sweep for defender side after AI actions.
     // This emits nested trigger/follow-up 162 steps before round-end transitions.
