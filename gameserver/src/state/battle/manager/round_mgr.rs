@@ -43,6 +43,7 @@ use super::super::{
         step_shape::{build_effect_step, split_updates_and_wrap_rest},
         steps::{refresh::build_refresh_step, transitions::build_pre_enemy_transition_steps},
     },
+    round_end_emission,
     skill::{
         PhaseFilter, SkillExecutor,
         cache::resolve_skill_effect_id,
@@ -119,7 +120,7 @@ fn skill_carries_hero_round_interval(skill_id: i32, cur_round: i32) -> bool {
     })
 }
 
-fn skill_has_no_act_round_condition(skill_id: i32) -> bool {
+pub(crate) fn skill_has_no_act_round_condition(skill_id: i32) -> bool {
     let effect_id = resolve_skill_effect_id(skill_id);
     let Some(skill_cfg) = config::configs::get().skill_effect.get(effect_id) else {
         return false;
@@ -1351,7 +1352,13 @@ impl FightRoundMgr {
         steps: &mut Vec<FightStep>,
     ) -> Result<()> {
         if state.is_finish {
-            self.emit_terminal_round_steps(ctx, selected_for_round_end, collected, steps)?;
+            round_end_emission::emit_terminal_round_steps(
+                self,
+                ctx,
+                selected_for_round_end,
+                collected,
+                steps,
+            )?;
             return Ok(());
         }
 
@@ -1658,7 +1665,11 @@ impl FightRoundMgr {
         // per expiring buff across the side).
         {
             let mut broadcast =
-                self.collect_attacker_round_end_broadcast(ctx, injected_channel_buffs, false);
+                round_end_emission::collect_attacker_round_end_broadcast(
+                    ctx,
+                    injected_channel_buffs,
+                    false,
+                );
             if injected_channel_buffs && broadcast.len() > 6 {
                 broadcast.truncate(6);
             }
@@ -1806,143 +1817,6 @@ impl FightRoundMgr {
         }
 
         Some(build_effect_step(wrappers))
-    }
-
-    fn emit_terminal_round_steps(
-        &self,
-        ctx: &mut FightContext<'_>,
-        selected_for_round_end: Vec<CardInfo>,
-        collected: &CollectedPassives,
-        steps: &mut Vec<FightStep>,
-    ) -> Result<()> {
-        for step in bloodtithe::build_round_transition_bloodtithe_steps(self, ctx, collected) {
-            self.apply_step_and_maybe_sync(ctx, &step, true)?;
-            steps.push(step);
-        }
-
-        steps.push(
-            FightStepBuilder::effect()
-                .with(ActEffect {
-                    effect_type: Some(276),
-                    effect_num: Some(1),
-                    card_info_list: selected_for_round_end,
-                    ..Default::default()
-                })
-                .build(),
-        );
-        if let Some(raw_step) = self.build_terminal_attacker_round_end_passive_step(ctx, collected)
-        {
-            self.apply_step_and_maybe_sync(ctx, &raw_step, true)?;
-            steps.push(build_effect_step(vec![wrap_step(raw_step)]));
-        }
-
-        let broadcast = self.collect_terminal_round_end_broadcast(ctx, collected);
-        if !broadcast.is_empty() {
-            steps.push(build_effect_step(broadcast));
-        }
-
-        Ok(())
-    }
-
-    fn collect_attacker_round_end_broadcast(
-        &self,
-        ctx: &mut FightContext<'_>,
-        injected_channel_buffs: bool,
-        preview_round_end_tick: bool,
-    ) -> Vec<ActEffect> {
-        // Preview one duration tick for attacker-side round-end broadcast only.
-        // TODO(event-queue): same snapshot/restore preview pattern as the
-        // defender-side block at the call site for the round-end
-        // broadcast. Migrate to PreviewRoundEndTick event in Phase 5.
-        let mut broadcast = if preview_round_end_tick || ctx.fight.cur_round.unwrap_or(1) == 1 {
-            let buff_snapshot = ctx.managers.buff_mgr.clone();
-            ctx.managers.buff_mgr.on_round_end();
-            let out = broadcast::collect_buff_tick_broadcast(ctx, true);
-            ctx.managers.buff_mgr = buff_snapshot;
-            out
-        } else {
-            broadcast::collect_buff_tick_broadcast(ctx, true)
-        };
-        broadcast = broadcast::filter_round_end_broadcast_by_source_side(broadcast, true);
-        if injected_channel_buffs {
-            broadcast::adjust_attacker_round1_broadcast_uids(&mut broadcast);
-        }
-        broadcast
-    }
-
-    fn collect_terminal_round_end_broadcast(
-        &self,
-        ctx: &mut FightContext<'_>,
-        _collected: &CollectedPassives,
-    ) -> Vec<ActEffect> {
-        let broadcast = self.collect_attacker_round_end_broadcast(ctx, false, true);
-        if broadcast.iter().any(|effect| {
-            effect
-                .buff
-                .as_ref()
-                .and_then(|buff| buff.buff_id)
-                .unwrap_or(0)
-                == 530000112
-        }) {
-            return broadcast;
-        }
-
-        if !self
-            .collect_battle_rule_skills(ctx.fight)
-            .contains(&530000151)
-        {
-            return broadcast;
-        }
-
-        let mut synthesized = Vec::new();
-        if let Some(attacker) = ctx.fight.attacker.as_ref() {
-            for entity in attacker.entitys.iter().chain(attacker.sub_entitys.iter()) {
-                if entity.position.unwrap_or(-1) <= 0 || entity.current_hp.unwrap_or(0) <= 0 {
-                    continue;
-                }
-                let Some(uid) = entity.uid else { continue };
-                let buff_uid = next_buff_uid_for_target(uid);
-                let mut effect =
-                    crate::state::battle::utils::buff_update(uid, -1, 530000112, buff_uid, 0, 0);
-                if let Some(buff) = effect.buff.as_mut() {
-                    buff.duration = Some(1);
-                    buff.count = Some(0);
-                }
-                synthesized.push(effect);
-            }
-        }
-
-        if synthesized.is_empty() {
-            broadcast
-        } else {
-            synthesized
-        }
-    }
-
-    fn build_terminal_attacker_round_end_passive_step(
-        &self,
-        ctx: &mut FightContext<'_>,
-        collected: &CollectedPassives,
-    ) -> Option<FightStep> {
-        let passive_phase = PhaseFilter::combat();
-        let battle_rule_skills = self.collect_battle_rule_skills(ctx.fight);
-
-        for uid in collected.attacker_uids() {
-            for skill_id in collected.merged_for(uid) {
-                if battle_rule_skills.contains(&skill_id)
-                    || !skill_has_no_act_round_condition(skill_id)
-                {
-                    continue;
-                }
-                if let Ok(effects) = execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
-                    && !effects.is_empty()
-                {
-                    return Some(build_effect_step(effects));
-                }
-            }
-        }
-
-        None
     }
 
     fn check_battle_state(&self, fight: &Fight, cur_wave: i32, max_wave: i32) -> BattleEndState {
@@ -2422,7 +2296,7 @@ impl FightRoundMgr {
             .unwrap_or(false)
     }
 
-    fn collect_battle_rule_skills(&self, fight: &Fight) -> std::collections::HashSet<i32> {
+    pub(crate) fn collect_battle_rule_skills(&self, fight: &Fight) -> std::collections::HashSet<i32> {
         let mut out = std::collections::HashSet::new();
         let episode_id = fight.episode_id.unwrap_or(0);
         let cfg = config::configs::get();

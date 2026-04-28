@@ -11,6 +11,7 @@ pub mod manager;
 pub mod mechanics;
 pub mod rewards;
 pub mod round;
+pub mod round_end_emission;
 pub mod round_state;
 pub mod simulator;
 pub mod step_walker;
