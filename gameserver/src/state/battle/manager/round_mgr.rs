@@ -13,18 +13,20 @@ use super::super::{
     buff_actions::round_end as round_end_handler,
     card::CardOpType,
     context::{FightContext, RoundContext},
+    event_queue::{EventContext, EventQueue, drain_to_fight_steps, fight_step_to_event},
     fight_step::{
         ActEffectBuilder, FightStepBuilder, effect_container_step, make_skill_step,
         split_step_by_effect_limit, wrap_step,
     },
     manager::{
         buff_mgr::{
-            DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint, defender_buff_uid_checkpoint,
-            next_buff_uid_for_target, reset_buff_uid_to, sync_buff_uid_counters_from_mgr,
+            BuffMgr, DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint,
+            defender_buff_uid_checkpoint, next_buff_uid_for_target, reset_buff_uid_to,
+            sync_buff_uid_counters_from_mgr,
             sync_from_fight_preserve_runtime as sync_buffs_from_fight,
         },
         card_mgr::FightCardMgr,
-        ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
+        ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_from_fight, sync_to_fight},
         traits::Manager,
         wave_spawn,
     },
@@ -2636,7 +2638,6 @@ impl FightRoundMgr {
         root_step: &FightStep,
         runtime_deleted_buff_ids: &[i32],
     ) -> Vec<FightStep> {
-        let mut out = vec![root_step.clone()];
         let mut event = event_from_step(
             ctx.fight,
             root_step.from_id.unwrap_or(0),
@@ -2650,11 +2651,12 @@ impl FightRoundMgr {
             }
         }
         let trigger_steps = fire_combat_triggers(ctx, collected, &event);
-        for ts in trigger_steps {
+        let mut sync_steps_per_trigger = Vec::with_capacity(trigger_steps.len());
+        for ts in &trigger_steps {
             ctx.managers
                 .calculate_mgr
                 .play_step_data(
-                    &ts,
+                    ts,
                     ctx.fight,
                     &mut ctx.mechanics.bloodtithe,
                     &mut ctx.managers.buff_mgr,
@@ -2669,7 +2671,7 @@ impl FightRoundMgr {
                 ts.act_id.unwrap_or(0),
                 &ts.act_effect,
             );
-            out.push(ts);
+            let mut sync_steps_for_this = Vec::new();
             if root_step.act_type == Some(fight_step::ActType::Effect.into()) {
                 for &(team_type, gain) in &ts_event.bloodpool_gain_packets_by_team {
                     if let Some(sync_step) = build_belief_gain_step(ctx.fight, team_type, gain) {
@@ -2684,7 +2686,7 @@ impl FightRoundMgr {
                             )
                             .map_err(anyhow::Error::msg)
                             .ok();
-                        out.push(sync_step);
+                        sync_steps_for_this.push(sync_step);
                     }
                 }
             }
@@ -2711,7 +2713,32 @@ impl FightRoundMgr {
                     )
                     .map_err(anyhow::Error::msg)
                     .ok();
-                out.push(sync_step);
+                sync_steps_for_this.push(sync_step);
+            }
+            sync_steps_per_trigger.push(sync_steps_for_this);
+        }
+
+        let mut queue = EventQueue::new();
+        for (ts, sync_steps) in trigger_steps.into_iter().zip(sync_steps_per_trigger) {
+            queue.push(fight_step_to_event(ts));
+            for sync_step in sync_steps {
+                queue.push(fight_step_to_event(sync_step));
+            }
+        }
+
+        let mut buff_mgr = BuffMgr::new();
+        let mut ex_point_mgr = ExPointMgr::new();
+        let mut event_ctx = EventContext {
+            fight: ctx.fight,
+            buff_mgr: &mut buff_mgr,
+            ex_point_mgr: &mut ex_point_mgr,
+        };
+        let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);
+
+        let mut out = vec![root_step.clone()];
+        for effect in drained {
+            if let Some(step) = effect.fight_step {
+                out.push(step);
             }
         }
         out

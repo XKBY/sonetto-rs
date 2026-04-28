@@ -1,9 +1,12 @@
 #![allow(dead_code)]
 
-use sonettobuf::{ActEffect, Fight, FightHurtInfo as HurtInfo, effect_type_enum::EffectType};
+use sonettobuf::{
+    ActEffect, Fight, FightHurtInfo as HurtInfo, FightStep, effect_type_enum::EffectType,
+    fight_step,
+};
 
 use crate::state::battle::{
-    fight_step::ActEffectBuilder,
+    fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
 };
 
@@ -56,6 +59,11 @@ pub enum BattleEvent {
     BloodpoolMaxChange {
         team_type: i32,
         max: i32,
+    },
+    /// Bridge for migrations that already execute and sync state through
+    /// legacy ActEffect builders but need queue-controlled shaping.
+    SerializedActEffect {
+        effect: ActEffect,
     },
     SkillEmit {
         skill_id: i32,
@@ -152,11 +160,50 @@ pub fn drain_to_fight_steps(
             BattleEvent::BloodpoolMaxChange { team_type, max } => {
                 out.push(ActEffectBuilder::bloodpool_max_change(team_type, max));
             }
+            BattleEvent::SerializedActEffect { effect } => out.push(effect),
+            BattleEvent::SkillEmit {
+                skill_id,
+                from,
+                to,
+                children,
+                kind: SkillEmitKind::EventTriggered,
+            } => {
+                let child_effects = drain_to_fight_steps(children, _ctx);
+                out.push(wrap_step(make_skill_step(from, to, skill_id, 0, child_effects)));
+            }
             _ => {}
         }
     }
 
     out
+}
+
+pub fn skill_step_to_event_triggered(step: FightStep) -> BattleEvent {
+    let from = step.from_id.unwrap_or(0);
+    let to = step.to_id.unwrap_or(0);
+    let skill_id = step.act_id.unwrap_or(0);
+    let children = step
+        .act_effect
+        .into_iter()
+        .map(|effect| BattleEvent::SerializedActEffect { effect })
+        .collect();
+    BattleEvent::SkillEmit {
+        skill_id,
+        from,
+        to,
+        children,
+        kind: SkillEmitKind::EventTriggered,
+    }
+}
+
+pub fn fight_step_to_event(step: FightStep) -> BattleEvent {
+    if step.act_type == Some(fight_step::ActType::Skill as i32) {
+        skill_step_to_event_triggered(step)
+    } else {
+        BattleEvent::SerializedActEffect {
+            effect: wrap_step(step),
+        }
+    }
 }
 
 pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
@@ -176,4 +223,91 @@ pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
         .into_iter()
         .next()
         .expect("leaf event should serialize to a single ActEffect")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
+        fight_step_to_event,
+    };
+    use crate::state::battle::{
+        fight_step::{make_skill_step, wrap_step},
+        manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    };
+    use sonettobuf::{ActEffect, Fight};
+
+    fn test_ctx() -> EventContext<'static> {
+        let fight = Box::leak(Box::new(Fight::default()));
+        let buff_mgr = Box::leak(Box::new(BuffMgr::new()));
+        let ex_point_mgr = Box::leak(Box::new(ExPointMgr::new()));
+        EventContext {
+            fight,
+            buff_mgr,
+            ex_point_mgr,
+        }
+    }
+
+    fn synthetic_effect(effect_type: i32, effect_num: i32) -> ActEffect {
+        ActEffect {
+            effect_type: Some(effect_type),
+            effect_num: Some(effect_num),
+            target_id: Some(42),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn serialized_act_effect_passes_through_drain() {
+        let effect = synthetic_effect(999, 7);
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::SerializedActEffect {
+                effect: effect.clone(),
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(out, vec![effect]);
+    }
+
+    #[test]
+    fn event_triggered_skill_emit_serializes_with_children() {
+        let child = synthetic_effect(321, 11);
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id: 30630122,
+            from: 1001,
+            to: 2002,
+            children: vec![BattleEvent::SerializedActEffect {
+                effect: child.clone(),
+            }],
+            kind: SkillEmitKind::EventTriggered,
+        });
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(queue.drain(), &mut ctx);
+
+        assert_eq!(
+            out,
+            vec![wrap_step(make_skill_step(1001, 2002, 30630122, 0, vec![child]))]
+        );
+    }
+
+    #[test]
+    fn fight_step_to_event_round_trip_preserves_skill_step() {
+        let original = make_skill_step(
+            3003,
+            4004,
+            5005,
+            0,
+            vec![synthetic_effect(11, 1), synthetic_effect(12, 2)],
+        );
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(vec![fight_step_to_event(original.clone())], &mut ctx);
+
+        assert_eq!(out, vec![wrap_step(original)]);
+    }
 }
