@@ -8,4 +8,5 @@
 //! to call back into FightRoundMgr's helper methods (which are also
 //! state-free).
 
+pub(crate) mod enemy_actions;
 pub(crate) mod round_open;
