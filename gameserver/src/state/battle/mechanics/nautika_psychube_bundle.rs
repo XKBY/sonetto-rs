@@ -26,7 +26,8 @@ use std::collections::HashMap;
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
-    fight_step::ActEffectBuilder, types::effects::EffectType, utils::find_uid_by_hero_id,
+    fight_step::ActEffectBuilder, step_walker, types::effects::EffectType,
+    utils::find_uid_by_hero_id,
 };
 
 /// Nautika carrier-host wrapper act_id. The post-turn bundle is
@@ -55,29 +56,11 @@ pub const TAIL_MARKER_EFFECT_TYPE: i32 = 26;
 pub const SEMMELWEIS_HERO_ID: i32 = 3088;
 pub const NAUTIKA_HERO_ID: i32 = 3120;
 
-/// Adapter the host (round_mgr) implements so the cleanup module can
-/// reuse the host's wrapped-skill walking helpers without taking a
-/// dependency on FightRoundMgr itself. Keeps the cleanup module
-/// dependency-injectable for testing.
-pub trait WrappedSkillView {
-    fn step_contains_act_id(&self, step: &FightStep, act_id: i32) -> bool;
-    fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep>;
-    fn wrapped_skill_from_effect_mut<'a>(
-        &self,
-        effect: &'a mut ActEffect,
-    ) -> Option<&'a mut FightStep>;
-    fn normalize_wrapped_skill_effect(&self, effect: &ActEffect) -> Option<ActEffect>;
-}
-
 /// Walk post-round-end FightSteps, fold Semmelweis's `530000151`
 /// rebroadcast into the Nautika bundle host, and strip the orphan
 /// ally rebroadcasts plus enemy-side `530000412` deletions whose
 /// content is now redundant.
-pub fn consolidate_into_bundle(
-    helpers: &impl WrappedSkillView,
-    fight: &Fight,
-    steps: &mut Vec<FightStep>,
-) {
+pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
     #[derive(Clone, Copy)]
     struct WrapperLocation {
         step_idx: usize,
@@ -94,7 +77,7 @@ pub fn consolidate_into_bundle(
 
     if !steps
         .iter()
-        .any(|step| helpers.step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
     {
         return;
     }
@@ -110,7 +93,7 @@ pub fn consolidate_into_bundle(
 
     let Some(nautika_bundle_idx) = steps
         .iter()
-        .position(|step| is_bundle_step(helpers, step, nautika_uid))
+        .position(|step| is_bundle_step(step, nautika_uid))
     else {
         return;
     };
@@ -127,7 +110,7 @@ pub fn consolidate_into_bundle(
         }
 
         for (effect_idx, effect) in step.act_effect.iter().enumerate() {
-            let Some(skill) = helpers.wrapped_skill_from_effect(effect) else {
+            let Some(skill) = step_walker::wrapped_skill_from_effect(effect) else {
                 continue;
             };
 
@@ -153,8 +136,7 @@ pub fn consolidate_into_bundle(
         .get(nautika_bundle_idx)
         .map(|step| {
             step.act_effect.iter().any(|effect| {
-                helpers
-                    .wrapped_skill_from_effect(effect)
+                step_walker::wrapped_skill_from_effect(effect)
                     .map(|skill| {
                         skill.act_id == Some(BOSS_CYCLE_ACT_ID)
                             && skill.from_id == Some(semmelweis_uid)
@@ -174,9 +156,9 @@ pub fn consolidate_into_bundle(
         && let Some(wrapper_loc) = semm_wrapper
         && let Some(source_step) = steps.get(wrapper_loc.step_idx)
         && let Some(source_effect) = source_step.act_effect.get(wrapper_loc.effect_idx)
-        && let Some(mut normalized) = helpers.normalize_wrapped_skill_effect(source_effect)
+        && let Some(mut normalized) = step_walker::normalize_wrapped_skill_effect(source_effect)
     {
-        ensure_tail_marker(helpers, &mut normalized, semmelweis_uid);
+        ensure_tail_marker(&mut normalized, semmelweis_uid);
         if let Some(host_step) = steps.get_mut(nautika_bundle_idx) {
             host_step.act_effect.push(normalized);
         }
@@ -229,10 +211,10 @@ pub fn consolidate_into_bundle(
 /// attr-noise wrappers from the FightStep stream. Runs after
 /// `consolidate_into_bundle` has folded the canonical broadcast into
 /// the Nautika bundle.
-pub fn strip_post_turn_noise(helpers: &impl WrappedSkillView, steps: &mut Vec<FightStep>) {
+pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
     if !steps
         .iter()
-        .any(|step| helpers.step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
     {
         return;
     }
@@ -248,9 +230,7 @@ pub fn strip_post_turn_noise(helpers: &impl WrappedSkillView, steps: &mut Vec<Fi
 
     let mut remove_indices = Vec::new();
     for (idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
-        if is_top_level_enemy_cycle_noise_step(helpers, step)
-            || is_flat_post_round_attr_noise_step(step)
-        {
+        if is_top_level_enemy_cycle_noise_step(step) || is_flat_post_round_attr_noise_step(step) {
             remove_indices.push(idx);
         }
     }
@@ -260,9 +240,7 @@ pub fn strip_post_turn_noise(helpers: &impl WrappedSkillView, steps: &mut Vec<Fi
     }
 }
 
-fn is_bundle_step(helpers: &impl WrappedSkillView, step: &FightStep, host_uid: i64) -> bool {
-    let _ = helpers;
-
+fn is_bundle_step(step: &FightStep, host_uid: i64) -> bool {
     if step.act_type != Some(fight_step::ActType::Effect as i32) {
         return false;
     }
@@ -286,12 +264,8 @@ fn is_bundle_step(helpers: &impl WrappedSkillView, step: &FightStep, host_uid: i
         .unwrap_or(false)
 }
 
-fn ensure_tail_marker(
-    helpers: &impl WrappedSkillView,
-    wrapper: &mut ActEffect,
-    semmelweis_uid: i64,
-) {
-    let Some(skill) = helpers.wrapped_skill_from_effect_mut(wrapper) else {
+fn ensure_tail_marker(wrapper: &mut ActEffect, semmelweis_uid: i64) {
+    let Some(skill) = step_walker::wrapped_skill_from_effect_mut(wrapper) else {
         return;
     };
     if skill.act_id != Some(BOSS_CYCLE_ACT_ID)
@@ -329,15 +303,14 @@ fn ensure_tail_marker(
     );
 }
 
-fn is_top_level_enemy_cycle_noise_step(helpers: &impl WrappedSkillView, step: &FightStep) -> bool {
+fn is_top_level_enemy_cycle_noise_step(step: &FightStep) -> bool {
     step.act_type == Some(fight_step::ActType::Effect as i32)
         && step.act_id.unwrap_or(0) == 0
         && step.from_id.unwrap_or(0) == 0
         && step.to_id.unwrap_or(0) == 0
         && !step.act_effect.is_empty()
         && step.act_effect.iter().all(|effect| {
-            helpers
-                .wrapped_skill_from_effect(effect)
+            step_walker::wrapped_skill_from_effect(effect)
                 .map(|skill| {
                     skill.act_id == Some(BOSS_CYCLE_ACT_ID) && skill.from_id.unwrap_or(0) < 0
                 })

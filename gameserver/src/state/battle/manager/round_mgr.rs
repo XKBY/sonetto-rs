@@ -50,6 +50,7 @@ use super::super::{
         condition::{misc::HriEvalGuard, parser::parse_condition},
         euphoria::resolve_with_euphoria,
     },
+    step_walker,
     steps::{broadcast, ex_gain, step_normalize, trigger_embed},
     trigger::{
         combat::{event_from_step, fire_combat_triggers},
@@ -274,85 +275,6 @@ impl FightRoundMgr {
         Self
     }
 
-    fn step_has_effect_type(&self, step: &FightStep, effect_type: i32) -> bool {
-        step.act_effect
-            .iter()
-            .any(|effect| effect.effect_type == Some(effect_type))
-    }
-
-    fn is_standalone_effect_marker(&self, step: &FightStep, effect_type: i32) -> bool {
-        step.act_type == Some(fight_step::ActType::Effect as i32)
-            && step.act_effect.len() == 1
-            && step
-                .act_effect
-                .first()
-                .map(|effect| effect.effect_type == Some(effect_type))
-                .unwrap_or(false)
-    }
-
-    fn step_contains_act_id(&self, step: &FightStep, act_id: i32) -> bool {
-        step.act_id == Some(act_id)
-            || step.act_effect.iter().any(|effect| {
-                effect
-                    .fight_step
-                    .as_ref()
-                    .map(|child| self.step_contains_act_id(child, act_id))
-                    .unwrap_or(false)
-            })
-    }
-
-    fn step_contains_magic_circle_add(&self, step: &FightStep) -> bool {
-        step.act_effect.iter().any(|effect| {
-            effect.effect_type
-                == Some(crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32)
-                || effect
-                    .fight_step
-                    .as_ref()
-                    .map(|child| self.step_contains_magic_circle_add(child))
-                    .unwrap_or(false)
-        })
-    }
-
-    fn inline_magic_circle_root_wrapper(&self, host_step: &mut FightStep) -> bool {
-        let Some(idx) = host_step.act_effect.iter().position(|effect| {
-            effect.effect_type == Some(162)
-                && effect
-                    .fight_step
-                    .as_ref()
-                    .map(|step| {
-                        step.act_type == Some(fight_step::ActType::Skill as i32)
-                            && self.step_contains_magic_circle_add(step)
-                    })
-                    .unwrap_or(false)
-        }) else {
-            return false;
-        };
-
-        let Some(inner) = host_step
-            .act_effect
-            .remove(idx)
-            .fight_step
-            .filter(|step| step.act_type == Some(fight_step::ActType::Skill as i32))
-        else {
-            return false;
-        };
-
-        host_step.act_effect.splice(idx..idx, inner.act_effect);
-        true
-    }
-
-    fn host_trigger_insert_index(&self, host_step: &FightStep) -> usize {
-        host_step
-            .act_effect
-            .iter()
-            .position(|effect| {
-                effect.effect_type
-                    == Some(crate::state::battle::types::effects::EffectType::MagicCircleAdd as i32)
-            })
-            .map(|idx| idx + 1)
-            .unwrap_or_else(|| trigger_embed::find_trigger_insert_index(&host_step.act_effect))
-    }
-
     fn collect_round_tied_defender_passive_steps(
         &self,
         ctx: &mut FightContext<'_>,
@@ -394,7 +316,7 @@ impl FightRoundMgr {
         effects: Vec<ActEffect>,
     ) -> Option<ActEffect> {
         let wrapped_idx = effects.iter().position(|effect| {
-            self.wrapped_skill_from_effect(effect)
+            step_walker::wrapped_skill_from_effect(effect)
                 .map(|step| {
                     step.act_id == Some(skill_id)
                         && step.from_id == Some(uid)
@@ -404,7 +326,7 @@ impl FightRoundMgr {
         });
         if let Some(idx) = wrapped_idx {
             let mut effect = effects[idx].clone();
-            if let Some(skill_step) = self.wrapped_skill_from_effect_mut(&mut effect) {
+            if let Some(skill_step) = step_walker::wrapped_skill_from_effect_mut(&mut effect) {
                 self.prune_boss_wrapper_targets(skill_step);
             }
             return Some(effect);
@@ -441,112 +363,6 @@ impl FightRoundMgr {
         });
     }
 
-    fn find_bootstrap_nested_effects_mut<'a>(
-        &self,
-        steps: &'a mut [FightStep],
-    ) -> Option<&'a mut Vec<ActEffect>> {
-        let preferred_step_idx = steps.iter().rposition(|step| {
-            step.act_effect.iter().any(|effect| {
-                self.wrapped_skill_from_effect(effect).map(|s| s.act_id) == Some(Some(530000151))
-            })
-        });
-        let fallback_step_idx = steps.iter().rposition(|step| {
-            step.act_type == Some(fight_step::ActType::Effect as i32)
-                && step.act_id.unwrap_or(0) == 0
-                && step.from_id.unwrap_or(0) == 0
-                && step.to_id.unwrap_or(0) == 0
-        });
-        let step = steps.get_mut(preferred_step_idx.or(fallback_step_idx)?)?;
-        let nested = step.act_effect.iter_mut().find(|effect| {
-            effect.effect_type == Some(162)
-                && effect
-                    .fight_step
-                    .as_ref()
-                    .map(|inner| {
-                        inner.act_type == Some(fight_step::ActType::Effect as i32)
-                            && inner.act_id.unwrap_or(0) == 0
-                    })
-                    .unwrap_or(false)
-        })?;
-        Some(&mut nested.fight_step.as_mut()?.act_effect)
-    }
-
-    fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep> {
-        if effect.effect_type != Some(162) {
-            return None;
-        }
-
-        let wrapped = effect.fight_step.as_ref()?;
-        if wrapped.act_type == Some(fight_step::ActType::Skill as i32) {
-            return Some(wrapped);
-        }
-
-        if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-            || wrapped.act_effect.len() != 1
-        {
-            return None;
-        }
-
-        let nested = wrapped.act_effect.first()?;
-        if nested.effect_type != Some(162) {
-            return None;
-        }
-
-        let skill = nested.fight_step.as_ref()?;
-        (skill.act_type == Some(fight_step::ActType::Skill as i32)).then_some(skill)
-    }
-
-    fn wrapped_skill_from_effect_mut<'a>(
-        &self,
-        effect: &'a mut ActEffect,
-    ) -> Option<&'a mut FightStep> {
-        if effect.effect_type != Some(162) {
-            return None;
-        }
-
-        let wrapped = effect.fight_step.as_mut()?;
-        if wrapped.act_type == Some(fight_step::ActType::Skill as i32) {
-            return Some(wrapped);
-        }
-
-        if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-            || wrapped.act_effect.len() != 1
-        {
-            return None;
-        }
-
-        let nested = wrapped.act_effect.first_mut()?;
-        if nested.effect_type != Some(162) {
-            return None;
-        }
-
-        let skill = nested.fight_step.as_mut()?;
-        (skill.act_type == Some(fight_step::ActType::Skill as i32)).then_some(skill)
-    }
-
-    fn normalize_wrapped_skill_effect(&self, effect: &ActEffect) -> Option<ActEffect> {
-        if effect.effect_type != Some(162) {
-            return None;
-        }
-
-        let wrapped = effect.fight_step.as_ref()?;
-        if wrapped.act_type == Some(fight_step::ActType::Skill as i32) {
-            return Some(effect.clone());
-        }
-
-        if wrapped.act_type != Some(fight_step::ActType::Effect as i32)
-            || wrapped.act_effect.len() != 1
-        {
-            return None;
-        }
-
-        let nested = wrapped.act_effect.first()?;
-        let skill = nested.fight_step.as_ref()?;
-        (nested.effect_type == Some(162)
-            && skill.act_type == Some(fight_step::ActType::Skill as i32))
-        .then_some(nested.clone())
-    }
-
     // TODO(event-queue): Recoleta-ult-specific boss-reactive injector
     // (commit `972a4561`). Hardcodes `31140131` because the LIVE shape
     // depends on the specific ult's per-target damage chain. EventQueue
@@ -564,7 +380,7 @@ impl FightRoundMgr {
             return;
         }
         if host_step.act_effect.iter().any(|effect| {
-            self.wrapped_skill_from_effect(effect)
+            step_walker::wrapped_skill_from_effect(effect)
                 .map(|step| step.act_id == Some(BOSS_REACTIVE_ACT_ID))
                 .unwrap_or(false)
         }) {
@@ -624,7 +440,7 @@ impl FightRoundMgr {
             .iter()
             .rposition(|effect| effect.target_id.unwrap_or(0) < 0)
             .map(|idx| idx + 1)
-            .unwrap_or_else(|| self.host_trigger_insert_index(host_step));
+            .unwrap_or_else(|| step_walker::host_trigger_insert_index(host_step));
         host_step.act_effect.splice(insert_at..insert_at, wrappers);
     }
 
@@ -732,19 +548,19 @@ impl FightRoundMgr {
         let Some(first_step) = steps.first() else {
             return;
         };
-        if !self.step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT) {
+        if !step_walker::step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT) {
             return;
         }
         if !steps
             .iter()
-            .any(|step| self.step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
+            .any(|step| step_walker::step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
         {
             return;
         }
 
         let mut remove_indices = Vec::new();
         for (idx, step) in steps.iter().enumerate().skip(1) {
-            if self.is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT) {
+            if step_walker::is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT) {
                 remove_indices.push(idx);
             }
         }
@@ -799,8 +615,8 @@ impl FightRoundMgr {
         .await?;
         self.merge_post_turn_reactives_into_host(&mut open.steps);
         self.strip_redundant_change_round_markers(&mut open.steps);
-        nautika_psychube_bundle::consolidate_into_bundle(self, ctx.fight, &mut open.steps);
-        nautika_psychube_bundle::strip_post_turn_noise(self, &mut open.steps);
+        nautika_psychube_bundle::consolidate_into_bundle(ctx.fight, &mut open.steps);
+        nautika_psychube_bundle::strip_post_turn_noise(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
@@ -1188,7 +1004,7 @@ impl FightRoundMgr {
                 steps.push(ex_step);
             }
             let mut host_step = step.clone();
-            self.inline_magic_circle_root_wrapper(&mut host_step);
+            step_walker::inline_magic_circle_root_wrapper(&mut host_step);
             magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             let expanded_steps =
                 self.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
@@ -1306,7 +1122,7 @@ impl FightRoundMgr {
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at = self.host_trigger_insert_index(&host_step);
+                    let insert_at = step_walker::host_trigger_insert_index(&host_step);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
@@ -1315,7 +1131,7 @@ impl FightRoundMgr {
             let monitor_embeds =
                 channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
             if !monitor_embeds.is_empty() {
-                let insert_at = self.host_trigger_insert_index(&host_step);
+                let insert_at = step_walker::host_trigger_insert_index(&host_step);
                 host_step
                     .act_effect
                     .splice(insert_at..insert_at, monitor_embeds);
@@ -1389,7 +1205,7 @@ impl FightRoundMgr {
             }
 
             let mut host_step = step.clone();
-            self.inline_magic_circle_root_wrapper(&mut host_step);
+            step_walker::inline_magic_circle_root_wrapper(&mut host_step);
             magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
             let expanded_steps =
                 self.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
@@ -1507,7 +1323,7 @@ impl FightRoundMgr {
                     embedded_steps.push(embedded);
                 }
                 if !embedded_steps.is_empty() {
-                    let insert_at = self.host_trigger_insert_index(&host_step);
+                    let insert_at = step_walker::host_trigger_insert_index(&host_step);
                     host_step
                         .act_effect
                         .splice(insert_at..insert_at, embedded_steps);
@@ -1593,7 +1409,7 @@ impl FightRoundMgr {
         let boss_wrappers = self.collect_round_tied_defender_passive_steps(ctx, collected);
         if !boss_wrappers.is_empty()
             && let Some(boss_subtree) =
-                self.find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
+                step_walker::find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
         {
             boss_subtree.extend(boss_wrappers);
             let reactive_target_skills =
@@ -2688,23 +2504,3 @@ impl FightRoundMgr {
     }
 }
 
-impl nautika_psychube_bundle::WrappedSkillView for FightRoundMgr {
-    fn step_contains_act_id(&self, step: &FightStep, act_id: i32) -> bool {
-        Self::step_contains_act_id(self, step, act_id)
-    }
-
-    fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep> {
-        Self::wrapped_skill_from_effect(self, effect)
-    }
-
-    fn wrapped_skill_from_effect_mut<'a>(
-        &self,
-        effect: &'a mut ActEffect,
-    ) -> Option<&'a mut FightStep> {
-        Self::wrapped_skill_from_effect_mut(self, effect)
-    }
-
-    fn normalize_wrapped_skill_effect(&self, effect: &ActEffect) -> Option<ActEffect> {
-        Self::normalize_wrapped_skill_effect(self, effect)
-    }
-}
