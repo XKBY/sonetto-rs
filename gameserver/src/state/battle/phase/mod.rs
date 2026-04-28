@@ -9,5 +9,6 @@
 //! state-free).
 
 pub(crate) mod enemy_actions;
+pub(crate) mod non_terminal_round;
 pub(crate) mod player_actions;
 pub(crate) mod round_open;

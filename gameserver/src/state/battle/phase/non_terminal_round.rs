@@ -1,0 +1,524 @@
+//! Non-terminal round phase: orchestrates the post-player-turn
+//! sequence — round-end transition marker, attacker/defender passive
+//! sweeps, enemy actions, channel followups, defender round-end
+//! tick broadcast, DOT/HoT settlement, wave advancement, and
+//! post-round-start sweeps.
+//!
+//! This is the longest phase function in the round manager. It only
+//! runs when `state.is_finish` is false at entry; if the round is
+//! already terminal, control delegates to
+//! `round_end_emission::emit_terminal_round_steps` immediately.
+
+use anyhow::Result;
+use rand::rngs::StdRng;
+use sonettobuf::{ActEffect, CardInfo, FightStep};
+
+use crate::state::battle::{
+    buff_actions::round_end as round_end_handler,
+    context::FightContext,
+    fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
+    manager::{
+        buff_mgr::reset_buff_uid_to,
+        card_mgr::FightCardMgr,
+        ex_point_mgr::sync_from_fight,
+        round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
+        traits::Manager,
+        wave_spawn,
+    },
+    mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics, dot},
+    passives::collector::CollectedPassives,
+    phase,
+    round::{
+        PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
+        step_shape::build_effect_step,
+        steps::transitions::build_pre_enemy_transition_steps,
+    },
+    round_end_emission,
+    skill::SkillExecutor,
+    step_walker,
+    steps::{broadcast, ex_gain, step_normalize},
+    types::effects::EffectType,
+    utils::buff_del,
+};
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn run(
+    mgr: &FightRoundMgr,
+    rng: &mut StdRng,
+    ctx: &mut FightContext<'_>,
+    card_mgr: &mut FightCardMgr,
+    state: &mut RoundState,
+    selected_for_round_end: Vec<CardInfo>,
+    deck_num: i32,
+    collected: &CollectedPassives,
+    defender_uid_checkpoint: i64,
+    steps: &mut Vec<FightStep>,
+) -> Result<()> {
+    if state.is_finish {
+        round_end_emission::emit_terminal_round_steps(
+            mgr,
+            ctx,
+            selected_for_round_end,
+            collected,
+            steps,
+        )?;
+        return Ok(());
+    }
+
+    // Player turn finished; emit round-end transition marker (live parity).
+    steps.push(
+        FightStepBuilder::effect()
+            .with(ActEffect {
+                effect_type: Some(276),
+                effect_num: Some(1),
+                card_info_list: selected_for_round_end,
+                ..Default::default()
+            })
+            .build(),
+    );
+    mgr.apply_passive_phase(
+        ctx,
+        collected,
+        PassivePhaseConfig {
+            scope: PhaseScope::Attackers,
+            depth: PhaseDepth::FirstMatch,
+            skill_set: PhaseSkillSet::ExcludeBattleRule,
+            step_shape: PhaseStepShape::Raw,
+        },
+        true,
+        steps,
+    )?;
+    steps.extend(build_pre_enemy_transition_steps(deck_num));
+    let defender_bootstrap_start = steps.len();
+    mgr.apply_passive_phase(
+        ctx,
+        collected,
+        PassivePhaseConfig {
+            scope: PhaseScope::Defenders,
+            depth: PhaseDepth::AllMatches,
+            skill_set: PhaseSkillSet::DefenderBootstrap,
+            step_shape: PhaseStepShape::Raw,
+        },
+        true,
+        steps,
+    )?;
+    let boss_wrappers = mgr.collect_round_tied_defender_passive_steps(ctx, collected);
+    if !boss_wrappers.is_empty()
+        && let Some(boss_subtree) =
+            step_walker::find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
+    {
+        boss_subtree.extend(boss_wrappers);
+        let reactive_target_skills =
+            channel_mechanics::gather_boss_invoked_reactive_target_skills(ctx.fight);
+        channel_mechanics::graft_monitor_continue_reactives_onto_enemy_subtree(
+            ctx,
+            collected,
+            boss_subtree,
+            &reactive_target_skills,
+            &|ctx, collected, root, deleted| mgr.expand_trigger_chain(ctx, collected, root, deleted),
+            &|before, after| mgr.deleted_buff_ids_from_delta(before, after),
+        );
+    }
+
+    reset_buff_uid_to(defender_uid_checkpoint);
+    phase::enemy_actions::run(mgr, rng, ctx, card_mgr, state, collected, steps).await?;
+    let injected_channel_buffs = channel_mechanics::inject_channel_followup_buffs_if_missing(
+        mgr, ctx, collected, steps,
+    );
+
+    // Live parity: run a passive combat sweep for defender side after AI actions.
+    // This emits nested trigger/follow-up 162 steps before round-end transitions.
+    let defender_sweep_start = steps.len();
+    mgr.apply_passive_phase(
+        ctx,
+        collected,
+        PassivePhaseConfig {
+            scope: PhaseScope::Defenders,
+            depth: PhaseDepth::AllMatches,
+            skill_set: PhaseSkillSet::ExcludeBattleRule,
+            step_shape: PhaseStepShape::Raw,
+        },
+        true,
+        steps,
+    )?;
+
+    // Live parity: append defender round-end buff tick broadcast. Live
+    // emits one FightStep containing (a) a 162 wrapper for the first
+    // passive-firing defender and (b) one BuffUpdate per duration==1 buff
+    // across alive defenders. Our sweep currently emits multiple 162
+    // wrappers; merge them and append the BuffUpdate snapshot so the
+    // shape matches live once upstream buffs are emitted correctly.
+    {
+        // Live broadcasts tick-expiring buffs with remaining duration=1.
+        // Our manager decrements durations at true round-end; preview one tick
+        // here for packet shaping, then restore runtime state.
+        // TODO(event-queue): the snapshot/restore preview pattern is a
+        // EventQueue Phase 5 migration target — replace with a typed
+        // PreviewRoundEndTick event that records the desired snapshot
+        // without committing buff_mgr state.
+        let mut broadcast = if ctx.fight.cur_round.unwrap_or(1) == 1 {
+            let buff_snapshot = ctx.managers.buff_mgr.clone();
+            ctx.managers.buff_mgr.on_round_end();
+            let out = broadcast::collect_buff_tick_broadcast(ctx, false);
+            ctx.managers.buff_mgr = buff_snapshot;
+            out
+        } else {
+            broadcast::collect_buff_tick_broadcast(ctx, false)
+        };
+        broadcast = broadcast::filter_round_end_broadcast_by_source_side(broadcast, false);
+        broadcast::adjust_defender_round1_broadcast_uids(ctx, &mut broadcast);
+        if !broadcast.is_empty()
+            && let Some(target_idx) = steps[defender_sweep_start..]
+                .iter()
+                .position(|s| {
+                    s.act_effect
+                        .iter()
+                        .any(|e| e.effect_type == Some(EffectType::FightStep as i32))
+                })
+                .map(|off| defender_sweep_start + off)
+        {
+            // Keep only the first 162 wrapper of this step and append the
+            // BuffUpdate broadcast after it.
+            let preferred_wrapper = steps[..=target_idx]
+                .iter()
+                .rev()
+                .flat_map(|s| s.act_effect.iter())
+                .find(|e| step_normalize::is_preferred_defender_round_end_wrapper(ctx.fight, e))
+                .cloned();
+            let target = &mut steps[target_idx];
+
+            let broadcast_anchor_uid = broadcast
+                .iter()
+                .filter_map(|e| e.buff.as_ref().and_then(|b| b.uid))
+                .min();
+            let first_wrapper = preferred_wrapper
+                .or_else(|| {
+                    target
+                        .act_effect
+                        .iter()
+                        .find(|e| {
+                            step_normalize::is_preferred_defender_round_end_wrapper(ctx.fight, e)
+                        })
+                        .cloned()
+                })
+                .or_else(|| {
+                    target
+                        .act_effect
+                        .iter()
+                        .find(|e| e.effect_type == Some(EffectType::FightStep as i32))
+                        .cloned()
+                })
+                .map(|wrapper| {
+                    step_normalize::normalize_defender_round_end_wrapper(
+                        ctx,
+                        wrapper,
+                        broadcast_anchor_uid,
+                    )
+                });
+            if let Some(first_wrapper) = first_wrapper {
+                let mut new_effects = vec![first_wrapper];
+                new_effects.extend(broadcast);
+                target.act_effect = new_effects;
+            }
+        }
+    }
+
+    if let Some(step) = round_end_handler::build_round_end_lost_hp_count_add_buff_step(ctx) {
+        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        steps.push(step);
+    }
+
+    // Round-end DOT settlement — emits Poison/DeadlyPoison ticks for
+    // every poison-family stack on every alive entity. See
+    // `mechanics/dot.rs` for the emission shape (one 162 wrapper per
+    // stack with `Poison(213)` marker + `OriginDamage(130)` damage).
+    if let Some(step) = dot::build_round_end_dot_step(ctx) {
+        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        steps.push(step);
+    }
+
+    let cur_wave = ctx.fight.cur_wave.unwrap_or(1);
+    let max_wave = mgr.get_max_wave(ctx.fight);
+    let battle_state = mgr.check_battle_state(ctx.fight, cur_wave, max_wave);
+    let wave_cleared = matches!(battle_state, BattleEndState::WaveCleared);
+    if matches!(
+        battle_state,
+        BattleEndState::Victory | BattleEndState::Defeat
+    ) {
+        return Ok(());
+    }
+
+    // End of enemy turn transition.
+    steps.push(
+        FightStepBuilder::effect()
+            .with(ActEffect {
+                effect_type: Some(EffectType::SmallRoundEnd as i32),
+                effect_num: Some(1),
+                ..Default::default()
+            })
+            .build(),
+    );
+    if let Some(caster_uid) = mgr.first_alive_defender_uid(ctx.fight)
+        && state.enemy_skill_actors.contains(&caster_uid)
+        && let Some(ex_step) = ex_gain::standard_action_ex_gain_for_uid(mgr, ctx, caster_uid)
+    {
+        steps.push(ex_step);
+    }
+
+    // Round transition markers.
+    steps.push(
+        FightStepBuilder::effect()
+            .with(ActEffect {
+                effect_type: Some(EffectType::ClearUniversalCard as i32),
+                team_type: Some(1),
+                ..Default::default()
+            })
+            .build(),
+    );
+    // Skip the magic-circle duration tick only when the battle
+    // itself is finishing (state.is_finish or check_battle_end true).
+    // LIVE keeps ticking the circle through wave-clear rounds — the
+    // tick fires BEFORE wave-spawn even when the current wave just
+    // got wiped out (see battle3 r5 step[21] tick → step[22] et=337
+    // wave-spawn). Self-only circles (Semmelweis 100051) are still
+    // skipped inside `build_round_end_magic_circle_step` via the
+    // `has_enemy_side` config check, so battle2 r2 stays clean.
+    if !state.is_finish && !mgr.check_battle_end(ctx.fight) {
+        if let Some(step) = build_round_end_magic_circle_step(ctx) {
+            mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+            steps.push(step);
+        }
+    }
+    if wave_cleared {
+        let old_defender_uids: Vec<i64> = ctx
+            .fight
+            .defender
+            .as_ref()
+            .into_iter()
+            .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+            .filter_map(|entity| entity.uid)
+            .collect();
+        let mut wave_executor = SkillExecutor::new();
+        let wave_steps = wave_spawn::advance_wave(ctx, &mut wave_executor)?;
+        sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+        for uid in old_defender_uids {
+            ctx.managers.buff_mgr.clear(uid);
+        }
+        seed_entry_max_hp_from_fight(ctx.fight);
+        ctx.sync();
+        steps.extend(wave_steps);
+    }
+    steps.push(
+        FightStepBuilder::effect()
+            .with(ActEffect {
+                effect_type: Some(EffectType::ChangeRound as i32),
+                ..Default::default()
+            })
+            .build(),
+    );
+    // New-round boundary: reset per-slot round-limit usage trackers before
+    // post-round-start passive sweeps execute.
+    ctx.managers.buff_mgr.reset_skill_slot_round_usage();
+
+    // Battle2 bloodtithe parity: live re-runs the same blood-pool pipeline
+    // here that battle start uses before the next-round attacker sweep.
+    for step in bloodtithe::build_round_transition_bloodtithe_steps(mgr, ctx, collected) {
+        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        steps.push(step);
+    }
+
+    // Post-round-start battle-rule passives on attacker side (e.g. global rule skills).
+    mgr.apply_passive_phase(
+        ctx,
+        collected,
+        PassivePhaseConfig {
+            scope: PhaseScope::Attackers,
+            depth: PhaseDepth::AllMatches,
+            skill_set: PhaseSkillSet::BattleRuleOnly,
+            step_shape: PhaseStepShape::Raw,
+        },
+        false,
+        steps,
+    )?;
+
+    // Post-round-start attacker sweep.
+    let attacker_sweep_start = steps.len();
+    mgr.apply_passive_phase(
+        ctx,
+        collected,
+        PassivePhaseConfig {
+            scope: PhaseScope::Attackers,
+            depth: PhaseDepth::AllMatches,
+            skill_set: PhaseSkillSet::CombatReactive,
+            step_shape: PhaseStepShape::FlatIfAllUpdate,
+        },
+        true,
+        steps,
+    )?;
+
+    // Live parity: overwrite the flat BuffUpdate step emitted by the sweep
+    // (which only carries one passive's output) with a full snapshot of
+    // every alive attacker's duration==1 buffs. This matches the live
+    // "round-end tick" broadcast shape (one FightStep with one BuffUpdate
+    // per expiring buff across the side).
+    {
+        let mut broadcast = round_end_emission::collect_attacker_round_end_broadcast(
+            ctx,
+            injected_channel_buffs,
+            false,
+        );
+        if injected_channel_buffs && broadcast.len() > 6 {
+            broadcast.truncate(6);
+        }
+        if !broadcast.is_empty()
+            && let Some(flat_idx) = steps[attacker_sweep_start..]
+                .iter()
+                .rposition(|s| {
+                    !s.act_effect.is_empty()
+                        && s.act_effect
+                            .iter()
+                            .all(|e| e.effect_type == Some(EffectType::BuffUpdate as i32))
+                })
+                .map(|off| attacker_sweep_start + off)
+        {
+            steps[flat_idx].act_effect = broadcast;
+        }
+    }
+
+    // Round-end AdvancedCure HoT settlement — emits one 162-wrapped
+    // skill fightStep per (target, buff_id, caster) triple where
+    // the target carries an AdvancedCure buff. See
+    // `mechanics/advanced_cure.rs` for the emission shape (marker
+    // (0) + Heal (4)). The BuffUpdate(7) tail is intentionally
+    // omitted; the existing round-end-tick broadcast collector
+    // covers buff snapshot duties.
+    if let Some(step) = advanced_cure::build_round_end_advanced_cure_step(ctx) {
+        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        steps.push(step);
+    }
+
+    // Next-round deck snapshot marker.
+    steps.push(
+        FightStepBuilder::effect()
+            .with(ActEffect {
+                effect_type: Some(310),
+                effect_num: Some(deck_num),
+                team_type: Some(1),
+                ..Default::default()
+            })
+            .build(),
+    );
+
+    Ok(())
+}
+
+/// Emit the per-round magic-circle tick: counters with remaining
+/// rounds get a `MagicCircleUpdate(140)`; expired ones (round
+/// reaches 0) get a `MagicCircleDelete(139)` plus the cluster of
+/// `BuffDel` for the circle's `enemy_buff` and the optional
+/// `endSkills` marker. Self-only circles (no `enemy_buff` and no
+/// `enemy_skills` in config) skip — they don't tick in the official
+/// client either.
+fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<FightStep> {
+    let circle = ctx.fight.magic_circle.as_ref()?.clone();
+    let current_round = circle.round.unwrap_or(0);
+    if current_round <= 0 {
+        return None;
+    }
+
+    let create_uid = circle.create_uid.unwrap_or(0);
+    let circle_id = circle.magic_circle_id.unwrap_or(0);
+
+    // Only circles that carry an enemy-side mechanic (enemy_buff or
+    // enemy_skills) tick down per round in LIVE. Self-only circles
+    // like Semmelweis's 100051 (`selfSkills`/`selfBuff` only) stay
+    // un-ticked — they don't emit `MagicCircleUpdate(140)` per round
+    // and are removed by other mechanisms (battle end, replacement
+    // by another array). This keeps battle2 r2 byte-identical.
+    let has_enemy_side = config::configs::get()
+        .magic_circle
+        .get(circle_id)
+        .map(|cfg| !cfg.enemy_buff.trim().is_empty() || !cfg.enemy_skills.trim().is_empty())
+        .unwrap_or(false);
+    if !has_enemy_side {
+        return None;
+    }
+    if current_round > 1 {
+        let mut updated = circle;
+        updated.round = Some(current_round - 1);
+        let inner = effect_container_step(
+            0,
+            0,
+            0,
+            vec![
+                ActEffectBuilder::new(EffectType::MagicCircleUpdate as i32, create_uid)
+                    .reserve_id(circle_id as i64)
+                    .reserve_str("-1")
+                    .magic_circle(updated)
+                    .effect_num(0)
+                    .build(),
+            ],
+        );
+        return Some(build_effect_step(vec![wrap_step(inner)]));
+    }
+
+    let circle_cfg = config::configs::get().magic_circle.get(circle_id).cloned();
+    let enemy_buff_id = circle_cfg
+        .as_ref()
+        .and_then(|cfg| cfg.enemy_buff.trim().parse::<i32>().ok())
+        .filter(|id| *id > 0);
+    let end_skills_id = circle_cfg
+        .as_ref()
+        .and_then(|cfg| cfg.end_skills.trim().parse::<i32>().ok())
+        .filter(|id| *id > 0);
+
+    // Snapshot alive enemies BEFORE building the cleanup so the
+    // endSkills marker can target one of them — at this point the
+    // BuffDel + Delete hasn't been applied yet, so the same enemies
+    // that carry the enemy_buff are still on the field.
+    let alive_enemy_uids =
+        crate::state::battle::skill::targets::alive_enemies(ctx.fight, create_uid);
+
+    let mut inner_effects = Vec::new();
+    if let Some(buff_id) = enemy_buff_id {
+        for enemy_uid in &alive_enemy_uids {
+            if let Some(instance) = ctx
+                .managers
+                .buff_mgr
+                .find_instance_by_buff_id(*enemy_uid, buff_id)
+            {
+                inner_effects.push(buff_del(
+                    *enemy_uid,
+                    instance.uid,
+                    buff_id,
+                    instance.from_uid,
+                ));
+            }
+        }
+    }
+    inner_effects.push(
+        ActEffectBuilder::new(EffectType::MagicCircleDelete as i32, create_uid)
+            .reserve_id(circle_id as i64)
+            .effect_num(0)
+            .build(),
+    );
+
+    let cleanup = effect_container_step(0, 0, 0, inner_effects);
+    let mut wrappers = vec![wrap_step(cleanup)];
+
+    // Arrays that carry an `endSkills` slot fire it when the array
+    // expires or is replaced. For Tuesday's "Horror Story Night"
+    // (circle 22100003) the in-game description says the array
+    // immediately resolves Poison on all enemies after ending; the
+    // actual Poison settlement happens earlier in the round through
+    // the standard DOT path, so LIVE only emits an empty SKILL
+    // marker here (`et=162` wrapping a SKILL step whose `actId` is
+    // the endSkills id and whose inner effects are empty).
+    if let Some(end_skills_id) = end_skills_id {
+        let target_uid = alive_enemy_uids.first().copied().unwrap_or(0);
+        let end_marker = FightStepBuilder::skill(create_uid, target_uid, end_skills_id).build();
+        wrappers.push(wrap_step(end_marker));
+    }
+
+    Some(build_effect_step(wrappers))
+}
