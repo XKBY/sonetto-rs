@@ -13,6 +13,16 @@ pub struct RoundState {
     pub move_num: i32,
     pub pending_cloth_power_delta: i32,
     pub is_finish: bool,
+    /// Replay mode: ordered list of cards consumed per play op (selected_cards
+    /// from begin_round capture, in op order). When set, `card_mgr::play_card`
+    /// uses `replay_selected_cards[op_index]` instead of
+    /// `player_deck[card_index]`.
+    pub replay_selected_cards: Option<Vec<CardInfo>>,
+    /// Replay mode: per-op flag. When `replay_silent_ops[op_index]` is true,
+    /// `play_card` returns `FightStep::default()` (no SKILL emission) — matching
+    /// LIVE's behavior for ops that consume cards via mechanics that don't emit
+    /// top-level SKILL.
+    pub replay_silent_ops: Option<Vec<bool>>,
 }
 
 impl RoundState {

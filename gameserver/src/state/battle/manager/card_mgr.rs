@@ -90,16 +90,36 @@ impl FightCardMgr {
         state: &mut RoundState,
         oper: BeginRoundOper,
     ) -> Result<FightStep> {
+        let op_index = state.used_cards.len();
+        if let Some(silent_ops) = state.replay_silent_ops.as_ref()
+            && silent_ops.get(op_index).copied().unwrap_or(false)
+        {
+            state.used_cards.push(0);
+            return Ok(FightStep::default());
+        }
+
         // Client sends 1-based card index, convert to 0-based
         let card_index = (oper.param1.unwrap_or(1) - 1) as usize;
         let raw_target_uid = oper.to_id.unwrap_or(0);
 
-        let card = match state.player_deck.get(card_index).cloned() {
-            Some(c) => c,
-            None => return Ok(FightStep::default()),
+        let replay_card = state
+            .replay_selected_cards
+            .as_ref()
+            .and_then(|selected_cards| selected_cards.get(op_index).cloned());
+        let card = if let Some(rc) = replay_card {
+            if state.player_deck.get(card_index).is_some() {
+                state.player_deck.remove(card_index);
+            }
+            rc
+        } else {
+            match state.player_deck.get(card_index).cloned() {
+                Some(c) => {
+                    state.player_deck.remove(card_index);
+                    c
+                }
+                None => return Ok(FightStep::default()),
+            }
         };
-
-        state.player_deck.remove(card_index);
 
         let display_caster_uid = card.uid.unwrap_or(0);
         let is_temp_card = card.temp_card.unwrap_or(false) || display_caster_uid == 0;

@@ -61,6 +61,8 @@ pub(crate) fn run(
     ai_deck: &[CardInfo],
     ai_override_steps: Option<&[FightStep]>,
     operations: &[BeginRoundOper],
+    replay_selected_cards: Option<&[CardInfo]>,
+    replay_silent_ops: Option<&[bool]>,
 ) -> RoundOpenPhaseData {
     round_ctx.sync();
     tracing::warn!("process_round round_index={}", round_ctx.round_index);
@@ -105,6 +107,16 @@ pub(crate) fn run(
         .collect();
     state.ai_cards = ai_deck.to_vec();
     state.ai_override_steps = ai_override_steps.map(|steps| steps.to_vec());
+    if let Some(cards) = replay_selected_cards {
+        if !cards.is_empty() {
+            state.replay_selected_cards = Some(cards.to_vec());
+        }
+    }
+    if let Some(ops) = replay_silent_ops {
+        if !ops.is_empty() {
+            state.replay_silent_ops = Some(ops.to_vec());
+        }
+    }
 
     tracing::warn!("=== ROUND START ===");
     tracing::warn!("current_deck ({} cards):", current_deck.len());

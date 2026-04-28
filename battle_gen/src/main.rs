@@ -164,10 +164,18 @@ fn generate_scenario_entries(
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        let (deck, ai_deck, opers, ai_steps) =
+        let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
             extract_begin_round_inputs(&v, request_v.as_ref())
                 .with_context(|| format!("failed extracting operations from {}", path.display()))?;
-        rounds.push((name, deck, ai_deck, opers, ai_steps));
+        rounds.push((
+            name,
+            deck,
+            ai_deck,
+            opers,
+            ai_steps,
+            replay_selected_cards,
+            replay_silent_ops,
+        ));
     }
 
     let rt = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
@@ -329,11 +337,19 @@ mod tests {
             if name != "begin_round_1.json" {
                 continue;
             }
-            let (deck, ai_deck, opers, ai_steps) =
+            let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
                 extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
                     format!("failed extracting operations from {}", path.display())
                 })?;
-            rounds.push((name, deck, ai_deck, opers, ai_steps));
+            rounds.push((
+                name,
+                deck,
+                ai_deck,
+                opers,
+                ai_steps,
+                replay_selected_cards,
+                replay_silent_ops,
+            ));
         }
         anyhow::ensure!(
             rounds.len() == 1,
@@ -431,11 +447,19 @@ mod tests {
             if name != "begin_round_1.json" && name != "begin_round_2.json" {
                 continue;
             }
-            let (deck, ai_deck, opers, ai_steps) =
+            let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
                 extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
                     format!("failed extracting operations from {}", path.display())
                 })?;
-            rounds.push((name, deck, ai_deck, opers, ai_steps));
+            rounds.push((
+                name,
+                deck,
+                ai_deck,
+                opers,
+                ai_steps,
+                replay_selected_cards,
+                replay_silent_ops,
+            ));
         }
         anyhow::ensure!(
             rounds.len() == 2,

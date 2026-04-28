@@ -78,6 +78,8 @@ pub fn extract_begin_round_inputs(
     Vec<CardInfo>,
     Vec<BeginRoundOper>,
     Vec<FightStep>,
+    Vec<CardInfo>,
+    Vec<bool>,
 )> {
     let round = capture.get("round").unwrap_or(capture);
     let steps = round
@@ -196,6 +198,46 @@ pub fn extract_begin_round_inputs(
         }
     }
 
+    let top_attacker_skills: Vec<(i32, i64)> = round
+        .get("fightStep")
+        .and_then(Value::as_array)
+        .map(|steps| {
+            steps
+                .iter()
+                .filter_map(|step| {
+                    if !act_type_is_skill(step) {
+                        return None;
+                    }
+                    let from_id = value_as_i64(step.get("fromId")).unwrap_or(0);
+                    if from_id < 0 {
+                        return None;
+                    }
+                    let act_id = value_as_i64(step.get("actId")).unwrap_or(0) as i32;
+                    if act_id == 0 {
+                        return None;
+                    }
+                    Some((act_id, from_id))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut replay_silent_ops: Vec<bool> = Vec::with_capacity(selected_cards.len());
+    let mut top_idx = 0usize;
+    for sel in &selected_cards {
+        let sel_skill = sel.skill_id.unwrap_or(0) as i32;
+        let sel_uid = sel.uid.unwrap_or(0);
+        let matched = top_idx < top_attacker_skills.len()
+            && top_attacker_skills[top_idx].0 == sel_skill
+            && top_attacker_skills[top_idx].1 == sel_uid;
+        if matched {
+            replay_silent_ops.push(false);
+            top_idx += 1;
+        } else {
+            replay_silent_ops.push(true);
+        }
+    }
+
     let mut enemy_steps_v = Value::Array(
         steps
             .into_iter()
@@ -208,7 +250,14 @@ pub fn extract_begin_round_inputs(
     let enemy_steps: Vec<FightStep> =
         serde_json::from_value(enemy_steps_v).context("failed to parse enemy fightStep replay")?;
 
-    Ok((deck, ai_cards, opers, enemy_steps))
+    Ok((
+        deck,
+        ai_cards,
+        opers,
+        enemy_steps,
+        selected_cards,
+        replay_silent_ops,
+    ))
 }
 
 fn act_type_is_skill(step: &Value) -> bool {

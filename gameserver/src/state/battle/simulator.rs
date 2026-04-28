@@ -51,6 +51,26 @@ impl BattleSimulator {
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
     ) -> Result<FightRound> {
+        self.process_round_with_replay(
+            operations,
+            current_deck,
+            ai_deck,
+            ai_override_steps,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn process_round_with_replay(
+        &mut self,
+        operations: Vec<BeginRoundOper>,
+        current_deck: Vec<CardInfo>,
+        ai_deck: Vec<CardInfo>,
+        ai_override_steps: Option<Vec<FightStep>>,
+        replay_selected_cards: Option<Vec<CardInfo>>,
+        replay_silent_ops: Option<Vec<bool>>,
+    ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
         let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
@@ -58,7 +78,7 @@ impl BattleSimulator {
         let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
         let round = self
             .round_mgr
-            .process_round(
+            .process_round_with_replay(
                 &mut self.rng,
                 &mut round_ctx,
                 &mut self.card_mgr,
@@ -66,6 +86,8 @@ impl BattleSimulator {
                 current_deck,
                 ai_deck,
                 ai_override_steps,
+                replay_selected_cards,
+                replay_silent_ops,
             )
             .await?;
         Ok(round)

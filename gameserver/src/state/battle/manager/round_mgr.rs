@@ -444,7 +444,7 @@ impl FightRoundMgr {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn process_round(
+    pub async fn process_round_with_replay(
         &self,
         rng: &mut StdRng,
         round_ctx: &mut RoundContext<'_, '_>,
@@ -453,6 +453,8 @@ impl FightRoundMgr {
         current_deck: Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
+        replay_selected_cards: Option<Vec<CardInfo>>,
+        replay_silent_ops: Option<Vec<bool>>,
     ) -> Result<FightRound> {
         let mut open = phase::round_open::run(
             round_ctx,
@@ -460,6 +462,8 @@ impl FightRoundMgr {
             &ai_deck,
             ai_override_steps.as_deref(),
             &operations,
+            replay_selected_cards.as_deref(),
+            replay_silent_ops.as_deref(),
         );
         let ctx = &mut *round_ctx.fight_ctx;
 
