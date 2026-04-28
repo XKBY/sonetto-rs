@@ -5,6 +5,7 @@ pub mod dot;
 pub mod empathy;
 pub mod injury_counter;
 pub mod magic_circle;
+pub mod sentinel_hour_of_repentance;
 pub mod shadowcloak;
 
 use bloodtithe::BloodtitheState;

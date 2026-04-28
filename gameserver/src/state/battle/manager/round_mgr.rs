@@ -32,6 +32,7 @@ use super::super::{
     },
     mechanics::{
         advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter, magic_circle,
+        sentinel_hour_of_repentance,
     },
     passives::{
         collector::{CollectedPassives, collect},
@@ -468,151 +469,6 @@ impl FightRoundMgr {
                     .unwrap_or(false)
         })?;
         Some(&mut nested.fight_step.as_mut()?.act_effect)
-    }
-
-    fn active_hour_of_repentance_holder(
-        &self,
-        ctx: &FightContext<'_>,
-    ) -> Option<(i64, crate::state::battle::manager::buff_mgr::BuffInstance)> {
-        let attacker = ctx.fight.attacker.as_ref()?;
-        attacker
-            .entitys
-            .iter()
-            .chain(attacker.sub_entitys.iter())
-            .filter(|entity| entity.current_hp.unwrap_or(0) > 0)
-            .filter_map(|entity| entity.uid)
-            .find_map(|uid| {
-                let has_channel_state = ctx.managers.buff_mgr.has(uid, 31260131);
-                let channel_buff = ctx
-                    .managers
-                    .buff_mgr
-                    .get(uid)
-                    .iter()
-                    .find(|buff| {
-                        buff.buff_id == 31260151 && buff.layer.max(buff.stacks).max(0) >= 1
-                    })
-                    .cloned();
-                if has_channel_state {
-                    channel_buff.map(|buff| (uid, buff))
-                } else {
-                    None
-                }
-            })
-    }
-
-    fn sentinel_insert_index(&self, effects: &[ActEffect]) -> usize {
-        effects
-            .iter()
-            .rposition(|effect| effect.effect_type == Some(EffectType::BuffUpdate as i32))
-            .unwrap_or(effects.len())
-    }
-
-    fn consume_hour_of_repentance_layer(
-        &self,
-        ctx: &mut FightContext<'_>,
-        holder_uid: i64,
-        buff: &crate::state::battle::manager::buff_mgr::BuffInstance,
-    ) {
-        let new_layer = if buff.layer > 0 {
-            buff.layer.saturating_sub(1)
-        } else {
-            0
-        };
-        let new_stacks = if buff.layer > 0 {
-            buff.stacks
-        } else {
-            buff.stacks.saturating_sub(1)
-        };
-        ctx.managers.buff_mgr.add_with_uid(
-            holder_uid,
-            buff.buff_id,
-            buff.from_uid,
-            new_stacks,
-            new_layer,
-            buff.uid,
-        );
-    }
-
-    fn inject_sentinel_reactives_into_boss_subtree(
-        &self,
-        ctx: &mut FightContext<'_>,
-        collected: &CollectedPassives,
-        boss_subtree: &mut Vec<ActEffect>,
-    ) {
-        const SENTINEL_HOST_SKILLS: [i32; 2] = [530000721, 530000752];
-        const SENTINEL_EFFECT_HOST_ID: i32 = 31260131;
-        const SENTINEL_SKILL_ID: i32 = 31260171;
-
-        for effect in boss_subtree.iter_mut() {
-            let Some(step) = effect.fight_step.as_mut() else {
-                continue;
-            };
-            self.inject_sentinel_reactives_into_boss_subtree(ctx, collected, &mut step.act_effect);
-
-            if effect.effect_type != Some(162)
-                || step.act_type != Some(fight_step::ActType::Skill as i32)
-                || step.from_id.unwrap_or(0) >= 0
-                || !SENTINEL_HOST_SKILLS.contains(&step.act_id.unwrap_or(0))
-            {
-                continue;
-            }
-
-            let Some((holder_uid, channel_buff)) = self.active_hour_of_repentance_holder(ctx)
-            else {
-                continue;
-            };
-            let enemy_caster_uid = step.from_id.unwrap_or(0);
-            let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
-            let Ok(skill_effects) = execute_passive_skill(
-                ctx,
-                holder_uid,
-                enemy_caster_uid,
-                SENTINEL_SKILL_ID,
-                &PhaseFilter::combat(),
-            ) else {
-                continue;
-            };
-            if skill_effects.is_empty() {
-                continue;
-            }
-            let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
-            let runtime_deleted_buff_ids =
-                self.deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
-
-            let mut sentinel_step = effect_container_step(
-                holder_uid,
-                enemy_caster_uid,
-                SENTINEL_EFFECT_HOST_ID,
-                skill_effects,
-            );
-            let expanded_steps = self.expand_trigger_chain(
-                ctx,
-                collected,
-                &sentinel_step,
-                &runtime_deleted_buff_ids,
-            );
-            let mut fallback_nested: Vec<ActEffect> = Vec::new();
-            for trigger_step in expanded_steps.into_iter().skip(1) {
-                let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-                if !trigger_embed::insert_trigger_into_matching_nested(
-                    &mut sentinel_step,
-                    embedded.clone(),
-                ) {
-                    fallback_nested.push(embedded);
-                }
-            }
-            if !fallback_nested.is_empty() {
-                let insert_at = trigger_embed::find_trigger_insert_index(&sentinel_step.act_effect);
-                sentinel_step
-                    .act_effect
-                    .splice(insert_at..insert_at, fallback_nested);
-            }
-
-            let sentinel_wrapper = wrap_step(sentinel_step);
-            let insert_at = self.sentinel_insert_index(&step.act_effect);
-            step.act_effect.insert(insert_at, sentinel_wrapper);
-            self.consume_hour_of_repentance_layer(ctx, holder_uid, &channel_buff);
-        }
     }
 
     fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep> {
@@ -2033,7 +1889,15 @@ impl FightRoundMgr {
                 self.find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
         {
             boss_subtree.extend(boss_wrappers);
-            self.inject_sentinel_reactives_into_boss_subtree(ctx, collected, boss_subtree);
+            sentinel_hour_of_repentance::graft_reactives_onto_boss_subtree(
+                ctx,
+                collected,
+                boss_subtree,
+                &|ctx, collected, root, deleted| {
+                    self.expand_trigger_chain(ctx, collected, root, deleted)
+                },
+                &|before, after| self.deleted_buff_ids_from_delta(before, after),
+            );
         }
 
         reset_buff_uid_to(defender_uid_checkpoint);

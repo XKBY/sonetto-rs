@@ -169,7 +169,13 @@ pub fn drain_to_fight_steps(
                 kind: SkillEmitKind::EventTriggered,
             } => {
                 let child_effects = drain_to_fight_steps(children, _ctx);
-                out.push(wrap_step(make_skill_step(from, to, skill_id, 0, child_effects)));
+                out.push(wrap_step(make_skill_step(
+                    from,
+                    to,
+                    skill_id,
+                    0,
+                    child_effects,
+                )));
             }
             _ => {}
         }
@@ -291,7 +297,13 @@ mod tests {
 
         assert_eq!(
             out,
-            vec![wrap_step(make_skill_step(1001, 2002, 30630122, 0, vec![child]))]
+            vec![wrap_step(make_skill_step(
+                1001,
+                2002,
+                30630122,
+                0,
+                vec![child]
+            ))]
         );
     }
 
