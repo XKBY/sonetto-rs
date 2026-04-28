@@ -2,6 +2,7 @@ mod behavior;
 
 pub mod cache;
 pub mod classification;
+pub mod classification_kind;
 pub mod condition;
 pub mod euphoria;
 

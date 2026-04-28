@@ -692,7 +692,7 @@ impl FightRoundMgr {
     // TODO(event-queue): Recoleta-ult-specific boss-reactive injector
     // (commit `972a4561`). Hardcodes `31140131` because the LIVE shape
     // depends on the specific ult's per-target damage chain. EventQueue
-    // Phase 4 (`SkillEmitKind::TriggerReactive`) replaces this with a
+    // Phase 4 (`SkillEmitKind::EventTriggered`) replaces this with a
     // generic "boss reactive on damage" event tied to the actual damage
     // emission sequence. See `_eventqueue_design.md`.
     fn maybe_embed_recoleta_boss_reactives(&self, state: &RoundState, host_step: &mut FightStep) {

@@ -69,13 +69,26 @@ pub enum BattleEvent {
     },
 }
 
+/// Classifies how a `SkillEmit` event should be serialized into the
+/// FightStep stream. Names follow the project's naming-conventions
+/// skill: each variant is a domain noun phrase that reveals intent
+/// without overloading common English/programming terms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillEmitKind {
-    Active,
-    Passive,
-    TriggerReactive,
-    PsychubeRider,
-    BossWrapper,
+    /// Top-level player card play (the player chose this card this turn).
+    PlayerInitiated,
+    /// Round-tied automatic emission walked by `passives::executor`.
+    /// Includes hero passives (Insight, Euphoria) AND battle-rule-derived
+    /// skills where `rule.json::effect == skill_id` (e.g. the `530000*`
+    /// family that battle config attaches via `additionRule`).
+    AutomaticPhase,
+    /// Event-driven reactive walked by `trigger/combat.rs::expand_trigger_chain`.
+    EventTriggered,
+    /// Sourced from equipment (psychube) — `equip_skill.json` references
+    /// the skill id. Phase 4 uses this kind to embed the emission in the
+    /// next outgoing `PlayerInitiated` host of the same caster instead
+    /// of letting it stand alone.
+    EquipmentEmbedded,
 }
 
 #[derive(Debug, Default)]
