@@ -54,16 +54,14 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let fight = ctx.effect_ctx.fight;
     let mut inner_effects = Vec::new();
 
-    for target_uid in
-        add_buff_both_targets(
-            ctx.executor,
-            fight,
-            &ctx.effect_ctx.managers.buff_mgr,
-            caster_uid,
-            original_target,
-            buff_a,
-        )
-    {
+    for target_uid in add_buff_both_targets(
+        ctx.executor,
+        fight,
+        &ctx.effect_ctx.managers.buff_mgr,
+        caster_uid,
+        original_target,
+        buff_a,
+    ) {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
         let mut effects = buff::apply(
@@ -89,16 +87,14 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
         inner_effects.extend(effects);
     }
 
-    for target_uid in
-        add_buff_both_targets(
-            ctx.executor,
-            fight,
-            &ctx.effect_ctx.managers.buff_mgr,
-            caster_uid,
-            original_target,
-            buff_b,
-        )
-    {
+    for target_uid in add_buff_both_targets(
+        ctx.executor,
+        fight,
+        &ctx.effect_ctx.managers.buff_mgr,
+        caster_uid,
+        original_target,
+        buff_b,
+    ) {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
         let mut effects = buff::apply(
@@ -178,12 +174,9 @@ fn poisoned_enemy_targets(
     alive_enemies_by_position(fight, caster_uid)
         .into_iter()
         .filter(|target_uid| {
-            buff_store
-                .get(*target_uid)
-                .iter()
-                .any(|instance| {
-                    instance.from_uid == caster_uid && is_poison_family(instance.buff_id)
-                })
+            buff_store.get(*target_uid).iter().any(|instance| {
+                instance.from_uid == caster_uid && is_poison_family(instance.buff_id)
+            })
         })
         .collect()
 }

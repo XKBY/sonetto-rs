@@ -44,7 +44,11 @@ impl BehaviorAction for PoisonPriority {
         let fight = ctx.behavior_ctx.fight;
         let has_bloodpool = ctx.mechanics.bloodtithe.has_bloodpool();
         let preferred_uid = ctx.behavior_ctx.target_uid;
-        let mut pool = rank_enemies(ctx, alive_enemies_by_position(fight, ctx.caster_uid), preferred_uid);
+        let mut pool = rank_enemies(
+            ctx,
+            alive_enemies_by_position(fight, ctx.caster_uid),
+            preferred_uid,
+        );
         pool.truncate((*max_targets).max(1) as usize);
 
         if pool.is_empty() {
@@ -52,9 +56,7 @@ impl BehaviorAction for PoisonPriority {
         }
 
         let mut effects = Vec::new();
-        let has_existing_poison = pool
-            .iter()
-            .any(|&uid| poison_instance_count(ctx, uid) > 0);
+        let has_existing_poison = pool.iter().any(|&uid| poison_instance_count(ctx, uid) > 0);
 
         if has_existing_poison {
             for _ in 0..total_stacks {
