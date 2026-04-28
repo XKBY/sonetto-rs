@@ -6,11 +6,14 @@ use crate::state::battle::{
     buff_actions::monitor_continue::buff_get_monitor_continue_channel_params,
     context::FightContext,
     fight_step::{effect_container_step, wrap_step},
-    manager::round_mgr::FightRoundMgr,
-    passives::steps::skill::execute_skill as execute_passive_skill,
+    manager::{buff_mgr::BuffInstance, round_mgr::FightRoundMgr},
+    passives::{
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
+    },
     skill::{PhaseFilter, TriggerState},
     steps::trigger_embed,
     trigger::combat::event_from_step,
+    types::effects::EffectType,
     utils::buff_update,
 };
 
@@ -88,6 +91,187 @@ impl ChannelState {
     pub fn is_active(&self) -> bool {
         !self.monitor_triggers.is_empty()
     }
+}
+
+/// A holder + the parameters the buff_act 1024 feature provides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MonitorContinueHolder {
+    pub holder_uid: i64,
+    pub channel_buff_id: i32,
+    pub prerequisite_buff_id: i32,
+    pub reactive_skill_id: i32,
+    pub layer_counter_buff_id: i32,
+}
+
+/// Walk every alive ally and emit one MonitorContinueHolder per ally that
+/// (a) has at least one buff with a MonitorContinueChannel feature, and
+/// (b) has the prerequisite buff present, and
+/// (c) has the layer-counter buff with at least one stack/layer remaining.
+pub fn find_eligible_monitor_continue_holders(
+    ctx: &FightContext<'_>,
+) -> Vec<MonitorContinueHolder> {
+    let Some(attacker) = ctx.fight.attacker.as_ref() else {
+        return Vec::new();
+    };
+
+    let mut holders = Vec::new();
+    for entity in attacker
+        .entitys
+        .iter()
+        .chain(attacker.sub_entitys.iter())
+        .filter(|entity| entity.current_hp.unwrap_or(0) > 0)
+    {
+        let Some(holder_uid) = entity.uid else {
+            continue;
+        };
+        let holder_buffs = ctx.managers.buff_mgr.get(holder_uid);
+        for instance in holder_buffs {
+            // Buff feature shape: `1024#prereq#enemy_emission_reactive#layer_counter#self_emission_reactive`.
+            // The buff_get_monitor_continue_channel_params parser names parts
+            // (1, 2, 3, 4) as (prerequisite, monitor_buff, emit_effect, emit_skill).
+            // For the SELF-emission path (player card play), the engine
+            // executes parts[4] (emit_skill).
+            // For the ENEMY-emission path (this function), the engine
+            // executes parts[2] (the parser's "monitor_buff" slot, which
+            // actually carries the boss-side reactive skill id), and gates
+            // on parts[3] as the layer-counter buff. The names in the
+            // parser tuple don't match the boss-side semantics — the
+            // destructure below remaps them to what this path needs.
+            let Some((
+                prerequisite_buff_id,
+                reactive_skill_id,
+                layer_counter_buff_id,
+                _self_emission_reactive_skill_id,
+            )) = buff_get_monitor_continue_channel_params(instance.buff_id)
+            else {
+                continue;
+            };
+            if prerequisite_buff_id > 0
+                && !holder_buffs
+                    .iter()
+                    .any(|buff| buff.buff_id == prerequisite_buff_id)
+            {
+                continue;
+            }
+            if !holder_buffs.iter().any(|buff| {
+                buff.buff_id == layer_counter_buff_id && buff.layer.max(buff.stacks).max(0) >= 1
+            }) {
+                continue;
+            }
+            holders.push(MonitorContinueHolder {
+                holder_uid,
+                channel_buff_id: instance.buff_id,
+                prerequisite_buff_id,
+                reactive_skill_id,
+                layer_counter_buff_id,
+            });
+        }
+    }
+
+    holders
+}
+
+fn monitor_continue_splice_index(effects: &[ActEffect]) -> usize {
+    effects
+        .iter()
+        .rposition(|effect| effect.effect_type == Some(EffectType::BuffUpdate as i32))
+        .unwrap_or(effects.len())
+}
+
+/// Walk every defender entity's `passive_skill` list, and for each
+/// passive skill collect the set of skill ids it directly invokes via
+/// `50008#X` (UseSkill) and `60225#X:p&Y:p&Z:p` (RandomUseSkill)
+/// behavior entries. The returned set is the act_id filter for
+/// `MonitorContinueChannel` reactive grafting: the channel only
+/// answers boss skills that a battle-rule passive directly invokes,
+/// not deeper sub-emissions or generic broadcasts.
+///
+/// In data terms: boss `passive_skill: […, 530000745, …]` where
+/// `530000745.behavior1 = 50008#530000721` and
+/// `530000745.behavior2 = 60225#530000751:100&530000752:100&530000753:100`
+/// yields `{530000721, 530000751, 530000752, 530000753}`. The
+/// channel reactive then fires only on those four act_ids,
+/// matching how the official mechanic text describes the chain.
+pub fn gather_boss_invoked_reactive_target_skills(fight: &Fight) -> HashSet<i32> {
+    let cfg = config::configs::get();
+    let mut invoked: HashSet<i32> = HashSet::new();
+    let Some(defender) = fight.defender.as_ref() else {
+        return invoked;
+    };
+
+    for entity in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
+        if entity.uid.unwrap_or(0) >= 0 {
+            continue;
+        }
+        for passive_id in &entity.passive_skill {
+            let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == *passive_id) else {
+                continue;
+            };
+            for behavior in [
+                skill.behavior1.as_str(),
+                skill.behavior2.as_str(),
+                skill.behavior3.as_str(),
+                skill.behavior4.as_str(),
+                skill.behavior5.as_str(),
+            ] {
+                if let Some(rest) = behavior.strip_prefix("50008#") {
+                    let head = rest.split('#').next().unwrap_or("");
+                    if let Ok(id) = head.parse::<i32>() {
+                        if id > 0 {
+                            invoked.insert(id);
+                        }
+                    }
+                } else if let Some(rest) = behavior.strip_prefix("60225#") {
+                    for chunk in rest.split('&') {
+                        let head = chunk.split(':').next().unwrap_or("");
+                        if let Ok(id) = head.parse::<i32>() {
+                            if id > 0 {
+                                invoked.insert(id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    invoked
+}
+
+fn consume_monitor_continue_layer(
+    ctx: &mut FightContext<'_>,
+    holder_uid: i64,
+    layer_counter_buff_id: i32,
+) {
+    let Some(buff) = ctx
+        .managers
+        .buff_mgr
+        .get(holder_uid)
+        .iter()
+        .find(|buff| buff.buff_id == layer_counter_buff_id)
+        .cloned()
+    else {
+        return;
+    };
+
+    let new_layer = if buff.layer > 0 {
+        buff.layer.saturating_sub(1)
+    } else {
+        0
+    };
+    let new_stacks = if buff.layer > 0 {
+        buff.stacks
+    } else {
+        buff.stacks.saturating_sub(1)
+    };
+    ctx.managers.buff_mgr.add_with_uid(
+        holder_uid,
+        buff.buff_id,
+        buff.from_uid,
+        new_stacks,
+        new_layer,
+        buff.uid,
+    );
 }
 
 pub(crate) fn build_monitor_continue_channel_embeds(
@@ -222,6 +406,104 @@ pub(crate) fn build_monitor_continue_channel_embeds(
     }
 
     out
+}
+
+/// Walk an enemy-side subtree (typically a boss-passive bundle's
+/// `act_effect` Vec) and graft a MonitorContinueChannel reactive onto
+/// every eligible enemy SKILL emission.
+///
+/// The reactive only fires on enemy SKILLs whose `act_id` is in
+/// `reactive_target_skills` — typically the set produced by
+/// `gather_boss_invoked_reactive_target_skills(fight)`. Without that
+/// filter the channel would over-fire on broadcasts and deeper
+/// sub-emissions; the filter keeps grafting at the depth the official
+/// mechanic text describes (battle-rule-invoked sub-skills only).
+pub fn graft_monitor_continue_reactives_onto_enemy_subtree<F, G>(
+    ctx: &mut FightContext<'_>,
+    collected: &CollectedPassives,
+    enemy_subtree: &mut Vec<ActEffect>,
+    reactive_target_skills: &HashSet<i32>,
+    expand_trigger_chain: &F,
+    deleted_buff_ids_from_delta: &G,
+) where
+    F: Fn(&mut FightContext<'_>, &CollectedPassives, &FightStep, &[i32]) -> Vec<FightStep>,
+    G: Fn(&[(i64, BuffInstance)], &[(i64, BuffInstance)]) -> Vec<i32>,
+{
+    for effect in enemy_subtree.iter_mut() {
+        let Some(step) = effect.fight_step.as_mut() else {
+            continue;
+        };
+        graft_monitor_continue_reactives_onto_enemy_subtree(
+            ctx,
+            collected,
+            &mut step.act_effect,
+            reactive_target_skills,
+            expand_trigger_chain,
+            deleted_buff_ids_from_delta,
+        );
+
+        if effect.effect_type != Some(EffectType::FightStep as i32)
+            || step.act_type != Some(fight_step::ActType::Skill as i32)
+            || step.from_id.unwrap_or(0) >= 0
+            || !reactive_target_skills.contains(&step.act_id.unwrap_or(0))
+        {
+            continue;
+        }
+
+        let Some(holder) = find_eligible_monitor_continue_holders(ctx)
+            .into_iter()
+            .next()
+        else {
+            continue;
+        };
+        let enemy_caster_uid = step.from_id.unwrap_or(0);
+        let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
+        let Ok(skill_effects) = execute_passive_skill(
+            ctx,
+            holder.holder_uid,
+            enemy_caster_uid,
+            holder.reactive_skill_id,
+            &PhaseFilter::combat(),
+        ) else {
+            continue;
+        };
+        if skill_effects.is_empty() {
+            continue;
+        }
+        let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
+        let runtime_deleted_buff_ids =
+            deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
+
+        let mut monitor_step = effect_container_step(
+            holder.holder_uid,
+            enemy_caster_uid,
+            holder.channel_buff_id,
+            skill_effects,
+        );
+        let expanded_steps =
+            expand_trigger_chain(ctx, collected, &monitor_step, &runtime_deleted_buff_ids);
+        let mut fallback_nested: Vec<ActEffect> = Vec::new();
+        for trigger_step in expanded_steps.into_iter().skip(1) {
+            let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+            if !trigger_embed::insert_trigger_into_matching_nested(
+                &mut monitor_step,
+                embedded.clone(),
+            ) {
+                fallback_nested.push(embedded);
+            }
+        }
+        if !fallback_nested.is_empty() {
+            let insert_at = trigger_embed::find_trigger_insert_index(&monitor_step.act_effect);
+            monitor_step
+                .act_effect
+                .splice(insert_at..insert_at, fallback_nested);
+        }
+
+        let monitor_wrapper = wrap_step(monitor_step);
+        let insert_at = monitor_continue_splice_index(&step.act_effect);
+        step.act_effect.insert(insert_at, monitor_wrapper);
+        consume_monitor_continue_layer(ctx, holder.holder_uid, holder.layer_counter_buff_id);
+    }
 }
 
 pub(crate) fn inject_channel_followup_buffs_if_missing(

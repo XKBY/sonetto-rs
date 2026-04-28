@@ -32,7 +32,7 @@ use super::super::{
     },
     mechanics::{
         advanced_cure, bloodtithe, channel as channel_mechanics, dot, injury_counter, magic_circle,
-        sentinel_hour_of_repentance,
+        nautika_psychube_bundle,
     },
     passives::{
         collector::{CollectedPassives, collect},
@@ -56,7 +56,7 @@ use super::super::{
         passes::{build_belief_gain_step, sync_blood_value_baseline},
     },
     types::effects::EffectType,
-    utils::{buff_del, find_uid_by_hero_id},
+    utils::buff_del,
 };
 
 enum BattleEndState {
@@ -628,299 +628,6 @@ impl FightRoundMgr {
         host_step.act_effect.splice(insert_at..insert_at, wrappers);
     }
 
-    fn is_nautika_psychube_bundle_step(
-        &self,
-        step: &FightStep,
-        host_act_id: i32,
-        host_uid: i64,
-    ) -> bool {
-        if step.act_type != Some(fight_step::ActType::Effect as i32) {
-            return false;
-        }
-
-        let Some(first) = step.act_effect.first() else {
-            return false;
-        };
-        if first.effect_type != Some(162) {
-            return false;
-        }
-
-        first
-            .fight_step
-            .as_ref()
-            .map(|wrapped| {
-                wrapped.act_type == Some(fight_step::ActType::Effect as i32)
-                    && wrapped.act_id == Some(host_act_id)
-                    && wrapped.from_id == Some(host_uid)
-                    && wrapped.to_id == Some(host_uid)
-            })
-            .unwrap_or(false)
-    }
-
-    fn ensure_boss_cycle_tail_marker(&self, wrapper: &mut ActEffect, semmelweis_uid: i64) {
-        const EFFECT_FINISH: i32 = 26;
-        const BUFF_UPDATE: i32 = EffectType::BuffUpdate as i32;
-        const BOSS_CYCLE_ACT_ID: i32 = 530000151;
-
-        let Some(skill) = self.wrapped_skill_from_effect_mut(wrapper) else {
-            return;
-        };
-        if skill.act_id != Some(BOSS_CYCLE_ACT_ID)
-            || skill.from_id != Some(semmelweis_uid)
-            || skill.to_id != Some(semmelweis_uid)
-        {
-            return;
-        }
-        if skill
-            .act_effect
-            .iter()
-            .any(|effect| effect.effect_type == Some(EFFECT_FINISH))
-        {
-            return;
-        }
-        if !skill
-            .act_effect
-            .iter()
-            .any(|effect| effect.effect_type == Some(BUFF_UPDATE))
-        {
-            return;
-        }
-
-        let insert_at = skill
-            .act_effect
-            .iter()
-            .rposition(|effect| effect.effect_type == Some(BUFF_UPDATE))
-            .map(|idx| idx + 1)
-            .unwrap_or(skill.act_effect.len());
-        skill.act_effect.insert(
-            insert_at,
-            crate::state::battle::fight_step::ActEffectBuilder::new(EFFECT_FINISH, semmelweis_uid)
-                .effect_num(0)
-                .build(),
-        );
-    }
-
-    fn is_top_level_enemy_boss_cycle_noise_step(&self, step: &FightStep) -> bool {
-        const BOSS_CYCLE_ACT_ID: i32 = 530000151;
-
-        step.act_type == Some(fight_step::ActType::Effect as i32)
-            && step.act_id.unwrap_or(0) == 0
-            && step.from_id.unwrap_or(0) == 0
-            && step.to_id.unwrap_or(0) == 0
-            && !step.act_effect.is_empty()
-            && step.act_effect.iter().all(|effect| {
-                self.wrapped_skill_from_effect(effect)
-                    .map(|skill| {
-                        skill.act_id == Some(BOSS_CYCLE_ACT_ID) && skill.from_id.unwrap_or(0) < 0
-                    })
-                    .unwrap_or(false)
-            })
-    }
-
-    fn is_flat_post_round_attr_noise_step(&self, step: &FightStep) -> bool {
-        const POST_ROUND_ATTR_NOISE_TYPES: [i32; 4] = [60, 61, 96, 211];
-
-        step.act_type == Some(fight_step::ActType::Effect as i32)
-            && step.act_id.unwrap_or(0) == 0
-            && step.from_id.unwrap_or(0) == 0
-            && step.to_id.unwrap_or(0) == 0
-            && !step.act_effect.is_empty()
-            && step.act_effect.len() <= 3
-            && step.act_effect.iter().all(|effect| {
-                effect.fight_step.is_none()
-                    && POST_ROUND_ATTR_NOISE_TYPES.contains(&effect.effect_type.unwrap_or(0))
-                    && effect.target_id.unwrap_or(0) == 0
-                    && matches!(effect.effect_num.unwrap_or(0), 0 | 1)
-            })
-    }
-
-    fn consolidate_boss_cycle_broadcasts_into_nautika_bundle(
-        &self,
-        fight: &Fight,
-        steps: &mut Vec<FightStep>,
-    ) {
-        const NAUTIKA_HOST_ACT_ID: i32 = 31200193;
-        const BOSS_CYCLE_ACT_ID: i32 = 530000151;
-        const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
-
-        #[derive(Clone, Copy)]
-        struct WrapperLocation {
-            step_idx: usize,
-            effect_idx: usize,
-            from_id: i64,
-        }
-
-        let Some(semmelweis_uid) = find_uid_by_hero_id(fight, 3088) else {
-            return;
-        };
-        let Some(nautika_uid) = find_uid_by_hero_id(fight, 3120) else {
-            return;
-        };
-
-        if !steps
-            .iter()
-            .any(|step| self.step_contains_act_id(step, NAUTIKA_HOST_ACT_ID))
-        {
-            return;
-        }
-
-        let Some(round_end_idx) = steps.iter().position(|step| {
-            step.act_effect
-                .first()
-                .and_then(|effect| effect.effect_type)
-                == Some(276)
-        }) else {
-            return;
-        };
-
-        let Some(nautika_bundle_idx) = steps.iter().position(|step| {
-            self.is_nautika_psychube_bundle_step(step, NAUTIKA_HOST_ACT_ID, nautika_uid)
-        }) else {
-            return;
-        };
-
-        let mut ally_wrappers = Vec::new();
-        let mut enemy_del_wrappers = Vec::new();
-
-        for (step_idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
-            if step_idx == nautika_bundle_idx
-                || step.act_type != Some(fight_step::ActType::Effect as i32)
-                || step.act_id.unwrap_or(0) != 0
-            {
-                continue;
-            }
-
-            for (effect_idx, effect) in step.act_effect.iter().enumerate() {
-                let Some(skill) = self.wrapped_skill_from_effect(effect) else {
-                    continue;
-                };
-
-                let act_id = skill.act_id.unwrap_or(0);
-                let from_id = skill.from_id.unwrap_or(0);
-                if act_id == BOSS_CYCLE_ACT_ID && from_id > 0 {
-                    ally_wrappers.push(WrapperLocation {
-                        step_idx,
-                        effect_idx,
-                        from_id,
-                    });
-                } else if act_id == ENEMY_CYCLE_DEL_ACT_ID && from_id < 0 {
-                    enemy_del_wrappers.push(WrapperLocation {
-                        step_idx,
-                        effect_idx,
-                        from_id,
-                    });
-                }
-            }
-        }
-
-        let host_already_has_semm_broadcast = steps
-            .get(nautika_bundle_idx)
-            .map(|step| {
-                step.act_effect.iter().any(|effect| {
-                    self.wrapped_skill_from_effect(effect)
-                        .map(|skill| {
-                            skill.act_id == Some(BOSS_CYCLE_ACT_ID)
-                                && skill.from_id == Some(semmelweis_uid)
-                                && skill.to_id == Some(semmelweis_uid)
-                        })
-                        .unwrap_or(false)
-                })
-            })
-            .unwrap_or(false);
-
-        let semm_wrapper = ally_wrappers
-            .iter()
-            .find(|wrapper| wrapper.from_id == semmelweis_uid)
-            .copied();
-
-        if !host_already_has_semm_broadcast
-            && let Some(wrapper_loc) = semm_wrapper
-            && let Some(source_step) = steps.get(wrapper_loc.step_idx)
-            && let Some(source_effect) = source_step.act_effect.get(wrapper_loc.effect_idx)
-            && let Some(mut normalized) = self.normalize_wrapped_skill_effect(source_effect)
-        {
-            self.ensure_boss_cycle_tail_marker(&mut normalized, semmelweis_uid);
-            if let Some(host_step) = steps.get_mut(nautika_bundle_idx) {
-                host_step.act_effect.push(normalized);
-            }
-        }
-
-        let mut removals_by_step: HashMap<usize, Vec<usize>> = HashMap::new();
-        if host_already_has_semm_broadcast || semm_wrapper.is_some() {
-            for wrapper in ally_wrappers {
-                removals_by_step
-                    .entry(wrapper.step_idx)
-                    .or_default()
-                    .push(wrapper.effect_idx);
-            }
-        }
-        for wrapper in enemy_del_wrappers {
-            removals_by_step
-                .entry(wrapper.step_idx)
-                .or_default()
-                .push(wrapper.effect_idx);
-        }
-        if removals_by_step.is_empty() {
-            return;
-        }
-
-        let mut emptied_steps = Vec::new();
-        for (step_idx, mut effect_indices) in removals_by_step {
-            let Some(step) = steps.get_mut(step_idx) else {
-                continue;
-            };
-            effect_indices.sort_unstable();
-            effect_indices.dedup();
-            for effect_idx in effect_indices.into_iter().rev() {
-                if effect_idx < step.act_effect.len() {
-                    step.act_effect.remove(effect_idx);
-                }
-            }
-            if step.act_effect.is_empty() {
-                emptied_steps.push(step_idx);
-            }
-        }
-
-        emptied_steps.sort_unstable();
-        emptied_steps.dedup();
-        for step_idx in emptied_steps.into_iter().rev() {
-            steps.remove(step_idx);
-        }
-    }
-
-    fn strip_post_turn_enemy_cycle_and_attr_noise(&self, steps: &mut Vec<FightStep>) {
-        const NAUTIKA_TRANSITION_HOST_ACT_ID: i32 = 31200193;
-
-        if !steps
-            .iter()
-            .any(|step| self.step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
-        {
-            return;
-        }
-
-        let Some(round_end_idx) = steps.iter().position(|step| {
-            step.act_effect
-                .first()
-                .and_then(|effect| effect.effect_type)
-                == Some(276)
-        }) else {
-            return;
-        };
-
-        let mut remove_indices = Vec::new();
-        for (idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
-            if self.is_top_level_enemy_boss_cycle_noise_step(step)
-                || self.is_flat_post_round_attr_noise_step(step)
-            {
-                remove_indices.push(idx);
-            }
-        }
-
-        for idx in remove_indices.into_iter().rev() {
-            steps.remove(idx);
-        }
-    }
-
     fn merge_post_turn_reactives_into_host(&self, steps: &mut Vec<FightStep>) {
         let Some(round_end_idx) = steps.iter().position(|step| {
             step.act_effect
@@ -1092,8 +799,8 @@ impl FightRoundMgr {
         .await?;
         self.merge_post_turn_reactives_into_host(&mut open.steps);
         self.strip_redundant_change_round_markers(&mut open.steps);
-        self.consolidate_boss_cycle_broadcasts_into_nautika_bundle(ctx.fight, &mut open.steps);
-        self.strip_post_turn_enemy_cycle_and_attr_noise(&mut open.steps);
+        nautika_psychube_bundle::consolidate_into_bundle(self, ctx.fight, &mut open.steps);
+        nautika_psychube_bundle::strip_post_turn_noise(self, &mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
@@ -1889,10 +1596,13 @@ impl FightRoundMgr {
                 self.find_bootstrap_nested_effects_mut(&mut steps[defender_bootstrap_start..])
         {
             boss_subtree.extend(boss_wrappers);
-            sentinel_hour_of_repentance::graft_reactives_onto_boss_subtree(
+            let reactive_target_skills =
+                channel_mechanics::gather_boss_invoked_reactive_target_skills(ctx.fight);
+            channel_mechanics::graft_monitor_continue_reactives_onto_enemy_subtree(
                 ctx,
                 collected,
                 boss_subtree,
+                &reactive_target_skills,
                 &|ctx, collected, root, deleted| {
                     self.expand_trigger_chain(ctx, collected, root, deleted)
                 },
@@ -2975,5 +2685,26 @@ impl FightRoundMgr {
         matches!(cond, ConditionType::TeammateAlive { .. })
             && skill.behavior_target1.trim() == "103"
             && skill.behavior1.trim().starts_with("1#")
+    }
+}
+
+impl nautika_psychube_bundle::WrappedSkillView for FightRoundMgr {
+    fn step_contains_act_id(&self, step: &FightStep, act_id: i32) -> bool {
+        Self::step_contains_act_id(self, step, act_id)
+    }
+
+    fn wrapped_skill_from_effect<'a>(&self, effect: &'a ActEffect) -> Option<&'a FightStep> {
+        Self::wrapped_skill_from_effect(self, effect)
+    }
+
+    fn wrapped_skill_from_effect_mut<'a>(
+        &self,
+        effect: &'a mut ActEffect,
+    ) -> Option<&'a mut FightStep> {
+        Self::wrapped_skill_from_effect_mut(self, effect)
+    }
+
+    fn normalize_wrapped_skill_effect(&self, effect: &ActEffect) -> Option<ActEffect> {
+        Self::normalize_wrapped_skill_effect(self, effect)
     }
 }
