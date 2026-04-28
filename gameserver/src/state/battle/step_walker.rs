@@ -61,7 +61,7 @@ pub fn step_contains_magic_circle_add(step: &FightStep) -> bool {
             || effect
                 .fight_step
                 .as_ref()
-                .map(|child| step_contains_magic_circle_add(child))
+                .map(step_contains_magic_circle_add)
                 .unwrap_or(false)
     })
 }

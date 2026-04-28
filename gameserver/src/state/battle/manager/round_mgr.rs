@@ -32,6 +32,7 @@ use super::super::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
         step_shape::{build_effect_step, split_updates_and_wrap_rest},
     },
+    round_end_emission,
     skill::{
         PhaseFilter,
         cache::resolve_skill_effect_id,
@@ -443,102 +444,6 @@ impl FightRoundMgr {
         host_step.act_effect.splice(insert_at..insert_at, wrappers);
     }
 
-    fn merge_post_turn_reactives_into_host(&self, steps: &mut Vec<FightStep>) {
-        let Some(round_end_idx) = steps.iter().position(|step| {
-            step.act_effect
-                .first()
-                .and_then(|effect| effect.effect_type)
-                == Some(276)
-        }) else {
-            return;
-        };
-
-        let mut player_card_hosts: HashMap<i64, usize> = HashMap::new();
-        for (idx, step) in steps.iter().enumerate().take(round_end_idx) {
-            if step.act_type != Some(fight_step::ActType::Skill as i32) {
-                continue;
-            }
-            let from_id = step.from_id.unwrap_or(0);
-            if from_id > 0 {
-                player_card_hosts.insert(from_id, idx);
-            }
-        }
-        if player_card_hosts.is_empty() {
-            return;
-        }
-
-        let mut merges: Vec<(usize, usize, ActEffect)> = Vec::new();
-        for (source_idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
-            if step.act_type != Some(fight_step::ActType::Effect as i32)
-                || step.act_effect.len() != 1
-                || step
-                    .act_effect
-                    .first()
-                    .and_then(|effect| effect.effect_type)
-                    != Some(162)
-            {
-                break;
-            }
-
-            let Some(wrapper) = step.act_effect.first().cloned() else {
-                break;
-            };
-
-            let Some(reactive_step) = wrapper.fight_step.as_ref() else {
-                continue;
-            };
-            if reactive_step.act_type != Some(fight_step::ActType::Skill as i32) {
-                continue;
-            }
-
-            let player_uid = reactive_step.from_id.unwrap_or(0);
-            if player_uid <= 0 {
-                continue;
-            }
-
-            let Some(&target_idx) = player_card_hosts.get(&player_uid) else {
-                continue;
-            };
-            merges.push((source_idx, target_idx, wrapper));
-        }
-
-        // Live battle2 leaks a burst of player-owned post-round wrappers here;
-        // solitary wrappers still occur in other fights and stay top-level.
-        if merges.len() < 2 {
-            return;
-        }
-
-        for (_, target_idx, wrapper) in merges.iter().cloned() {
-            if let Some(host_step) = steps.get_mut(target_idx) {
-                let incoming_act_id = wrapper.fight_step.as_ref().and_then(|step| step.act_id);
-                let incoming_from_id = wrapper.fight_step.as_ref().and_then(|step| step.from_id);
-                let already_present = host_step.act_effect.iter().any(|existing| {
-                    existing.effect_type == Some(162)
-                        && existing
-                            .fight_step
-                            .as_ref()
-                            .map(|step| {
-                                step.act_type == Some(fight_step::ActType::Skill as i32)
-                                    && step.act_id == incoming_act_id
-                                    && step.from_id == incoming_from_id
-                            })
-                            .unwrap_or(false)
-                });
-                if already_present {
-                    continue;
-                }
-                host_step.act_effect.push(wrapper);
-            }
-        }
-
-        for source_idx in merges
-            .into_iter()
-            .map(|(source_idx, _, _)| source_idx)
-            .rev()
-        {
-            steps.remove(source_idx);
-        }
-    }
 
     #[allow(clippy::too_many_arguments)]
     pub async fn process_round(
@@ -585,7 +490,7 @@ impl FightRoundMgr {
             &mut open.steps,
         )
         .await?;
-        self.merge_post_turn_reactives_into_host(&mut open.steps);
+        round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
         nautika_psychube_bundle::strip_duplicate_change_round_markers(&mut open.steps);
         nautika_psychube_bundle::consolidate_into_bundle(ctx.fight, &mut open.steps);
         nautika_psychube_bundle::strip_post_turn_noise(&mut open.steps);
