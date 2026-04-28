@@ -56,6 +56,11 @@ pub const TAIL_MARKER_EFFECT_TYPE: i32 = 26;
 pub const SEMMELWEIS_HERO_ID: i32 = 3088;
 pub const NAUTIKA_HERO_ID: i32 = 3120;
 
+/// effect_type emitted by the round-transition synchronization step
+/// at the head of a round. The post-Nautika cleanup strips standalone
+/// duplicates of this marker (only LIVE keeps the leading one).
+const CHANGE_ROUND_SYNC_EFFECT_TYPE: i32 = 310;
+
 /// Walk post-round-end FightSteps, fold Semmelweis's `530000151`
 /// rebroadcast into the Nautika bundle host, and strip the orphan
 /// ally rebroadcasts plus enemy-side `530000412` deletions whose
@@ -204,6 +209,38 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
     emptied_steps.dedup();
     for step_idx in emptied_steps.into_iter().rev() {
         steps.remove(step_idx);
+    }
+}
+
+/// Remove duplicate `effect_type=310` (ChangeRound) sync markers
+/// that sometimes appear standalone after the round-leading marker
+/// when the Nautika carrier-host is present. The first ChangeRound
+/// marker is kept as the round opener; later standalone duplicates
+/// are stripped. Returns silently when the carrier-host isn't on
+/// this round (Nautika-only effect).
+pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
+    let Some(first_step) = steps.first() else {
+        return;
+    };
+    if !step_walker::step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT_TYPE) {
+        return;
+    }
+    if !steps
+        .iter()
+        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+    {
+        return;
+    }
+
+    let mut remove_indices = Vec::new();
+    for (idx, step) in steps.iter().enumerate().skip(1) {
+        if step_walker::is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT_TYPE) {
+            remove_indices.push(idx);
+        }
+    }
+
+    for idx in remove_indices.into_iter().rev() {
+        steps.remove(idx);
     }
 }
 

@@ -541,35 +541,6 @@ impl FightRoundMgr {
         }
     }
 
-    fn strip_redundant_change_round_markers(&self, steps: &mut Vec<FightStep>) {
-        const CHANGE_ROUND_SYNC_EFFECT: i32 = 310;
-        const NAUTIKA_TRANSITION_HOST_ACT_ID: i32 = 31200193;
-
-        let Some(first_step) = steps.first() else {
-            return;
-        };
-        if !step_walker::step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT) {
-            return;
-        }
-        if !steps
-            .iter()
-            .any(|step| step_walker::step_contains_act_id(step, NAUTIKA_TRANSITION_HOST_ACT_ID))
-        {
-            return;
-        }
-
-        let mut remove_indices = Vec::new();
-        for (idx, step) in steps.iter().enumerate().skip(1) {
-            if step_walker::is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT) {
-                remove_indices.push(idx);
-            }
-        }
-
-        for idx in remove_indices.into_iter().rev() {
-            steps.remove(idx);
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub async fn process_round(
         &self,
@@ -614,7 +585,7 @@ impl FightRoundMgr {
         )
         .await?;
         self.merge_post_turn_reactives_into_host(&mut open.steps);
-        self.strip_redundant_change_round_markers(&mut open.steps);
+        nautika_psychube_bundle::strip_duplicate_change_round_markers(&mut open.steps);
         nautika_psychube_bundle::consolidate_into_bundle(ctx.fight, &mut open.steps);
         nautika_psychube_bundle::strip_post_turn_noise(&mut open.steps);
 
