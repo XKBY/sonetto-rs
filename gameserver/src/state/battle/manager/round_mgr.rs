@@ -363,25 +363,38 @@ impl FightRoundMgr {
         });
     }
 
-    // TODO(event-queue): Recoleta-ult-specific boss-reactive injector
-    // (commit `972a4561`). Hardcodes `31140131` because the LIVE shape
-    // depends on the specific ult's per-target damage chain. EventQueue
-    // Phase 4 (`SkillEmitKind::EventTriggered`) replaces this with a
-    // generic "boss reactive on damage" event tied to the actual damage
-    // emission sequence. See `_eventqueue_design.md`.
-    fn maybe_embed_recoleta_boss_reactives(&self, state: &RoundState, host_step: &mut FightStep) {
-        const RECOLETA_ULT_ACT_ID: i32 = 31140131;
-        const BOSS_REACTIVE_ACT_ID: i32 = 530000411;
+    /// When a player-side SKILL emission deals damage to enemies AND
+    /// the enemy side has a `BeAttacked`-type battle-rule passive
+    /// registered as an `ai_card` (currently `530000411` in the
+    /// fixtures we cover), graft a reactive wrapper for each damaged
+    /// enemy onto the host's `act_effect`. The duplicate guard on
+    /// the existing `530000411` child prevents this from over-firing
+    /// when the standard trigger pipeline already embedded the
+    /// reactive — so removing the previous Recoleta-ult act_id gate
+    /// is safe: any player ult whose damage chain reaches a
+    /// `BeAttacked`-passive boss gets the same shape without code
+    /// changes.
+    ///
+    /// TODO(event-queue): EventQueue Phase 4
+    /// (`SkillEmitKind::EventTriggered`) eventually replaces this
+    /// post-emission graft with a damage-event-tied reactive emission
+    /// during drain. Until that lands, this is the cleanest non-
+    /// hardcoded approximation of the LIVE shape.
+    fn graft_be_attacked_reactives_onto_player_host(
+        &self,
+        state: &RoundState,
+        host_step: &mut FightStep,
+    ) {
+        const BE_ATTACKED_REACTIVE_ACT_ID: i32 = 530000411;
 
         if host_step.act_type != Some(fight_step::ActType::Skill as i32)
-            || host_step.act_id != Some(RECOLETA_ULT_ACT_ID)
             || host_step.from_id.unwrap_or(0) <= 0
         {
             return;
         }
         if host_step.act_effect.iter().any(|effect| {
             step_walker::wrapped_skill_from_effect(effect)
-                .map(|step| step.act_id == Some(BOSS_REACTIVE_ACT_ID))
+                .map(|step| step.act_id == Some(BE_ATTACKED_REACTIVE_ACT_ID))
                 .unwrap_or(false)
         }) {
             return;
@@ -390,7 +403,9 @@ impl FightRoundMgr {
         let reactive_caster_uid = state
             .ai_cards
             .iter()
-            .find(|card| card.skill_id == Some(BOSS_REACTIVE_ACT_ID) && card.uid.unwrap_or(0) < 0)
+            .find(|card| {
+                card.skill_id == Some(BE_ATTACKED_REACTIVE_ACT_ID) && card.uid.unwrap_or(0) < 0
+            })
             .and_then(|card| card.uid)
             .unwrap_or(0);
         if reactive_caster_uid >= 0 {
@@ -421,7 +436,7 @@ impl FightRoundMgr {
                 let effect = crate::state::battle::utils::buff_update(
                     target_uid,
                     reactive_caster_uid,
-                    BOSS_REACTIVE_ACT_ID,
+                    BE_ATTACKED_REACTIVE_ACT_ID,
                     buff_uid,
                     0,
                     0,
@@ -429,7 +444,7 @@ impl FightRoundMgr {
                 wrap_step(effect_container_step(
                     reactive_caster_uid,
                     target_uid,
-                    BOSS_REACTIVE_ACT_ID,
+                    BE_ATTACKED_REACTIVE_ACT_ID,
                     vec![effect],
                 ))
             })
@@ -1109,7 +1124,7 @@ impl FightRoundMgr {
             }
             trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
             trigger_embed::normalize_player_skill_effect_order(&mut host_step);
-            self.maybe_embed_recoleta_boss_reactives(state, &mut host_step);
+            self.graft_be_attacked_reactives_onto_player_host(state, &mut host_step);
             if let Some((holder_uid, injury_count)) =
                 injury_counter::find_card_host_injury_marker_params(
                     ctx.fight,
