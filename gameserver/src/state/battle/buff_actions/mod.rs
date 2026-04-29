@@ -12,6 +12,7 @@ pub mod ex_point_overflow_bank;
 pub mod halo;
 pub mod heal;
 pub mod hp;
+pub mod injury_bank;
 pub mod lost_life;
 mod markers;
 pub mod monitor_continue;

@@ -5,7 +5,7 @@ use super::action::{ActionCtx, BehaviorAction};
 use super::buff;
 use crate::state::battle::{
     fight_step::ActEffectBuilder,
-    mechanics::empathy::{EMPATHY_DEFAULT_BUFF_ID, EMPATHY_TYPE_ID, EmpathyState},
+    mechanics::empathy::{EmpathyState, empathy_default_buff_id, empathy_type_id},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
     utils::{apply_real_hurt_fix, effect_none},
 };
@@ -125,14 +125,14 @@ impl Empathy {
             .and_then(|entity| entity.attr.as_ref())
             .and_then(|attr| attr.hp)
             .unwrap_or(0);
-        let cap = EmpathyState::storage_cap(max_hp);
+        let cap = EmpathyState::storage_cap(&ctx.managers.buff_mgr, ctx.caster_uid, max_hp);
 
         let (empathy_buff_id, buff_uid) = ctx
             .managers
             .buff_mgr
-            .find_instance_by_type_id(ctx.caster_uid, EMPATHY_TYPE_ID)
+            .find_instance_by_type_id(ctx.caster_uid, empathy_type_id())
             .map(|buff| (buff.buff_id, buff.uid))
-            .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0));
+            .unwrap_or((empathy_default_buff_id(), 0));
 
         // LIVE r8 step[2] for skill 30800131 emits, in order:
         //   et=167 StorageInjury cfx=60040 num=0 (Empathy reset
@@ -243,7 +243,7 @@ impl Empathy {
 
         let self_damage = max_hp.saturating_mul(*amount_permille) / 1000;
         let storage_amount = EmpathyState::compute_storage_amount(self_damage);
-        let cap = EmpathyState::storage_cap(max_hp);
+        let cap = EmpathyState::storage_cap(&ctx.managers.buff_mgr, ctx.caster_uid, max_hp);
         let (current_total, thresholds_crossed) =
             ctx.mechanics.empathy.apply_storage_with_threshold(
                 &mut ctx.managers.buff_mgr,
@@ -251,16 +251,16 @@ impl Empathy {
                 storage_amount,
                 max_hp,
             );
-        // Look up by typeId so portrait/destiny variants
-        // (30800142/30800143) match the same Empathy mechanic — see
-        // `mechanics/empathy.rs::EMPATHY_TYPE_ID`. Falls back to the
-        // canonical 30800141 when no instance exists yet.
+        // Look up by typeId so portrait/destiny variants match the same
+        // Empathy mechanic. Falls back to the canonical default
+        // (lowest-id member of the InjuryBank family) when no instance
+        // exists yet.
         let (empathy_buff_id, buff_uid) = ctx
             .managers
             .buff_mgr
-            .find_instance_by_type_id(ctx.caster_uid, EMPATHY_TYPE_ID)
+            .find_instance_by_type_id(ctx.caster_uid, empathy_type_id())
             .map(|buff| (buff.buff_id, buff.uid))
-            .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0));
+            .unwrap_or((empathy_default_buff_id(), 0));
 
         let mut effects = vec![ctx.mechanics.empathy.emit_storage_injury(
             ctx.caster_uid,
@@ -271,6 +271,7 @@ impl Empathy {
             cap,
         )];
         effects.extend(ctx.mechanics.empathy.build_insight_iii_threshold_heals(
+            &ctx.managers.buff_mgr,
             ctx.behavior_ctx.fight,
             ctx.caster_uid,
             max_hp,

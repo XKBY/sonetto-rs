@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use sonettobuf::{ActEffect, BuffInfo, Fight};
 
 use crate::state::battle::{
+    buff_actions::injury_bank::{InjuryBankParams, buff_get_injury_bank_params},
     fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::buff_mgr::BuffMgr,
     skill::targets::{alive_allies, alive_enemies, get_entity, get_team_type},
@@ -10,38 +12,127 @@ use crate::state::battle::{
     utils::{apply_real_hurt_fix, find_uid_by_hero_id},
 };
 
-/// Canonical Kakania Empathy bufftype id. Used for `BuffMgr` lookups so
-/// the engine matches Kakania's portrait/rank variants too — buffs
-/// 30800141 / 30800142 / 30800143 all share `typeId 30800141` per
-/// `data/excel2json/skill_bufftype.json`. The variants only differ in
-/// scaling params (storage cap, secondary buff id) but represent the
-/// same Empathy mechanic, so type-id matching is more durable than
-/// buff-id matching when destiny/portrait swaps are active.
-pub const EMPATHY_TYPE_ID: i32 = 30800141;
-/// Default buff id used when Kakania first acquires Empathy (before any
-/// destiny/portrait variant is active). Insight I's battle-start passive
-/// 30800141 applies this canonical id.
-pub const EMPATHY_DEFAULT_BUFF_ID: i32 = 30800141;
-const EMPATHY_ACT_ID: i32 = 770;
 const KAKANIA_HERO_ID: i32 = 3080;
-/// Insight III feature params currently live on the Empathy buff's
-/// `770#101#200#30800161#30#100#100` payload. Keep these hardcoded
-/// until the buff-feature parser exposes them directly.
-const INSIGHT_III_STORAGE_THRESHOLD_PERMILLE: i32 = 30;
-const INSIGHT_III_HEAL_PERMILLE: i32 = 100;
-pub const INSIGHT_III_BOUNCE_SKILL_ID: i32 = 30800161;
-pub const INSIGHT_III_BOUNCE_CONFIG_EFFECT: i32 = 60052;
-const INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE: i32 = 1000;
+
+/// Empathy bufftype + canonical default buff id, derived once from data.
+///
+/// The bufftype family is identified by `skill_buff` rows whose features
+/// carry the `InjuryBank` (770) act_type. The canonical default — used
+/// for fresh acquisition before any destiny / portrait variant is active
+/// — is the lowest-id row in that family. Both values come straight from
+/// the data tables, so portrait / destiny variants are picked up
+/// automatically as new entries land.
+fn canonical_empathy_buff() -> (i32, i32) {
+    static CACHE: OnceLock<(i32, i32)> = OnceLock::new();
+    *CACHE.get_or_init(|| {
+        let cfg = config::configs::get();
+        let mut best: Option<(i32, i32)> = None;
+        for b in cfg.skill_buff.iter() {
+            if buff_get_injury_bank_params(b.id).is_none() {
+                continue;
+            }
+            let candidate = (b.id, b.type_id);
+            best = Some(match best {
+                None => candidate,
+                Some(prev) if candidate.0 < prev.0 => candidate,
+                Some(prev) => prev,
+            });
+        }
+        best.unwrap_or((0, 0))
+    })
+}
+
+pub fn empathy_type_id() -> i32 {
+    canonical_empathy_buff().1
+}
+
+pub fn empathy_default_buff_id() -> i32 {
+    canonical_empathy_buff().0
+}
+
+/// `act_id` of the `InjuryBank` buff_act (currently `770`). Looked up
+/// once from the buff_act table by act_type name so the value is
+/// anchored to the data, not a hand-edited literal.
+fn injury_bank_act_id() -> i32 {
+    static CACHE: OnceLock<i32> = OnceLock::new();
+    *CACHE.get_or_init(|| {
+        config::configs::get()
+            .buff_act
+            .iter()
+            .find(|a| a.r#type == "InjuryBank")
+            .map(|a| a.id)
+            .unwrap_or(0)
+    })
+}
+
+/// Insight III bounce-skill behavior payload `(config_effect, multiplier_permille)`,
+/// parsed from the bounce skill's `OriginDamageFromInjuryBankBuff`-typed
+/// behavior (e.g. `60052#1000` on `30800161`, `60052#1200` on `30800162`).
+fn parse_insight_iii_bounce_behavior(bounce_skill_id: i32) -> Option<(i32, i32)> {
+    if bounce_skill_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let bounce = cfg.skill_effect.iter().find(|s| s.id == bounce_skill_id)?;
+    for beh in [
+        bounce.behavior1.as_str(),
+        bounce.behavior2.as_str(),
+        bounce.behavior3.as_str(),
+        bounce.behavior4.as_str(),
+        bounce.behavior5.as_str(),
+    ] {
+        let parts: Vec<&str> = beh.split('#').collect();
+        let beh_id: i32 = parts
+            .first()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0);
+        if beh_id == 0 {
+            continue;
+        }
+        let is_bounce = cfg
+            .skill_behavior
+            .iter()
+            .find(|b| b.id == beh_id)
+            .map(|b| b.r#type == "OriginDamageFromInjuryBankBuff")
+            .unwrap_or(false);
+        if !is_bounce {
+            continue;
+        }
+        let multiplier = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+        return Some((beh_id, multiplier));
+    }
+    None
+}
+
+/// Active Empathy params for `holder_uid`. Walks whichever variant is
+/// currently on them via `buff_get_injury_bank_params`, falling back to
+/// the canonical default when no instance is present yet.
+fn active_injury_bank_params(buff_mgr: &BuffMgr, holder_uid: i64) -> Option<InjuryBankParams> {
+    buff_mgr
+        .find_instance_by_type_id(holder_uid, empathy_type_id())
+        .and_then(|inst| buff_get_injury_bank_params(inst.buff_id))
+        .or_else(|| buff_get_injury_bank_params(empathy_default_buff_id()))
+}
+
+/// Storage cap for `holder_uid` based on their currently-active Empathy
+/// variant. The cap permille (parts[2] of the InjuryBank feature) is
+/// `200` for canonical / Insight II buffs and `300` for the Tier-IV
+/// `30800143` variant.
+fn active_storage_cap(buff_mgr: &BuffMgr, holder_uid: i64, max_hp: i32) -> i32 {
+    let permille = active_injury_bank_params(buff_mgr, holder_uid)
+        .map(|p| p.storage_cap_permille)
+        .unwrap_or(0);
+    max_hp.max(0).saturating_mul(permille) / 1000
+}
 
 /// Returns `true` if the given `buff_id` belongs to the Empathy bufftype
-/// family (any of 30800141 / 30800142 / 30800143 or future portrait
-/// variants), via config lookup.
+/// family (any portrait / destiny variant), via config lookup.
 fn is_empathy_buff(buff_id: i32) -> bool {
     config::configs::get()
         .skill_buff
         .iter()
         .find(|b| b.id == buff_id)
-        .map(|b| b.type_id == EMPATHY_TYPE_ID)
+        .map(|b| b.type_id == empathy_type_id())
         .unwrap_or(false)
 }
 
@@ -114,20 +205,22 @@ impl EmpathyState {
         self.values.retain(|uid, _| seen.contains(uid));
     }
 
-    /// Insight I rule: "10% of that damage is stored as Empathy".
-    /// TODO: portrait/destiny variants may scale this — buff 30800143's
-    /// features `770#101#300#30800162#20#100#150` suggest different
-    /// rate/cap params. Parse those from the active variant's features
-    /// when destiny/portrait support lands.
+    /// Insight I rule: "X% of that damage is stored as Empathy". The
+    /// rate currently is `10%` for canonical/Insight II variants
+    /// (`30800141` / `30800142`) and ships in `parts[6]` of the
+    /// `InjuryBank` payload — Tier-IV (`30800143` -> `parts[6]=150`)
+    /// would scale it to 15%. Until `InjuryBankParams` exposes the
+    /// `parts[6]` slot, keep the canonical rate inline here.
     pub fn compute_storage_amount(damage: i32) -> i32 {
         damage.max(0) / 10
     }
 
-    /// Insight I rule: "can store up to 20% of Kakania's Max HP".
-    /// TODO: scale via active variant's features (see above) once
-    /// destiny/portrait support is wired.
-    pub fn storage_cap(max_hp: i32) -> i32 {
-        max_hp.max(0).saturating_mul(2) / 10
+    /// Insight I rule: "can store up to N% of Kakania's Max HP". `N` is
+    /// `storage_cap_permille` in the active variant's `InjuryBank`
+    /// feature (parts[2]) — `200` (20%) for canonical / Insight II,
+    /// `300` (30%) for the Tier-IV `30800143` variant.
+    pub fn storage_cap(buff_mgr: &BuffMgr, holder_uid: i64, max_hp: i32) -> i32 {
+        active_storage_cap(buff_mgr, holder_uid, max_hp)
     }
 
     pub fn current(&self, uid: i64) -> i32 {
@@ -154,7 +247,7 @@ impl EmpathyState {
         amount: i32,
         caster_max_hp: i32,
     ) -> (i32, i32) {
-        let cap = Self::storage_cap(caster_max_hp);
+        let cap = Self::storage_cap(buff_mgr, kakania_uid, caster_max_hp);
         let current = self.current(kakania_uid).max(0);
         let next = current.saturating_add(amount.max(0)).min(cap);
         self.values.insert(kakania_uid, next);
@@ -166,7 +259,7 @@ impl EmpathyState {
             &build_empathy_params(next, cap),
         );
 
-        let crossed = Self::storage_threshold(caster_max_hp)
+        let crossed = Self::storage_threshold(buff_mgr, kakania_uid, caster_max_hp)
             .filter(|threshold| *threshold > 0)
             .map(|threshold| (next / threshold - current / threshold).max(0))
             .unwrap_or(0);
@@ -181,7 +274,7 @@ impl EmpathyState {
         current_total: i32,
         target_max_hp: i32,
     ) {
-        let cap = Self::storage_cap(target_max_hp);
+        let cap = Self::storage_cap(buff_mgr, target_uid, target_max_hp);
         let current_total = current_total.max(0).min(cap);
         if current_total > 0 {
             self.values.insert(target_uid, current_total);
@@ -218,7 +311,7 @@ impl EmpathyState {
             return effects;
         }
 
-        let cap = Self::storage_cap(target_max_hp);
+        let cap = Self::storage_cap(buff_mgr, target_uid, target_max_hp);
         let mut out = Vec::with_capacity(effects.len());
         for effect in effects {
             let should_inject = effect.target_id == Some(target_uid)
@@ -243,6 +336,7 @@ impl EmpathyState {
             ));
             out.push(effect);
             out.extend(self.build_insight_iii_threshold_heals(
+                buff_mgr,
                 fight,
                 target_uid,
                 target_max_hp,
@@ -286,7 +380,7 @@ impl EmpathyState {
             return effects;
         }
 
-        let cap = Self::storage_cap(kakania_max_hp);
+        let cap = Self::storage_cap(preview_buff_mgr, kakania_uid, kakania_max_hp);
         let mut out = Vec::with_capacity(effects.len().saturating_mul(3));
         for mut effect in effects {
             let Some(target_uid) = effect.target_id else {
@@ -342,6 +436,7 @@ impl EmpathyState {
             effect.effect_num = Some(original_damage.saturating_sub(absorbed_damage));
             out.push(effect);
             out.extend(self.build_insight_iii_threshold_heals(
+                preview_buff_mgr,
                 fight,
                 kakania_uid,
                 kakania_max_hp,
@@ -354,6 +449,7 @@ impl EmpathyState {
 
     pub fn build_insight_iii_threshold_heals(
         &self,
+        buff_mgr: &BuffMgr,
         fight: &Fight,
         holder_uid: i64,
         holder_max_hp: i32,
@@ -363,8 +459,8 @@ impl EmpathyState {
             return Vec::new();
         }
 
-        let heal_amount =
-            Self::insight_iii_heal_amount(holder_max_hp).saturating_mul(thresholds_crossed);
+        let heal_amount = Self::insight_iii_heal_amount(buff_mgr, holder_uid, holder_max_hp)
+            .saturating_mul(thresholds_crossed);
         if heal_amount <= 0 {
             return Vec::new();
         }
@@ -390,13 +486,17 @@ impl EmpathyState {
             return None;
         }
 
-        let bonus = current_empathy.saturating_mul(INSIGHT_III_BOUNCE_MULTIPLIER_PERMILLE) / 1000;
+        let params = active_injury_bank_params(buff_mgr, holder_uid)?;
+        let (config_effect, multiplier_permille) =
+            parse_insight_iii_bounce_behavior(params.insight_iii_bounce_skill_id)?;
+
+        let bonus = current_empathy.saturating_mul(multiplier_permille) / 1000;
         let bounce_effects = alive_enemies(fight, holder_uid)
             .into_iter()
             .map(|enemy_uid| {
                 ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
                     .effect_num(apply_real_hurt_fix(buff_mgr, enemy_uid, bonus))
-                    .config_effect(INSIGHT_III_BOUNCE_CONFIG_EFFECT)
+                    .config_effect(config_effect)
                     .build()
             })
             .collect::<Vec<_>>();
@@ -405,7 +505,7 @@ impl EmpathyState {
         }
 
         Some(
-            FightStepBuilder::skill(holder_uid, holder_uid, INSIGHT_III_BOUNCE_SKILL_ID)
+            FightStepBuilder::skill(holder_uid, holder_uid, params.insight_iii_bounce_skill_id)
                 .with_many(bounce_effects)
                 .wrap(),
         )
@@ -504,22 +604,25 @@ impl EmpathyState {
         }
     }
 
-    pub fn storage_threshold(max_hp: i32) -> Option<i32> {
-        let threshold = max_hp
-            .max(0)
-            .saturating_mul(INSIGHT_III_STORAGE_THRESHOLD_PERMILLE)
-            / 1000;
+    pub fn storage_threshold(buff_mgr: &BuffMgr, holder_uid: i64, max_hp: i32) -> Option<i32> {
+        let permille = active_injury_bank_params(buff_mgr, holder_uid)?
+            .storage_threshold_permille
+            .max(0);
+        let threshold = max_hp.max(0).saturating_mul(permille) / 1000;
         (threshold > 0).then_some(threshold)
     }
 
-    pub fn insight_iii_heal_amount(max_hp: i32) -> i32 {
-        max_hp.max(0).saturating_mul(INSIGHT_III_HEAL_PERMILLE) / 1000
+    pub fn insight_iii_heal_amount(buff_mgr: &BuffMgr, holder_uid: i64, max_hp: i32) -> i32 {
+        let permille = active_injury_bank_params(buff_mgr, holder_uid)
+            .map(|p| p.heal_permille)
+            .unwrap_or(0);
+        max_hp.max(0).saturating_mul(permille) / 1000
     }
 }
 
 pub fn has_empathy_buff(buff_mgr: &BuffMgr, target_uid: i64) -> bool {
     buff_mgr
-        .find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID)
+        .find_instance_by_type_id(target_uid, empathy_type_id())
         .is_some()
 }
 
@@ -544,30 +647,37 @@ fn is_incoming_damage_effect_type(effect_type: Option<i32>) -> bool {
 }
 
 /// Returns the active Empathy `(buff_id, buff_uid)` for `target_uid`,
-/// matching by `EMPATHY_TYPE_ID` so portrait/rank variants
-/// (30800142/30800143) are handled. If no instance exists yet,
-/// creates one using `EMPATHY_DEFAULT_BUFF_ID` (canonical 30800141).
+/// matching by `empathy_type_id()` so portrait/rank variants are
+/// handled. If no instance exists yet, creates one using
+/// `empathy_default_buff_id()` (canonical lowest-id member).
 fn ensure_empathy_buff(buff_mgr: &mut BuffMgr, target_uid: i64) -> (i32, i64) {
-    if let Some(existing) = buff_mgr.find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID) {
+    let type_id = empathy_type_id();
+    if let Some(existing) = buff_mgr.find_instance_by_type_id(target_uid, type_id) {
         return (existing.buff_id, existing.uid);
     }
 
-    buff_mgr.add(target_uid, EMPATHY_DEFAULT_BUFF_ID, target_uid, 0, 0);
+    let default_buff = empathy_default_buff_id();
+    buff_mgr.add(target_uid, default_buff, target_uid, 0, 0);
     buff_mgr
-        .find_instance_by_type_id(target_uid, EMPATHY_TYPE_ID)
+        .find_instance_by_type_id(target_uid, type_id)
         .map(|buff| (buff.buff_id, buff.uid))
-        .unwrap_or((EMPATHY_DEFAULT_BUFF_ID, 0))
+        .unwrap_or((default_buff, 0))
 }
 
 fn parse_empathy_value(params: &str) -> Option<i32> {
     let mut parts = params.split('#');
     let act_id = parts.next()?.trim().parse::<i32>().ok()?;
-    if act_id != EMPATHY_ACT_ID {
+    if act_id != injury_bank_act_id() {
         return None;
     }
     parts.next()?.trim().parse::<i32>().ok()
 }
 
 fn build_empathy_params(current: i32, cap: i32) -> String {
-    format!("{}#{}#{}", EMPATHY_ACT_ID, current.max(0), cap.max(0))
+    format!(
+        "{}#{}#{}",
+        injury_bank_act_id(),
+        current.max(0),
+        cap.max(0)
+    )
 }
