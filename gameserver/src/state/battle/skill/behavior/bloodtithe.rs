@@ -61,22 +61,44 @@ fn attr_value(entity: &sonettobuf::FightEntityInfo, attr_id: i32) -> i32 {
     }
 }
 
+/// Rubuska's basic-skill family with `30006#0#100#…` LostLife self-loss
+/// tracks the entry-HP snapshot used by Shadow Cloak, not current max HP.
+///
+/// Cached on first call: walk every skill row with `hero_id == 3125`
+/// (Rubuska — uniquely owns Shadow Cloak's entry-HP semantics) whose
+/// `skill_effect` carries a `30006#0#100#…` behavior. Picks up new
+/// rank / destiny variants the data introduces without hand-editing
+/// the call site.
 fn is_rubuska_basic_self_loss(skill_id: i32) -> bool {
-    matches!(
-        skill_id,
-        31250111
-            | 31250112
-            | 31250113
-            | 31250114
-            | 31250115
-            | 31250116
-            | 31250117
-            | 31250118
-            | 31250119
-            | 312501110
-            | 312501111
-            | 312501112
-    )
+    use std::collections::HashSet;
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<HashSet<i32>> = OnceLock::new();
+    let ids = CACHE.get_or_init(|| {
+        let cfg = config::configs::get();
+        let mut out = HashSet::new();
+        for sk in cfg.skill.iter() {
+            if sk.hero_id != 3125 {
+                continue;
+            }
+            let Some(eff) = cfg.skill_effect.iter().find(|e| e.id == sk.skill_effect) else {
+                continue;
+            };
+            let has_self_loss_basis = [
+                eff.behavior1.as_str(),
+                eff.behavior2.as_str(),
+                eff.behavior3.as_str(),
+                eff.behavior4.as_str(),
+                eff.behavior5.as_str(),
+            ]
+            .iter()
+            .any(|b| b.starts_with("30006#0#100#"));
+            if has_self_loss_basis {
+                out.insert(sk.id);
+            }
+        }
+        out
+    });
+    ids.contains(&skill_id)
 }
 
 fn burn_params(buff_id: i32) -> Option<(i32, i32, i32)> {
