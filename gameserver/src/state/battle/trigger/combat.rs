@@ -104,8 +104,22 @@ impl TriggerEvent {
     /// For teammates reacting to an ally's cast, surface the acting ally's
     /// skill use so `ActiveUseSkill`-family conditions evaluate against the
     /// shared same-side event.
+    ///
+    /// Trace markers (`tracing::warn!` "[skill_used_for_passive_owner]")
+    /// emit which of the three branches resolved the lookup so the next
+    /// debugging session can identify which path each spurious passive
+    /// fire matches. Filter the run output with
+    /// `grep "skill_used_for_passive_owner"` and group by `uid` and
+    /// `branch` to see the over-fire signatures.
     pub fn skill_used_for_passive_owner(&self, uid: i64) -> Option<(i64, i32, bool, i64)> {
+        let trace_enabled = std::env::var_os("SONETTO_TRACE_PASSIVE_OWNER").is_some();
         if let Some((sid, ex, to)) = self.skill_used_by(uid) {
+            if trace_enabled {
+                eprintln!(
+                    "[skill_used_for_passive_owner] uid={} branch=1_skill_used_by event_caster={} event_skill={} resolved=({},{},{},{})",
+                    uid, self.caster_uid, self.skill_id, uid, sid, ex, to,
+                );
+            }
             return Some((uid, sid, ex, to));
         }
         if uid != 0
@@ -113,6 +127,18 @@ impl TriggerEvent {
             && self.caster_uid != uid
             && self.caster_uid.signum() == uid.signum()
         {
+            if trace_enabled {
+                eprintln!(
+                    "[skill_used_for_passive_owner] uid={} branch=2_same_side_caster event_caster={} event_skill={} resolved=({},{},{},{})",
+                    uid,
+                    self.caster_uid,
+                    self.skill_id,
+                    self.caster_uid,
+                    self.skill_id,
+                    self.used_ex_skill,
+                    self.primary_target_uid,
+                );
+            }
             return Some((
                 self.caster_uid,
                 self.skill_id,
@@ -120,11 +146,21 @@ impl TriggerEvent {
                 self.primary_target_uid,
             ));
         }
-        self.nested_skill_uses
+        let resolved = self
+            .nested_skill_uses
             .iter()
             .rev()
             .find(|(u, _, _, _)| *u != uid && *u != 0 && u.signum() == uid.signum())
-            .copied()
+            .copied();
+        if trace_enabled
+            && let Some((u, sid, ex, to)) = resolved
+        {
+            eprintln!(
+                "[skill_used_for_passive_owner] uid={} branch=3_nested_fallback event_caster={} event_skill={} resolved=({},{},{},{})",
+                uid, self.caster_uid, self.skill_id, u, sid, ex, to,
+            );
+        }
+        resolved
     }
     pub fn teammate_used_ex_skill(&self, uid: i64) -> bool {
         if self.from_wrapper_card {
