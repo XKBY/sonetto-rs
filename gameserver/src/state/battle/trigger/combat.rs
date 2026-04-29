@@ -543,7 +543,8 @@ pub(crate) fn run_combat_passives_pass(
                 used_ex_skill: uid_used_ex,
                 teammate_use_ex_skill: event.teammate_used_ex_skill(uid),
                 trigger_bullet: event.triggered_bullet_for(uid),
-                event_driven_only: should_use_strict_event_only(ctx.fight, skill_id),
+                event_driven_only: should_use_strict_event_only(ctx.fight, skill_id)
+                    || skill_is_mixed_mode_passive(skill_id),
                 be_attacked: event.was_attacked_by_enemy(uid),
                 hurt_not_restraint: event.dealt_damage(uid),
                 hurt_restraint: event.dealt_damage(uid),
@@ -1244,6 +1245,68 @@ fn get_condition(skill_id: i32, i: i32) -> String {
         10 => skill.condition10.clone(),
         _ => String::new(),
     }
+}
+
+/// True when `skill_id` is a "mixed-mode" passive: it has at least one
+/// behavior with `condition=None` (round-start "always-pass" semantic) AND at
+/// least one behavior whose condition contains a combat-event predicate
+/// (ActiveUseSkill, UseHurtSkill, BeAttacked, etc.).
+///
+/// For these passives, the trigger pipeline should set `event_driven_only=true`
+/// so the executor's per-behavior gate skips the round-start behavior(s) when
+/// the passive is being executed in response to a combat event. The round-start
+/// sweep (`run_passive_phase` with default `TriggerState`) still fires all
+/// behaviors because it has `event_driven_only=false`.
+///
+/// Without this filter, mixed-mode passives like Willow's `31040141`
+/// (`condition1=None` + `condition2=ActiveUseSkill&UseHurtSkill`) over-fire
+/// the round-start behavior on every ally combat event the trigger pipeline
+/// picks up.
+fn skill_is_mixed_mode_passive(skill_id: i32) -> bool {
+    let cfg = config::configs::get();
+    let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == skill_id) else {
+        return false;
+    };
+    let conditions = [
+        skill.condition1.as_str(),
+        skill.condition2.as_str(),
+        skill.condition3.as_str(),
+        skill.condition4.as_str(),
+        skill.condition5.as_str(),
+        skill.condition6.as_str(),
+    ];
+    let mut has_none = false;
+    let mut has_combat_event = false;
+    for raw in conditions {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let (cond, _) = parse_condition(trimmed);
+        if matches!(cond, ConditionType::None) {
+            has_none = true;
+            continue;
+        }
+        if crate::state::battle::skill::condition::fold(&cond, &mut |c| {
+            matches!(
+                c,
+                ConditionType::ActiveUseSkill
+                    | ConditionType::ActiveUseSkillId { .. }
+                    | ConditionType::ActOrder { .. }
+                    | ConditionType::UseSkillEffectTag { .. }
+                    | ConditionType::UseSpecificSkill { .. }
+                    | ConditionType::UseHurtSkill
+                    | ConditionType::UseExSkill
+                    | ConditionType::TeammateUseExSkill
+                    | ConditionType::BeAttacked
+                    | ConditionType::HurtNotRestraint
+                    | ConditionType::HurtRestraint
+            )
+        }) {
+            has_combat_event = true;
+        }
+    }
+    has_none && has_combat_event
 }
 
 fn should_use_strict_event_only(fight: &Fight, skill_id: i32) -> bool {
