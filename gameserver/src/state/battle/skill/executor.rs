@@ -588,6 +588,24 @@ impl SkillExecutor {
                 continue;
             }
 
+            if std::env::var_os("SONETTO_TRACE_BEHAVIOR_FIRE").is_some() {
+                let trace_filter = std::env::var("SONETTO_TRACE_BEHAVIOR_FIRE")
+                    .ok()
+                    .and_then(|v| v.parse::<i32>().ok())
+                    .unwrap_or(0);
+                if trace_filter == 0 || trace_filter == skill_id {
+                    eprintln!(
+                        "[behavior_fire] round={} skill={} caster={} target={} slot={} condition={:?}",
+                        crate::state::battle::round_state::simulated_round(),
+                        skill_id,
+                        caster_uid,
+                        target_uid,
+                        slot_index,
+                        b.condition,
+                    );
+                }
+            }
+
             if matches!(&b.behavior, BehaviorType::LostLife { mode: 1, .. }) {
                 force_effect_step = true;
             }
