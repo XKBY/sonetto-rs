@@ -39,18 +39,17 @@ impl BehaviorAction for AddBuff {
         let fight = ctx.behavior_ctx.fight;
         match behavior {
             BehaviorType::AddBuff { buff_id, count } => Some(Ok(buff::apply(
+                buff::BuffApplySpec::new(*buff_id)
+                    .caster(ctx.caster_uid)
+                    .target(ctx.target)
+                    .count(*count)
+                    .bloodpool(ctx.mechanics.bloodtithe.has_bloodpool())
+                    .skill(ctx.skill_id)
+                    .condition(ctx.condition_id, condition),
                 ctx.executor,
                 fight,
                 ctx.managers,
                 ctx.mechanics,
-                ctx.caster_uid,
-                ctx.target,
-                *buff_id,
-                *count,
-                ctx.mechanics.bloodtithe.has_bloodpool(),
-                ctx.skill_id,
-                ctx.condition_id,
-                condition,
             ))),
 
             BehaviorType::ConsumeBloodAddBuff {
@@ -80,18 +79,17 @@ impl BehaviorAction for AddBuff {
                 });
 
                 Some(Ok(buff::apply(
+                    buff::BuffApplySpec::new(*buff_id)
+                        .caster(ctx.caster_uid)
+                        .target(ctx.target)
+                        .count(*count)
+                        .bloodpool(ctx.mechanics.bloodtithe.has_bloodpool())
+                        .skill(ctx.skill_id)
+                        .condition(ctx.condition_id, condition),
                     ctx.executor,
                     fight,
                     ctx.managers,
                     ctx.mechanics,
-                    ctx.caster_uid,
-                    ctx.target,
-                    *buff_id,
-                    *count,
-                    ctx.mechanics.bloodtithe.has_bloodpool(),
-                    ctx.skill_id,
-                    ctx.condition_id,
-                    condition,
                 )))
             }
 

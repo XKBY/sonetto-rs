@@ -174,36 +174,94 @@ fn maybe_seed_excluded_runtime_buff(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+static NONE_CONDITION: ConditionType = ConditionType::None;
+
+pub struct BuffApplySpec<'a> {
+    pub buff_id: i32,
+    pub caster_uid: i64,
+    pub target: i64,
+    pub count: i32,
+    pub has_bloodpool: bool,
+    pub skill_id: i32,
+    pub condition_id: i32,
+    pub condition: &'a ConditionType,
+}
+
+impl<'a> BuffApplySpec<'a> {
+    pub fn new(buff_id: i32) -> Self {
+        Self {
+            buff_id,
+            caster_uid: 0,
+            target: 0,
+            count: 0,
+            has_bloodpool: false,
+            skill_id: 0,
+            condition_id: 0,
+            condition: &NONE_CONDITION,
+        }
+    }
+
+    pub fn caster(mut self, uid: i64) -> Self {
+        self.caster_uid = uid;
+        self
+    }
+
+    pub fn target(mut self, uid: i64) -> Self {
+        self.target = uid;
+        self
+    }
+
+    pub fn count(mut self, n: i32) -> Self {
+        self.count = n;
+        self
+    }
+
+    pub fn skill(mut self, id: i32) -> Self {
+        self.skill_id = id;
+        self
+    }
+
+    pub fn condition(mut self, id: i32, cond: &'a ConditionType) -> Self {
+        self.condition_id = id;
+        self.condition = cond;
+        self
+    }
+
+    pub fn bloodpool(mut self, has: bool) -> Self {
+        self.has_bloodpool = has;
+        self
+    }
+}
+
 pub fn apply(
+    spec: BuffApplySpec<'_>,
     executor: &mut SkillExecutor,
     fight: &Fight,
     managers: &mut Managers,
     mechanics: &mut Mechanics,
-    caster_uid: i64,
-    target: i64,
-    buff_id: i32,
-    count: i32,
-    has_bloodpool: bool,
-    skill_id: i32,
-    condition_id: i32,
-    condition: &ConditionType,
 ) -> Vec<ActEffect> {
     let mut effects = Vec::new();
     let mut existing_uid_pre = with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx
-            .buffs(target)
+            .buffs(spec.target)
             .iter()
-            .find(|b| b.buff_id == buff_id)
+            .find(|b| b.buff_id == spec.buff_id)
             .map(|b| b.uid)
     });
     if existing_uid_pre.is_none() {
-        maybe_seed_excluded_runtime_buff(fight, managers, caster_uid, target, buff_id, skill_id);
+        maybe_seed_excluded_runtime_buff(
+            fight,
+            managers,
+            spec.caster_uid,
+            spec.target,
+            spec.buff_id,
+            spec.skill_id,
+        );
         existing_uid_pre = with_buff_ctx(fight, managers, |buff_ctx| {
             buff_ctx
-                .buffs(target)
+                .buffs(spec.target)
                 .iter()
-                .find(|b| b.buff_id == buff_id)
+                .find(|b| b.buff_id == spec.buff_id)
                 .map(|b| b.uid)
         });
     }
@@ -211,7 +269,7 @@ pub fn apply(
     // Deleting here causes extra `6` effects and destabilizes downstream trigger chains.
     if existing_uid_pre.is_none() {
         let exclude = with_buff_ctx(fight, managers, |buff_ctx| {
-            get_exclude_buff_effects(buff_ctx.store, target, buff_id)
+            get_exclude_buff_effects(buff_ctx.store, spec.target, spec.buff_id)
         });
         effects.extend(exclude);
     }
@@ -222,23 +280,23 @@ pub fn apply(
         fight,
         managers,
         mechanics,
-        caster_uid,
-        target,
-        buff_id,
-        condition_id,
+        spec.caster_uid,
+        spec.target,
+        spec.buff_id,
+        spec.condition_id,
     ));
 
     let cfg = config::configs::get();
-    let is_per_decr_ex_point = matches!(condition, ConditionType::PerDecrExPoint { .. });
-    let count = if is_per_decr_ex_point && count <= 0 {
-        managers.ex_point_mgr.get_recent_decr_ex_point(caster_uid)
+    let is_per_decr_ex_point = matches!(spec.condition, ConditionType::PerDecrExPoint { .. });
+    let count = if is_per_decr_ex_point && spec.count <= 0 {
+        managers.ex_point_mgr.get_recent_decr_ex_point(spec.caster_uid)
     } else {
-        count
+        spec.count
     };
-    let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+    let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == spec.buff_id);
     let has_features = buff_cfg.map(|b| !b.features.is_empty()).unwrap_or(false);
     let is_no_show = buff_cfg.map(|b| b.is_no_show == 1).unwrap_or(false);
-    let is_poison_family = is_poison_family(buff_id);
+    let is_poison_family = is_poison_family(spec.buff_id);
 
     let effect_count = buff_cfg.map(|b| b.effect_count).unwrap_or(0);
 
@@ -246,14 +304,14 @@ pub fn apply(
     // This matches live behavior for stacking/re-applying passives like 30630171 -> 30631.
     let existing_uid = with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx
-            .buffs(target)
+            .buffs(spec.target)
             .iter()
-            .find(|b| b.buff_id == buff_id)
+            .find(|b| b.buff_id == spec.buff_id)
             .map(|b| b.uid)
     });
 
     if let Some(existing_uid) = existing_uid {
-        let rerun_post_add_features = should_rerun_post_add_features_on_update(buff_id);
+        let rerun_post_add_features = should_rerun_post_add_features_on_update(spec.buff_id);
         let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
         let include_types = cfg
             .skill_bufftype
@@ -271,9 +329,9 @@ pub fn apply(
         };
         let existing_stacks = with_buff_ctx(fight, managers, |buff_ctx| {
             buff_ctx
-                .buffs(target)
+                .buffs(spec.target)
                 .iter()
-                .find(|b| b.buff_id == buff_id)
+                .find(|b| b.buff_id == spec.buff_id)
                 .map(|b| b.stacks)
                 .unwrap_or(0)
         });
@@ -286,10 +344,10 @@ pub fn apply(
             .map(|t| !t.exclude_types.is_empty())
             .unwrap_or(false);
         let has_excluded_active = if has_exclude_types {
-            let excluded_ids = excluded_buff_or_type_ids(buff_id);
+            let excluded_ids = excluded_buff_or_type_ids(spec.buff_id);
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx
-                    .buffs(target)
+                    .buffs(spec.target)
                     .iter()
                     .any(|b| excluded_ids.contains(&b.buff_id) || excluded_ids.contains(&b.type_id))
             })
@@ -310,15 +368,15 @@ pub fn apply(
         if has_include_type_10 && has_exclude_types && has_excluded_active {
             let old = with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx
-                    .buffs(target)
+                    .buffs(spec.target)
                     .iter()
                     .find(|b| b.uid == existing_uid)
                     .cloned()
             });
             if let Some(old) = old {
-                effects.push(buff_del(target, old.uid, old.buff_id, old.from_uid));
+                effects.push(buff_del(spec.target, old.uid, old.buff_id, old.from_uid));
                 with_buff_ctx(fight, managers, |buff_ctx| {
-                    buff_ctx.remove_by_uid(target, old.uid);
+                    buff_ctx.remove_by_uid(spec.target, old.uid);
                 });
             }
             let add_layer = if count > 0 {
@@ -331,17 +389,29 @@ pub fn apply(
                 0
             };
             let use_slave_uid = with_buff_ctx(fight, managers, |buff_ctx| {
-                uses_slave_uid(buff_id, &include_types, count, buff_ctx.store, target)
+                uses_slave_uid(
+                    spec.buff_id,
+                    &include_types,
+                    count,
+                    buff_ctx.store,
+                    spec.target,
+                )
             });
             let buff_add_effect = if use_slave_uid {
-                buff_add_slave(target, caster_uid, buff_id, add_layer)
+                buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
             } else if has_features {
-                buff_add_with_count(target, caster_uid, buff_id, add_layer, cfg_effect_count)
+                buff_add_with_count(
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
+                    add_layer,
+                    cfg_effect_count,
+                )
             } else {
                 buff_add_with_count(
-                    target,
-                    caster_uid,
-                    buff_id,
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
                     add_layer,
                     if is_no_show { 0 } else { cfg_effect_count },
                 )
@@ -360,16 +430,16 @@ pub fn apply(
                 fight,
                 managers,
                 mechanics,
-                caster_uid,
-                target,
-                buff_id,
-                has_bloodpool,
+                spec.caster_uid,
+                spec.target,
+                spec.buff_id,
+                spec.has_bloodpool,
             ));
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.add_with_uid(
-                    target,
-                    buff_id,
-                    caster_uid,
+                    spec.target,
+                    spec.buff_id,
+                    spec.caster_uid,
                     initial_stacks,
                     initial_layer,
                     buff_uid,
@@ -393,9 +463,9 @@ pub fn apply(
         if is_layer_stackable || is_poison_family {
             let existing_layer = with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx
-                    .buffs(target)
+                    .buffs(spec.target)
                     .iter()
-                    .find(|b| b.buff_id == buff_id)
+                    .find(|b| b.buff_id == spec.buff_id)
                     .map(|b| b.layer)
                     .unwrap_or(0)
             });
@@ -419,9 +489,9 @@ pub fn apply(
             };
             if is_no_show {
                 effects.push(buff_update(
-                    target,
-                    caster_uid,
-                    buff_id,
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
                     existing_uid,
                     update_count,
                     new_layer,
@@ -429,9 +499,9 @@ pub fn apply(
             } else if new_layer > existing_layer.max(1) {
                 for layer in (existing_layer.max(1) + 1)..=new_layer {
                     effects.push(buff_update(
-                        target,
-                        caster_uid,
-                        buff_id,
+                        spec.target,
+                        spec.caster_uid,
+                        spec.buff_id,
                         existing_uid,
                         update_count,
                         layer,
@@ -439,9 +509,9 @@ pub fn apply(
                 }
             } else {
                 effects.push(buff_update(
-                    target,
-                    caster_uid,
-                    buff_id,
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
                     existing_uid,
                     update_count,
                     new_layer,
@@ -450,9 +520,9 @@ pub fn apply(
 
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.add_with_uid(
-                    target,
-                    buff_id,
-                    caster_uid,
+                    spec.target,
+                    spec.buff_id,
+                    spec.caster_uid,
                     update_count,
                     new_layer,
                     existing_uid,
@@ -465,9 +535,9 @@ pub fn apply(
             if new_count > existing_stacks {
                 for stack in (existing_stacks + 1)..=new_count {
                     effects.push(buff_update(
-                        target,
-                        caster_uid,
-                        buff_id,
+                        spec.target,
+                        spec.caster_uid,
+                        spec.buff_id,
                         existing_uid,
                         stack,
                         0,
@@ -475,16 +545,23 @@ pub fn apply(
                 }
             } else {
                 effects.push(buff_update(
-                    target,
-                    caster_uid,
-                    buff_id,
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
                     existing_uid,
                     new_count,
                     0,
                 ));
             }
             with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(target, buff_id, caster_uid, new_count, 0, existing_uid);
+                buff_ctx.add_with_uid(
+                    spec.target,
+                    spec.buff_id,
+                    spec.caster_uid,
+                    new_count,
+                    0,
+                    existing_uid,
+                );
             });
         }
 
@@ -494,10 +571,10 @@ pub fn apply(
                 fight,
                 managers,
                 mechanics,
-                caster_uid,
-                target,
-                buff_id,
-                has_bloodpool,
+                spec.caster_uid,
+                spec.target,
+                spec.buff_id,
+                spec.has_bloodpool,
             ));
         }
     } else {
@@ -528,23 +605,29 @@ pub fn apply(
             .unwrap_or_default();
         let use_slave_uid = with_buff_ctx(fight, managers, |buff_ctx| {
             uses_slave_uid(
-                buff_id,
+                spec.buff_id,
                 &include_types_for_uid,
                 count,
                 buff_ctx.store,
-                target,
+                spec.target,
             )
         });
 
         let buff_add_effect = if use_slave_uid {
-            buff_add_slave(target, caster_uid, buff_id, add_layer)
+            buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
         } else if has_features {
-            buff_add_with_count(target, caster_uid, buff_id, add_layer, effect_count)
+            buff_add_with_count(
+                spec.target,
+                spec.caster_uid,
+                spec.buff_id,
+                add_layer,
+                effect_count,
+            )
         } else {
             buff_add_with_count(
-                target,
-                caster_uid,
-                buff_id,
+                spec.target,
+                spec.caster_uid,
+                spec.buff_id,
                 add_layer,
                 if is_no_show { 0 } else { effect_count },
             )
@@ -565,32 +648,39 @@ pub fn apply(
             fight,
             managers,
             mechanics,
-            caster_uid,
-            target,
-            buff_id,
-            has_bloodpool,
+            spec.caster_uid,
+            spec.target,
+            spec.buff_id,
+            spec.has_bloodpool,
         ));
 
-        if target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
+        if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
             for stack in (initial_stacks + 1)..=count {
                 effects.push(buff_update(
-                    target,
-                    caster_uid,
-                    buff_id,
+                    spec.target,
+                    spec.caster_uid,
+                    spec.buff_id,
                     buff_uid,
                     stack,
                     initial_layer,
                 ));
             }
             with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(target, buff_id, caster_uid, count, initial_layer, buff_uid);
+                buff_ctx.add_with_uid(
+                    spec.target,
+                    spec.buff_id,
+                    spec.caster_uid,
+                    count,
+                    initial_layer,
+                    buff_uid,
+                );
             });
         } else {
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.add_with_uid(
-                    target,
-                    buff_id,
-                    caster_uid,
+                    spec.target,
+                    spec.buff_id,
+                    spec.caster_uid,
                     initial_stacks,
                     initial_layer,
                     buff_uid,

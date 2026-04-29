@@ -6,7 +6,6 @@ use crate::state::battle::{
         cache::resolve_skill_effect_id,
         targets::{alive_enemies_by_position, get_ally_uids},
     },
-    types::condition::ConditionType,
 };
 
 use super::action::{BuffActCtx, BuffAction, BuffStage};
@@ -65,18 +64,15 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
         let mut effects = buff::apply(
+            buff::BuffApplySpec::new(buff_a)
+                .caster(caster_uid)
+                .target(target_uid)
+                .bloodpool(has_bloodpool)
+                .skill(skill_id),
             ctx.executor,
             fight,
             managers,
             mechanics,
-            caster_uid,
-            target_uid,
-            buff_a,
-            0,
-            has_bloodpool,
-            skill_id,
-            0,
-            &ConditionType::None,
         );
         hydrate_buff_effects(
             managers.buff_mgr.get(target_uid),
@@ -98,18 +94,15 @@ fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
         let managers = &mut *ctx.effect_ctx.managers;
         let mechanics = &mut *ctx.effect_ctx.mechanics;
         let mut effects = buff::apply(
+            buff::BuffApplySpec::new(buff_b)
+                .caster(caster_uid)
+                .target(target_uid)
+                .bloodpool(has_bloodpool)
+                .skill(skill_id),
             ctx.executor,
             fight,
             managers,
             mechanics,
-            caster_uid,
-            target_uid,
-            buff_b,
-            0,
-            has_bloodpool,
-            skill_id,
-            0,
-            &ConditionType::None,
         );
         hydrate_buff_effects(
             managers.buff_mgr.get(target_uid),

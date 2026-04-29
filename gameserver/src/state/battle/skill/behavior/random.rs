@@ -6,7 +6,6 @@ use std::collections::HashSet;
 use super::super::executor::SkillExecutor;
 use crate::state::battle::manager::fight_data_mgr::Managers;
 use crate::state::battle::mechanics::Mechanics;
-use crate::state::battle::types::condition::ConditionType;
 
 /// Pick `count` buffs from the meta-buff pool keyed by `pool_buff_id`,
 /// biased toward buffs the target does not already have. The bias is the
@@ -75,18 +74,14 @@ pub fn add_buff_ran_id(
     let mut effects = Vec::new();
     for buff_id in chosen {
         effects.extend(super::buff::apply(
+            super::buff::BuffApplySpec::new(buff_id)
+                .caster(caster_uid)
+                .target(target)
+                .bloodpool(has_bloodpool),
             executor,
             fight,
             managers,
             mechanics,
-            caster_uid,
-            target,
-            buff_id,
-            0,
-            has_bloodpool,
-            0,
-            0,
-            &ConditionType::None,
         ));
     }
     Ok(effects)

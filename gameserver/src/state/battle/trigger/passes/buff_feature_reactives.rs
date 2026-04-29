@@ -9,7 +9,7 @@ use crate::state::battle::{
     round::step_shape::build_effect_step,
     skill::{SkillExecutor, buff, cache::resolve_skill_effect_id},
     trigger::combat::TriggerEvent,
-    types::{behavior::BehaviorType, condition::ConditionType},
+    types::behavior::BehaviorType,
 };
 
 use super::TriggerPass;
@@ -70,18 +70,15 @@ fn run_probability_add_buff_reactives(
             for &target_uid in &trigger_targets {
                 for _ in 0..spec.stack_count.max(1) {
                     let mut effects = buff::apply(
+                        buff::BuffApplySpec::new(spec.buff_id)
+                            .caster(event.caster_uid)
+                            .target(target_uid)
+                            .bloodpool(has_bloodpool)
+                            .skill(event.skill_id),
                         &mut executor,
                         ctx.fight,
                         ctx.managers,
                         ctx.mechanics,
-                        event.caster_uid,
-                        target_uid,
-                        spec.buff_id,
-                        0,
-                        has_bloodpool,
-                        event.skill_id,
-                        0,
-                        &ConditionType::None,
                     );
                     hydrate_buff_effects(
                         ctx.managers.buff_mgr.get(target_uid),

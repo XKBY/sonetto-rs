@@ -48,18 +48,17 @@ impl BehaviorAction for Catapult {
         // `buff::apply` per stack with count=1.
         for _ in 0..(*primary_stacks).max(0) {
             effects.extend(buff::apply(
+                buff::BuffApplySpec::new(*buff_id)
+                    .caster(ctx.caster_uid)
+                    .target(ctx.target)
+                    .count(1)
+                    .bloodpool(has_bloodpool)
+                    .skill(ctx.skill_id)
+                    .condition(ctx.condition_id, condition),
                 ctx.executor,
                 fight,
                 ctx.managers,
                 ctx.mechanics,
-                ctx.caster_uid,
-                ctx.target,
-                *buff_id,
-                1,
-                has_bloodpool,
-                ctx.skill_id,
-                ctx.condition_id,
-                condition,
             ));
         }
 
@@ -77,18 +76,17 @@ impl BehaviorAction for Catapult {
         {
             for _ in 0..(*catapult_stacks).max(0) {
                 effects.extend(buff::apply(
+                    buff::BuffApplySpec::new(*buff_id)
+                        .caster(ctx.caster_uid)
+                        .target(enemy_uid)
+                        .count(1)
+                        .bloodpool(has_bloodpool)
+                        .skill(ctx.skill_id)
+                        .condition(ctx.condition_id, condition),
                     ctx.executor,
                     fight,
                     ctx.managers,
                     ctx.mechanics,
-                    ctx.caster_uid,
-                    enemy_uid,
-                    *buff_id,
-                    1,
-                    has_bloodpool,
-                    ctx.skill_id,
-                    ctx.condition_id,
-                    condition,
                 ));
             }
         }

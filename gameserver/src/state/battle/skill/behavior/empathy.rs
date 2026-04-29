@@ -288,18 +288,16 @@ impl Empathy {
                 .build(),
         );
         effects.extend(buff::apply(
+            buff::BuffApplySpec::new(*buff_id)
+                .caster(ctx.caster_uid)
+                .target(ctx.target)
+                .bloodpool(ctx.mechanics.bloodtithe.has_bloodpool())
+                .skill(ctx.skill_id)
+                .condition(ctx.condition_id, condition),
             ctx.executor,
             ctx.behavior_ctx.fight,
             ctx.managers,
             ctx.mechanics,
-            ctx.caster_uid,
-            ctx.target,
-            *buff_id,
-            0,
-            ctx.mechanics.bloodtithe.has_bloodpool(),
-            ctx.skill_id,
-            ctx.condition_id,
-            condition,
         ));
         effects.push(effect_none(ctx.target));
 

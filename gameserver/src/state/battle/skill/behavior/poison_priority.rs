@@ -65,36 +65,34 @@ impl BehaviorAction for PoisonPriority {
                     .next()
                     .unwrap_or(pool[0]);
                 effects.extend(buff::apply(
+                    buff::BuffApplySpec::new(*buff_id)
+                        .caster(ctx.caster_uid)
+                        .target(target_uid)
+                        .count(1)
+                        .bloodpool(has_bloodpool)
+                        .skill(ctx.skill_id)
+                        .condition(ctx.condition_id, condition),
                     ctx.executor,
                     fight,
                     ctx.managers,
                     ctx.mechanics,
-                    ctx.caster_uid,
-                    target_uid,
-                    *buff_id,
-                    1,
-                    has_bloodpool,
-                    ctx.skill_id,
-                    ctx.condition_id,
-                    condition,
                 ));
             }
         } else {
             for idx in 0..total_stacks {
                 let target_uid = pool[idx % pool.len()];
                 effects.extend(buff::apply(
+                    buff::BuffApplySpec::new(*buff_id)
+                        .caster(ctx.caster_uid)
+                        .target(target_uid)
+                        .count(1)
+                        .bloodpool(has_bloodpool)
+                        .skill(ctx.skill_id)
+                        .condition(ctx.condition_id, condition),
                     ctx.executor,
                     fight,
                     ctx.managers,
                     ctx.mechanics,
-                    ctx.caster_uid,
-                    target_uid,
-                    *buff_id,
-                    1,
-                    has_bloodpool,
-                    ctx.skill_id,
-                    ctx.condition_id,
-                    condition,
                 ));
             }
         }
