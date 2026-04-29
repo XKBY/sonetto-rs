@@ -23,7 +23,6 @@ use crate::state::battle::{
         ex_point_mgr::sync_from_fight,
         round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
         traits::Manager,
-        wave_spawn,
     },
     mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics, dot},
     passives::collector::CollectedPassives,
@@ -299,7 +298,9 @@ pub(crate) async fn run(
             .filter_map(|entity| entity.uid)
             .collect();
         let mut wave_executor = SkillExecutor::new();
-        let wave_steps = wave_spawn::advance_wave(ctx, &mut wave_executor)?;
+        let mut wave_mgr = std::mem::take(&mut ctx.managers.wave_mgr);
+        let wave_steps = wave_mgr.advance_wave(ctx, &mut wave_executor)?;
+        ctx.managers.wave_mgr = wave_mgr;
         sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
         for uid in old_defender_uids {
             ctx.managers.buff_mgr.clear(uid);

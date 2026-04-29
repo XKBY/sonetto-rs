@@ -6,6 +6,7 @@ use super::super::{
         calculate_mgr::FightCalculateDataMgr,
         entity_mgr::FightEntityDataMgr,
         ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_to_fight},
+        wave_mgr::WaveMgr,
     },
     mechanics::Mechanics,
     passives::run_battle_start,
@@ -28,6 +29,7 @@ pub struct Managers {
     pub calculate_mgr: FightCalculateDataMgr,
     pub buff_mgr: BuffMgr,
     pub ex_point_mgr: ExPointMgr,
+    pub wave_mgr: WaveMgr,
 }
 
 impl Managers {
@@ -37,6 +39,7 @@ impl Managers {
             calculate_mgr: FightCalculateDataMgr::new(fight),
             buff_mgr: BuffMgr::new(),
             ex_point_mgr: ExPointMgr::new(),
+            wave_mgr: WaveMgr::new(),
         }
     }
 }
