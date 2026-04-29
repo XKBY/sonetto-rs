@@ -24,6 +24,7 @@ use super::super::{
     utils::find_entity,
 };
 use super::fight_data_mgr::Managers;
+use super::wave_mgr::WaveMgr;
 
 #[derive(Default, Debug, Clone)]
 pub struct FightCardMgr {
@@ -366,8 +367,40 @@ impl FightCardMgr {
                 if skill_id == 0 {
                     continue;
                 }
-                let caster_alive = ctx
-                    .fight
+                // Replay-mode wave fast-forward: if the captured caster
+                // belongs to a future configured wave, advance preview
+                // state to that wave before checking entity existence.
+                // This fixes battle3's dropped wave-2 boss steps without
+                // touching single-wave battles or synthetic negative-uid
+                // actors that don't map to a real future wave.
+                if let Some(target_wave) = WaveMgr::expected_wave_for_uid(caster_uid) {
+                    let current_wave = preview_fight.cur_wave.unwrap_or(1);
+                    let max_wave = WaveMgr::max_wave_for_fight(&preview_fight);
+                    if target_wave > current_wave && target_wave <= max_wave {
+                        let mut wave_executor = SkillExecutor::new();
+                        let mut wave_ctx = FightContext::new(
+                            &mut preview_fight,
+                            &mut preview_managers,
+                            &mut preview_mechanics,
+                        );
+                        let mut wave_mgr =
+                            std::mem::take(&mut wave_ctx.managers.wave_mgr);
+                        let wave_steps = wave_mgr.fast_forward_to_wave(
+                            &mut wave_ctx,
+                            &mut wave_executor,
+                            target_wave,
+                        )?;
+                        wave_ctx.managers.wave_mgr = wave_mgr;
+                        drop(wave_ctx);
+                        steps.extend(wave_steps);
+                    }
+                }
+                // Use preview state for the alive check — replay simulates
+                // through preview_fight, so an entity that was alive at
+                // ctx clone time but died in an earlier preview step
+                // shouldn't keep casting. Also: post fast-forward, new
+                // wave entities only exist in preview_fight.
+                let caster_alive = preview_fight
                     .defender
                     .as_ref()
                     .map(|d| {

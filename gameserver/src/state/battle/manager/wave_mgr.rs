@@ -15,7 +15,11 @@ use crate::state::battle::{
     context::FightContext,
     fight::defender::Defender,
     fight_step::FightStepBuilder,
-    manager::buff_mgr::observe_explicit_buff_uid_for_target,
+    manager::{
+        buff_mgr::observe_explicit_buff_uid_for_target,
+        ex_point_mgr::sync_from_fight,
+        round_mgr::seed_entry_max_hp_from_fight,
+    },
     skill::SkillExecutor,
     types::effects::EffectType,
     utils::buff_add,
@@ -27,6 +31,31 @@ pub struct WaveMgr {}
 impl WaveMgr {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn max_wave_for_fight(fight: &Fight) -> i32 {
+        let episode_id = fight.episode_id.unwrap_or(0);
+        let configs = config::configs::get();
+
+        let battle_id = configs
+            .episode
+            .iter()
+            .find(|episode| episode.id == episode_id)
+            .map(|episode| episode.battle_id)
+            .unwrap_or(0);
+
+        configs
+            .battle
+            .iter()
+            .find(|battle| battle.id == battle_id)
+            .map(|battle| {
+                if battle.monster_group_ids.is_empty() {
+                    1
+                } else {
+                    battle.monster_group_ids.split('#').count() as i32
+                }
+            })
+            .unwrap_or(1)
     }
 
     /// UID assignment formula: uid = -((2 * (wave - 1)) + position),
@@ -96,7 +125,21 @@ impl WaveMgr {
             if current >= target_wave {
                 break;
             }
+            let old_defender_uids: Vec<i64> = ctx
+                .fight
+                .defender
+                .as_ref()
+                .into_iter()
+                .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+                .filter_map(|entity| entity.uid)
+                .collect();
             steps.extend(self.advance_wave(ctx, executor)?);
+            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            for uid in old_defender_uids {
+                ctx.managers.buff_mgr.clear(uid);
+            }
+            seed_entry_max_hp_from_fight(ctx.fight);
+            ctx.sync();
         }
         Ok(steps)
     }
