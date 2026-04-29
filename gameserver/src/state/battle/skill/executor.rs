@@ -1207,6 +1207,14 @@ fn condition_depends_on_buff(condition: &ConditionType, buff_id: i32) -> bool {
 }
 
 fn condition_has_combat_event(condition: &ConditionType) -> bool {
+    // Keep this list in sync with `classification::is_combat_event_condition`
+    // (skill/classification.rs:86). They MUST agree on which conditions count
+    // as "combat events" — otherwise `has_combat_reactive_condition`-gated
+    // sweep entry can let a skill in whose behaviors the executor then skips
+    // (because their condition isn't recognized as combat-event), producing
+    // missing emissions. Battle1 r1 step[30] (Pickles' `30630141` end-of-round
+    // "Clarified Topic" with `NoActRound`) regressed when this list omitted
+    // `NoActRound`/`TriggerBullet` — fixed by adding them here.
     condition::fold(condition, &mut |cond| {
         matches!(
             cond,
@@ -1226,6 +1234,8 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
                 | ConditionType::TeamInjuryCountRound
                 | ConditionType::BuffIdDel { .. }
                 | ConditionType::CombatNone
+                | ConditionType::NoActRound
+                | ConditionType::TriggerBullet
         )
     })
 }
