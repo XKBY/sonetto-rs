@@ -6,7 +6,7 @@ use super::super::{
     buff_actions::{
         ex_point_overflow_bank::buff_get_ex_point_overflow, raspberry::BUFF_ACT_ID_RASPBERRY,
     },
-    event_queue::{BattleEvent, serialize_leaf_event},
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         entity_mgr::{EntityLocation, FightEntityDataMgr, get_entity_mut_by_location},
@@ -796,11 +796,24 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
     ) -> Result<(), String> {
-        let amount = serialize_leaf_event(BattleEvent::PowerChange {
+        let mut events = EventQueue::new();
+        events.push(BattleEvent::PowerChange {
             delta: effect.effect_num.unwrap_or(0),
-        })
-        .effect_num
-        .unwrap_or(0);
+        });
+
+        let mut local_buff_mgr = BuffMgr::new();
+        let mut local_ex_point_mgr = ExPointMgr::new();
+        let mut event_ctx = EventContext {
+            fight,
+            buff_mgr: &mut local_buff_mgr,
+            ex_point_mgr: &mut local_ex_point_mgr,
+        };
+        let amount = drain_to_fight_steps(events.drain(), &mut event_ctx)
+            .into_iter()
+            .next()
+            .and_then(|effect| effect.effect_num)
+            .unwrap_or(0);
+
         if let Some(attacker) = fight.attacker.as_mut() {
             let current = attacker.power.unwrap_or(0);
             attacker.power = Some((current + amount).max(0));
