@@ -46,14 +46,15 @@ pub(super) trait BuffAction {
 /// `parse → execute → steps`.
 ///
 /// - `parse` extracts typed params from `parts` and snapshots ctx.
-/// - `execute` applies state mutations (default no-op).
-/// - `steps` builds ActEffects from the parsed params.
+/// - `execute` applies state mutations (default no-op) and may fill
+///   in `Params` fields that depend on side-effect ordering.
+/// - `steps` builds ActEffects from the (possibly mutated) params.
 pub(super) trait BuffActionHandler {
     type Params;
 
     fn matches(&self, act_type: &str, stage: BuffStage) -> bool;
     fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params;
-    fn execute(&self, _params: &Self::Params, _ctx: &mut BuffActCtx<'_, '_>) {}
+    fn execute(&self, _params: &mut Self::Params, _ctx: &mut BuffActCtx<'_, '_>) {}
     fn steps(&self, params: Self::Params, ctx: &BuffActCtx<'_, '_>) -> ActionResult;
 }
 
@@ -80,8 +81,8 @@ impl<H: BuffActionHandler> BuffActionRunner for H {
         if !self.matches(act_type, stage) {
             return None;
         }
-        let params = self.parse(parts, ctx);
-        self.execute(&params, ctx);
+        let mut params = self.parse(parts, ctx);
+        self.execute(&mut params, ctx);
         Some(self.steps(params, ctx))
     }
 }
@@ -94,7 +95,6 @@ pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
     &add_buff_both::AddBuffBothAction,
     &probability_add_buff::ProbabilityAddBuffAction,
     &markers::Markers,
-    &halo::Halo,
     &bootstrap::Bootstrap,
     &no_op::NoOp,
 ];
@@ -104,4 +104,6 @@ pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
 pub(super) const BUFF_HANDLER_REGISTRY: &[&dyn BuffActionRunner] = &[
     &hp::LostHpCountAddBuffBefore,
     &hp::LostHpCountAddBuffAfter,
+    &halo::MasterHaloHandler,
+    &halo::SlaveHaloHandler,
 ];
