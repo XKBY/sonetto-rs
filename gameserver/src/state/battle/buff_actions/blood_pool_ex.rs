@@ -18,56 +18,22 @@ static BLOOD_POOL_EX_ACCUM_TRACKER: Lazy<Mutex<HashMap<(i32, i64), i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub fn buff_get_blood_pool_ex_point_params(buff_id: i32) -> Option<(i32, i32)> {
-    let cfg = config::configs::get();
-    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
-    for segment in buff.features.split('|') {
-        let parts: Vec<&str> = segment.split('#').collect();
-        let feature_id: i32 = parts.first()?.trim().parse().ok()?;
-        let Some(act_type) = cfg
-            .buff_act
-            .iter()
-            .find(|a| a.id == feature_id)
-            .map(|a| a.r#type.as_str())
-        else {
-            continue;
-        };
-
-        match act_type {
-            "BloodPoolCountAddExPoint" => {
-                let threshold = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-                let amount = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
-                if threshold > 0 && amount > 0 {
-                    return Some((threshold, amount));
-                }
-            }
-            "ExPointOverflowBank" => {
-                let threshold = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-                if threshold > 0 {
-                    return Some((threshold, 1));
-                }
-            }
-            _ => {}
+    super::first_feature_match(buff_id, |act_type, parts| match act_type {
+        "BloodPoolCountAddExPoint" => {
+            let threshold = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+            let amount = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+            (threshold > 0 && amount > 0).then_some((threshold, amount))
         }
-    }
-    None
+        "ExPointOverflowBank" => {
+            let threshold = parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+            (threshold > 0).then_some((threshold, 1))
+        }
+        _ => None,
+    })
 }
 
 fn buff_uses_blood_pool_gain_accum(buff_id: i32) -> bool {
-    let cfg = config::configs::get();
-    let Some(buff) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
-        return false;
-    };
-    buff.features.split('|').any(|segment| {
-        let parts: Vec<&str> = segment.split('#').collect();
-        let Some(feature_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
-            return false;
-        };
-        cfg.buff_act
-            .iter()
-            .find(|a| a.id == feature_id)
-            .map(|a| a.r#type == "BloodPoolCountAddExPoint")
-            .unwrap_or(false)
-    })
+    super::find_feature_parts(buff_id, "BloodPoolCountAddExPoint").is_some()
 }
 
 pub fn build_blood_pool_ex_point_step(

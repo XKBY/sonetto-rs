@@ -75,6 +75,62 @@ fn should_run_in_stage(timing: FeatureTiming, stage: FeatureStage) -> bool {
     }
 }
 
+/// Walk a buff's `features` string and return the parts of the entry
+/// whose resolved `buff_act.type` equals `act_type`. Returns the raw
+/// `[act_id_str, arg1, arg2, ...]` slice for the matching feature, or
+/// `None` if the buff isn't configured / has no matching feature.
+///
+/// Use this for buff_act-specific parsers that all share the same
+/// "find my feature, return its args" lookup. Each caller can then
+/// `.get(N)?.trim().parse().ok()` for whichever index it cares about.
+pub fn find_feature_parts(buff_id: i32, act_type: &str) -> Option<Vec<&'static str>> {
+    let cfg = config::configs::get();
+    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
+    buff.features.split('|').find_map(|entry| {
+        let parts: Vec<&'static str> = entry.split('#').collect();
+        let act_id: i32 = parts.first()?.trim().parse().ok()?;
+        let matches = cfg
+            .buff_act
+            .iter()
+            .find(|a| a.id == act_id)
+            .map(|a| a.r#type == act_type)
+            .unwrap_or(false);
+        if matches { Some(parts) } else { None }
+    })
+}
+
+/// Convenience: like [`find_feature_parts`] but returns just the i32
+/// at `param_idx`. Most single-value parsers reduce to one call here.
+pub fn feature_param_i32(buff_id: i32, act_type: &str, param_idx: usize) -> Option<i32> {
+    find_feature_parts(buff_id, act_type)?
+        .get(param_idx)?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Walk a buff's features in order, calling `f(act_type, parts)` for
+/// each. Returns the first non-`None` value the closure produces (so
+/// callers preserve feature-order semantics across multiple
+/// candidate act_types).
+pub fn first_feature_match<T>(
+    buff_id: i32,
+    mut f: impl FnMut(&str, &[&str]) -> Option<T>,
+) -> Option<T> {
+    let cfg = config::configs::get();
+    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
+    buff.features.split('|').find_map(|entry| {
+        let parts: Vec<&str> = entry.split('#').collect();
+        let act_id: i32 = parts.first()?.trim().parse().ok()?;
+        let act_type = cfg
+            .buff_act
+            .iter()
+            .find(|a| a.id == act_id)
+            .map(|a| a.r#type.as_str())?;
+        f(act_type, &parts)
+    })
+}
+
 fn for_each_buff_feature(buff_id: i32, skip_first: bool, mut f: impl FnMut(&str, &[&str])) {
     // Parse and resolve configured feature entries once, then run caller-provided stage logic.
     let cfg = config::configs::get();

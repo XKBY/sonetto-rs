@@ -37,32 +37,12 @@ pub struct InjuryBankParams {
 /// Parse the InjuryBank feature payload from a specific Empathy variant.
 /// Returns `None` if `buff_id` is invalid or carries no `InjuryBank` feature.
 pub fn buff_get_injury_bank_params(buff_id: i32) -> Option<InjuryBankParams> {
-    let cfg = config::configs::get();
-    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
-    buff.features.split('|').find_map(|entry| {
-        let parts: Vec<&str> = entry.split('#').collect();
-        let act_id: i32 = parts.first()?.trim().parse().ok()?;
-        let is_injury_bank = cfg
-            .buff_act
-            .iter()
-            .find(|a| a.id == act_id)
-            .map(|a| a.r#type == "InjuryBank")
-            .unwrap_or(false);
-        if !is_injury_bank {
-            return None;
-        }
-        Some(InjuryBankParams {
-            attr_id: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
-            storage_cap_permille: parts.get(2).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
-            insight_iii_bounce_skill_id: parts
-                .get(3)
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0),
-            storage_threshold_permille: parts
-                .get(4)
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0),
-            heal_permille: parts.get(5).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
-        })
+    let parts = super::find_feature_parts(buff_id, "InjuryBank")?;
+    Some(InjuryBankParams {
+        attr_id: parts.get(1).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        storage_cap_permille: parts.get(2).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        insight_iii_bounce_skill_id: parts.get(3).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        storage_threshold_permille: parts.get(4).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        heal_permille: parts.get(5).and_then(|v| v.trim().parse().ok()).unwrap_or(0),
     })
 }

@@ -12,23 +12,13 @@ pub const BUFF_ACT_ID_RASPBERRY: i32 = 1042;
 #[allow(dead_code)]
 pub const BUFF_ACT_ID_RASPBERRY_BIG_SKILL: i32 = 1041;
 
+/// Returns `(act_id, rate_permille)` from the Raspberry feature, or
+/// `None` if the buff isn't carrying it.
 pub fn buff_get_raspberry_params(buff_id: i32) -> Option<(i32, i32)> {
-    let cfg = config::configs::get();
-    let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
-    buff.features.split('|').find_map(|entry| {
-        let parts: Vec<&str> = entry.split('#').collect();
-        let act_id: i32 = parts.first()?.trim().parse().ok()?;
-        let is_raspberry = matches!(
-            cfg.buff_act.iter().find(|a| a.id == act_id),
-            Some(act) if act.r#type == "Raspberry"
-        );
-        if is_raspberry {
-            let rate: i32 = parts.get(1)?.trim().parse().ok()?;
-            Some((act_id, rate))
-        } else {
-            None
-        }
-    })
+    let parts = super::find_feature_parts(buff_id, "Raspberry")?;
+    let act_id: i32 = parts.first()?.trim().parse().ok()?;
+    let rate: i32 = parts.get(1)?.trim().parse().ok()?;
+    Some((act_id, rate))
 }
 
 /// Behavior: RaspberryAddCount - accumulates HP into the Raspberry counter
