@@ -89,14 +89,6 @@ impl<H: BuffActionHandler> BuffActionRunner for H {
 
 /// Legacy cluster registry. First match wins.
 pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
-    &attr::Attributes,
-    &heal::Healing,
-    &shield::Shield,
-    &add_buff_both::AddBuffBothAction,
-    &probability_add_buff::ProbabilityAddBuffAction,
-    &markers::Markers,
-    &bootstrap::Bootstrap,
-    &no_op::NoOp,
 ];
 
 /// Per-stage handler registry. Walked BEFORE the cluster registry so
@@ -106,4 +98,20 @@ pub(super) const BUFF_HANDLER_REGISTRY: &[&dyn BuffActionRunner] = &[
     &hp::LostHpCountAddBuffAfter,
     &halo::MasterHaloHandler,
     &halo::SlaveHaloHandler,
+    &shield::ShieldHandler,
+    &heal::CureUpByLostHpHandler,
+    &heal::ReviveHandler,
+    &probability_add_buff::ProbabilityAddBuffHandler,
+    &bootstrap::RaspberryHandler,
+    &bootstrap::RaspberryBigSkillHandler,
+    &bootstrap::MonitorContinueChannelHandler,
+    &no_op::NoOpHandler,
+    &markers::MarkerHandler,
+    &attr::AttrBeforeHandler,
+    &attr::AttrAfterHandler,
+    &attr::EachChangeAttrBeforeHandler,
+    &attr::EachChangeAttrAfterHandler,
+    &attr::AttrFromEntityHandler,
+    &attr::AttrOnlyCalDamageHandler,
+    &add_buff_both::AddBuffBothHandler,
 ];

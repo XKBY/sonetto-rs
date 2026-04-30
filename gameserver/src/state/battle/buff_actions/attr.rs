@@ -3,54 +3,153 @@ use sonettobuf::ActEffect;
 use crate::state::battle::{types::effects::EffectType, utils::attr_update};
 
 use super::EffectContext;
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
-/// Attributes buff_action — handles every attr-side buff_act type:
-///
-/// * `Attr` — both stages. Pre-stage emits `MaxHpChange(108)` /
-///   `CurrentHpChange(109)` pairs (×2) when `char_attr_id == 101`
-///   (HP) AND the buff was applied during EnterFight / BattleStart
-///   (`condition_id == 5 || condition_id == 5021`). Post-stage emits
-///   the standard `Attr(26)` marker.
-/// * `EachChangeAttr` — both stages. Pre-stage emits a single
-///   `MaxHp/CurrentHp` pair when `char_attr_id == 101` (the `new_max`
-///   formula uses `caster_max_hp * source_rate / 1000` from
-///   `parts[4]`). Post-stage emits a `None(0)` marker.
-/// * `AttrFromEntity` — post-stage only; emits `Attr(26)` and
-///   queues a self-delete of the buff that triggered it.
-/// * `AttrOnlyCalDamageReplaceAttr` /
-///   `AttrOnlyCalDamageReplaceAttrADCreator` — both stages no-op
-///   (the actual damage-side replacement happens in the damage
-///   pipeline; the buff_act presence is a marker only).
-pub(super) struct Attributes;
+pub(super) struct AttrBeforeParams {
+    pub result: ActionResult,
+}
 
-impl BuffAction for Attributes {
-    fn execute(
-        &self,
-        act_type: &str,
-        parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        match (act_type, stage) {
-            ("Attr", BuffStage::BeforeBuffAdd) => Some(attr_before_apply(ctx, parts)),
-            ("Attr", BuffStage::AfterBuffAdd) => Some(on_apply(ctx.effect_ctx)),
-            ("EachChangeAttr", BuffStage::BeforeBuffAdd) => {
-                Some(each_change_attr_before(ctx, parts))
-            }
-            ("EachChangeAttr", BuffStage::AfterBuffAdd) => {
-                Some(ActionResult::none(ctx.effect_ctx.target))
-            }
-            ("AttrFromEntity", BuffStage::AfterBuffAdd) => {
-                Some(from_entity(ctx.effect_ctx, ctx.buff_id))
-            }
-            ("AttrFromEntity", BuffStage::BeforeBuffAdd) => None,
-            ("AttrOnlyCalDamageReplaceAttr", _) | ("AttrOnlyCalDamageReplaceAttrADCreator", _) => {
-                Some(ActionResult::empty())
-            }
-            _ => None,
+pub(super) struct AttrAfterParams {
+    pub result: ActionResult,
+}
+
+pub(super) struct EachChangeAttrBeforeParams {
+    pub result: ActionResult,
+}
+
+pub(super) struct EachChangeAttrAfterParams {
+    pub target_uid: i64,
+}
+
+pub(super) struct AttrFromEntityParams {
+    pub result: ActionResult,
+}
+
+pub(super) struct AttrBeforeHandler;
+
+impl BuffActionHandler for AttrBeforeHandler {
+    type Params = AttrBeforeParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "Attr" && stage == BuffStage::BeforeBuffAdd
+    }
+
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        AttrBeforeParams {
+            result: attr_before_apply(ctx, parts),
         }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        params.result
+    }
+}
+
+pub(super) struct AttrAfterHandler;
+
+impl BuffActionHandler for AttrAfterHandler {
+    type Params = AttrAfterParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "Attr" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        AttrAfterParams {
+            result: ActionResult::empty(),
+        }
+    }
+
+    fn execute(&self, params: &mut Self::Params, ctx: &mut BuffActCtx<'_, '_>) {
+        params.result = on_apply(ctx.effect_ctx);
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        params.result
+    }
+}
+
+pub(super) struct EachChangeAttrBeforeHandler;
+
+impl BuffActionHandler for EachChangeAttrBeforeHandler {
+    type Params = EachChangeAttrBeforeParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "EachChangeAttr" && stage == BuffStage::BeforeBuffAdd
+    }
+
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        EachChangeAttrBeforeParams {
+            result: each_change_attr_before(ctx, parts),
+        }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        params.result
+    }
+}
+
+pub(super) struct EachChangeAttrAfterHandler;
+
+impl BuffActionHandler for EachChangeAttrAfterHandler {
+    type Params = EachChangeAttrAfterParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "EachChangeAttr" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        EachChangeAttrAfterParams {
+            target_uid: ctx.effect_ctx.target,
+        }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::none(params.target_uid)
+    }
+}
+
+pub(super) struct AttrFromEntityHandler;
+
+impl BuffActionHandler for AttrFromEntityHandler {
+    type Params = AttrFromEntityParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "AttrFromEntity" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        AttrFromEntityParams {
+            result: ActionResult::empty(),
+        }
+    }
+
+    fn execute(&self, params: &mut Self::Params, ctx: &mut BuffActCtx<'_, '_>) {
+        params.result = from_entity(ctx.effect_ctx, ctx.buff_id);
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        params.result
+    }
+}
+
+pub(super) struct AttrOnlyCalDamageHandler;
+
+impl BuffActionHandler for AttrOnlyCalDamageHandler {
+    type Params = ();
+
+    fn matches(&self, act_type: &str, _stage: BuffStage) -> bool {
+        matches!(
+            act_type,
+            "AttrOnlyCalDamageReplaceAttr" | "AttrOnlyCalDamageReplaceAttrADCreator"
+        )
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {}
+
+    fn steps(&self, _params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::empty()
     }
 }
 
@@ -65,7 +164,7 @@ fn parse_part(parts: &[&str], idx: usize) -> i32 {
 /// when applying an HP-attr buff during EnterFight / BattleStart.
 /// Strict to avoid career/unconditional attr adds emitting extra
 /// pairs.
-fn attr_before_apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
+fn attr_before_apply(ctx: &BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let char_attr_id = parse_part(parts, 1);
     let rate = parse_part(parts, 2);
     if !(char_attr_id == 101 && (ctx.condition_id == 5 || ctx.condition_id == 5021)) {
@@ -100,7 +199,7 @@ fn attr_before_apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResu
 /// Pre-stage `EachChangeAttr` HP broadcast: emit a single
 /// `MaxHp/CurrentHp` pair when applying an HP-attr buff. The new
 /// max scales by `caster_max_hp * source_rate / 1000`.
-fn each_change_attr_before(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
+fn each_change_attr_before(ctx: &BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let char_attr_id = parse_part(parts, 1);
     let source_rate = parse_part(parts, 4);
     if char_attr_id != 101 {

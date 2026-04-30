@@ -8,121 +8,124 @@ use crate::state::battle::{
     },
 };
 
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
-pub(super) struct AddBuffBothAction;
+pub(super) struct AddBuffBothParams {
+    pub buff_a: i32,
+    pub buff_b: i32,
+    pub original_target: i64,
+    pub caster_uid: i64,
+    pub skill_id: i32,
+    pub has_bloodpool: bool,
+    pub inner_effects: Vec<sonettobuf::ActEffect>,
+}
 
-impl BuffAction for AddBuffBothAction {
-    fn execute(
-        &self,
-        act_type: &str,
-        parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if stage == BuffStage::BeforeBuffAdd || act_type != "AddBuffBoth" {
-            return None;
+pub(super) struct AddBuffBothHandler;
+
+impl BuffActionHandler for AddBuffBothHandler {
+    type Params = AddBuffBothParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "AddBuffBoth" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        let buff_a = parts
+            .get(1)
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        let buff_b = parts
+            .get(3)
+            .and_then(|v| v.trim().parse::<i32>().ok())
+            .unwrap_or(0);
+        AddBuffBothParams {
+            buff_a,
+            buff_b,
+            original_target: ctx.effect_ctx.target,
+            caster_uid: ctx.effect_ctx.caster_uid(),
+            skill_id: ctx
+                .executor
+                .current_skill_context()
+                .map(|(skill_id, _)| skill_id)
+                .unwrap_or(0),
+            has_bloodpool: ctx.has_bloodpool,
+            inner_effects: Vec::new(),
+        }
+    }
+
+    fn execute(&self, params: &mut Self::Params, ctx: &mut BuffActCtx<'_, '_>) {
+        if params.buff_a <= 0 && params.buff_b <= 0 {
+            return;
         }
 
-        Some(apply(ctx, parts))
+        let fight = ctx.effect_ctx.fight;
+        for target_uid in add_buff_both_targets(
+            ctx.executor,
+            fight,
+            &ctx.effect_ctx.managers.buff_mgr,
+            params.caster_uid,
+            params.original_target,
+            params.buff_a,
+        ) {
+            apply_child_buff(params, ctx, target_uid, params.buff_a);
+        }
+
+        for target_uid in add_buff_both_targets(
+            ctx.executor,
+            fight,
+            &ctx.effect_ctx.managers.buff_mgr,
+            params.caster_uid,
+            params.original_target,
+            params.buff_b,
+        ) {
+            apply_child_buff(params, ctx, target_uid, params.buff_b);
+        }
+    }
+
+    fn steps(&self, params: Self::Params, ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        if params.inner_effects.is_empty() {
+            return ActionResult::empty();
+        }
+        ActionResult::single(wrap_step(effect_container_step(
+            params.caster_uid,
+            params.original_target,
+            ctx.buff_id,
+            params.inner_effects,
+        )))
     }
 }
 
-fn apply(ctx: &mut BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
-    let buff_a = parts
-        .get(1)
-        .and_then(|v| v.trim().parse::<i32>().ok())
-        .unwrap_or(0);
-    let buff_b = parts
-        .get(3)
-        .and_then(|v| v.trim().parse::<i32>().ok())
-        .unwrap_or(0);
-    if buff_a <= 0 && buff_b <= 0 {
-        return ActionResult::empty();
+fn apply_child_buff(
+    params: &mut AddBuffBothParams,
+    ctx: &mut BuffActCtx<'_, '_>,
+    target_uid: i64,
+    buff_id: i32,
+) {
+    if buff_id <= 0 {
+        return;
     }
-
-    let original_target = ctx.effect_ctx.target;
-    let caster_uid = ctx.effect_ctx.caster_uid();
-    let skill_id = ctx
-        .executor
-        .current_skill_context()
-        .map(|(skill_id, _)| skill_id)
-        .unwrap_or(0);
-    let has_bloodpool = ctx.has_bloodpool;
     let fight = ctx.effect_ctx.fight;
-    let mut inner_effects = Vec::new();
-
-    for target_uid in add_buff_both_targets(
+    let managers = &mut *ctx.effect_ctx.managers;
+    let mechanics = &mut *ctx.effect_ctx.mechanics;
+    let mut effects = buff::apply(
+        buff::BuffApplySpec::new(buff_id)
+            .caster(params.caster_uid)
+            .target(target_uid)
+            .bloodpool(params.has_bloodpool)
+            .skill(params.skill_id),
         ctx.executor,
         fight,
-        &ctx.effect_ctx.managers.buff_mgr,
-        caster_uid,
-        original_target,
-        buff_a,
-    ) {
-        let managers = &mut *ctx.effect_ctx.managers;
-        let mechanics = &mut *ctx.effect_ctx.mechanics;
-        let mut effects = buff::apply(
-            buff::BuffApplySpec::new(buff_a)
-                .caster(caster_uid)
-                .target(target_uid)
-                .bloodpool(has_bloodpool)
-                .skill(skill_id),
-            ctx.executor,
-            fight,
-            managers,
-            mechanics,
-        );
-        hydrate_buff_effects(
-            managers.buff_mgr.get(target_uid),
-            buff_a,
-            caster_uid,
-            &mut effects,
-        );
-        inner_effects.extend(effects);
-    }
-
-    for target_uid in add_buff_both_targets(
-        ctx.executor,
-        fight,
-        &ctx.effect_ctx.managers.buff_mgr,
-        caster_uid,
-        original_target,
-        buff_b,
-    ) {
-        let managers = &mut *ctx.effect_ctx.managers;
-        let mechanics = &mut *ctx.effect_ctx.mechanics;
-        let mut effects = buff::apply(
-            buff::BuffApplySpec::new(buff_b)
-                .caster(caster_uid)
-                .target(target_uid)
-                .bloodpool(has_bloodpool)
-                .skill(skill_id),
-            ctx.executor,
-            fight,
-            managers,
-            mechanics,
-        );
-        hydrate_buff_effects(
-            managers.buff_mgr.get(target_uid),
-            buff_b,
-            caster_uid,
-            &mut effects,
-        );
-        inner_effects.extend(effects);
-    }
-
-    if inner_effects.is_empty() {
-        return ActionResult::empty();
-    }
-
-    ActionResult::single(wrap_step(effect_container_step(
-        caster_uid,
-        original_target,
-        ctx.buff_id,
-        inner_effects,
-    )))
+        managers,
+        mechanics,
+    );
+    hydrate_buff_effects(
+        managers.buff_mgr.get(target_uid),
+        buff_id,
+        params.caster_uid,
+        &mut effects,
+    );
+    params.inner_effects.extend(effects);
 }
 
 fn add_buff_both_targets(

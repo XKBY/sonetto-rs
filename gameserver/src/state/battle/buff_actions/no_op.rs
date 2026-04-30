@@ -3,31 +3,39 @@
 //! `AddPassiveSkills` is consumed by the passive collector at
 //! round-open) or live in untouched parts of the engine.
 
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
-pub(super) struct NoOp;
+pub(super) struct NoOpParams {
+    pub target_uid: i64,
+}
 
-impl BuffAction for NoOp {
-    fn execute(
-        &self,
-        act_type: &str,
-        _parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if stage == BuffStage::BeforeBuffAdd {
-            return None;
+pub(super) struct NoOpHandler;
+
+impl BuffActionHandler for NoOpHandler {
+    type Params = NoOpParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        stage == BuffStage::AfterBuffAdd
+            && matches!(
+                act_type,
+                "FixAttrBySubBuffLayer"
+                    | "AddPassiveSkills"
+                    | "SubBuff"
+                    | "Bullet"
+                    | "CreateMaxHpAdditionalDamageAndRemove"
+                    | "LifeAttackFixRate"
+                    | "AddBuffByOtherExSkill"
+            )
+    }
+
+    fn parse(&self, _parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        NoOpParams {
+            target_uid: ctx.effect_ctx.target,
         }
-        match act_type {
-            "FixAttrBySubBuffLayer"
-            | "AddPassiveSkills"
-            | "SubBuff"
-            | "Bullet"
-            | "CreateMaxHpAdditionalDamageAndRemove"
-            | "LifeAttackFixRate"
-            | "AddBuffByOtherExSkill" => Some(ActionResult::none(ctx.effect_ctx.target)),
-            _ => None,
-        }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::none(params.target_uid)
     }
 }

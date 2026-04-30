@@ -1,26 +1,61 @@
 //! Bootstrap — battle-init markers (Raspberry, MonitorContinueChannel).
 //! Apply-time emissions are bookkeeping; real state lives in `mechanics/`.
 
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
-pub(super) struct Bootstrap;
+pub(super) struct BootstrapParams {
+    pub target_uid: i64,
+}
 
-impl BuffAction for Bootstrap {
-    fn execute(
-        &self,
-        act_type: &str,
-        _parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if stage == BuffStage::BeforeBuffAdd {
-            return None;
+pub(super) struct RaspberryHandler;
+
+impl BuffActionHandler for RaspberryHandler {
+    type Params = BootstrapParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "Raspberry" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        BootstrapParams {
+            target_uid: ctx.effect_ctx.target,
         }
-        match act_type {
-            "Raspberry" => Some(ActionResult::none(ctx.effect_ctx.target)),
-            "RaspberryBigSkill" | "MonitorContinueChannel" => Some(ActionResult::empty()),
-            _ => None,
-        }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::none(params.target_uid)
+    }
+}
+
+pub(super) struct RaspberryBigSkillHandler;
+
+impl BuffActionHandler for RaspberryBigSkillHandler {
+    type Params = ();
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "RaspberryBigSkill" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {}
+
+    fn steps(&self, _params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::empty()
+    }
+}
+
+pub(super) struct MonitorContinueChannelHandler;
+
+impl BuffActionHandler for MonitorContinueChannelHandler {
+    type Params = ();
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "MonitorContinueChannel" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {}
+
+    fn steps(&self, _params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::empty()
     }
 }

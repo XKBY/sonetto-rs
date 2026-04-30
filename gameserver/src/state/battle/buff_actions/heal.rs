@@ -6,7 +6,7 @@ use crate::state::battle::{
 };
 
 use super::EffectContext;
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
 /// Healing buff_action — handles the buff_act types that emit a
@@ -19,24 +19,47 @@ use super::result::ActionResult;
 /// falls through to its default no-op for that buff_act type because
 /// LIVE doesn't emit a per-feature effect for it (the cure happens
 /// at skill emission time via the heal helpers below).
-pub(super) struct Healing;
+pub(super) struct HealParams {
+    pub target_uid: i64,
+}
 
-impl BuffAction for Healing {
-    fn execute(
-        &self,
-        act_type: &str,
-        _parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if stage == BuffStage::BeforeBuffAdd {
-            return None;
+pub(super) struct CureUpByLostHpHandler;
+
+impl BuffActionHandler for CureUpByLostHpHandler {
+    type Params = HealParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "CureUpByLostHp" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        HealParams {
+            target_uid: ctx.effect_ctx.target_uid(),
         }
-        match act_type {
-            "CureUpByLostHp" => Some(cure_up_by_lost_hp(ctx.effect_ctx)),
-            "Revive" => Some(revive(ctx.effect_ctx)),
-            _ => None,
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        cure_up_by_lost_hp(params.target_uid)
+    }
+}
+
+pub(super) struct ReviveHandler;
+
+impl BuffActionHandler for ReviveHandler {
+    type Params = HealParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "Revive" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        HealParams {
+            target_uid: ctx.effect_ctx.target_uid(),
         }
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        revive(params.target_uid)
     }
 }
 
@@ -62,21 +85,19 @@ pub fn heal_by_two_attr(
     )
 }
 
-/// Buff feature: CureUpByLostHp — emit CureUpByLostHp(347) notification.
-pub fn cure_up_by_lost_hp(ctx: &mut EffectContext) -> ActionResult {
+pub fn cure_up_by_lost_hp(target_uid: i64) -> ActionResult {
     ActionResult::single(ActEffect {
         effect_type: Some(EffectType::CureUpByLostHp as i32),
-        target_id: Some(ctx.target_uid()),
+        target_id: Some(target_uid),
         effect_num: Some(0),
         ..Default::default()
     })
 }
 
-/// Buff feature: Revive — emit Cure(4) placeholder.
-pub fn revive(ctx: &mut EffectContext) -> ActionResult {
+pub fn revive(target_uid: i64) -> ActionResult {
     ActionResult::single(ActEffect {
         effect_type: Some(EffectType::Cure as i32),
-        target_id: Some(ctx.target_uid()),
+        target_id: Some(target_uid),
         effect_num: Some(0),
         ..Default::default()
     })

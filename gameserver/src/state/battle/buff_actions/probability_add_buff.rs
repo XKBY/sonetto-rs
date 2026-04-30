@@ -1,4 +1,4 @@
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
 #[derive(Debug, Clone, Copy)]
@@ -8,20 +8,19 @@ pub(crate) struct ProbabilityAddBuffSpec {
     pub stack_count: i32,
 }
 
-pub(super) struct ProbabilityAddBuffAction;
+pub(super) struct ProbabilityAddBuffHandler;
 
-impl BuffAction for ProbabilityAddBuffAction {
-    fn execute(
-        &self,
-        act_type: &str,
-        _parts: &[&str],
-        _ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if stage == BuffStage::BeforeBuffAdd || act_type != "ProbabilityAddBuff" {
-            return None;
-        }
-        Some(ActionResult::empty())
+impl BuffActionHandler for ProbabilityAddBuffHandler {
+    type Params = ();
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "ProbabilityAddBuff" && stage == BuffStage::AfterBuffAdd
+    }
+
+    fn parse(&self, _parts: &[&str], _ctx: &BuffActCtx<'_, '_>) -> Self::Params {}
+
+    fn steps(&self, _params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::empty()
     }
 }
 
