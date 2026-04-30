@@ -1,31 +1,7 @@
-//! Markers buff_action — handler for the buff_act types that emit a
-//! single self-contained marker ActEffect on the target with no
-//! supporting math beyond the effect-type/value mapping.
-//!
-//! Most of these are LIVE protocol "flag" emissions that the engine
-//! reads back later to gate downstream behavior (e.g. `RealHurtFix`
-//! tells the damage pipeline to skip the rate fix; `MonsterLabelBuff`
-//! flags the target as a monster for AOE filters). A few carry a
-//! payload value (`ExPointMaxAdd` reads `parts[1]`); the rest emit
-//! `effect_num = 0` as a presence flag.
-//!
-//! Variants owned:
-//! * `Rebound`, `AddToTarget`, `MonsterLabel`, `ExPointOverflowBank`,
-//!   `ExPointMaxAdd`, `TeammateInjuryCount`, `PoisonSettleCanCrit`,
-//!   `RealHurtFix`, `RealHarmFix`, `RealHurtSkillEffectFix`,
-//!   `RealHarmSkillEffectFix`.
-//! * **DOT family** — `Poison`, `LockPoison`, `DeadlyPoison`. Each
-//!   emits the matching effect-type marker (`Poison(213)`,
-//!   `LockDot(216)`, `DeadlyPoison(255)`) alongside its `BuffAdd`.
-//!   The actual DOT damage tick fires later via the buff settlement
-//!   phase; at apply time the marker is the only emission. Verified
-//!   from LIVE battle3 r2-r10: every BuffAdd of a Poison-family buff
-//!   (e.g. 31040005, 30980111, 30091129) is paired with one of these
-//!   effect-type markers in the same actEffect array.
-//! * **Status flags** — `Dizzy`, `Forbid`, `ImmunityExpointChange`.
-//!   Same pattern: BuffAdd → matching effect-type marker
-//!   (`Dizzy(20)`, `Forbid(30)`, `ImmunityExPointChange(66)`).
-//!   Verified from LIVE battle3 r2/r6/r8.
+//! Markers — buff_acts that emit a single flag ActEffect at apply.
+//! Most are presence flags (`effect_num = 0`); `ExPointMaxAdd` carries
+//! a payload from `parts[1]`. DOT family + status flags follow the
+//! same shape: BuffAdd → matching effect-type marker.
 
 use sonettobuf::ActEffect;
 
@@ -68,15 +44,7 @@ impl BuffAction for Markers {
             "Poison" => (EffectType::Poison as i32, 0),
             "LockPoison" => (EffectType::LockDot as i32, 0),
             "DeadlyPoison" => (EffectType::DeadlyPoison as i32, 0),
-            // Kakania's EX-applied InjuryLogback buff (30800121, feature
-            // `768#300`) tags the target so the in-game ability text's
-            // "deals (recorded damage taken × 30%) Genesis DMG" is
-            // resolved at end of round. The `et=168 InjuryLogBack`
-            // marker LIVE emits right after the BuffAdd is the
-            // presence flag for that pairing — verified from battle3
-            // r8 step[2] LIVE shape `[…, et=5 buff=30800121, et=168
-            // num=0, …]`. Damage settlement at round end stays a
-            // separate work item.
+            // Kakania 30800121's tag for end-of-round damage settlement.
             "InjuryLogback" => (EffectType::InjuryLogBack as i32, 0),
             "Dizzy" => (EffectType::Dizzy as i32, 0),
             "Forbid" => (EffectType::Forbid as i32, 0),

@@ -1,18 +1,7 @@
-//! NoOp buff_action — handler for the buff_act types that the
-//! dispatcher previously routed to a single
-//! `ActionResult::none(target)` arm. None of these emit anything
-//! meaningful at apply time; their actual semantics either fire on
-//! a different trigger (e.g. `AddPassiveSkills` is consumed by the
-//! passive collector during round-open, not on buff apply) or live
-//! in untouched parts of the engine that haven't migrated yet.
-//!
-//! Variants owned:
-//! `FixAttrBySubBuffLayer`, `AddPassiveSkills`, `SubBuff`, `Bullet`,
-//! `CreateMaxHpAdditionalDamageAndRemove`, `LifeAttackFixRate`,
-//! `AddBuffByOtherExSkill`.
-//!
-//! `Poison` was previously here as a no-op; it now lives in
-//! `markers.rs` and emits its `Poison(213)` marker.
+//! NoOp — buff_acts that emit a single `effect_none(target)` slot.
+//! Their real semantics fire on different triggers (e.g.
+//! `AddPassiveSkills` is consumed by the passive collector at
+//! round-open) or live in untouched parts of the engine.
 
 use super::action::{BuffActCtx, BuffAction, BuffStage};
 use super::result::ActionResult;

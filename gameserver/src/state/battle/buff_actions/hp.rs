@@ -1,118 +1,126 @@
+//! `LostHpCountAddBuff` — emits HP-broadcast pairs pre-stage and a
+//! None marker post-stage. Migrated to the `BuffActionHandler` trait
+//! (one handler per stage). Child buffs whose primary `Attr` targets
+//! 203 or 211 skip the broadcast pairs.
+
 use sonettobuf::ActEffect;
 
 use crate::state::battle::{types::effects::EffectType, utils::effect_none};
 
-use super::EffectContext;
-use super::action::{BuffActCtx, BuffAction, BuffStage};
+use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
-/// HP buff_action — handles `LostHpCountAddBuff`, the only buff_act
-/// type with HP-broadcast logic at apply time.
-///
-/// Two-stage emission: the BeforeBuffAdd pass emits the
-/// `MaxHpChange(108)` / `CurrentHpChange(109)` pairs (so the UI sees
-/// the new max before the BuffAdd lands), and the AfterBuffAdd pass
-/// emits only the trailing `None(0)` marker for the dispatcher's
-/// feature loop. Both stages call into `lost_hp_count_add_buff`
-/// for the underlying skip-broadcast / max-hp computation; the
-/// stage just decides which subset of the resulting effects to keep.
-pub(super) struct Hp;
+const NO_BROADCAST_ATTRS: &[i32] = &[203, 211];
 
-impl BuffAction for Hp {
-    fn execute(
-        &self,
-        act_type: &str,
-        parts: &[&str],
-        ctx: &mut BuffActCtx<'_, '_>,
-        stage: BuffStage,
-    ) -> Option<ActionResult> {
-        if act_type != "LostHpCountAddBuff" {
-            return None;
+pub(super) struct LostHpCountAddBuffParams {
+    pub target_uid: i64,
+    pub max_hp: i32,
+    pub current_hp: i32,
+    pub skip_broadcast: bool,
+}
+
+fn parse_child_buff_id(parts: &[&str]) -> i32 {
+    parts
+        .get(1)
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn child_buff_skips_broadcast(child_buff_id: i32) -> bool {
+    if child_buff_id <= 0 {
+        return false;
+    }
+    let cfg = config::configs::get();
+    let Some(child) = cfg.skill_buff.iter().find(|b| b.id == child_buff_id) else {
+        return false;
+    };
+    child.features.split('|').any(|entry| {
+        let parts: Vec<&str> = entry.split('#').collect();
+        let act_id: i32 = parts
+            .first()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0);
+        let is_attr = cfg
+            .buff_act
+            .iter()
+            .find(|a| a.id == act_id)
+            .map(|a| a.r#type == "Attr")
+            .unwrap_or(false);
+        if !is_attr {
+            return false;
         }
-        let child_buff_id = parts
+        let char_attr_id: i32 = parts
             .get(1)
             .and_then(|v| v.trim().parse().ok())
             .unwrap_or(0);
-        let mut result = lost_hp_count_add_buff(ctx.effect_ctx, child_buff_id);
-        match stage {
-            BuffStage::BeforeBuffAdd => {
-                result
-                    .effects
-                    .retain(|e| matches!(e.effect_type, Some(108) | Some(109)));
-            }
-            BuffStage::AfterBuffAdd => {
-                result
-                    .effects
-                    .retain(|e| e.effect_type == Some(EffectType::None as i32));
-            }
-        }
-        Some(result)
+        NO_BROADCAST_ATTRS.contains(&char_attr_id)
+    })
+}
+
+fn snapshot_params(parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> LostHpCountAddBuffParams {
+    let child_buff_id = parse_child_buff_id(parts);
+    LostHpCountAddBuffParams {
+        target_uid: ctx.effect_ctx.target_uid(),
+        max_hp: ctx
+            .effect_ctx
+            .target_entity()
+            .and_then(|e| e.attr.as_ref().and_then(|a| a.hp))
+            .unwrap_or(0),
+        current_hp: ctx.effect_ctx.target_hp(),
+        skip_broadcast: child_buff_skips_broadcast(child_buff_id),
     }
 }
 
-/// Buff feature: LostHpCountAddBuff — broadcasts HP state on buff application.
-/// If child buff's attr is in the exclusion list, emits None instead.
-pub fn lost_hp_count_add_buff(ctx: &mut EffectContext, _child_buff_id: i32) -> ActionResult {
-    // Match legacy/live behavior: certain child-buff Attr targets should NOT trigger
-    // MaxHp/CurrentHp broadcast pairs (only emit trailing None).
-    const NO_BROADCAST_ATTRS: &[i32] = &[203, 211];
+pub(super) struct LostHpCountAddBuffBefore;
 
-    if _child_buff_id > 0 {
-        let cfg = config::configs::get();
-        let skip_broadcast = cfg
-            .skill_buff
-            .iter()
-            .find(|b| b.id == _child_buff_id)
-            .map(|child| {
-                child.features.split('|').any(|entry| {
-                    let parts: Vec<&str> = entry.split('#').collect();
-                    let act_id: i32 = parts
-                        .first()
-                        .and_then(|v| v.trim().parse().ok())
-                        .unwrap_or(0);
-                    let is_attr = cfg
-                        .buff_act
-                        .iter()
-                        .find(|a| a.id == act_id)
-                        .map(|a| a.r#type == "Attr")
-                        .unwrap_or(false);
-                    if !is_attr {
-                        return false;
-                    }
-                    let char_attr_id: i32 = parts
-                        .get(1)
-                        .and_then(|v| v.trim().parse().ok())
-                        .unwrap_or(0);
-                    NO_BROADCAST_ATTRS.contains(&char_attr_id)
-                })
-            })
-            .unwrap_or(false);
+impl BuffActionHandler for LostHpCountAddBuffBefore {
+    type Params = LostHpCountAddBuffParams;
 
-        if skip_broadcast {
-            return ActionResult::single(effect_none(ctx.target_uid()));
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "LostHpCountAddBuff" && stage == BuffStage::BeforeBuffAdd
+    }
+
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        snapshot_params(parts, ctx)
+    }
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        if params.skip_broadcast {
+            return ActionResult::empty();
         }
+        let mut effects = Vec::with_capacity(4);
+        for _ in 0..2 {
+            effects.push(ActEffect {
+                effect_type: Some(EffectType::MaxHpChange as i32),
+                target_id: Some(params.target_uid),
+                effect_num: Some(params.max_hp),
+                ..Default::default()
+            });
+            effects.push(ActEffect {
+                effect_type: Some(EffectType::CurrentHpChange as i32),
+                target_id: Some(params.target_uid),
+                effect_num: Some(params.current_hp),
+                ..Default::default()
+            });
+        }
+        ActionResult::effects(effects)
+    }
+}
+
+pub(super) struct LostHpCountAddBuffAfter;
+
+impl BuffActionHandler for LostHpCountAddBuffAfter {
+    type Params = LostHpCountAddBuffParams;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool {
+        act_type == "LostHpCountAddBuff" && stage == BuffStage::AfterBuffAdd
     }
 
-    let max_hp = ctx
-        .target_entity()
-        .and_then(|e| e.attr.as_ref().and_then(|a| a.hp))
-        .unwrap_or(0);
-    let current_hp = ctx.target_hp();
-
-    let mut effects = vec![effect_none(ctx.target_uid())];
-    for _ in 0..2 {
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::MaxHpChange as i32),
-            target_id: Some(ctx.target_uid()),
-            effect_num: Some(max_hp),
-            ..Default::default()
-        });
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::CurrentHpChange as i32),
-            target_id: Some(ctx.target_uid()),
-            effect_num: Some(current_hp),
-            ..Default::default()
-        });
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params {
+        snapshot_params(parts, ctx)
     }
-    ActionResult::effects(effects)
+
+    fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
+        ActionResult::single(effect_none(params.target_uid))
+    }
 }

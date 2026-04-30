@@ -24,7 +24,7 @@ pub mod raspberry;
 pub mod round_end;
 pub mod shield;
 
-use self::action::{BUFF_ACTION_REGISTRY, BuffActCtx, BuffStage};
+use self::action::{BUFF_ACTION_REGISTRY, BUFF_HANDLER_REGISTRY, BuffActCtx, BuffStage};
 
 pub mod result;
 pub mod use_skill_to_enemy;
@@ -113,9 +113,10 @@ fn run_before_add_feature(
     executor: &mut SkillExecutor,
     condition_id: i32,
 ) -> ActionResult {
-    // Iterate the registry; first cluster that owns this act_type +
-    // stage wins. Returns empty if no cluster claims it (most don't
-    // emit anything pre-stage).
+    // Walk the per-handler registry first (parse → execute → steps
+    // pattern). Then fall through to the legacy cluster registry for
+    // the act_types that haven't migrated yet. Returns empty if
+    // neither claims it (most act_types don't emit pre-stage).
     let mut buff_ctx = BuffActCtx {
         effect_ctx: ctx,
         executor,
@@ -123,6 +124,13 @@ fn run_before_add_feature(
         condition_id,
         has_bloodpool: false,
     };
+    for handler in BUFF_HANDLER_REGISTRY {
+        if let Some(result) =
+            handler.run(act_type, BuffStage::BeforeBuffAdd, parts, &mut buff_ctx)
+        {
+            return result;
+        }
+    }
     for cluster in BUFF_ACTION_REGISTRY {
         if let Some(result) =
             cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
@@ -179,6 +187,16 @@ pub fn dispatch_feature(
         condition_id: 0,
         has_bloodpool: _has_bloodpool,
     };
+    // Walk the per-handler registry first (parse → execute → steps
+    // pattern). Falls through to the legacy cluster registry for
+    // unmigrated act_types.
+    for handler in BUFF_HANDLER_REGISTRY {
+        if let Some(result) =
+            handler.run(act_type, BuffStage::AfterBuffAdd, parts, &mut buff_ctx)
+        {
+            return result;
+        }
+    }
     for cluster in BUFF_ACTION_REGISTRY {
         if let Some(result) =
             cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
@@ -186,9 +204,9 @@ pub fn dispatch_feature(
             return result;
         }
     }
-    // No cluster claimed this act_type — emit the legacy None(0)
-    // placeholder so the dispatcher's feature loop accounts for the
-    // slot.
+    // No cluster or handler claimed this act_type — emit the legacy
+    // None(0) placeholder so the dispatcher's feature loop accounts
+    // for the slot.
     ActionResult::none(target)
 }
 

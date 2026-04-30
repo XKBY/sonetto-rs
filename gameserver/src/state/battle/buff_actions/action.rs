@@ -1,26 +1,7 @@
-//! Trait + context bundle + registry every buff_action module
-//! implements / consults.
-//!
-//! Each `buff_act.type` string in `data/excel2json/buff_act.json` is
-//! routed through the dispatcher in `buff_actions/mod.rs::dispatch_feature`.
-//! Per-cluster modules (e.g. `healing.rs`, `attributes.rs`) expose a
-//! unit struct that implements [`BuffAction`]. The dispatcher iterates
-//! [`BUFF_ACTION_REGISTRY`] and picks the first cluster whose
-//! `execute` returns `Some(...)`.
-//!
-//! Two-stage pipeline:
-//! - `BeforeBuffAdd` runs before the BuffAdd ActEffect is emitted (used
-//!   only by buff_acts that need to broadcast HP changes synchronously
-//!   with the buff add — `Attr`, `EachChangeAttr`, `LostHpCountAddBuff`).
-//! - `AfterBuffAdd` runs after the BuffAdd is emitted (the default for
-//!   every other buff_act).
-//!
-//! Return semantics:
-//! - `Some(result)` — this cluster owns `act_type` AND has something
-//!   to emit in this `stage`.
-//! - `None` — either foreign (cluster doesn't own `act_type`) or
-//!   owned but no-op for this `stage`. The registry iteration falls
-//!   through to the next cluster.
+//! Trait + context bundle + registries for the buff_action dispatch
+//! pipeline. The dispatcher in `mod.rs` walks
+//! [`BUFF_HANDLER_REGISTRY`] (per-stage handlers) first, then falls
+//! through to [`BUFF_ACTION_REGISTRY`] (legacy cluster handlers).
 
 use super::super::skill::SkillExecutor;
 use super::EffectContext;
@@ -36,14 +17,9 @@ pub enum BuffStage {
     AfterBuffAdd,
 }
 
-/// Bundle of mutable handles + per-feature invocation data threaded
-/// into every buff_action's `execute`. Built once per feature inside
-/// `dispatch_feature`. Fields are `pub(super)` so sibling cluster
-/// modules can read them directly.
-///
-/// `condition_id` carries the skill's `condition_id` from the parent
-/// skill emission; `BeforeBuffAdd` `Attr` handlers use it to gate
-/// EnterFight/BattleStart HP broadcasts (see `mod.rs`).
+/// Mutable handles + per-feature invocation data threaded into every
+/// handler. `condition_id` carries the parent skill's condition
+/// (used by Attr handlers to gate EnterFight/BattleStart broadcasts).
 #[allow(dead_code)]
 pub(super) struct BuffActCtx<'a, 'ctx> {
     pub effect_ctx: &'a mut EffectContext<'ctx>,
@@ -53,12 +29,9 @@ pub(super) struct BuffActCtx<'a, 'ctx> {
     pub has_bloodpool: bool,
 }
 
-/// Contract for every buff_action cluster module.
-///
-/// Each cluster pattern-matches the strings it owns inside `execute`
-/// and returns `None` for foreign act_types or stages it has nothing
-/// to emit on. The registry's iteration falls through to the next
-/// cluster on `None`.
+/// Legacy cluster contract — one impl per cluster claims many
+/// (act_type, stage) tuples in its `execute` body. New code should
+/// prefer [`BuffActionHandler`] instead.
 pub(super) trait BuffAction {
     fn execute(
         &self,
@@ -69,14 +42,51 @@ pub(super) trait BuffAction {
     ) -> Option<ActionResult>;
 }
 
-/// Ordered registry of every buff_action cluster the dispatcher
-/// consults. First cluster to return `Some(...)` wins.
+/// Per-handler contract for ONE (act_type, stage) tuple. Body is
+/// `parse → execute → steps`.
 ///
-/// Order is informed by the prior dispatcher's match arm sequence —
-/// `attr` first because it claims the catch-all `Attr` /
-/// `EachChangeAttr` BeforeBuffAdd path; `no_op` last because it
-/// catches all the placeholder act_types that every other cluster
-/// rejects.
+/// - `parse` extracts typed params from `parts` and snapshots ctx.
+/// - `execute` applies state mutations (default no-op).
+/// - `steps` builds ActEffects from the parsed params.
+pub(super) trait BuffActionHandler {
+    type Params;
+
+    fn matches(&self, act_type: &str, stage: BuffStage) -> bool;
+    fn parse(&self, parts: &[&str], ctx: &BuffActCtx<'_, '_>) -> Self::Params;
+    fn execute(&self, _params: &Self::Params, _ctx: &mut BuffActCtx<'_, '_>) {}
+    fn steps(&self, params: Self::Params, ctx: &BuffActCtx<'_, '_>) -> ActionResult;
+}
+
+/// Object-safe wrapper. Every [`BuffActionHandler`] gets a blanket
+/// impl that runs `parse → execute → steps` in order.
+pub(super) trait BuffActionRunner {
+    fn run(
+        &self,
+        act_type: &str,
+        stage: BuffStage,
+        parts: &[&str],
+        ctx: &mut BuffActCtx<'_, '_>,
+    ) -> Option<ActionResult>;
+}
+
+impl<H: BuffActionHandler> BuffActionRunner for H {
+    fn run(
+        &self,
+        act_type: &str,
+        stage: BuffStage,
+        parts: &[&str],
+        ctx: &mut BuffActCtx<'_, '_>,
+    ) -> Option<ActionResult> {
+        if !self.matches(act_type, stage) {
+            return None;
+        }
+        let params = self.parse(parts, ctx);
+        self.execute(&params, ctx);
+        Some(self.steps(params, ctx))
+    }
+}
+
+/// Legacy cluster registry. First match wins.
 pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
     &attr::Attributes,
     &heal::Healing,
@@ -85,7 +95,13 @@ pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
     &probability_add_buff::ProbabilityAddBuffAction,
     &markers::Markers,
     &halo::Halo,
-    &hp::Hp,
     &bootstrap::Bootstrap,
     &no_op::NoOp,
+];
+
+/// Per-stage handler registry. Walked BEFORE the cluster registry so
+/// migrated handlers take precedence.
+pub(super) const BUFF_HANDLER_REGISTRY: &[&dyn BuffActionRunner] = &[
+    &hp::LostHpCountAddBuffBefore,
+    &hp::LostHpCountAddBuffAfter,
 ];
