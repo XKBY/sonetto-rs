@@ -18,3 +18,4 @@
 // is an intentional placeholder — the HeroId enum is the contract;
 // files appear as work lands.
 pub mod rubuska;
+pub mod sotheby;
