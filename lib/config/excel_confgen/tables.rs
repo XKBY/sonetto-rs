@@ -63,4 +63,6 @@ pub const FILTER_TABLES: &[&str] = &[
     "fight_const",
     "store_recommend",
     "magic_circle",
+    "language_en",
+    "language_server_en",
 ];

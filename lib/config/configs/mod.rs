@@ -36,6 +36,8 @@ pub mod guide;
 pub mod hero_trial;
 pub mod insight_item;
 pub mod item;
+pub mod language_en;
+pub mod language_server_en;
 pub mod magic_circle;
 pub mod monster;
 pub mod monster_group;
@@ -104,6 +106,8 @@ pub struct GameDB {
     pub hero_trial: hero_trial::HeroTrialTable,
     pub insight_item: insight_item::InsightItemTable,
     pub item: item::ItemTable,
+    pub language_en: language_en::LanguageEnTable,
+    pub language_server_en: language_server_en::LanguageServerEnTable,
     pub magic_circle: magic_circle::MagicCircleTable,
     pub monster: monster::MonsterTable,
     pub monster_group: monster_group::MonsterGroupTable,
@@ -244,6 +248,12 @@ impl GameDB {
         let item = item::ItemTable::load(
             &format!("{}/item.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load item.json: {}", e))?;
+        let language_en = language_en::LanguageEnTable::load(
+            &format!("{}/language_en.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load language_en.json: {}", e))?;
+        let language_server_en = language_server_en::LanguageServerEnTable::load(
+            &format!("{}/language_server_en.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load language_server_en.json: {}", e))?;
         let magic_circle = magic_circle::MagicCircleTable::load(
             &format!("{}/magic_circle.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load magic_circle.json: {}", e))?;
@@ -366,6 +376,8 @@ impl GameDB {
             hero_trial,
             insight_item,
             item,
+            language_en,
+            language_server_en,
             magic_circle,
             monster,
             monster_group,
