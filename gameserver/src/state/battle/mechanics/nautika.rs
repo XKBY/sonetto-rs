@@ -18,8 +18,9 @@
 //!   `530000151` wrapper into it, and strips the orphan ally
 //!   broadcasts plus enemy-side `530000412` deletions whose data is
 //!   now redundant.
-//! - `strip_post_turn_noise`: removes top-level enemy boss-cycle
-//!   rebroadcasts and the flat post-round attr-noise wrappers.
+//! - `strip_redundant_post_round_emissions`: removes top-level
+//!   enemy boss-cycle rebroadcasts and the flat post-round
+//!   state-marker wrappers that LIVE folds into earlier output.
 //!
 //! The actual Embrace the Past psychube (`equip_id = 1548`) ships
 //! different rules — entry-time Max HP, damage-taken Crit Rate
@@ -43,10 +44,13 @@ const BOSS_CYCLE_ACT_ID: i32 = 530000151;
 /// orphan stripper removes from the top level.
 const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
 
-/// Post-turn attribute-noise effect types the stripper removes from
-/// flat top-level wrappers after the bundle is consolidated. The
-/// canonical names come from the `EffectType` enum.
-const POST_ROUND_ATTR_NOISE_TYPES: [EffectType; 4] = [
+/// Round-state marker effect types that LIVE emits alongside the
+/// leading `CardDeckNum` opener but doesn't repeat at the top
+/// level after the channel-host bundle is consolidated. Our engine
+/// emits them naturally from the round-end pipeline; the cleanup
+/// strips the redundant copies. The canonical names come from
+/// the `EffectType` enum.
+const POST_ROUND_STATE_MARKER_TYPES: [EffectType; 4] = [
     EffectType::DealCard2,
     EffectType::RoundEnd,
     EffectType::ClearUniversalCard,
@@ -243,11 +247,15 @@ pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
     }
 }
 
-/// Remove top-level enemy boss-cycle rebroadcasts and flat post-round
-/// attr-noise wrappers from the FightStep stream. Runs after
-/// `consolidate_into_bundle` has folded the canonical broadcast into
-/// the Nautika bundle.
-pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
+/// Remove top-level emissions LIVE folds into earlier output: the
+/// enemy-side mirror of the active battle-rule cycle (rebroadcast
+/// at the top level by our engine but absorbed by LIVE), and the
+/// flat post-round state-marker wrappers (`DealCard2`, `RoundEnd`,
+/// `ClearUniversalCard`, `SmallRoundEnd`) that LIVE pairs with the
+/// leading `CardDeckNum` marker only. Runs after
+/// `consolidate_into_bundle` has folded the canonical broadcast
+/// into the carrier bundle.
+pub fn strip_redundant_post_round_emissions(steps: &mut Vec<FightStep>) {
     if !steps
         .iter()
         .any(|step| any_carrier_host_in_step(step))
@@ -266,7 +274,9 @@ pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
 
     let mut remove_indices = Vec::new();
     for (idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
-        if is_top_level_enemy_cycle_noise_step(step) || is_flat_post_round_attr_noise_step(step) {
+        if is_redundant_enemy_cycle_rebroadcast(step)
+            || is_redundant_post_round_state_marker(step)
+        {
             remove_indices.push(idx);
         }
     }
@@ -348,7 +358,7 @@ fn ensure_tail_marker(wrapper: &mut ActEffect, semmelweis_uid: i64) {
     );
 }
 
-fn is_top_level_enemy_cycle_noise_step(step: &FightStep) -> bool {
+fn is_redundant_enemy_cycle_rebroadcast(step: &FightStep) -> bool {
     step.act_type == Some(fight_step::ActType::Effect as i32)
         && step.act_id.unwrap_or(0) == 0
         && step.from_id.unwrap_or(0) == 0
@@ -363,7 +373,7 @@ fn is_top_level_enemy_cycle_noise_step(step: &FightStep) -> bool {
         })
 }
 
-fn is_flat_post_round_attr_noise_step(step: &FightStep) -> bool {
+fn is_redundant_post_round_state_marker(step: &FightStep) -> bool {
     step.act_type == Some(fight_step::ActType::Effect as i32)
         && step.act_id.unwrap_or(0) == 0
         && step.from_id.unwrap_or(0) == 0
@@ -372,9 +382,9 @@ fn is_flat_post_round_attr_noise_step(step: &FightStep) -> bool {
         && step.act_effect.len() <= 3
         && step.act_effect.iter().all(|effect| {
             effect.fight_step.is_none()
-                && POST_ROUND_ATTR_NOISE_TYPES
+                && POST_ROUND_STATE_MARKER_TYPES
                     .iter()
-                    .any(|noise| Some(*noise as i32) == effect.effect_type)
+                    .any(|marker| Some(*marker as i32) == effect.effect_type)
                 && effect.target_id.unwrap_or(0) == 0
                 && matches!(effect.effect_num.unwrap_or(0), 0 | 1)
         })

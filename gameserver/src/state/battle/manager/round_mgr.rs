@@ -495,7 +495,7 @@ impl FightRoundMgr {
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
-        mechanics::nautika::strip_post_turn_noise(&mut open.steps);
+        mechanics::nautika::strip_redundant_post_round_emissions(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
