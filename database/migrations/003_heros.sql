@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS heroes (
     ex_cri_def INTEGER NOT NULL DEFAULT 0,
     ex_add_dmg INTEGER NOT NULL DEFAULT 0,
     ex_drop_dmg INTEGER NOT NULL DEFAULT 0,
+    nowmal_dmg INTEGER NOT NULL DEFAULT 0,
 
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
