@@ -289,7 +289,9 @@ pub fn apply(
     let cfg = config::configs::get();
     let is_per_decr_ex_point = matches!(spec.condition, ConditionType::PerDecrExPoint { .. });
     let count = if is_per_decr_ex_point && spec.count <= 0 {
-        managers.ex_point_mgr.get_recent_decr_ex_point(spec.caster_uid)
+        managers
+            .ex_point_mgr
+            .get_recent_decr_ex_point(spec.caster_uid)
     } else {
         spec.count
     };

@@ -383,8 +383,7 @@ impl FightCardMgr {
                             &mut preview_managers,
                             &mut preview_mechanics,
                         );
-                        let mut wave_mgr =
-                            std::mem::take(&mut wave_ctx.managers.wave_mgr);
+                        let mut wave_mgr = std::mem::take(&mut wave_ctx.managers.wave_mgr);
                         let wave_steps = wave_mgr.fast_forward_to_wave(
                             &mut wave_ctx,
                             &mut wave_executor,

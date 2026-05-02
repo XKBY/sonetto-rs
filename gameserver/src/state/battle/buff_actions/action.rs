@@ -88,8 +88,7 @@ impl<H: BuffActionHandler> BuffActionRunner for H {
 }
 
 /// Legacy cluster registry. First match wins.
-pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[
-];
+pub(super) const BUFF_ACTION_REGISTRY: &[&dyn BuffAction] = &[];
 
 /// Per-stage handler registry. Walked BEFORE the cluster registry so
 /// migrated handlers take precedence.

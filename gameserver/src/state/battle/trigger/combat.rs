@@ -152,9 +152,7 @@ impl TriggerEvent {
             .rev()
             .find(|(u, _, _, _)| *u != uid && *u != 0 && u.signum() == uid.signum())
             .copied();
-        if trace_enabled
-            && let Some((u, sid, ex, to)) = resolved
-        {
+        if trace_enabled && let Some((u, sid, ex, to)) = resolved {
             eprintln!(
                 "[skill_used_for_passive_owner] uid={} branch=3_nested_fallback event_caster={} event_skill={} resolved=({},{},{},{})",
                 uid, self.caster_uid, self.skill_id, u, sid, ex, to,

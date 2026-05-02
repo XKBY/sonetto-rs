@@ -181,8 +181,7 @@ fn run_before_add_feature(
         has_bloodpool: false,
     };
     for handler in BUFF_HANDLER_REGISTRY {
-        if let Some(result) =
-            handler.run(act_type, BuffStage::BeforeBuffAdd, parts, &mut buff_ctx)
+        if let Some(result) = handler.run(act_type, BuffStage::BeforeBuffAdd, parts, &mut buff_ctx)
         {
             return result;
         }
@@ -247,9 +246,7 @@ pub fn dispatch_feature(
     // pattern). Falls through to the legacy cluster registry for
     // unmigrated act_types.
     for handler in BUFF_HANDLER_REGISTRY {
-        if let Some(result) =
-            handler.run(act_type, BuffStage::AfterBuffAdd, parts, &mut buff_ctx)
-        {
+        if let Some(result) = handler.run(act_type, BuffStage::AfterBuffAdd, parts, &mut buff_ctx) {
             return result;
         }
     }

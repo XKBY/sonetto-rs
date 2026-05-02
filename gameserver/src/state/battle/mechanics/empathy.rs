@@ -674,10 +674,5 @@ fn parse_empathy_value(params: &str) -> Option<i32> {
 }
 
 fn build_empathy_params(current: i32, cap: i32) -> String {
-    format!(
-        "{}#{}#{}",
-        injury_bank_act_id(),
-        current.max(0),
-        cap.max(0)
-    )
+    format!("{}#{}#{}", injury_bank_act_id(), current.max(0), cap.max(0))
 }

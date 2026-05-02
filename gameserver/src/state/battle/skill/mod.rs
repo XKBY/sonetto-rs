@@ -5,6 +5,7 @@ pub mod classification;
 pub mod classification_kind;
 pub mod condition;
 pub mod euphoria;
+pub mod source_kind;
 
 pub mod damage;
 mod executor;

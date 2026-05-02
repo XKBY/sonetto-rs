@@ -13,7 +13,11 @@ pub fn buff_get_blood_value_use_skill_params(buff_id: i32) -> Option<(i32, i32, 
     let blood_value_threshold = parts.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
     let wrapper_skill_id = parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0);
     if wrapper_skill_id > 0 {
-        Some((prerequisite_buff_id, blood_value_threshold, wrapper_skill_id))
+        Some((
+            prerequisite_buff_id,
+            blood_value_threshold,
+            wrapper_skill_id,
+        ))
     } else {
         None
     }

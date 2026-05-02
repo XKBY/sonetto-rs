@@ -16,8 +16,7 @@ use crate::state::battle::{
     fight::defender::Defender,
     fight_step::FightStepBuilder,
     manager::{
-        buff_mgr::observe_explicit_buff_uid_for_target,
-        ex_point_mgr::sync_from_fight,
+        buff_mgr::observe_explicit_buff_uid_for_target, ex_point_mgr::sync_from_fight,
         round_mgr::seed_entry_max_hp_from_fight,
     },
     skill::SkillExecutor,

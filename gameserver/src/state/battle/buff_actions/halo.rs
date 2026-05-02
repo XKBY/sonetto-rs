@@ -68,8 +68,7 @@ impl BuffActionHandler for MasterHaloHandler {
             );
             params.slave_effects.extend(before);
 
-            let buff_effect =
-                buff_add_slave(ally_uid, params.caster_uid, params.slave_buff_id, 0);
+            let buff_effect = buff_add_slave(ally_uid, params.caster_uid, params.slave_buff_id, 0);
             if let Some(buff_uid) = buff_effect.buff.as_ref().and_then(|b| b.uid) {
                 observe_explicit_buff_uid_for_target(ally_uid, buff_uid);
                 ctx.effect_ctx.buff_mgr_mut().add_with_uid(
