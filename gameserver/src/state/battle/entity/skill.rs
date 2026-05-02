@@ -2,6 +2,8 @@ use config::configs;
 use database::models::game::heros::HeroData;
 use std::collections::HashMap;
 
+use crate::state::battle::heroes::nautika;
+
 pub struct Skill;
 
 impl Skill {
@@ -46,30 +48,16 @@ impl Skill {
         let game = configs::get();
         let r = &hero_data.record;
 
-        // special logic for nautika
-        let mut ex = if r.hero_id == 3120 {
-            let ex = game
-                .skill_ex_level
-                .iter()
-                .find(|s| s.hero_id == r.hero_id && s.skill_level == r.ex_skill_level)
-                .map(|s| s.skill_ex)
-                .unwrap_or(0);
-            if ex == 0 {
-                game.skill_ex_level
-                    .iter()
-                    .find(|s| s.hero_id == r.hero_id && s.skill_level == 1)
-                    .map(|s| s.skill_ex)
-                    .unwrap_or(0)
-            } else {
-                ex
-            }
-        } else {
-            game.character
-                .iter()
-                .find(|c| c.id == r.hero_id)
-                .map(|c| c.ex_skill)
-                .unwrap_or(0)
-        };
+        if let Some(naut_ex) = nautika::resolve_ex(r.hero_id, r.ex_skill_level, destiny) {
+            return naut_ex;
+        }
+
+        let mut ex = game
+            .character
+            .iter()
+            .find(|c| c.id == r.hero_id)
+            .map(|c| c.ex_skill)
+            .unwrap_or(0);
 
         if let Some(map) = destiny
             && let Some(replaced) = map.get(&ex)
@@ -81,18 +69,8 @@ impl Skill {
     }
 
     fn get_group(hero_id: i32, group: i32, ex_level: i32, hero_type: i32) -> Vec<i32> {
-        // special logic for nautika
-        if hero_id == 3120 {
-            let ex = Self::lookup_ex_group(hero_id, group, ex_level);
-            if !ex.is_empty() {
-                let raw_ids = Self::parse_ex_string(ex, hero_type);
-                // Resolve each skill ID through the skill_effect mapping so cards
-                // carry executable skill IDs rather than ex-level placeholders.
-                return raw_ids
-                    .into_iter()
-                    .map(super::super::skill::cache::resolve_skill_effect_id)
-                    .collect();
-            }
+        if let Some(form_shift) = nautika::resolve_form_shift_group(hero_id, group, ex_level, hero_type) {
+            return form_shift;
         }
         Self::get_from_character(hero_id, group)
     }
@@ -210,25 +188,6 @@ impl Skill {
         None
     }
 
-    fn parse_ex_string(s: &str, hero_type: i32) -> Vec<i32> {
-        if s.contains(',') {
-            let sets: Vec<&str> = s.split(',').collect();
-            let idx = if hero_type < 1 || hero_type as usize > sets.len() {
-                0
-            } else {
-                (hero_type - 1) as usize
-            };
-
-            sets.get(idx)
-                .into_iter()
-                .flat_map(|v| v.split('|'))
-                .filter_map(|v| v.parse().ok())
-                .collect()
-        } else {
-            s.split('|').filter_map(|v| v.parse().ok()).collect()
-        }
-    }
-
     fn get_from_character(hero_id: i32, group: i32) -> Vec<i32> {
         let game = configs::get();
         let Some(c) = game.character.iter().find(|c| c.id == hero_id) else {
@@ -236,26 +195,6 @@ impl Skill {
             return vec![];
         };
         parse_skill_group(&c.skill, group)
-    }
-
-    fn lookup_ex_group(hero_id: i32, group: i32, ex_level: i32) -> &'static str {
-        let game = configs::get();
-
-        for lvl in (1..=ex_level).rev() {
-            if let Some(ex) = game
-                .skill_ex_level
-                .iter()
-                .find(|s| s.hero_id == hero_id && s.skill_level == lvl)
-            {
-                match group {
-                    1 if !ex.skill_group1.is_empty() => return &ex.skill_group1,
-                    2 if !ex.skill_group2.is_empty() => return &ex.skill_group2,
-                    _ => {}
-                }
-            }
-        }
-
-        ""
     }
 
     fn get_activity174_kit(hero_id: i32) -> Option<(Vec<i32>, Vec<i32>, Vec<i32>)> {
