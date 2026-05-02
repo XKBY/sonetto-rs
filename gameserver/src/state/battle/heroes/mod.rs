@@ -24,6 +24,7 @@ pub mod sentinel;
 pub mod sotheby;
 
 use crate::state::battle::hero::HeroId;
+use crate::state::battle::round::round_end_bundling::RoundEndBundleSpec;
 use std::collections::HashMap;
 
 /// Hero-specific orphan passives the engine injects at hero load
@@ -36,3 +37,11 @@ pub fn passive_injections(hero_id: i32, ex_map: &HashMap<i32, i32>) -> Vec<i32> 
         _ => Vec::new(),
     }
 }
+
+/// Hero modules that participate in the round-end bundling cascade.
+/// New entries land here when a hero ships a host wrapper that
+/// absorbs round-end side data; the merger in
+/// `round::round_end_bundling` reads this list and never names a
+/// hero on its own.
+pub static ROUND_END_BUNDLE_SPECS: &[&RoundEndBundleSpec] =
+    &[&nautika::ROUND_END_BUNDLE, &semmelweis::ROUND_END_BUNDLE];

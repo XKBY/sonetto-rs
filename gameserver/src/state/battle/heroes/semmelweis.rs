@@ -5,11 +5,19 @@
 //! this module owns the hero-specific rules her shared kit calls
 //! back into.
 
+use std::collections::HashSet;
+
 use once_cell::sync::Lazy;
+use sonettobuf::{Fight, FightStep};
 
 use crate::state::battle::{
-    entity::destiny::Destiny, hero::HeroId, heroes::rubuska,
+    entity::destiny::Destiny,
+    hero::HeroId,
+    heroes::rubuska,
     mechanics::bloodtithe::is_bloodtithe_enabled,
+    round::round_end_bundling::{
+        RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts,
+    },
 };
 
 /// Insight-Lv.1 base id of `And So It Rises Again`. The Lv.0 base
@@ -49,3 +57,41 @@ pub fn ult_manual_gain(model_id: Option<i32>) -> i32 {
     }
     gain
 }
+
+/// Round-end bundle host skill ids for Semmelweis's `Blood Domain`
+/// wrapper family. Every variant of `And So It Rises Again` (base
+/// EX, Insight upgrade, Tier III/IV Euphoria swaps) marks itself
+/// with the `UseSkillToEnemy` + `ControlTeamInjuryCountRound` act
+/// pair in `skill_buff::features`; we discover them by feature
+/// pattern so the cascade survives swap-chain growth.
+static ROUND_END_BUNDLE_HOSTS: Lazy<HashSet<i32>> = Lazy::new(|| {
+    discover_buff_ids_with_acts(&["UseSkillToEnemy", "ControlTeamInjuryCountRound"])
+});
+
+fn round_end_bundle_hosts() -> &'static HashSet<i32> {
+    Lazy::force(&ROUND_END_BUNDLE_HOSTS)
+}
+
+/// Semmelweis fits the round-end cascade between Nautika's two
+/// general claims: her ult-skill rank wins below Nautika's `from/to`
+/// (rank 30) but her general from/to/targets falls behind it.
+fn claim_round_end_bundle_step(
+    _fight: &Fight,
+    _step: &FightStep,
+    ownership: &StepOwnership,
+) -> Option<u16> {
+    let me = ownership.hero(HeroId::Semmelweis);
+    if me.skill_from {
+        Some(20)
+    } else if me.from || me.to || me.targets {
+        Some(40)
+    } else {
+        None
+    }
+}
+
+pub static ROUND_END_BUNDLE: RoundEndBundleSpec = RoundEndBundleSpec {
+    owner: HeroId::Semmelweis,
+    host_skill_ids: round_end_bundle_hosts,
+    claim_rank: claim_round_end_bundle_step,
+};

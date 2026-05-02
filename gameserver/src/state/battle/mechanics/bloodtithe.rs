@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
@@ -20,16 +20,12 @@ use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
-    utils::{buff_has_bloodpool, damage_with_buff_act, find_entity, find_uid_by_hero_id},
+    utils::{buff_has_bloodpool, damage_with_buff_act, find_entity},
 };
 
 const DAMAGE_PER_POINT: i32 = 3000;
 const BASE_MAX: i32 = 24;
 const PER_ALLY_BONUS: i32 = 16;
-/// Skill 308801311 hosts the Semmelweis-class bloodtithe transition bundle.
-const BLOODTITHE_TRANSITION_HOST_SKILL: i32 = 308801311;
-/// Skill 31200193 hosts the Nautika-class psychube bundle.
-const FAITH_PSYCHUBE_BUNDLE_HOST_SKILL: i32 = 31200193;
 
 static GAINED: Lazy<Mutex<i32>> = Lazy::new(|| Mutex::new(0));
 
@@ -320,188 +316,13 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
         out.push(step);
     }
 
-    merge_bloodtithe_transition_hosts(ctx.fight, &mut out);
+    crate::state::battle::round::round_end_bundling::fold(
+        ctx.fight,
+        &mut out,
+        crate::state::battle::heroes::ROUND_END_BUNDLE_SPECS,
+    );
 
     out
-}
-
-fn merge_bloodtithe_transition_hosts(fight: &Fight, out: &mut Vec<FightStep>) {
-    let semm_host_idx = find_transition_host_index(out, BLOODTITHE_TRANSITION_HOST_SKILL);
-    let naut_host_idx = find_transition_host_index(out, FAITH_PSYCHUBE_BUNDLE_HOST_SKILL);
-
-    if semm_host_idx.is_none() && naut_host_idx.is_none() {
-        return;
-    }
-
-    let mut semm_embeds = Vec::new();
-    let mut naut_embeds = Vec::new();
-    let mut remove_indices = Vec::new();
-
-    for idx in 0..out.len() {
-        if Some(idx) == semm_host_idx || Some(idx) == naut_host_idx {
-            continue;
-        }
-
-        let Some(host) =
-            classify_transition_ancillary_step(fight, &out[idx], idx, semm_host_idx, naut_host_idx)
-        else {
-            continue;
-        };
-
-        match host {
-            TransitionHost::Semmelweis if semm_host_idx.is_some() => {
-                semm_embeds.push(wrap_step(out[idx].clone()));
-                remove_indices.push(idx);
-            }
-            TransitionHost::Nautika if naut_host_idx.is_some() => {
-                naut_embeds.push(wrap_step(out[idx].clone()));
-                remove_indices.push(idx);
-            }
-            _ => {}
-        }
-    }
-
-    if let Some(idx) = semm_host_idx
-        && !semm_embeds.is_empty()
-    {
-        out[idx].act_effect.extend(semm_embeds);
-    }
-    if let Some(idx) = naut_host_idx
-        && !naut_embeds.is_empty()
-    {
-        out[idx].act_effect.extend(naut_embeds);
-    }
-
-    if remove_indices.is_empty() {
-        return;
-    }
-
-    remove_indices.sort_unstable();
-    remove_indices.dedup();
-    for idx in remove_indices.into_iter().rev() {
-        out.remove(idx);
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TransitionHost {
-    Semmelweis,
-    Nautika,
-}
-
-fn find_transition_host_index(out: &[FightStep], host_act_id: i32) -> Option<usize> {
-    out.iter()
-        .position(|step| transition_host_act_id(step) == Some(host_act_id))
-}
-
-fn transition_host_act_id(step: &FightStep) -> Option<i32> {
-    if step.act_type != Some(fight_step::ActType::Effect as i32) {
-        return None;
-    }
-
-    let wrapped = step.act_effect.first()?;
-    if wrapped.effect_type != Some(162) {
-        return None;
-    }
-
-    let host = wrapped.fight_step.as_ref()?;
-    if host.act_type != Some(fight_step::ActType::Effect as i32) {
-        return None;
-    }
-
-    host.act_id
-}
-
-fn classify_transition_ancillary_step(
-    fight: &Fight,
-    step: &FightStep,
-    _idx: usize,
-    _semm_host_idx: Option<usize>,
-    _naut_host_idx: Option<usize>,
-) -> Option<TransitionHost> {
-    let ownership = inspect_step_ownership(fight, step);
-
-    if ownership.skill_from_nautika {
-        return Some(TransitionHost::Nautika);
-    }
-    if ownership.skill_from_semmelweis {
-        return Some(TransitionHost::Semmelweis);
-    }
-
-    if ownership.from_nautika || ownership.to_nautika {
-        return Some(TransitionHost::Nautika);
-    }
-    if ownership.from_semmelweis || ownership.to_semmelweis || ownership.targets_semmelweis {
-        return Some(TransitionHost::Semmelweis);
-    }
-    if ownership.targets_nautika {
-        return Some(TransitionHost::Nautika);
-    }
-
-    None
-}
-
-#[derive(Default)]
-struct StepOwnership {
-    from_semmelweis: bool,
-    from_nautika: bool,
-    to_semmelweis: bool,
-    to_nautika: bool,
-    targets_semmelweis: bool,
-    targets_nautika: bool,
-    skill_from_semmelweis: bool,
-    skill_from_nautika: bool,
-}
-
-fn inspect_step_ownership(fight: &Fight, step: &FightStep) -> StepOwnership {
-    let semmelweis_uid = find_uid_by_hero_id(fight, 3088);
-    let nautika_uid = find_uid_by_hero_id(fight, 3120);
-    let mut ownership = StepOwnership::default();
-    collect_step_ownership(step, semmelweis_uid, nautika_uid, &mut ownership);
-    ownership
-}
-
-fn collect_step_ownership(
-    step: &FightStep,
-    semmelweis_uid: Option<i64>,
-    nautika_uid: Option<i64>,
-    ownership: &mut StepOwnership,
-) {
-    if step.from_id.is_some() && step.from_id == semmelweis_uid {
-        ownership.from_semmelweis = true;
-    }
-    if step.from_id.is_some() && step.from_id == nautika_uid {
-        ownership.from_nautika = true;
-    }
-
-    if step.to_id.is_some() && step.to_id == semmelweis_uid {
-        ownership.to_semmelweis = true;
-    }
-    if step.to_id.is_some() && step.to_id == nautika_uid {
-        ownership.to_nautika = true;
-    }
-
-    if step.act_type == Some(fight_step::ActType::Skill as i32) {
-        if step.from_id.is_some() && step.from_id == semmelweis_uid {
-            ownership.skill_from_semmelweis = true;
-        }
-        if step.from_id.is_some() && step.from_id == nautika_uid {
-            ownership.skill_from_nautika = true;
-        }
-    }
-
-    for effect in &step.act_effect {
-        if effect.target_id.is_some() && effect.target_id == semmelweis_uid {
-            ownership.targets_semmelweis = true;
-        }
-        if effect.target_id.is_some() && effect.target_id == nautika_uid {
-            ownership.targets_nautika = true;
-        }
-
-        if let Some(child) = effect.fight_step.as_ref() {
-            collect_step_ownership(child, semmelweis_uid, nautika_uid, ownership);
-        }
-    }
 }
 
 pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
