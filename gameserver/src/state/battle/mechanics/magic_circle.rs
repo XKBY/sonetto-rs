@@ -18,7 +18,8 @@ use crate::state::battle::{
     fight_step::ActEffectBuilder,
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::steps::skill::execute_skill as execute_passive_skill,
-    skill::targets::{alive_allies, alive_enemies},
+    mechanics::dot::parse_dot_features,
+    skill::targets::{alive_allies, alive_enemies, get_entity},
     skill::{PhaseFilter, SkillExecutor, TriggerState},
     steps::trigger_embed,
     trigger::combat::event_from_step,
@@ -74,8 +75,17 @@ pub fn add_magic_circle(
         .and_then(|circle| circle.enemy_buff.trim().parse::<i32>().ok())
         .filter(|id| *id > 0)
     {
-        let original_target = ctx.target_uid();
-        for enemy_uid in alive_enemies(fight, caster_uid) {
+        // LIVE applies a circle's `enemy_buff` to a single opposing
+        // entity, not to the whole side. Tuesday's Lock-Sound circle
+        // 22100003 picks the alive opponent with the most current HP,
+        // tiebreaking on the fewest Poison-family stacks. Newly-spawned
+        // wave entities satisfy both (full HP, zero stacks), so the
+        // buff lands on them as soon as they appear. The same picker
+        // matches Tuesday's `31040141` ("…prioritizing targets with
+        // the most HP").
+        let target = pick_enemy_buff_target(ctx, fight, caster_uid);
+        if let Some(enemy_uid) = target {
+            let original_target = ctx.target_uid();
             ctx.target = enemy_uid;
             let effect = buff_add(enemy_uid, caster_uid, buff_id, 1);
             if let Some(buff_uid) = effect.buff.as_ref().and_then(|buff| buff.uid) {
@@ -85,8 +95,8 @@ pub fn add_magic_circle(
             }
             out.push(effect);
             out.extend(apply_after_buff_add_features(ctx, executor, buff_id, false));
+            ctx.target = original_target;
         }
-        ctx.target = original_target;
     }
     out.push(
         ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)
@@ -104,6 +114,28 @@ pub fn add_magic_circle(
     );
 
     Ok(out)
+}
+
+/// Pick a single opposing entity to receive the magic-circle's
+/// `enemy_buff`. Score = (current_hp, -poison_stacks); the alive
+/// opponent with the largest score wins. See the comment in
+/// `add_magic_circle` for the empirical basis.
+fn pick_enemy_buff_target(
+    ctx: &EffectContext<'_>,
+    fight: &Fight,
+    caster_uid: i64,
+) -> Option<i64> {
+    let buff_mgr = ctx.buff_mgr();
+    alive_enemies(fight, caster_uid).into_iter().max_by_key(|&uid| {
+        let hp = get_entity(fight, uid).and_then(|e| e.current_hp).unwrap_or(0);
+        let poison_stacks: i32 = buff_mgr
+            .get(uid)
+            .iter()
+            .filter(|inst| parse_dot_features(inst.buff_id).is_some())
+            .map(|inst| inst.layer.max(1))
+            .sum();
+        (hp, -poison_stacks)
+    })
 }
 
 fn active_circle_row(fight: &sonettobuf::Fight) -> Option<&'static MagicCircle> {

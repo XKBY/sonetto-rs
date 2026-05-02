@@ -133,7 +133,7 @@ fn iter_alive_uids(fight: &sonettobuf::Fight) -> Vec<i64> {
 /// - `DeadlyPoison` (act 844) → `(EffectType::DeadlyPoison, parts[1])`
 ///
 /// Skips `LockPoison` (act 810) — see module docs.
-fn parse_dot_features(buff_id: i32) -> Option<(i32, i32)> {
+pub fn parse_dot_features(buff_id: i32) -> Option<(i32, i32)> {
     let cfg = config::configs::get();
     let buff = cfg.skill_buff.iter().find(|b| b.id == buff_id)?;
     if buff.features.is_empty() {
