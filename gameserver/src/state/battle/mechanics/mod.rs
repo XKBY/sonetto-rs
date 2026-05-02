@@ -5,7 +5,7 @@ pub mod dot;
 pub mod empathy;
 pub mod injury_counter;
 pub mod magic_circle;
-pub mod nautika_psychube_bundle;
+pub mod nautika;
 pub mod shadowcloak;
 
 use bloodtithe::BloodtitheState;

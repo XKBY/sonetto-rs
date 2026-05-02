@@ -1,25 +1,30 @@
-//! Nautika psychube-bundle post-turn cleanup.
+//! Nautika channel-cast post-emission cleanup.
 //!
-//! Nautika's psychube carrier (host act_id `31200193`) collects the
-//! ally-side battle-rule cycle broadcasts and the enemy-side cycle
-//! deletions emitted at round end, folds the Semmelweis broadcast
-//! into the bundle, and strips the orphan top-level rebroadcasts plus
-//! a small family of post-turn attribute-noise emissions so the
-//! outgoing FightStep stream matches the official client shape.
+//! When Nautika is channeling, her channel-host buff (a
+//! `NuoDiKaCastChannel`-tagged buff such as `31200193`) wraps a
+//! round-end bundle that LIVE-side absorbs the ally team's
+//! battle-rule state-cycle broadcast plus the matching enemy-side
+//! deletion. Our engine emits the rebroadcasts at the top level by
+//! default; this module folds them into the channel-host wrapper
+//! and strips the now-redundant orphans so the outgoing FightStep
+//! stream matches the official client shape.
 //!
-//! Two entry points:
-//! - `consolidate_into_bundle`: walks post-round-end FightSteps, finds
-//!   the Nautika bundle host, and migrates Semmelweis's `530000151`
-//!   wrapper into it. Strips the orphan ally broadcasts and the
-//!   enemy-side `530000412` deletions whose data is now redundant.
+//! Three entry points called from `manager::round_mgr` in this order:
+//! - `strip_duplicate_change_round_markers`: removes standalone
+//!   `EffectType::CardDeckNum` duplicates that some round-end
+//!   bundles emit alongside the leading marker.
+//! - `consolidate_into_bundle`: walks post-round-end FightSteps,
+//!   finds the channel-host bundle, migrates Semmelweis's
+//!   `530000151` wrapper into it, and strips the orphan ally
+//!   broadcasts plus enemy-side `530000412` deletions whose data is
+//!   now redundant.
 //! - `strip_post_turn_noise`: removes top-level enemy boss-cycle
-//!   rebroadcasts and the flat post-round attr-noise wrappers. Runs
-//!   after the consolidation step.
+//!   rebroadcasts and the flat post-round attr-noise wrappers.
 //!
-//! In-game text frames Nautika's psychube as keeping the cycle running
-//! across the round transition; the engine implements that as a
-//! single Nautika-hosted bundle plus removal of the now-redundant
-//! standalone wrappers.
+//! The actual Embrace the Past psychube (`equip_id = 1548`) ships
+//! different rules — entry-time Max HP, damage-taken Crit Rate
+//! stacks, conditional Crit DMG below 80% HP — and is unimplemented
+//! today. None of this file relates to those amplification effects.
 
 use std::collections::HashMap;
 
@@ -30,7 +35,7 @@ use crate::state::battle::{
     utils::find_uid_by_hero_id,
 };
 
-/// Nautika carrier-host wrapper act_id. The post-turn bundle is
+/// Nautika channel-host wrapper act_id. The round-end bundle is
 /// rooted under an effect_container with this act_id.
 pub const CARRIER_HOST_ACT_ID: i32 = 31200193;
 

@@ -22,7 +22,7 @@ use super::super::{
         card_mgr::FightCardMgr,
         ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_to_fight},
     },
-    mechanics::{injury_counter, nautika_psychube_bundle},
+    mechanics::{self, injury_counter},
     passives::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
@@ -493,9 +493,9 @@ impl FightRoundMgr {
         )
         .await?;
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
-        nautika_psychube_bundle::strip_duplicate_change_round_markers(&mut open.steps);
-        nautika_psychube_bundle::consolidate_into_bundle(ctx.fight, &mut open.steps);
-        nautika_psychube_bundle::strip_post_turn_noise(&mut open.steps);
+        mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
+        mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
+        mechanics::nautika::strip_post_turn_noise(&mut open.steps);
 
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
