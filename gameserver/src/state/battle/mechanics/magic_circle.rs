@@ -12,12 +12,14 @@ use config::magic_circle::MagicCircle;
 use sonettobuf::{ActEffect, Fight, FightStep, MagicCircleInfo, fight_step};
 
 use crate::state::battle::{
-    buff_actions::add_passive_skills::for_each_add_passive_skill_id_for_entity,
+    buff_actions::add_passive_skills::{
+        collect_grants_from_active_buffs, collect_grants_from_emitted_buffs,
+    },
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
     fight_step::ActEffectBuilder,
     hero::HeroId,
-    heroes::{semmelweis, sentinel, tuesday},
+    heroes::{semmelweis, tuesday},
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, SkillExecutor, TriggerState},
@@ -248,77 +250,16 @@ fn magic_circle_aura_state(
     ))
 }
 
-fn collect_add_passive_skill_ids(
-    fight: &sonettobuf::Fight,
-    effects: &[ActEffect],
-    host_caster_uid: i64,
-    skip_skill_id: i32,
-) -> Vec<i32> {
-    fn walk(effects: &[ActEffect], out: &mut Vec<(i64, i32)>) {
-        for effect in effects {
-            if effect.effect_type == Some(EffectType::BuffAdd as i32)
-                && let (Some(target_uid), Some(buff_id)) = (effect.target_id, effect.effect_num)
-            {
-                out.push((target_uid, buff_id));
-            }
-            if let Some(step) = effect.fight_step.as_ref() {
-                walk(&step.act_effect, out);
-            }
-        }
-    }
-
-    let mut added_buffs = Vec::new();
-    walk(effects, &mut added_buffs);
-
-    let mut out = Vec::new();
-    for (target_uid, buff_id) in added_buffs {
-        if target_uid != host_caster_uid || buff_id <= 0 {
-            continue;
-        }
-        for_each_add_passive_skill_id_for_entity(fight, host_caster_uid, buff_id, |skill_id| {
-            if skill_id != skip_skill_id
-                && !out.contains(&skill_id)
-                && !sentinel::is_hour_of_repentance_self_grant(skill_id, buff_id)
-            {
-                out.push(skill_id);
-            }
-        });
-    }
-    out
-}
-
-fn extend_with_active_add_passive_skill_ids(
-    ctx: &FightContext<'_>,
-    host_caster_uid: i64,
-    skip_skill_id: i32,
-    out: &mut Vec<i32>,
-) {
-    // Only follow passive grants attached to buffs that came from someone
-    // ELSE — these are the magic-circle aura grants we want to chain. A
-    // self-sourced buff is the host's own private channel state (e.g.
-    // Sentinel's `31260201`, which carries `865#31260181` for her Hour of
-    // Repentance) and must NOT be harvested by the circle, otherwise the
-    // host wrongly fires its own enemy-action-gated reactives under its
-    // own card. LIVE confirms: under Blood Domain, only the
-    // Semmelweis-sourced followups appear in each ally's host.
-    for instance in ctx.managers.buff_mgr.get(host_caster_uid) {
-        if instance.from_uid == 0 || instance.from_uid == host_caster_uid {
-            continue;
-        }
-        for_each_add_passive_skill_id_for_entity(
-            ctx.fight,
-            host_caster_uid,
-            instance.buff_id,
-            |skill_id| {
-                if skill_id != skip_skill_id
-                    && !out.contains(&skill_id)
-                    && !sentinel::is_hour_of_repentance_self_grant(skill_id, instance.buff_id)
-                {
-                    out.push(skill_id);
-                }
-            },
-        );
-    }
+/// Look up the active circle's create_uid (the entity that summoned
+/// the circle), or `None` if no circle is active. The aura embedder
+/// uses this to scope the active-buff harvest to buffs the creator
+/// sourced, so the host's private channel state isn't pulled in.
+fn active_circle_create_uid(fight: &sonettobuf::Fight) -> Option<i64> {
+    fight
+        .magic_circle
+        .as_ref()
+        .and_then(|c| c.create_uid)
+        .filter(|uid| *uid != 0)
 }
 
 pub(crate) fn build_magic_circle_self_skill_embeds(
@@ -337,14 +278,27 @@ pub(crate) fn build_magic_circle_self_skill_embeds(
     else {
         return Vec::new();
     };
-    let mut followup_skill_ids =
-        collect_add_passive_skill_ids(ctx.fight, &skill_effects, host_caster_uid, self_skill_id);
-    extend_with_active_add_passive_skill_ids(
-        ctx,
+    let mut followup_skill_ids = collect_grants_from_emitted_buffs(
+        ctx.fight,
+        &skill_effects,
         host_caster_uid,
         self_skill_id,
-        &mut followup_skill_ids,
     );
+    // Scope the active-buff harvest to buffs the circle creator
+    // sourced. That's the practical proxy for "the circle's selfBuff
+    // grant chain" — Semmelweis's aura grants (sourced by Semmelweis
+    // when she's the creator) qualify, the host's own private channel
+    // state does not, so we don't have to special-case any specific
+    // hero's channel buff.
+    if let Some(circle_create_uid) = active_circle_create_uid(ctx.fight) {
+        collect_grants_from_active_buffs(
+            ctx,
+            host_caster_uid,
+            |from_uid| from_uid == circle_create_uid,
+            self_skill_id,
+            &mut followup_skill_ids,
+        );
+    }
 
     let mut out: Vec<ActEffect> = skill_effects
         .into_iter()
