@@ -60,15 +60,18 @@ pub fn find_uid(fight: &Fight, team_type: i32) -> Option<i64> {
         .and_then(|e| e.uid)
 }
 
-/// Round-end bundle host skill ids for Nautika's psychube channel
-/// wrapper. The `NuoDiKaCastChannel` buff_act type is named after
-/// her romanization, so any buff whose features carry it is a
-/// channel-cast host candidate.
-static ROUND_END_BUNDLE_HOSTS: Lazy<HashSet<i32>> =
+/// Skill ids that act as Nautika's channel-cast host wrappers — any
+/// buff whose features carry the `NuoDiKaCastChannel` buff_act type
+/// (`1006`). The act type is named after her romanization, so the
+/// set is signature-locked to her in the data tables today. Both
+/// the round-end bundle merger (here) and the round-end emit
+/// cleanup in `mechanics::nautika` read from this set, so the
+/// channel-host detection has one source of truth.
+pub static CHANNEL_HOST_SKILL_IDS: Lazy<HashSet<i32>> =
     Lazy::new(|| discover_buff_ids_with_acts(&["NuoDiKaCastChannel"]));
 
 fn round_end_bundle_hosts() -> &'static HashSet<i32> {
-    Lazy::force(&ROUND_END_BUNDLE_HOSTS)
+    Lazy::force(&CHANNEL_HOST_SKILL_IDS)
 }
 
 /// Nautika's claim ranks slot above and below Semmelweis's two

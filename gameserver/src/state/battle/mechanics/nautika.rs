@@ -31,21 +31,17 @@ use std::collections::HashMap;
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
-    fight_step::ActEffectBuilder, step_walker, types::effects::EffectType,
-    utils::find_uid_by_hero_id,
+    fight_step::ActEffectBuilder, heroes::nautika::CHANNEL_HOST_SKILL_IDS, step_walker,
+    types::effects::EffectType, utils::find_uid_by_hero_id,
 };
-
-/// Nautika channel-host wrapper act_id. The round-end bundle is
-/// rooted under an effect_container with this act_id.
-pub const CARRIER_HOST_ACT_ID: i32 = 31200193;
 
 /// Battle-rule-derived ally-side state-cycle broadcast skill
 /// (Semmelweis's owner). Sourced from `rule.json::effect`.
-pub const BOSS_CYCLE_ACT_ID: i32 = 530000151;
+const BOSS_CYCLE_ACT_ID: i32 = 530000151;
 
 /// Enemy-side companion broadcast that the bundle absorbs and the
 /// orphan stripper removes from the top level.
-pub const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
+const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
 
 /// Post-turn attribute-noise effect types the stripper removes from
 /// flat top-level wrappers after the bundle is consolidated. The
@@ -84,7 +80,7 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
 
     if !steps
         .iter()
-        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+        .any(|step| any_carrier_host_in_step(step))
     {
         return;
     }
@@ -230,7 +226,7 @@ pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
     }
     if !steps
         .iter()
-        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+        .any(|step| any_carrier_host_in_step(step))
     {
         return;
     }
@@ -254,7 +250,7 @@ pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
 pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
     if !steps
         .iter()
-        .any(|step| step_walker::step_contains_act_id(step, CARRIER_HOST_ACT_ID))
+        .any(|step| any_carrier_host_in_step(step))
     {
         return;
     }
@@ -280,6 +276,14 @@ pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
     }
 }
 
+/// True when `step` (or any descendant) carries an `act_id` that
+/// belongs to Nautika's channel-cast host buff family.
+fn any_carrier_host_in_step(step: &FightStep) -> bool {
+    CHANNEL_HOST_SKILL_IDS
+        .iter()
+        .any(|host| step_walker::step_contains_act_id(step, *host))
+}
+
 fn is_bundle_step(step: &FightStep, host_uid: i64) -> bool {
     if step.act_type != Some(fight_step::ActType::Effect as i32) {
         return false;
@@ -297,7 +301,7 @@ fn is_bundle_step(step: &FightStep, host_uid: i64) -> bool {
         .as_ref()
         .map(|wrapped| {
             wrapped.act_type == Some(fight_step::ActType::Effect as i32)
-                && wrapped.act_id == Some(CARRIER_HOST_ACT_ID)
+                && wrapped.act_id.is_some_and(|id| CHANNEL_HOST_SKILL_IDS.contains(&id))
                 && wrapped.from_id == Some(host_uid)
                 && wrapped.to_id == Some(host_uid)
         })
