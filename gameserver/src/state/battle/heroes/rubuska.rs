@@ -16,6 +16,7 @@ use crate::state::battle::{
     manager::round_mgr::lookup_entry_max_hp,
     mechanics::shadowcloak::ShadowCloakState,
     round::step_shape::build_effect_step,
+    skill::source_kind,
     utils::{find_entity, moxie_change},
 };
 
@@ -180,9 +181,10 @@ pub fn is_basic_self_loss(skill_id: i32) -> bool {
     BASIC_SELF_LOSS_SKILLS
         .get_or_init(|| {
             let cfg = config::configs::get();
+            let rubuska_id = HeroId::Rubuska.model_id();
             let mut out = HashSet::new();
             for skill in cfg.skill.iter() {
-                if !is_rubuska(Some(skill.hero_id)) {
+                if source_kind::owning_hero(skill.id) != Some(rubuska_id) {
                     continue;
                 }
                 let Some(effect) = cfg
