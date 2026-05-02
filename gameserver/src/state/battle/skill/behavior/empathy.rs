@@ -270,7 +270,8 @@ impl Empathy {
             ctx.caster_uid,
             cap,
         )];
-        effects.extend(ctx.mechanics.empathy.build_insight_iii_threshold_heals(
+        effects.extend(crate::state::battle::heroes::kakania::build_insight_iii_threshold_heals(
+            &ctx.mechanics.empathy,
             &ctx.managers.buff_mgr,
             ctx.behavior_ctx.fight,
             ctx.caster_uid,

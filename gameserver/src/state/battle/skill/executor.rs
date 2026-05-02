@@ -1485,7 +1485,8 @@ fn inject_empathy_storage_injuries(
     source_uid: i64,
     effects: Vec<ActEffect>,
 ) -> Vec<ActEffect> {
-    let effects = mechanics.empathy.inject_damage_redirect(
+    let effects = crate::state::battle::heroes::kakania::inject_damage_redirect(
+        &mut mechanics.empathy,
         preview_buff_mgr,
         live_buff_mgr,
         fight,
@@ -1522,16 +1523,15 @@ fn inject_empathy_storage_injuries(
             continue;
         }
 
-        out = mechanics
-            .empathy
-            .inject_storage_injury_for_damage_emissions(
-                preview_buff_mgr,
-                fight,
-                source_uid,
-                target_uid,
-                target_max_hp,
-                out,
-            );
+        out = crate::state::battle::heroes::kakania::inject_storage_injury_for_damage_emissions(
+            &mut mechanics.empathy,
+            preview_buff_mgr,
+            fight,
+            source_uid,
+            target_uid,
+            target_max_hp,
+            out,
+        );
         mechanics.empathy.sync_buff_state(
             live_buff_mgr,
             target_uid,
@@ -1540,9 +1540,12 @@ fn inject_empathy_storage_injuries(
         );
     }
 
-    mechanics
-        .empathy
-        .inject_insight_iii_bounces_for_heal_emissions(preview_buff_mgr, fight, out)
+    crate::state::battle::heroes::kakania::inject_insight_iii_bounces_for_heal_emissions(
+        &mechanics.empathy,
+        preview_buff_mgr,
+        fight,
+        out,
+    )
 }
 
 fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Vec<ActEffect> {
