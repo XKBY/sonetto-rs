@@ -42,24 +42,21 @@ pub const BOSS_CYCLE_ACT_ID: i32 = 530000151;
 /// orphan stripper removes from the top level.
 pub const ENEMY_CYCLE_DEL_ACT_ID: i32 = 530000412;
 
-/// Post-turn attribute-noise effect types that the stripper removes
-/// from flat top-level wrappers after the bundle is consolidated.
-pub const POST_ROUND_ATTR_NOISE_TYPES: [i32; 4] = [60, 61, 96, 211];
-
-/// Tail-marker effect appended to the consolidated bundle wrapper to
-/// signal cycle completion.
-pub const TAIL_MARKER_EFFECT_TYPE: i32 = 26;
+/// Post-turn attribute-noise effect types the stripper removes from
+/// flat top-level wrappers after the bundle is consolidated. The
+/// canonical names come from the `EffectType` enum.
+const POST_ROUND_ATTR_NOISE_TYPES: [EffectType; 4] = [
+    EffectType::DealCard2,
+    EffectType::RoundEnd,
+    EffectType::ClearUniversalCard,
+    EffectType::SmallRoundEnd,
+];
 
 /// Hero ids (model_id) used to locate runtime uids of the broadcast
 /// owners. The literals here are stable engine identifiers; see
 /// memory note `project_battle1_gaps.md` re: `find_uid_by_hero_id`.
 pub const SEMMELWEIS_HERO_ID: i32 = 3088;
 pub const NAUTIKA_HERO_ID: i32 = 3120;
-
-/// effect_type emitted by the round-transition synchronization step
-/// at the head of a round. The post-Nautika cleanup strips standalone
-/// duplicates of this marker (only LIVE keeps the leading one).
-const CHANGE_ROUND_SYNC_EFFECT_TYPE: i32 = 310;
 
 /// Walk post-round-end FightSteps, fold Semmelweis's `530000151`
 /// rebroadcast into the Nautika bundle host, and strip the orphan
@@ -91,7 +88,7 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
         step.act_effect
             .first()
             .and_then(|effect| effect.effect_type)
-            == Some(276)
+            == Some(EffectType::AllocateCardEnergy as i32)
     }) else {
         return;
     };
@@ -212,17 +209,18 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
     }
 }
 
-/// Remove duplicate `effect_type=310` (ChangeRound) sync markers
-/// that sometimes appear standalone after the round-leading marker
-/// when the Nautika carrier-host is present. The first ChangeRound
-/// marker is kept as the round opener; later standalone duplicates
-/// are stripped. Returns silently when the carrier-host isn't on
-/// this round (Nautika-only effect).
+/// Remove duplicate `EffectType::CardDeckNum` (310) sync markers that
+/// sometimes appear standalone after the round-leading marker when
+/// the Nautika carrier-host is present. The first marker is kept as
+/// the round opener; later standalone duplicates are stripped.
+/// Returns silently when the carrier-host isn't on this round
+/// (Nautika-only effect).
 pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
+    let change_round_sync = EffectType::CardDeckNum as i32;
     let Some(first_step) = steps.first() else {
         return;
     };
-    if !step_walker::step_has_effect_type(first_step, CHANGE_ROUND_SYNC_EFFECT_TYPE) {
+    if !step_walker::step_has_effect_type(first_step, change_round_sync) {
         return;
     }
     if !steps
@@ -234,7 +232,7 @@ pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
 
     let mut remove_indices = Vec::new();
     for (idx, step) in steps.iter().enumerate().skip(1) {
-        if step_walker::is_standalone_effect_marker(step, CHANGE_ROUND_SYNC_EFFECT_TYPE) {
+        if step_walker::is_standalone_effect_marker(step, change_round_sync) {
             remove_indices.push(idx);
         }
     }
@@ -260,7 +258,7 @@ pub fn strip_post_turn_noise(steps: &mut Vec<FightStep>) {
         step.act_effect
             .first()
             .and_then(|effect| effect.effect_type)
-            == Some(276)
+            == Some(EffectType::AllocateCardEnergy as i32)
     }) else {
         return;
     };
@@ -285,7 +283,7 @@ fn is_bundle_step(step: &FightStep, host_uid: i64) -> bool {
     let Some(first) = step.act_effect.first() else {
         return false;
     };
-    if first.effect_type != Some(162) {
+    if first.effect_type != Some(EffectType::FightStep as i32) {
         return false;
     }
 
@@ -311,10 +309,11 @@ fn ensure_tail_marker(wrapper: &mut ActEffect, semmelweis_uid: i64) {
     {
         return;
     }
+    let tail_marker = EffectType::Attr as i32;
     if skill
         .act_effect
         .iter()
-        .any(|effect| effect.effect_type == Some(TAIL_MARKER_EFFECT_TYPE))
+        .any(|effect| effect.effect_type == Some(tail_marker))
     {
         return;
     }
@@ -334,7 +333,7 @@ fn ensure_tail_marker(wrapper: &mut ActEffect, semmelweis_uid: i64) {
         .unwrap_or(skill.act_effect.len());
     skill.act_effect.insert(
         insert_at,
-        ActEffectBuilder::new(TAIL_MARKER_EFFECT_TYPE, semmelweis_uid)
+        ActEffectBuilder::new(tail_marker, semmelweis_uid)
             .effect_num(0)
             .build(),
     );
@@ -364,7 +363,9 @@ fn is_flat_post_round_attr_noise_step(step: &FightStep) -> bool {
         && step.act_effect.len() <= 3
         && step.act_effect.iter().all(|effect| {
             effect.fight_step.is_none()
-                && POST_ROUND_ATTR_NOISE_TYPES.contains(&effect.effect_type.unwrap_or(0))
+                && POST_ROUND_ATTR_NOISE_TYPES
+                    .iter()
+                    .any(|noise| Some(*noise as i32) == effect.effect_type)
                 && effect.target_id.unwrap_or(0) == 0
                 && matches!(effect.effect_num.unwrap_or(0), 0 | 1)
         })
