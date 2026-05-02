@@ -4,7 +4,9 @@
 
 use sonettobuf::{ActEffect, BuffActInfo};
 
-use crate::state::battle::{skill::SkillExecutor, types::effects::EffectType};
+use crate::state::battle::{
+    heroes::rubuska, skill::SkillExecutor, types::effects::EffectType,
+};
 
 use super::{EffectContext, monitor_continue::queue_monitor_triggers};
 
@@ -57,21 +59,11 @@ pub fn add_count(
         .unwrap_or(0);
     let new_max_hp = base_max_hp + accum;
 
-    let cfg = config::configs::get();
     let buff_uid = ctx
         .buff_mgr()
         .get(ctx.target_uid())
         .iter()
-        .find(|b| {
-            cfg.skill_buff
-                .iter()
-                .find(|sb| sb.id == b.buff_id)
-                .map(|sb| {
-                    sb.type_id
-                        == crate::state::battle::mechanics::shadowcloak::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID
-                })
-                .unwrap_or(false)
-        })
+        .find(|buff| rubuska::buff_is_shadow_cloak_accumulator(buff.buff_id))
         .map(|b| b.uid)
         .unwrap_or(0);
 

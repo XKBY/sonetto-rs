@@ -19,7 +19,8 @@ use sonettobuf::{BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightS
 
 use crate::state::battle::{
     buff_actions::{blood_pool_ex::seed_blood_pool_ex_tracker, raspberry::BUFF_ACT_ID_RASPBERRY},
-    mechanics::{bloodtithe::BloodtitheState, shadowcloak::seed_replay_raspberry_max},
+    heroes::rubuska,
+    mechanics::bloodtithe::BloodtitheState,
     types::effects::EffectType,
 };
 
@@ -475,9 +476,11 @@ impl FightDataMgr {
         }
 
         if seeded_max > 0 {
-            seed_replay_raspberry_max(&self.fight, seeded_max);
-            self.mechanics.shadow_cloak.raspberry_max = seeded_max;
-            self.mechanics.shadow_cloak.rubuska_entry_max_hp = seeded_max * 1000 / 150;
+            rubuska::seed_replay_raspberry_max(&self.fight, seeded_max);
+            rubuska::apply_seeded_shadow_cloak_capacity(
+                &mut self.mechanics.shadow_cloak,
+                seeded_max,
+            );
         }
     }
 }

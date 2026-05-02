@@ -4,6 +4,7 @@ use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromTyp
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
 use super::action::{ActionCtx, BehaviorAction};
+use crate::state::battle::heroes::rubuska;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -43,7 +44,6 @@ impl BehaviorAction for BloodPool {
 }
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::buff_mgr::BuffMgr;
-use crate::state::battle::manager::round_mgr::lookup_entry_max_hp;
 use crate::state::battle::mechanics::bloodtithe::{
     BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
 };
@@ -59,46 +59,6 @@ fn attr_value(entity: &sonettobuf::FightEntityInfo, attr_id: i32) -> i32 {
         103 => attr.and_then(|a| a.defense).unwrap_or(0),
         _ => attr.and_then(|a| a.attack).unwrap_or(0),
     }
-}
-
-/// Rubuska's basic-skill family with `30006#0#100#…` LostLife self-loss
-/// tracks the entry-HP snapshot used by Shadow Cloak, not current max HP.
-///
-/// Cached on first call: walk every skill row with `hero_id == 3125`
-/// (Rubuska — uniquely owns Shadow Cloak's entry-HP semantics) whose
-/// `skill_effect` carries a `30006#0#100#…` behavior. Picks up new
-/// rank / destiny variants the data introduces without hand-editing
-/// the call site.
-fn is_rubuska_basic_self_loss(skill_id: i32) -> bool {
-    use std::collections::HashSet;
-    use std::sync::OnceLock;
-    static CACHE: OnceLock<HashSet<i32>> = OnceLock::new();
-    let ids = CACHE.get_or_init(|| {
-        let cfg = config::configs::get();
-        let mut out = HashSet::new();
-        for sk in cfg.skill.iter() {
-            if sk.hero_id != 3125 {
-                continue;
-            }
-            let Some(eff) = cfg.skill_effect.iter().find(|e| e.id == sk.skill_effect) else {
-                continue;
-            };
-            let has_self_loss_basis = [
-                eff.behavior1.as_str(),
-                eff.behavior2.as_str(),
-                eff.behavior3.as_str(),
-                eff.behavior4.as_str(),
-                eff.behavior5.as_str(),
-            ]
-            .iter()
-            .any(|b| b.starts_with("30006#0#100#"));
-            if has_self_loss_basis {
-                out.insert(sk.id);
-            }
-        }
-        out
-    });
-    ids.contains(&skill_id)
 }
 
 fn burn_params(buff_id: i32) -> Option<(i32, i32, i32)> {
@@ -183,11 +143,10 @@ pub fn lost_life(
                 .unwrap_or(0);
             source * permille / 1000
         }
-    } else if is_rubuska_basic_self_loss(skill_id) && target == caster_uid && _attr_id == 100 {
+    } else if rubuska::is_basic_self_loss(skill_id) && target == caster_uid && _attr_id == 100 {
         // Rubuska's 31250111 family self-loss tracks the entry HP snapshot used by
         // Shadow Cloak, not the legacy 1%-of-current-max fallback.
-        let entry_max_hp = lookup_entry_max_hp(fight, target);
-        entry_max_hp.max(0) * permille / 1000
+        rubuska::basic_self_loss_amount(fight, target, permille)
     } else if mode == 1 {
         current_hp * permille / 1000
     } else {

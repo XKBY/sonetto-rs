@@ -5,6 +5,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, figh
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::{
+    heroes::rubuska,
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
     utils::find_entity,
@@ -69,7 +70,7 @@ pub fn build_blood_pool_ex_point_step(
             if buff_uses_blood_pool_gain_accum(instance.buff_id) {
                 continue;
             }
-            if model_id == Some(3125) && instance.buff_id == 31250161 {
+            if rubuska::uses_shadow_cloak_overflow_tracker(model_id, instance.buff_id) {
                 // Rubuska's 806 tracker is Shadow Cloak-driven, not bloodpool-driven.
                 continue;
             }
@@ -277,7 +278,7 @@ pub fn seed_blood_pool_ex_tracker(bloodtithe: &BloodtitheState, fight: &Fight, b
                 }
                 continue;
             }
-            if model_id == Some(3125) && instance.buff_id == 31250161 {
+            if rubuska::uses_shadow_cloak_overflow_tracker(model_id, instance.buff_id) {
                 continue;
             }
             if buff_get_blood_pool_ex_point_params(instance.buff_id).is_none() {

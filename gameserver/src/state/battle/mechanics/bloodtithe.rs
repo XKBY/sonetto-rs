@@ -3,7 +3,8 @@ use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, figh
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::context::FightContext;
-use crate::state::battle::mechanics::{magic_circle, shadowcloak};
+use crate::state::battle::heroes::rubuska;
+use crate::state::battle::mechanics::magic_circle;
 use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_ex_point_step,
     buff_actions::raspberry::buff_get_raspberry_params,
@@ -191,7 +192,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
             step.act_id.unwrap_or(0),
             &step.act_effect,
         );
-        let shadow_step = shadowcloak::build_shadow_cloak_full_cap_step(ctx, &step);
+        let shadow_step = rubuska::build_shadow_cloak_full_cap_step(ctx, &step);
         out.push(step);
         for &(team_type, gain) in &raspberry_event.bloodpool_gain_packets_by_team {
             if let Some(sync_step) = build_belief_gain_step(ctx.fight, team_type, gain) {
@@ -534,19 +535,9 @@ impl BloodtitheState {
                     continue;
                 }
 
-                let is_shadow_cloak_slave = {
-                    let cfg = config::configs::get();
-                    cfg.skill_buff
-                        .iter()
-                        .find(|b| b.id == instance.buff_id)
-                        .map(|b| {
-                            b.type_id
-                                == crate::state::battle::mechanics::shadowcloak::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID
-                        })
-                        .unwrap_or(false)
-                };
-
-                if is_shadow_cloak_slave && shadow_cloak.is_active() {
+                if rubuska::buff_is_shadow_cloak_accumulator(instance.buff_id)
+                    && shadow_cloak.is_active()
+                {
                     shadow_cloak.add(uid, damage);
                 }
 
