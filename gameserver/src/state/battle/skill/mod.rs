@@ -10,6 +10,7 @@ pub mod source_kind;
 pub mod damage;
 mod executor;
 mod phase;
+pub mod sibling_coalesce;
 pub mod targets;
 
 pub(crate) use behavior::buff;

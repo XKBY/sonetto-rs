@@ -26,6 +26,7 @@ use super::{
     damage::{calculate_damage, should_crit_hit},
     euphoria,
     phase::{PhaseFilter, TriggerState},
+    sibling_coalesce::coalesce_duplicate_sibling_skill_wrappers,
     targets::{
         TargetResolver, alive_enemies, alive_enemies_by_position, get_ally_uids, get_entity,
     },
@@ -122,122 +123,6 @@ impl Drop for ReentryGuard {
             let mut stack = stack.borrow_mut();
             stack.pop();
         });
-    }
-}
-
-/// Returns true when `parent_skill_id` has 2+ behaviors of type
-/// `AddBuffRanId` (skill_behavior id `20021`) that share a target
-/// buff id. The shape encodes "this parent runs the same per-target
-/// fanout twice (or more) under different conditions, and the LIVE
-/// client merges the outputs into one sub-skill wrapper carrying
-/// every tick".
-///
-/// Three skills in the current game data match: Pickles' `30630151`
-/// (the one this engine has tested), plus `8290303` and `110320177`
-/// (untested but architecturally identical). Replaces the previous
-/// hardcoded `if skill_id != 30630151 { return; }` gate with a data
-/// lookup so any future parent skill that fits the pattern is
-/// handled without code changes.
-fn parent_skill_fans_out_into_mergeable_siblings(parent_skill_id: i32) -> bool {
-    let cfg = config::configs::get();
-    let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == parent_skill_id) else {
-        return false;
-    };
-
-    let mut add_buff_ran_targets: Vec<i32> = Vec::new();
-    for behavior in [
-        skill.behavior1.as_str(),
-        skill.behavior2.as_str(),
-        skill.behavior3.as_str(),
-        skill.behavior4.as_str(),
-        skill.behavior5.as_str(),
-    ] {
-        if let Some(rest) = behavior.strip_prefix("20021#") {
-            let head = rest.split('#').next().unwrap_or("");
-            if let Ok(target_buff_id) = head.parse::<i32>() {
-                if target_buff_id > 0 {
-                    add_buff_ran_targets.push(target_buff_id);
-                }
-            }
-        }
-    }
-
-    if add_buff_ran_targets.len() < 2 {
-        return false;
-    }
-    let mut sorted = add_buff_ran_targets.clone();
-    sorted.sort_unstable();
-    sorted.windows(2).any(|pair| pair[0] == pair[1])
-}
-
-/// Merge sibling SKILL-wrapped emissions with matching `act_id` under
-/// `parent_skill_id`'s `effect_steps`: the first occurrence keeps its
-/// position, every duplicate's nested `act_effect` content is
-/// appended to the first, and the duplicate slots are removed. The
-/// merge only runs when `parent_skill_fans_out_into_mergeable_siblings`
-/// identifies the parent as one whose behaviors structurally produce
-/// duplicated wrappers that the official client folds together.
-///
-/// In game-data terms this generalizes what was previously gated to
-/// Pickles' `30630151` (where `behavior1`/`behavior2` evaluate
-/// `CareerCheck#0` and `CareerCheck#1` against adjacent allies and
-/// each emits an `AddBuffRanId#30630111` chain whose inner skills
-/// share an `act_id`). The same shape recurs in `8290303` and
-/// `110320177`, so the predicate is data-driven instead of skill-id-
-/// gated.
-///
-/// TODO(event-queue): once the executor's behavior pipeline emits
-/// per-target ticks INSIDE one wrapper rather than producing
-/// per-target wrappers that we then merge, this post-execution pass
-/// becomes obsolete. EventQueue Phase 4+5 reach that shape during
-/// drain; until then this is the cleanest non-hardcoded approximation.
-fn coalesce_duplicate_sibling_skill_wrappers(
-    parent_skill_id: i32,
-    effect_steps: &mut Vec<ActEffect>,
-) {
-    if !parent_skill_fans_out_into_mergeable_siblings(parent_skill_id) {
-        return;
-    }
-
-    use std::collections::HashMap;
-    let mut occurrences: HashMap<i32, Vec<usize>> = HashMap::new();
-    for (idx, effect) in effect_steps.iter().enumerate() {
-        let Some(step) = effect.fight_step.as_ref() else {
-            continue;
-        };
-        if step.act_type != Some(fight_step::ActType::Skill as i32) {
-            continue;
-        }
-        let Some(act_id) = step.act_id else {
-            continue;
-        };
-        if act_id <= 0 {
-            continue;
-        }
-        occurrences.entry(act_id).or_default().push(idx);
-    }
-
-    let mut all_duplicate_indices: Vec<usize> = Vec::new();
-    for (_act_id, indices) in occurrences.iter() {
-        if indices.len() < 2 {
-            continue;
-        }
-        let first_idx = indices[0];
-        let mut merged_nested: Vec<ActEffect> = Vec::new();
-        for &dup_idx in &indices[1..] {
-            if let Some(step) = effect_steps[dup_idx].fight_step.as_ref() {
-                merged_nested.extend(step.act_effect.clone());
-            }
-            all_duplicate_indices.push(dup_idx);
-        }
-        if let Some(step) = effect_steps[first_idx].fight_step.as_mut() {
-            step.act_effect.extend(merged_nested);
-        }
-    }
-
-    all_duplicate_indices.sort_unstable_by(|a, b| b.cmp(a));
-    for idx in all_duplicate_indices {
-        effect_steps.remove(idx);
     }
 }
 
