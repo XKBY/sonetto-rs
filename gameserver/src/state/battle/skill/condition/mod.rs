@@ -28,6 +28,7 @@ pub struct ConditionEval<'a> {
     pub(super) bloodtithe: &'a BloodtitheState,
     pub(super) caster_uid: i64,
     pub(super) target_uid: i64,
+    pub(super) condition_target: i32,
     pub(super) has_trigger_state: bool,
 }
 
@@ -46,6 +47,7 @@ impl<'a> ConditionEval<'a> {
             bloodtithe,
             caster_uid,
             target_uid: caster_uid,
+            condition_target: 0,
             has_trigger_state: false,
         }
     }
@@ -58,6 +60,19 @@ impl<'a> ConditionEval<'a> {
     pub fn with_trigger_state(mut self, has_trigger_state: bool) -> Self {
         self.has_trigger_state = has_trigger_state;
         self
+    }
+
+    pub fn with_condition_target(mut self, condition_target: i32) -> Self {
+        self.condition_target = condition_target;
+        self
+    }
+
+    pub fn resolve_entity_target_uid(&self) -> i64 {
+        match self.condition_target {
+            103 => self.caster_uid,
+            // TODO(condition-target): handle MySideAll/EnemySideAll and other non-Self groups.
+            _ => self.target_uid,
+        }
     }
 
     pub fn check(&self, condition: &ConditionType) -> bool {

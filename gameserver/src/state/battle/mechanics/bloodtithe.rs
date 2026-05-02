@@ -463,4 +463,3 @@ impl BloodtitheState {
         Some(FightStepBuilder::effect().with_many(outer_effects).build())
     }
 }
-

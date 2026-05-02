@@ -69,7 +69,9 @@ impl Skill {
     }
 
     fn get_group(hero_id: i32, group: i32, ex_level: i32, hero_type: i32) -> Vec<i32> {
-        if let Some(form_shift) = nautika::resolve_form_shift_group(hero_id, group, ex_level, hero_type) {
+        if let Some(form_shift) =
+            nautika::resolve_form_shift_group(hero_id, group, ex_level, hero_type)
+        {
             return form_shift;
         }
         Self::get_from_character(hero_id, group)

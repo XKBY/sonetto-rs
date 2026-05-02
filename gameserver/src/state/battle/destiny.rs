@@ -20,26 +20,59 @@ pub fn passives_for(destiny_stone: i32) -> &'static [OrphanPassive] {
     match destiny_stone {
         300901 => &[
             // Sotheby Tier IV — Duality Potion mechanic
-            OrphanPassive { skill_id: 30090144, tier: 4 },
-            OrphanPassive { skill_id: 30090145, tier: 4 },
-            OrphanPassive { skill_id: 30090146, tier: 4 },
+            OrphanPassive {
+                skill_id: 30090144,
+                tier: 4,
+            },
+            OrphanPassive {
+                skill_id: 30090145,
+                tier: 4,
+            },
+            OrphanPassive {
+                skill_id: 30090146,
+                tier: 4,
+            },
         ],
         306201 => &[
             // Melania
-            OrphanPassive { skill_id: 30620144, tier: 1 },
-            OrphanPassive { skill_id: 30620147, tier: 1 },
+            OrphanPassive {
+                skill_id: 30620144,
+                tier: 1,
+            },
+            OrphanPassive {
+                skill_id: 30620147,
+                tier: 1,
+            },
         ],
         306301 => &[
             // Pickles
-            OrphanPassive { skill_id: 30630151, tier: 1 },
-            OrphanPassive { skill_id: 30630161, tier: 2 },
-            OrphanPassive { skill_id: 30630171, tier: 3 },
+            OrphanPassive {
+                skill_id: 30630151,
+                tier: 1,
+            },
+            OrphanPassive {
+                skill_id: 30630161,
+                tier: 2,
+            },
+            OrphanPassive {
+                skill_id: 30630171,
+                tier: 3,
+            },
         ],
         308801 => &[
             // Semmelweis
-            OrphanPassive { skill_id: 308801911, tier: 1 },
-            OrphanPassive { skill_id: 308801921, tier: 2 },
-            OrphanPassive { skill_id: 308802111, tier: 4 },
+            OrphanPassive {
+                skill_id: 308801911,
+                tier: 1,
+            },
+            OrphanPassive {
+                skill_id: 308801921,
+                tier: 2,
+            },
+            OrphanPassive {
+                skill_id: 308802111,
+                tier: 4,
+            },
         ],
         _ => &[],
     }

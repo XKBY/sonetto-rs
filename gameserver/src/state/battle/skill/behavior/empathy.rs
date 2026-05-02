@@ -270,14 +270,16 @@ impl Empathy {
             ctx.caster_uid,
             cap,
         )];
-        effects.extend(crate::state::battle::heroes::kakania::build_insight_iii_threshold_heals(
-            &ctx.mechanics.empathy,
-            &ctx.managers.buff_mgr,
-            ctx.behavior_ctx.fight,
-            ctx.caster_uid,
-            max_hp,
-            thresholds_crossed,
-        ));
+        effects.extend(
+            crate::state::battle::heroes::kakania::build_insight_iii_threshold_heals(
+                &ctx.mechanics.empathy,
+                &ctx.managers.buff_mgr,
+                ctx.behavior_ctx.fight,
+                ctx.caster_uid,
+                max_hp,
+                thresholds_crossed,
+            ),
+        );
         effects.push(
             ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.caster_uid)
                 .effect_num(apply_real_hurt_fix(

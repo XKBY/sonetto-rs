@@ -33,9 +33,10 @@ impl Condition for Career {
     }
 
     fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+        let condition_uid = ctx.resolve_entity_target_uid();
         match condition {
             ConditionType::TargetCareer { career_ids } => {
-                let career = get_entity(ctx.fight, ctx.target_uid).and_then(|e| e.career);
+                let career = get_entity(ctx.fight, condition_uid).and_then(|e| e.career);
                 Some(career.map(|c| career_ids.contains(&c)).unwrap_or(false))
             }
             ConditionType::CareerCheck {
@@ -44,7 +45,7 @@ impl Condition for Career {
             } => {
                 // CareerCheck is evaluated against the resolved condition target.
                 // For example, Pickles 30630151 uses conditionTarget=128 (adjacent ally).
-                let career = get_entity(ctx.fight, ctx.target_uid)
+                let career = get_entity(ctx.fight, condition_uid)
                     .and_then(|e| e.career)
                     .unwrap_or(-1);
                 let is_mineral = career == 1;

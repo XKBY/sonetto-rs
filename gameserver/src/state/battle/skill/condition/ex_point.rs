@@ -24,18 +24,19 @@ impl Condition for ExPoint {
     }
 
     fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+        let condition_uid = ctx.resolve_entity_target_uid();
         match condition {
             ConditionType::PerExPoint { threshold } => {
-                Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) >= *threshold)
+                Some(ctx.ex_point_mgr.get_ex_point(condition_uid) >= *threshold)
             }
             ConditionType::PerDecrExPoint { threshold } => {
-                Some(ctx.ex_point_mgr.get_recent_decr_ex_point(ctx.caster_uid) >= *threshold)
+                Some(ctx.ex_point_mgr.get_recent_decr_ex_point(condition_uid) >= *threshold)
             }
             ConditionType::ExpointMoreThan { threshold } => {
-                Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) >= *threshold)
+                Some(ctx.ex_point_mgr.get_ex_point(condition_uid) >= *threshold)
             }
             ConditionType::ExpointLessThan { threshold } => {
-                Some(ctx.ex_point_mgr.get_ex_point(ctx.caster_uid) <= *threshold)
+                Some(ctx.ex_point_mgr.get_ex_point(condition_uid) <= *threshold)
             }
             _ => None,
         }

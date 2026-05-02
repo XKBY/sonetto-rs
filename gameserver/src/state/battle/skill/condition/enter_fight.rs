@@ -35,18 +35,7 @@ impl Condition for EnterFight {
                 Some(true)
             }
             ConditionType::EnterFightAnd(_) | ConditionType::EnterFightOr(_) => {
-                Some(super::fold(condition, &mut |cond| {
-                    super::check_condition(
-                        ctx.fight,
-                        ctx.buff_mgr,
-                        ctx.ex_point_mgr,
-                        ctx.bloodtithe,
-                        ctx.caster_uid,
-                        ctx.target_uid,
-                        ctx.has_trigger_state,
-                        cond,
-                    )
-                }))
+                Some(super::fold(condition, &mut |cond| ctx.check(cond)))
             }
             _ => None,
         }

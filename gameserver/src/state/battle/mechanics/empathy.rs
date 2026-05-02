@@ -63,7 +63,10 @@ fn injury_bank_act_id() -> i32 {
 /// Active Empathy params for `holder_uid`. Walks whichever variant is
 /// currently on them via `buff_get_injury_bank_params`, falling back to
 /// the canonical default when no instance is present yet.
-pub(crate) fn active_injury_bank_params(buff_mgr: &BuffMgr, holder_uid: i64) -> Option<InjuryBankParams> {
+pub(crate) fn active_injury_bank_params(
+    buff_mgr: &BuffMgr,
+    holder_uid: i64,
+) -> Option<InjuryBankParams> {
     buff_mgr
         .find_instance_by_type_id(holder_uid, empathy_type_id())
         .and_then(|inst| buff_get_injury_bank_params(inst.buff_id))

@@ -15,9 +15,7 @@ use crate::state::battle::{
     hero::HeroId,
     heroes::rubuska,
     mechanics::bloodtithe::is_bloodtithe_enabled,
-    round::round_end_bundling::{
-        RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts,
-    },
+    round::round_end_bundling::{RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts},
 };
 
 /// Insight-Lv.1 base id of `And So It Rises Again`. The Lv.0 base
@@ -64,9 +62,8 @@ pub fn ult_manual_gain(model_id: Option<i32>) -> i32 {
 /// with the `UseSkillToEnemy` + `ControlTeamInjuryCountRound` act
 /// pair in `skill_buff::features`; we discover them by feature
 /// pattern so the cascade survives swap-chain growth.
-static ROUND_END_BUNDLE_HOSTS: Lazy<HashSet<i32>> = Lazy::new(|| {
-    discover_buff_ids_with_acts(&["UseSkillToEnemy", "ControlTeamInjuryCountRound"])
-});
+static ROUND_END_BUNDLE_HOSTS: Lazy<HashSet<i32>> =
+    Lazy::new(|| discover_buff_ids_with_acts(&["UseSkillToEnemy", "ControlTeamInjuryCountRound"]));
 
 fn round_end_bundle_hosts() -> &'static HashSet<i32> {
     Lazy::force(&ROUND_END_BUNDLE_HOSTS)

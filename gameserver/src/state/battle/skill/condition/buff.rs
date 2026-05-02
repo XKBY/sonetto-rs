@@ -12,7 +12,7 @@ impl Condition for Buff {
     }
 
     fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
-        check(condition, ctx.buff_mgr, ctx.target_uid)
+        check(condition, ctx.buff_mgr, ctx.resolve_entity_target_uid())
     }
 }
 

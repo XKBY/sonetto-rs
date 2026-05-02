@@ -15,9 +15,7 @@ use std::collections::{HashMap, HashSet};
 use config::configs;
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
-use crate::state::battle::{
-    fight_step::wrap_step, hero::HeroId, utils::find_uid_by_hero_id,
-};
+use crate::state::battle::{fight_step::wrap_step, hero::HeroId, utils::find_uid_by_hero_id};
 
 /// Hero-side description of a round-end bundle. `host_skill_ids`
 /// returns the runtime act_ids that mark a step as the hero's host

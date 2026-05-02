@@ -22,9 +22,7 @@ use sonettobuf::{ActEffect, Fight, FightStep};
 use crate::state::battle::{
     fight_step::ActEffectBuilder,
     hero::HeroId,
-    round::round_end_bundling::{
-        RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts,
-    },
+    round::round_end_bundling::{RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts},
     skill::cache::resolve_skill_effect_id,
 };
 

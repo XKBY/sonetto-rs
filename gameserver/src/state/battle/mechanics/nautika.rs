@@ -92,10 +92,7 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
         return;
     };
 
-    if !steps
-        .iter()
-        .any(|step| any_carrier_host_in_step(step))
-    {
+    if !steps.iter().any(|step| any_carrier_host_in_step(step)) {
         return;
     }
 
@@ -155,9 +152,9 @@ pub fn consolidate_into_bundle(fight: &Fight, steps: &mut Vec<FightStep>) {
             step.act_effect.iter().any(|effect| {
                 step_walker::wrapped_skill_from_effect(effect)
                     .map(|skill| {
-                        skill.act_id.is_some_and(|act_id| {
-                            rule_cycle.root_act_ids.contains(&act_id)
-                        })
+                        skill
+                            .act_id
+                            .is_some_and(|act_id| rule_cycle.root_act_ids.contains(&act_id))
                             && skill.from_id == Some(semmelweis_uid)
                             && skill.to_id == Some(semmelweis_uid)
                     })
@@ -240,10 +237,7 @@ pub fn strip_duplicate_change_round_markers(steps: &mut Vec<FightStep>) {
     if !step_walker::step_has_effect_type(first_step, change_round_sync) {
         return;
     }
-    if !steps
-        .iter()
-        .any(|step| any_carrier_host_in_step(step))
-    {
+    if !steps.iter().any(|step| any_carrier_host_in_step(step)) {
         return;
     }
 
@@ -273,10 +267,7 @@ pub fn strip_redundant_post_round_emissions(fight: &Fight, steps: &mut Vec<Fight
         return;
     }
 
-    if !steps
-        .iter()
-        .any(|step| any_carrier_host_in_step(step))
-    {
+    if !steps.iter().any(|step| any_carrier_host_in_step(step)) {
         return;
     }
 
@@ -328,18 +319,16 @@ fn is_bundle_step(step: &FightStep, host_uid: i64) -> bool {
         .as_ref()
         .map(|wrapped| {
             wrapped.act_type == Some(fight_step::ActType::Effect as i32)
-                && wrapped.act_id.is_some_and(|id| CHANNEL_HOST_SKILL_IDS.contains(&id))
+                && wrapped
+                    .act_id
+                    .is_some_and(|id| CHANNEL_HOST_SKILL_IDS.contains(&id))
                 && wrapped.from_id == Some(host_uid)
                 && wrapped.to_id == Some(host_uid)
         })
         .unwrap_or(false)
 }
 
-fn ensure_tail_marker(
-    wrapper: &mut ActEffect,
-    semmelweis_uid: i64,
-    root_act_ids: &HashSet<i32>,
-) {
+fn ensure_tail_marker(wrapper: &mut ActEffect, semmelweis_uid: i64, root_act_ids: &HashSet<i32>) {
     let Some(skill) = step_walker::wrapped_skill_from_effect_mut(wrapper) else {
         return;
     };
@@ -381,10 +370,7 @@ fn ensure_tail_marker(
     );
 }
 
-fn is_redundant_enemy_cycle_rebroadcast(
-    step: &FightStep,
-    family_act_ids: &HashSet<i32>,
-) -> bool {
+fn is_redundant_enemy_cycle_rebroadcast(step: &FightStep, family_act_ids: &HashSet<i32>) -> bool {
     step.act_type == Some(fight_step::ActType::Effect as i32)
         && step.act_id.unwrap_or(0) == 0
         && step.from_id.unwrap_or(0) == 0

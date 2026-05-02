@@ -21,9 +21,10 @@ impl Condition for Life {
     }
 
     fn check(&self, condition: &ConditionType, ctx: &ConditionEval<'_>) -> Option<bool> {
+        let condition_uid = ctx.resolve_entity_target_uid();
         match condition {
             ConditionType::LifeLess { threshold_permille } => Some(
-                get_entity(ctx.fight, ctx.caster_uid)
+                get_entity(ctx.fight, condition_uid)
                     .map(|e| {
                         let cur = e.current_hp.unwrap_or(0) as f32;
                         let max = e.attr.as_ref().and_then(|a| a.hp).unwrap_or(1) as f32;
@@ -32,7 +33,7 @@ impl Condition for Life {
                     .unwrap_or(false),
             ),
             ConditionType::LifeMore { threshold_permille } => Some(
-                get_entity(ctx.fight, ctx.caster_uid)
+                get_entity(ctx.fight, condition_uid)
                     .map(|e| {
                         let cur = e.current_hp.unwrap_or(0) as f32;
                         let max = e.attr.as_ref().and_then(|a| a.hp).unwrap_or(1) as f32;

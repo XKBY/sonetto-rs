@@ -346,7 +346,8 @@ impl SkillExecutor {
                         &mechanics.bloodtithe,
                         caster_uid,
                     )
-                    .with_trigger_state(has_trigger_state);
+                    .with_trigger_state(has_trigger_state)
+                    .with_condition_target(b.condition_target);
                     let raw = if has_trigger_state
                         && b.condition_target == 103
                         && target_uid != 0
@@ -389,9 +390,10 @@ impl SkillExecutor {
                     let raw = if target_uid != 0 && target_uid != condition_uid {
                         match &b.condition {
                             ConditionType::HasBuffGroup { .. }
-                            | ConditionType::NoBuffGroup { .. } => {
-                                condition_eval.for_target(target_uid).check(&b.condition)
-                            }
+                            | ConditionType::NoBuffGroup { .. } => condition_eval
+                                .for_target(target_uid)
+                                .with_condition_target(0)
+                                .check(&b.condition),
                             _ => raw,
                         }
                     } else {
@@ -427,7 +429,8 @@ impl SkillExecutor {
                     &mechanics.bloodtithe,
                     caster_uid,
                 )
-                .with_trigger_state(has_trigger_state);
+                .with_trigger_state(has_trigger_state)
+                .with_condition_target(b.condition_target);
                 let raw = condition_eval.for_target(condition_uid).check(&b.condition);
                 let raw = apply_no_act_seed_hint(
                     &sim_fight,
@@ -454,7 +457,10 @@ impl SkillExecutor {
                 let raw = if target_uid != 0 && target_uid != condition_uid {
                     match &b.condition {
                         ConditionType::HasBuffGroup { .. } | ConditionType::NoBuffGroup { .. } => {
-                            condition_eval.for_target(target_uid).check(&b.condition)
+                            condition_eval
+                                .for_target(target_uid)
+                                .with_condition_target(0)
+                                .check(&b.condition)
                         }
                         _ => raw,
                     }
