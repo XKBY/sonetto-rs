@@ -4,7 +4,7 @@ use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromTyp
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
 use super::action::{ActionCtx, BehaviorAction};
-use crate::state::battle::heroes::{nautika, rubuska};
+use crate::state::battle::heroes::{nautika, rubuska, semmelweis};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -221,12 +221,8 @@ pub fn lost_life(
     // Battle2 parity: Semmelweis Ultimate body emits four visible 335 packets even when
     // our replay-seeded bloodpool cap is already saturated. Mirror the live packet lane
     // here and let replay-time 335 application advance the authoritative pool value.
-    if skill_id == 308801322 {
-        let manual_gain = match model_id {
-            Some(3125) => 2,
-            Some(3088 | 3120 | 3126) => 1,
-            _ => 0,
-        };
+    if skill_id == *semmelweis::TIER_IV_ULT_SKILL_ID {
+        let manual_gain = semmelweis::ult_manual_gain(model_id);
         if manual_gain > 0 {
             effects.push(bloodtithe_add_to_pool(target, manual_gain));
             return effects;

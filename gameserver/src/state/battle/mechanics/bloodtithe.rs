@@ -1,10 +1,16 @@
 use once_cell::sync::Lazy;
 use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Mutex,
+};
+
+use config::configs;
 
 use crate::state::battle::context::FightContext;
 use crate::state::battle::heroes::{nautika, rubuska};
 use crate::state::battle::mechanics::magic_circle;
+use crate::state::battle::skill::source_kind;
 use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_ex_point_step,
     buff_actions::raspberry::buff_get_raspberry_params,
@@ -14,7 +20,7 @@ use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
-    utils::{damage_with_buff_act, find_entity, find_uid_by_hero_id},
+    utils::{buff_has_bloodpool, damage_with_buff_act, find_entity, find_uid_by_hero_id},
 };
 
 const DAMAGE_PER_POINT: i32 = 3000;
@@ -26,6 +32,67 @@ const BLOODTITHE_TRANSITION_HOST_SKILL: i32 = 308801311;
 const FAITH_PSYCHUBE_BUNDLE_HOST_SKILL: i32 = 31200193;
 
 static GAINED: Lazy<Mutex<i32>> = Lazy::new(|| Mutex::new(0));
+
+/// Heroes whose kit grants any buff carrying the `BloodPoolTag`
+/// action (buff_act 953). Built once at startup by walking
+/// `skill_effect` behaviors and tracing each `AddBuff` target back
+/// through `buff_has_bloodpool` and `source_kind::owning_hero`.
+/// Future bloodtithe heroes drop in automatically — no match arm to
+/// update when a new hero ships with a 953-tagged buff.
+static BLOODTITHE_ENABLED_HEROES: Lazy<HashSet<i32>> = Lazy::new(build_bloodtithe_heroes);
+
+pub fn is_bloodtithe_enabled(hero_id: i32) -> bool {
+    BLOODTITHE_ENABLED_HEROES.contains(&hero_id)
+}
+
+fn build_bloodtithe_heroes() -> HashSet<i32> {
+    let game = configs::get();
+    let mut out = HashSet::new();
+    for effect in game.skill_effect.iter() {
+        let Some(hero_id) = source_kind::owning_hero(effect.id) else {
+            continue;
+        };
+        if out.contains(&hero_id) {
+            continue;
+        }
+        let behaviors = [
+            effect.behavior1.as_str(),
+            effect.behavior2.as_str(),
+            effect.behavior3.as_str(),
+            effect.behavior4.as_str(),
+            effect.behavior5.as_str(),
+            effect.behavior6.as_str(),
+            effect.behavior7.as_str(),
+        ];
+        if behaviors.iter().any(|b| behavior_grants_bloodpool_tag(b)) {
+            out.insert(hero_id);
+        }
+    }
+    out
+}
+
+fn behavior_grants_bloodpool_tag(behavior: &str) -> bool {
+    if behavior.is_empty() {
+        return false;
+    }
+    behavior.split('|').any(|entry| {
+        // Entries shaped `1#<buff_id>` mean AddBuff. Anything else
+        // can't introduce a tagged buff to its target.
+        let mut parts = entry.split('#');
+        let beh_id: i32 = parts
+            .next()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0);
+        if beh_id != 1 {
+            return false;
+        }
+        let buff_id: i32 = parts
+            .next()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(0);
+        buff_id > 0 && buff_has_bloodpool(buff_id)
+    })
+}
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct BloodtitheState {

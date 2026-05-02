@@ -54,7 +54,7 @@ static SHADOW_CLOAK_FULL_CAP_GRANTED: Lazy<Mutex<HashSet<(i32, i64)>>> =
     Lazy::new(|| Mutex::new(HashSet::new()));
 static BASIC_SELF_LOSS_SKILLS: OnceLock<HashSet<i32>> = OnceLock::new();
 
-fn is_rubuska(model_id: Option<i32>) -> bool {
+pub fn is_rubuska(model_id: Option<i32>) -> bool {
     model_id == Some(HeroId::Rubuska.model_id())
 }
 

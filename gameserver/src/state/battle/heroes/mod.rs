@@ -19,6 +19,7 @@
 // files appear as work lands.
 pub mod nautika;
 pub mod rubuska;
+pub mod semmelweis;
 pub mod sentinel;
 pub mod sotheby;
 
