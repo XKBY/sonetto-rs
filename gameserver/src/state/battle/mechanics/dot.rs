@@ -33,6 +33,8 @@
 //! battle3 step-count gap because every tick adds one wrapper to the
 //! parent container regardless of crit/non-crit shape.
 
+use std::collections::HashMap;
+
 use sonettobuf::{ActEffect, FightStep};
 
 use crate::state::battle::{
@@ -47,8 +49,25 @@ use crate::state::battle::{
 /// Build the round-end DOT settlement step (one outer container holding
 /// every poison-family tick across alive entities), or `None` if no
 /// stacks tick this round.
+///
+/// If the cumulative tick damage drops a victim's HP to zero, an
+/// `et=9 Dead` emission for that victim is appended to the outer
+/// container so downstream consumers (wave-mgr, alive-set queries,
+/// follow-up reactives) see the death. Without this hook, victims
+/// killed by DOT alone get HP=0 silently — `play_effect_damage`
+/// reduces HP but doesn't synthesize the Dead packet itself, and
+/// the skill-side `collect_dead_effects_after_damage` helpers don't
+/// run on round-end DOT settlement (they're scoped to skill chains).
 pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
     let mut wrappers: Vec<ActEffect> = Vec::new();
+    // Cumulative HP / shield simulation per victim, so a multi-tick
+    // settlement that crosses the kill threshold appends exactly one
+    // Dead emission for that victim. The fight state isn't mutated
+    // here — `apply_step_and_maybe_sync` will replay our emissions
+    // shortly. We mirror its arithmetic ahead of time to know which
+    // victims should die.
+    let mut hp_state: HashMap<i64, (i32, i32)> = HashMap::new();
+    let mut killed_in_order: Vec<i64> = Vec::new();
 
     for victim_uid in iter_alive_uids(ctx.fight) {
         let buffs = ctx.managers.buff_mgr.get(victim_uid).to_vec();
@@ -88,15 +107,44 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
                     ],
                 );
                 wrappers.push(wrap_step(inner));
+
+                // Track cumulative HP loss for this victim so we can
+                // emit Dead once if the settlement crosses the kill
+                // threshold. Skip further accumulation after the
+                // first crossing — additional ticks on a corpse don't
+                // re-emit Dead.
+                if !killed_in_order.contains(&victim_uid) {
+                    let (hp, shield) = hp_state.entry(victim_uid).or_insert_with(|| {
+                        let entity = get_entity(ctx.fight, victim_uid);
+                        let hp = entity.and_then(|e| e.current_hp).unwrap_or(0);
+                        let shield = entity.and_then(|e| e.shield_value).unwrap_or(0);
+                        (hp, shield)
+                    });
+                    let shield_absorbed = damage.min(*shield);
+                    let hp_damage = damage.saturating_sub(shield_absorbed);
+                    *shield = shield.saturating_sub(shield_absorbed);
+                    *hp = hp.saturating_sub(hp_damage);
+                    if *hp <= 0 {
+                        killed_in_order.push(victim_uid);
+                    }
+                }
             }
         }
     }
 
     if wrappers.is_empty() {
-        None
-    } else {
-        Some(build_effect_step(wrappers))
+        return None;
     }
+
+    let mut outer = build_effect_step(wrappers);
+    for victim_uid in killed_in_order {
+        outer.act_effect.push(
+            ActEffectBuilder::new(EffectType::Dead as i32, victim_uid)
+                .effect_num(0)
+                .build(),
+        );
+    }
+    Some(outer)
 }
 
 /// Iterate every alive entity uid in `attacker.entitys + sub_entitys` then
