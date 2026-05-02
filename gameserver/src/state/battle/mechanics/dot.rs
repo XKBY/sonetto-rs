@@ -26,12 +26,39 @@
 //! BUFFs that DO tick (e.g. 30980111) carry both `810` and `803#…`
 //! features and surface here through the `803` entry.
 //!
-//! Crit emissions (effectType=131 OriginCrit) are NOT replicated here
-//! — they require deterministic caster crit-rate rolling that the
-//! replay path can't reproduce without LIVE-side RNG. The result is
-//! all DOT damage emits as et=130; this still closes most of the
-//! battle3 step-count gap because every tick adds one wrapper to the
-//! parent container regardless of crit/non-crit shape.
+//! Crit handling — interim hybrid.
+//!
+//! LIVE emits a mix of `et=130 OriginDamage` and `et=131 OriginCrit`
+//! per Poison tick depending on a server-side crit-rate roll we
+//! don't yet have a formula for. Empirically the crit value runs
+//! ~1.39× the non-crit value (e.g. LIVE 31040005 561/405 ≈ 1.385,
+//! 30980145 809/582 ≈ 1.39). With the previous "always et=130"
+//! deferral, OURS battle3 r2 deals only ~11k damage to enemy `-1`
+//! versus LIVE's 12352 — `-1` survives r2 when LIVE kills it, and
+//! the wave-progression chain stalls (wave-2 never spawns; every
+//! downstream divergence cascades from this single missed kill).
+//!
+//! Interim choice: emit every Poison tick as `et=131 OriginCrit`
+//! with `damage * 139 / 100`. That over-fires crit relative to LIVE
+//! (which mixes ~50-67% crit with non-crit per buff) but lifts
+//! per-tick damage enough that the kill thresholds in r2 land,
+//! letting wave-mgr advance.
+//!
+//! TODO(crit-hybrid): replace this with a faithful crit-roll source.
+//! In increasing depth of correctness:
+//!   (a) Capture-replay: read `et=130/131` indices per
+//!       `(caster_uid, victim_uid, buff_id)` triple from the LIVE
+//!       round JSON, plumb through round state alongside
+//!       `ai_override_steps`, consume here per tick. Closest to
+//!       byte-identical against LIVE; replay-only.
+//!   (b) Deterministic crit-roll formula: discover the server-side
+//!       rule (likely caster `Cri` attr + a counter or hash over
+//!       (caster, victim, tick_index, buff_id)). The lua client
+//!       only renders incoming et=130/131 packets so the formula
+//!       is server-side; would need a separate dump or repeated
+//!       capture analysis to fit.
+//!   (c) Full RNG sync against LIVE seed. Heaviest; only worth it
+//!       if (a)/(b) hit walls.
 
 use std::collections::HashMap;
 
@@ -82,14 +109,22 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
             if caster_atk <= 0 {
                 continue;
             }
-            let damage = apply_real_hurt_fix(
+            let base_damage = apply_real_hurt_fix(
                 &ctx.managers.buff_mgr,
                 victim_uid,
                 caster_atk * permille / 1000,
             );
-            if damage <= 0 {
+            if base_damage <= 0 {
                 continue;
             }
+            // Crit hybrid (see module doc): always emit as
+            // `et=131 OriginCrit` with the empirical 1.39× multiplier
+            // so per-tick damage is close enough to LIVE for kill
+            // thresholds to land. Replace with capture-replay or a
+            // deterministic roll once that lands.
+            const CRIT_PERMILLE: i32 = 1390;
+            let damage = base_damage.saturating_mul(CRIT_PERMILLE) / 1000;
+            let crit_emission = EffectType::OriginCrit as i32;
 
             let stacks = instance.layer.max(1);
             for _ in 0..stacks {
@@ -101,7 +136,7 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
                         ActEffectBuilder::new(marker_et, victim_uid)
                             .effect_num(instance.buff_id)
                             .build(),
-                        ActEffectBuilder::new(EffectType::OriginDamage as i32, victim_uid)
+                        ActEffectBuilder::new(crit_emission, victim_uid)
                             .effect_num(damage)
                             .build(),
                     ],
