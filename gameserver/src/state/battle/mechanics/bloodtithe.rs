@@ -3,7 +3,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, figh
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::context::FightContext;
-use crate::state::battle::heroes::rubuska;
+use crate::state::battle::heroes::{nautika, rubuska};
 use crate::state::battle::mechanics::magic_circle;
 use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_ex_point_step,
@@ -553,9 +553,9 @@ impl BloodtitheState {
                 if let Some(team_type) = entity.and_then(|e| e.team_type)
                     && let Some(gained) = self.on_hp_lost(uid, team_type, damage)
                 {
-                    if let Some(nautika_uid) = find_nautika_uid(fight, team_type) {
+                    if let Some(nautika_uid) = nautika::find_uid(fight, team_type) {
                         ex_point_mgr.add_ex_point(nautika_uid, gained);
-                        effects.push(ActEffectBuilder::ex_point_change(nautika_uid, gained));
+                        effects.push(nautika::faith_gain_amount(nautika_uid, gained));
                     }
                     effects.push(bloodtithe_add_to_pool(uid, gained));
                 }
@@ -576,15 +576,3 @@ impl BloodtitheState {
     }
 }
 
-fn find_nautika_uid(fight: &Fight, team_type: i32) -> Option<i64> {
-    let side = if team_type == 1 {
-        fight.attacker.as_ref()
-    } else {
-        fight.defender.as_ref()
-    };
-    side?
-        .entitys
-        .iter()
-        .find(|e| e.model_id == Some(3120))
-        .and_then(|e| e.uid)
-}

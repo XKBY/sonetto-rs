@@ -17,6 +17,7 @@
 // scattered locations they currently live in. Until then this module
 // is an intentional placeholder — the HeroId enum is the contract;
 // files appear as work lands.
+pub mod nautika;
 pub mod rubuska;
 pub mod sentinel;
 pub mod sotheby;

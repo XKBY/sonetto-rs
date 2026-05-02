@@ -4,7 +4,7 @@ use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromTyp
 use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
 use super::action::{ActionCtx, BehaviorAction};
-use crate::state::battle::heroes::rubuska;
+use crate::state::battle::heroes::{nautika, rubuska};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -42,7 +42,6 @@ impl BehaviorAction for BloodPool {
         }
     }
 }
-use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::buff_mgr::BuffMgr;
 use crate::state::battle::mechanics::bloodtithe::{
     BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
@@ -238,8 +237,8 @@ pub fn lost_life(
         preview.on_hp_lost(target, team_type, actual_loss)
     });
     if let Some(new_value) = preview_gain {
-        if model_id == Some(3120) {
-            effects.push(ActEffectBuilder::new(111, target).effect_num(1).build());
+        if nautika::is_nautika(model_id) {
+            effects.push(nautika::faith_gain_one(target));
         }
         effects.push(bloodtithe_add_to_pool(target, new_value));
     }
@@ -268,10 +267,10 @@ pub fn pool_value_change(
     bloodtithe.add_initial_gain(1, amount);
 
     let model_id = get_entity(fight, target).and_then(|e| e.model_id);
-    if model_id == Some(3120) {
+    if nautika::is_nautika(model_id) {
         bloodtithe
             .pending_effects
-            .push(ActEffectBuilder::new(111, target).effect_num(1).build());
+            .push(nautika::faith_gain_one(target));
     }
     bloodtithe
         .pending_effects
