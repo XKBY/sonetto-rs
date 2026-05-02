@@ -38,6 +38,7 @@ impl EntityBuilder {
             self.equip.as_ref().map(|e| e.equip_id),
             destiny.as_ref(),
             r.destiny_stone,
+            r.destiny_rank,
         );
         let ex_skill = Skill::get_ex(&self.hero_data, destiny.as_ref());
         let current_hp = attr.hp.unwrap_or(0);
