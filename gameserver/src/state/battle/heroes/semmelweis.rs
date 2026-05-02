@@ -8,14 +8,18 @@
 use std::collections::HashSet;
 
 use once_cell::sync::Lazy;
-use sonettobuf::{Fight, FightStep};
+use sonettobuf::{ActEffect, Fight, FightStep};
 
 use crate::state::battle::{
     entity::destiny::Destiny,
+    fight_step::ActEffectBuilder,
     hero::HeroId,
     heroes::rubuska,
     mechanics::bloodtithe::is_bloodtithe_enabled,
     round::round_end_bundling::{RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts},
+    skill::targets::alive_allies,
+    types::effects::EffectType,
+    utils::buff_add,
 };
 
 /// Insight-Lv.1 base id of `And So It Rises Again`. The Lv.0 base
@@ -92,3 +96,29 @@ pub static ROUND_END_BUNDLE: RoundEndBundleSpec = RoundEndBundleSpec {
     host_skill_ids: round_end_bundle_hosts,
     claim_rank: claim_round_end_bundle_step,
 };
+
+/// Blood Domain (`100051`) is Semmelweis's only magic circle. Its
+/// `selfBuff` (`308801312`) carries the `CureUpByLostHp` feature,
+/// which means the buff fans out to every alive ally rather than
+/// landing on the caster alone, paired with a `CureUpByLostHp`
+/// marker per ally. The generic `mechanics::magic_circle`
+/// orchestrator detects the feature and dispatches into this
+/// helper — the dispatch is feature-driven, the body is
+/// hero-owned because she's the only hero who runs this aura
+/// shape today.
+pub fn expand_blood_domain_self_buff_aura(
+    fight: &Fight,
+    caster_uid: i64,
+    buff_id: i32,
+) -> Vec<ActEffect> {
+    let mut out = Vec::with_capacity(alive_allies(fight, caster_uid).len() * 2);
+    for ally_uid in alive_allies(fight, caster_uid) {
+        out.push(buff_add(caster_uid, ally_uid, buff_id, 1));
+        out.push(
+            ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
+                .effect_num(0)
+                .build(),
+        );
+    }
+    out
+}

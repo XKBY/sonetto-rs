@@ -16,15 +16,15 @@ use crate::state::battle::{
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
     fight_step::ActEffectBuilder,
+    hero::HeroId,
+    heroes::{semmelweis, sentinel, tuesday},
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::steps::skill::execute_skill as execute_passive_skill,
-    mechanics::dot::parse_dot_features,
-    skill::targets::{alive_allies, alive_enemies, get_entity},
     skill::{PhaseFilter, SkillExecutor, TriggerState},
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
-    utils::{buff_add, for_each_buff_feature_chain},
+    utils::{buff_add, find_uid_by_hero_id, for_each_buff_feature_chain},
 };
 
 /// Summon a magic circle: emit the `MagicCircleAdd` ActEffect with the
@@ -50,22 +50,23 @@ pub fn add_magic_circle(
         .and_then(|circle| circle.self_buff.trim().parse::<i32>().ok())
         .filter(|id| *id > 0)
     {
+        // self_buff dispatch is feature-driven: the buff's
+        // `CureUpByLostHp` feature signals an ally-side aura fanout
+        // (Semmelweis Blood Domain pattern) instead of the default
+        // self-only application. The fanout body lives in the hero
+        // module because she's the only hero running this aura shape
+        // today; if another hero adopts the same feature it can be
+        // factored out then.
         let mut has_cure_up_by_lost_hp = false;
         for_each_buff_feature_chain(buff_id, |act_type, _| {
             if act_type == "CureUpByLostHp" {
                 has_cure_up_by_lost_hp = true;
             }
         });
-
         if has_cure_up_by_lost_hp {
-            for ally_uid in alive_allies(fight, caster_uid) {
-                out.push(buff_add(caster_uid, ally_uid, buff_id, 1));
-                out.push(
-                    ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
-                        .effect_num(0)
-                        .build(),
-                );
-            }
+            out.extend(semmelweis::expand_blood_domain_self_buff_aura(
+                fight, caster_uid, buff_id,
+            ));
         } else {
             out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
         }
@@ -75,15 +76,14 @@ pub fn add_magic_circle(
         .and_then(|circle| circle.enemy_buff.trim().parse::<i32>().ok())
         .filter(|id| *id > 0)
     {
-        // LIVE applies a circle's `enemy_buff` to a single opposing
-        // entity, not to the whole side. Tuesday's Lock-Sound circle
-        // 22100003 picks the alive opponent with the most current HP,
-        // tiebreaking on the fewest Poison-family stacks. Newly-spawned
-        // wave entities satisfy both (full HP, zero stacks), so the
-        // buff lands on them as soon as they appear. The same picker
-        // matches Tuesday's `31040141` ("…prioritizing targets with
-        // the most HP").
-        let target = pick_enemy_buff_target(ctx, fight, caster_uid);
+        // enemy_buff dispatch is hero-identity-driven: each hero with
+        // an enemy-side aura picks targets differently, so the
+        // orchestrator delegates to the creator's hero module. If no
+        // hero-specific picker matches, we skip the emission rather
+        // than guess — a future circle config that adds enemy_buff
+        // without a matching hero hook will surface here as a
+        // missing-picker warning.
+        let target = pick_enemy_buff_target_for_creator(ctx, fight, caster_uid, circle_id);
         if let Some(enemy_uid) = target {
             let original_target = ctx.target_uid();
             ctx.target = enemy_uid;
@@ -116,26 +116,26 @@ pub fn add_magic_circle(
     Ok(out)
 }
 
-/// Pick a single opposing entity to receive the magic-circle's
-/// `enemy_buff`. Score = (current_hp, -poison_stacks); the alive
-/// opponent with the largest score wins. See the comment in
-/// `add_magic_circle` for the empirical basis.
-fn pick_enemy_buff_target(
+/// Dispatch the `enemy_buff` target picker to the circle creator's
+/// hero module. Returns `None` when the creator doesn't have a
+/// registered picker — emits a one-shot warning per circle id so
+/// future circle configs that grow `enemy_buff` are easy to spot.
+fn pick_enemy_buff_target_for_creator(
     ctx: &EffectContext<'_>,
     fight: &Fight,
     caster_uid: i64,
+    circle_id: i32,
 ) -> Option<i64> {
-    let buff_mgr = ctx.buff_mgr();
-    alive_enemies(fight, caster_uid).into_iter().max_by_key(|&uid| {
-        let hp = get_entity(fight, uid).and_then(|e| e.current_hp).unwrap_or(0);
-        let poison_stacks: i32 = buff_mgr
-            .get(uid)
-            .iter()
-            .filter(|inst| parse_dot_features(inst.buff_id).is_some())
-            .map(|inst| inst.layer.max(1))
-            .sum();
-        (hp, -poison_stacks)
-    })
+    if Some(caster_uid) == find_uid_by_hero_id(fight, HeroId::Tuesday.model_id()) {
+        return tuesday::pick_lock_sound_enemy_target(ctx, fight, caster_uid);
+    }
+    tracing::warn!(
+        "magic_circle {} carries enemy_buff but no hero-specific picker is registered \
+         for creator uid {} — skipping the buff emission",
+        circle_id,
+        caster_uid,
+    );
+    None
 }
 
 fn active_circle_row(fight: &sonettobuf::Fight) -> Option<&'static MagicCircle> {
@@ -276,12 +276,10 @@ fn collect_add_passive_skill_ids(
             continue;
         }
         for_each_add_passive_skill_id_for_entity(fight, host_caster_uid, buff_id, |skill_id| {
-            let is_hour_of_repentance_self_fire =
-                skill_id == 31260181 && matches!(buff_id, 31260151 | 31260201);
-            if skill_id != skip_skill_id && !out.contains(&skill_id) {
-                if is_hour_of_repentance_self_fire {
-                    return;
-                }
+            if skill_id != skip_skill_id
+                && !out.contains(&skill_id)
+                && !sentinel::is_hour_of_repentance_self_grant(skill_id, buff_id)
+            {
                 out.push(skill_id);
             }
         });
@@ -312,12 +310,10 @@ fn extend_with_active_add_passive_skill_ids(
             host_caster_uid,
             instance.buff_id,
             |skill_id| {
-                let is_hour_of_repentance_self_fire =
-                    skill_id == 31260181 && matches!(instance.buff_id, 31260151 | 31260201);
-                if skill_id != skip_skill_id && !out.contains(&skill_id) {
-                    if is_hour_of_repentance_self_fire {
-                        return;
-                    }
+                if skill_id != skip_skill_id
+                    && !out.contains(&skill_id)
+                    && !sentinel::is_hour_of_repentance_self_grant(skill_id, instance.buff_id)
+                {
                     out.push(skill_id);
                 }
             },
