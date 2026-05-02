@@ -74,18 +74,8 @@ pub fn add_magic_circle(
         .and_then(|circle| circle.enemy_buff.trim().parse::<i32>().ok())
         .filter(|id| *id > 0)
     {
-        // LIVE applies a circle's `enemy_buff` to a single opposing
-        // entity, not to the whole side. Empirically the picked entity
-        // is the alive opponent with the largest |uid| — the
-        // latest-spawned / back-row slot. Battle3 captures: r4 picks
-        // -8 with -3..-8 alive; r8 picks -7 with -5..-7 alive. For
-        // player-cast circles the opponent uids are negative, so
-        // "largest |uid|" reduces to `min` on the raw value.
-        let target = alive_enemies(fight, caster_uid)
-            .into_iter()
-            .min_by_key(|uid| (-uid.abs(), *uid));
-        if let Some(enemy_uid) = target {
-            let original_target = ctx.target_uid();
+        let original_target = ctx.target_uid();
+        for enemy_uid in alive_enemies(fight, caster_uid) {
             ctx.target = enemy_uid;
             let effect = buff_add(enemy_uid, caster_uid, buff_id, 1);
             if let Some(buff_uid) = effect.buff.as_ref().and_then(|buff| buff.uid) {
@@ -95,8 +85,8 @@ pub fn add_magic_circle(
             }
             out.push(effect);
             out.extend(apply_after_buff_add_features(ctx, executor, buff_id, false));
-            ctx.target = original_target;
         }
+        ctx.target = original_target;
     }
     out.push(
         ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)
