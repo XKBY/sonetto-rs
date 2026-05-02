@@ -53,40 +53,15 @@ impl Passive {
             }
         }
 
-        // Destiny passives that have no config link — keyed by destinyStone ID.
-        // These skills exist in skill_effect but are absent from skill_passive_level
-        // and character_destiny_facets.exchangeSkills. battle3 replay reads the
-        // passives off the input fight protobuf so these entries are for
-        // fresh-battle builds.
-        //
-        // Each entry carries `(skill_id, tier_required)` so a low-rank hero
-        // doesn't get higher-tier passives. Per-hero entries are migrating into
-        // heroes/{name}.rs (Sotheby done); remaining heroes inline pending
-        // their migrations.
-        use crate::state::battle::heroes;
-        let destiny_skills = if destiny_stone == heroes::sotheby::DESTINY_STONE {
-            heroes::sotheby::destiny_passive_skills(destiny_stone, destiny_rank)
-        } else {
-            let inline_map: &[(i32, &[(i32, u8)])] = &[
-                (306201, &[(30620144, 1), (30620147, 1)]),                       // 3062 Melania
-                (306301, &[(30630151, 1), (30630161, 2), (30630171, 3)]),        // 3063 Pickles
-                (308801, &[(308801911, 1), (308801921, 2), (308802111, 4)]),     // 3088 Semmelweis
-            ];
-            inline_map
-                .iter()
-                .find(|(s, _)| *s == destiny_stone)
-                .map(|(_, entries)| {
-                    entries
-                        .iter()
-                        .filter(|(_, tier)| destiny_rank >= *tier as i32)
-                        .map(|(id, _)| *id)
-                        .collect::<Vec<i32>>()
-                })
-                .unwrap_or_default()
-        };
-        for id in destiny_skills {
-            if !passives.contains(&id) {
-                passives.push(id);
+        // Destiny passives the game's data tables don't expose. Single
+        // source of truth lives in `crate::state::battle::destiny`;
+        // tier-gated against destiny_rank.
+        if destiny_stone != 0 {
+            for id in crate::state::battle::destiny::passives_to_inject(destiny_stone, destiny_rank)
+            {
+                if !passives.contains(&id) {
+                    passives.push(id);
+                }
             }
         }
 

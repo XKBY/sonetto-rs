@@ -261,16 +261,26 @@ fn build_euphoria_swaps() -> HashMap<i32, SkillSource> {
 fn build_euphoria_passives(
     insight_passives: &HashMap<i32, SkillSource>,
 ) -> HashMap<i32, SkillSource> {
+    use crate::state::battle::destiny;
+
     let mut cache = HashMap::new();
 
-    for &(destiny_stone, entries) in destiny_passive_map() {
-        let hero_id = destiny_stone / 100;
-        for &(skill_id, tier) in entries {
-            if insight_passives.contains_key(&skill_id) {
+    // Walk the known destiny stones and pull their orphan passives from
+    // the central destiny module. Stones live at `<hero_id><facet>`
+    // packed; the helper recovers hero_id.
+    for &destiny_stone in destiny::KNOWN_STONES {
+        let hero_id = destiny::hero_id_for_stone(destiny_stone);
+        for entry in destiny::passives_for(destiny_stone) {
+            if insight_passives.contains_key(&entry.skill_id) {
                 continue;
             }
-
-            cache.insert(skill_id, SkillSource::EuphoriaPassive { hero_id, tier });
+            cache.insert(
+                entry.skill_id,
+                SkillSource::EuphoriaPassive {
+                    hero_id,
+                    tier: entry.tier,
+                },
+            );
         }
     }
 
@@ -365,15 +375,6 @@ fn parse_exchange_pairs(exchange_skills: &str) -> Vec<(i32, i32)> {
             Some((from, to))
         })
         .collect()
-}
-
-fn destiny_passive_map() -> &'static [(i32, &'static [(i32, u8)])] {
-    &[
-        (300901, &[(30090144, 4), (30090145, 4), (30090146, 4)]),
-        (306201, &[(30620144, 1), (30620147, 1)]),
-        (306301, &[(30630151, 1), (30630161, 2), (30630171, 3)]),
-        (308801, &[(308801911, 1), (308801921, 2), (308802111, 4)]),
-    ]
 }
 
 #[cfg(test)]

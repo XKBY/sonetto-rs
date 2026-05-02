@@ -3,6 +3,7 @@ mod card;
 mod passives;
 
 pub mod context;
+pub mod destiny;
 pub mod end_fight;
 pub mod event_queue;
 pub mod types;
