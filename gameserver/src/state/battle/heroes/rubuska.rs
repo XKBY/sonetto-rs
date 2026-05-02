@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::state::battle::{
-    buff_actions::raspberry::buff_get_raspberry_params,
+    buff_actions::{find_feature_parts, raspberry::buff_get_raspberry_params},
     context::FightContext,
     hero::HeroId,
     manager::round_mgr::lookup_entry_max_hp,
@@ -23,8 +23,30 @@ use crate::state::battle::{
 pub const SHADOW_CLOAK_ACCUMULATOR_BUFF_ID: i32 = 31250151;
 pub const SHADOW_CLOAK_OVERFLOW_TRACKER_BUFF_ID: i32 = 31250161;
 
-const SHADOW_CLOAK_SHARE_RATE_PERMILLE: i32 = 700;
-const SHADOW_CLOAK_MAX_HP_CAP_PERMILLE: i32 = 150;
+/// Tunings for Rubuska's Shadow Cloak. Both values are read from the
+/// accumulator buff's Raspberry feature parts (`1042#?#?#share#cap#…`)
+/// rather than hardcoded — the data table is the source of truth.
+/// Future portray-level overrides would surface as different buff IDs
+/// or layered buffs; the lookup point stays here.
+struct ShadowCloakTunings {
+    share_rate_permille: i32,
+    max_hp_cap_permille: i32,
+}
+
+static SHADOW_CLOAK_TUNINGS: Lazy<ShadowCloakTunings> = Lazy::new(|| {
+    let parts = find_feature_parts(SHADOW_CLOAK_ACCUMULATOR_BUFF_ID, "Raspberry")
+        .expect("Rubuska Shadow Cloak accumulator buff missing Raspberry feature");
+    ShadowCloakTunings {
+        share_rate_permille: parts
+            .get(3)
+            .and_then(|v| v.trim().parse().ok())
+            .expect("Raspberry feature missing share-rate permille at parts[3]"),
+        max_hp_cap_permille: parts
+            .get(4)
+            .and_then(|v| v.trim().parse().ok())
+            .expect("Raspberry feature missing max-cap permille at parts[4]"),
+    }
+});
 
 static SEEDED_RASPBERRY_MAX: Lazy<Mutex<HashMap<i32, i32>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
@@ -37,15 +59,15 @@ fn is_rubuska(model_id: Option<i32>) -> bool {
 }
 
 pub fn shadow_cloak_capacity(entry_max_hp: i32) -> i32 {
-    entry_max_hp * SHADOW_CLOAK_MAX_HP_CAP_PERMILLE / 1000
+    entry_max_hp * SHADOW_CLOAK_TUNINGS.max_hp_cap_permille / 1000
 }
 
 pub fn entry_max_hp_from_shadow_cloak_capacity(max_capacity: i32) -> i32 {
-    max_capacity * 1000 / SHADOW_CLOAK_MAX_HP_CAP_PERMILLE
+    max_capacity * 1000 / SHADOW_CLOAK_TUNINGS.max_hp_cap_permille
 }
 
 pub fn shadow_friend_hp_to_cloak_gain(loss: i32, max_hp: i32) -> i32 {
-    (loss * SHADOW_CLOAK_SHARE_RATE_PERMILLE / 1000).min(shadow_cloak_capacity(max_hp))
+    (loss * SHADOW_CLOAK_TUNINGS.share_rate_permille / 1000).min(shadow_cloak_capacity(max_hp))
 }
 
 pub fn init_shadow_cloak_state(state: &mut ShadowCloakState, fight: &Fight) {
@@ -158,7 +180,7 @@ pub fn build_shadow_cloak_full_cap_step(
             continue;
         }
 
-        total_shadow_gain += damage * SHADOW_CLOAK_SHARE_RATE_PERMILLE / 1000;
+        total_shadow_gain += damage * SHADOW_CLOAK_TUNINGS.share_rate_permille / 1000;
         targets.insert(target_uid);
     }
 
