@@ -25,6 +25,8 @@ pub mod buff_actions;
 pub mod entity;
 pub mod fight;
 pub mod fight_step;
+pub mod hero;
+pub mod heroes;
 pub mod skill;
 pub mod trigger;
 
