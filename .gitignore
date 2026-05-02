@@ -15,6 +15,11 @@ assets/*
 CLAUDE.md
 # Local research tooling — Python scrapers + their generated data.
 # Kept out of git so the repo stays focused on the Rust engine.
-/scripts/
+# (Directory itself is allowed so we can carve out specific tools below.)
+/scripts/*
+# Carve out the parity audit tool — it's pure analysis (no local data
+# side effects) and is referenced from Codex briefs, so it needs to
+# live in the repo proper.
+!/scripts/audit_skill_gaps.py
 # Local findings / scratch markdown produced during investigations.
 /_*_findings.md
