@@ -18,4 +18,19 @@
 // is an intentional placeholder — the HeroId enum is the contract;
 // files appear as work lands.
 pub mod rubuska;
+pub mod sentinel;
 pub mod sotheby;
+
+use crate::state::battle::hero::HeroId;
+use std::collections::HashMap;
+
+/// Hero-specific orphan passives the engine injects at hero load
+/// outside the `skill_passive_level` table. The per-hero modules own
+/// the rules; this dispatcher routes by `HeroId` so callers don't
+/// hardcode model ids.
+pub fn passive_injections(hero_id: i32, ex_map: &HashMap<i32, i32>) -> Vec<i32> {
+    match HeroId::from_model_id(hero_id) {
+        Some(HeroId::Sentinel) => sentinel::passive_injections(ex_map),
+        _ => Vec::new(),
+    }
+}

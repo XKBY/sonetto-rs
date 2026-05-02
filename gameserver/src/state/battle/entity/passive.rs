@@ -65,10 +65,10 @@ impl Passive {
             }
         }
 
-        //Sentinel
-        if hero_id == 3126 {
-            let base = 31260191;
-            let id = *ex_map.get(&base).unwrap_or(&base);
+        // Hero-specific engine-injected passives the data tables don't
+        // list. Per-hero rules live in `heroes/{name}.rs`; the
+        // dispatcher routes by `HeroId`.
+        for id in crate::state::battle::heroes::passive_injections(hero_id, &ex_map) {
             if !passives.contains(&id) {
                 passives.push(id);
             }
