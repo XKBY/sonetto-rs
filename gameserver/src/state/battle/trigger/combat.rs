@@ -1362,18 +1362,22 @@ fn should_use_strict_event_only(fight: &Fight, skill_id: i32) -> bool {
         return false;
     }
 
-    battle
-        .addition_rule
-        .split('|')
-        .filter_map(|entry| {
-            let mut parts = entry.split('#');
-            let prefix = parts.next()?.parse::<i32>().ok()?;
-            if !(1..=3).contains(&prefix) {
-                return None;
-            }
-            parts.next()?.parse::<i32>().ok()
-        })
-        .any(|sid| sid == skill_id)
+    battle.addition_rule.split('|').any(|entry| {
+        let mut parts = entry.split('#');
+        let Some(prefix) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
+            return false;
+        };
+        if !(1..=3).contains(&prefix) {
+            return false;
+        }
+        let Some(rule_id) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
+            return false;
+        };
+        let Some(rule) = cfg.rule.iter().find(|r| r.id == rule_id) else {
+            return false;
+        };
+        rule.effect.parse::<i32>().ok().unwrap_or(0) == skill_id
+    })
 }
 
 fn is_damage_reactive_extra_skill(skill_id: i32) -> bool {
