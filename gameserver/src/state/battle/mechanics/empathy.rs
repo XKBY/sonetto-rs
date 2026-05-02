@@ -6,13 +6,12 @@ use sonettobuf::{ActEffect, BuffInfo, Fight};
 use crate::state::battle::{
     buff_actions::injury_bank::{InjuryBankParams, buff_get_injury_bank_params},
     fight_step::{ActEffectBuilder, FightStepBuilder},
+    heroes::kakania,
     manager::buff_mgr::BuffMgr,
     skill::targets::{alive_allies, alive_enemies, get_entity, get_team_type},
     types::{buff::BuffLayerType, effects::EffectType},
-    utils::{apply_real_hurt_fix, find_uid_by_hero_id},
+    utils::apply_real_hurt_fix,
 };
-
-const KAKANIA_HERO_ID: i32 = 3080;
 
 /// Empathy bufftype + canonical default buff id, derived once from data.
 ///
@@ -358,7 +357,7 @@ impl EmpathyState {
         source_uid: i64,
         effects: Vec<ActEffect>,
     ) -> Vec<ActEffect> {
-        let Some(kakania_uid) = find_uid_by_hero_id(fight, KAKANIA_HERO_ID) else {
+        let Some(kakania_uid) = kakania::find_uid(fight) else {
             return effects;
         };
         let Some(kakania) = get_entity(fight, kakania_uid) else {

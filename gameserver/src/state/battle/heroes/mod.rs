@@ -17,11 +17,17 @@
 // scattered locations they currently live in. Until then this module
 // is an intentional placeholder — the HeroId enum is the contract;
 // files appear as work lands.
+pub mod kakania;
+pub mod melania;
 pub mod nautika;
+pub mod pickles;
+pub mod recoleta;
 pub mod rubuska;
 pub mod semmelweis;
 pub mod sentinel;
 pub mod sotheby;
+pub mod tuesday;
+pub mod willow;
 
 use crate::state::battle::hero::HeroId;
 use crate::state::battle::round::round_end_bundling::RoundEndBundleSpec;
