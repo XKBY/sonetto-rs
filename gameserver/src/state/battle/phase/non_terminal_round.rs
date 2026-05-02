@@ -231,7 +231,8 @@ pub(crate) async fn run(
     // every poison-family stack on every alive entity. See
     // `mechanics/dot.rs` for the emission shape (one 162 wrapper per
     // stack with `Poison(213)` marker + `OriginDamage(130)` damage).
-    if let Some(step) = dot::build_round_end_dot_step(ctx) {
+    if let Some(mut step) = dot::build_round_end_dot_step(ctx) {
+        dot::dedupe_dead_effects_against_prior_steps(&mut step, steps);
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
         steps.push(step);
     }

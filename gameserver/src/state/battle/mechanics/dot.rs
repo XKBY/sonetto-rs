@@ -60,7 +60,7 @@
 //!   (c) Full RNG sync against LIVE seed. Heaviest; only worth it
 //!       if (a)/(b) hit walls.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use sonettobuf::{ActEffect, FightStep};
 
@@ -182,6 +182,26 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
     Some(outer)
 }
 
+/// Round-end DOT can legitimately be the first path to kill a victim, but it
+/// should not append a second top-level Dead if an earlier step in the same
+/// round already announced that death.
+pub fn dedupe_dead_effects_against_prior_steps(step: &mut FightStep, prior_steps: &[FightStep]) {
+    let mut prior_dead_targets = HashSet::new();
+    for prior_step in prior_steps {
+        collect_dead_targets(&prior_step.act_effect, &mut prior_dead_targets);
+    }
+    if prior_dead_targets.is_empty() {
+        return;
+    }
+
+    step.act_effect.retain(|effect| {
+        effect.effect_type != Some(EffectType::Dead as i32)
+            || effect
+                .target_id
+                .is_none_or(|target_id| !prior_dead_targets.contains(&target_id))
+    });
+}
+
 /// Iterate every alive entity uid in `attacker.entitys + sub_entitys` then
 /// `defender.entitys + sub_entitys` order — matching the LIVE settlement
 /// emission order (allies first, then defenders).
@@ -206,6 +226,19 @@ fn iter_alive_uids(fight: &sonettobuf::Fight) -> Vec<i64> {
         }
     }
     uids
+}
+
+fn collect_dead_targets(effects: &[ActEffect], out: &mut HashSet<i64>) {
+    for effect in effects {
+        if effect.effect_type == Some(EffectType::Dead as i32)
+            && let Some(target_id) = effect.target_id
+        {
+            out.insert(target_id);
+        }
+        if let Some(step) = effect.fight_step.as_ref() {
+            collect_dead_targets(&step.act_effect, out);
+        }
+    }
 }
 
 /// Returns `(marker_effect_type, permille)` if the buff carries a
