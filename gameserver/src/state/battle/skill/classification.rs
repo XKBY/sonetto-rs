@@ -73,6 +73,19 @@ pub fn has_injury_reactive_condition(skill_id: i32) -> bool {
     false
 }
 
+pub fn has_be_attacked_reactive_condition(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+    for raw in collect_skill_condition_strings(skill_id, true) {
+        let (condition, _) = parse_condition(&raw);
+        if condition::fold(&condition, &mut |c| matches!(c, ConditionType::BeAttacked)) {
+            return true;
+        }
+    }
+    false
+}
+
 fn is_damage_reactive_extra_skill(skill_id: i32) -> bool {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);

@@ -119,6 +119,20 @@ pub(crate) async fn run(
             collected,
             boss_subtree,
             &|ctx, collected, step| {
+                passives::ally_be_attacked::inject_into_enemy_skill_step(
+                    ctx,
+                    collected,
+                    step,
+                    &|ctx, reactive_step| {
+                        if let Err(err) = mgr.apply_step_and_maybe_sync(ctx, reactive_step, true) {
+                            tracing::warn!(
+                                "ally be_attacked inline reactive apply failed act_id={:?}: {}",
+                                reactive_step.act_id,
+                                err
+                            );
+                        }
+                    },
+                );
                 channel_mechanics::inject_monitor_continue_into_enemy_skill_step(
                     ctx,
                     collected,
