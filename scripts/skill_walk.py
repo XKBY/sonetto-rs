@@ -237,7 +237,8 @@ def wired_condition_types():
     global _CONDITION_PARSED_TYPES
     if _CONDITION_PARSED_TYPES is None:
         # combat.rs uses match cond_type { "ActiveUseSkill" => ... }
-        # buff.rs uses similar
+        # buff.rs uses similar. parser.rs handles special-case ids
+        # (e.g. 585208 → TargetIsSelf, 586208 → TargetIsTeamNoMe).
         files = [
             GAMESERVER_SRC / "skill" / "condition" / "buff.rs",
             GAMESERVER_SRC / "skill" / "condition" / "combat.rs",
@@ -252,8 +253,42 @@ def wired_condition_types():
         types = set()
         for f in files:
             types |= _scan_string_match_arms(f, r'"([A-Z][A-Za-z0-9]+)" =>')
+        # parser.rs has special-case `if id == 585208` /
+        # `id == 586208` style branches that don't go through cond_type
+        # string lookup. The string returned by `lookup_condition_type`
+        # for those rows would be e.g. `Equality` — which IS in the
+        # data table type list but NOT in our parser cluster's match
+        # arms. Extract the variant the special-case maps to and treat
+        # it as wired so we don't false-flag.
+        parser_path = GAMESERVER_SRC / "skill" / "condition" / "parser.rs"
+        if parser_path.exists():
+            text = parser_path.read_text(encoding="utf-8")
+            # `return ConditionType::TargetIsSelf` / `::TargetIsTeamNoMe`
+            for m in re.finditer(r"ConditionType::([A-Z][A-Za-z0-9]+)", text):
+                types.add(m.group(1))
         _CONDITION_PARSED_TYPES = types
     return _CONDITION_PARSED_TYPES
+
+
+def condition_type_is_wired(ctype, wired_set):
+    """Map data-table type strings to wired ConditionType variants.
+    Some data-table types don't have an exact match arm (because the
+    parser handles them via id-based special cases), but the resulting
+    `ConditionType` variant DOES exist. The lookup is approximate."""
+    if not ctype:
+        return False
+    if ctype in wired_set:
+        return True
+    # Family / aliasing nuances:
+    # - `Equality` (data-table type used for the 585208/586208 special
+    #   cases) collapses to TargetIsSelf / TargetIsTeamNoMe via id-based
+    #   parser branches.
+    aliases = {
+        "Equality": ("TargetIsSelf", "TargetIsTeamNoMe"),
+    }
+    if ctype in aliases and any(a in wired_set for a in aliases[ctype]):
+        return True
+    return False
 
 
 def wired_behavior_types():
@@ -463,7 +498,10 @@ def walk_skill(skill_id, ctx):
         for leaf_str in split_compound(cond):
             cid_str, params = parse_chain_arg(leaf_str)
             ctype = lookup_condition_type(cid_str, ctx["condition_rows"])
-            wired = ctype in ctx["wired_conditions"] or ctype in ("None", "")
+            wired = condition_type_is_wired(ctype, ctx["wired_conditions"]) or ctype in (
+                "None",
+                "",
+            )
             leaves.append(
                 {
                     "raw": leaf_str,
