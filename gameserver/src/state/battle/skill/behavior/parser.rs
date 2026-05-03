@@ -75,6 +75,26 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             amount: p1,
         };
     }
+    // `AttrFixByLoseHp` (skill_behavior id 60033) is encoded as
+    // `60033#<step_permille>#<attr_id>#<bonus_per_stack>#<max_stacks>`.
+    // Semmelweis Insight III 308801821 slot 6 carries
+    // `60033#100#205#75#8` — i.e. for each 10% of MaxHP missing
+    // on the caster, grant +7.5% AddDmg (attr 205), capped at 8
+    // stacks (60% total). The `AttrFix` wildcard below would catch
+    // this by name and only read the first two args, so we route
+    // by id before the wildcard.
+    if id == 60033 {
+        let step_permille = p1;
+        let attr_id = p2;
+        let bonus_per_stack = parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let max_stacks = parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0);
+        return BehaviorType::AttrFixByLoseHp {
+            step_permille,
+            attr_id,
+            bonus_per_stack,
+            max_stacks,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {

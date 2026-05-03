@@ -15,6 +15,7 @@ use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::buff_actions::{EffectContext, raspberry};
+use crate::state::battle::skill::targets::get_entity;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::utils::attr_update;
@@ -34,6 +35,35 @@ impl BehaviorAction for AttrModify {
             | BehaviorType::AttrFix { attr_id, amount } => {
                 ctx.executor
                     .add_attr_bonus(ctx.caster_uid, *attr_id, *amount);
+                Some(Ok(vec![attr_update(ctx.caster_uid)]))
+            }
+            BehaviorType::AttrFixByLoseHp {
+                step_permille,
+                attr_id,
+                bonus_per_stack,
+                max_stacks,
+            } => {
+                if *step_permille <= 0 || *bonus_per_stack <= 0 || *max_stacks <= 0 {
+                    return Some(Ok(vec![]));
+                }
+                let entity = get_entity(fight, ctx.caster_uid);
+                let max_hp = entity
+                    .and_then(|e| e.attr.as_ref())
+                    .and_then(|a| a.hp)
+                    .unwrap_or(0);
+                if max_hp <= 0 {
+                    return Some(Ok(vec![]));
+                }
+                let cur_hp = entity.and_then(|e| e.current_hp).unwrap_or(0);
+                let missing = (max_hp - cur_hp).max(0) as i64;
+                let missing_permille = (missing * 1000 / max_hp as i64) as i32;
+                let stacks = (missing_permille / *step_permille).min(*max_stacks);
+                if stacks <= 0 {
+                    return Some(Ok(vec![]));
+                }
+                let bonus = stacks.saturating_mul(*bonus_per_stack);
+                ctx.executor
+                    .add_attr_bonus(ctx.caster_uid, *attr_id, bonus);
                 Some(Ok(vec![attr_update(ctx.caster_uid)]))
             }
             BehaviorType::RaspberryAddCount { attr_id, rate } => {

@@ -99,6 +99,20 @@ pub enum BehaviorType {
         attr_id: i32,
         amount: i32,
     },
+    /// Variant of `AttrFix` whose `amount` is derived from the
+    /// caster's missing HP. LIVE encodes it as
+    /// `60033#<step_permille>#<attr_id>#<bonus_per_stack>#<max_stacks>` —
+    /// e.g. Semmelweis Insight III `308801821 slot 6 = '60033#100#205#75#8'`
+    /// reads as: every 10% of MaxHP missing grants +7.5% to attr 205
+    /// (AddDmg), capped at 8 stacks (60% total). Other slots that
+    /// fire on the same trigger use plain `AttrFix` for the
+    /// non-scaled attribute bonuses.
+    AttrFixByLoseHp {
+        step_permille: i32,
+        attr_id: i32,
+        bonus_per_stack: i32,
+        max_stacks: i32,
+    },
     SkillRateUp {
         rate: i32,
     },
