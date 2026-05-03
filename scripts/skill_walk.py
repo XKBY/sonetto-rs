@@ -75,6 +75,78 @@ def load_heroes():
     return out
 
 
+# ---------------------------- fixture activity scanner
+
+# Cache: scan all fixture begin_round files once and remember every actId
+# emitted in LIVE and OURS. Lets the walker tell you whether a skill is
+# fixture-active (real bug if unwired) or fixture-dead (defensive only).
+
+_FIXTURE_ACTIDS = None
+
+
+def fixture_emission_counts():
+    """Return `{(battle, side): Counter(actId -> count)}` across all
+    `tests/<battle>/begin_round_*.json` (LIVE) and
+    `tests/runs/<battle>/my_begin_round_*.json` (OURS). Cached after
+    first call."""
+    global _FIXTURE_ACTIDS
+    if _FIXTURE_ACTIDS is not None:
+        return _FIXTURE_ACTIDS
+    import glob
+    from collections import Counter
+
+    out = {}
+
+    def count_actids(path):
+        c = Counter()
+
+        def walk(steps):
+            for s in steps:
+                aid = s.get("actId", 0)
+                if aid:
+                    c[aid] += 1
+                for eff in s.get("actEffect", []) or []:
+                    child = eff.get("fightStep")
+                    if child:
+                        walk([child])
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+        except Exception:
+            return c
+        walk(d.get("round", {}).get("fightStep", []))
+        return c
+
+    for battle in ["battle1", "battle2", "battle3"]:
+        live = Counter()
+        ours = Counter()
+        for f in sorted(glob.glob(f"tests/{battle}/begin_round_*.json")):
+            if "request" in f:
+                continue
+            live += count_actids(f)
+        for f in sorted(glob.glob(f"tests/runs/{battle}/my_begin_round_*.json")):
+            ours += count_actids(f)
+        out[(battle, "LIVE")] = live
+        out[(battle, "OURS")] = ours
+    _FIXTURE_ACTIDS = out
+    return out
+
+
+def fixture_activity(skill_id):
+    """Per-battle (LIVE, OURS, Δ) tuples for a skill_id. Returns
+    `[(battle, live, ours, delta), ...]` for battles where either side
+    has at least one emission."""
+    counts = fixture_emission_counts()
+    rows = []
+    for battle in ["battle1", "battle2", "battle3"]:
+        l = counts.get((battle, "LIVE"), {}).get(skill_id, 0)
+        o = counts.get((battle, "OURS"), {}).get(skill_id, 0)
+        if l or o:
+            rows.append((battle, l, o, o - l))
+    return rows
+
+
 def find_skill_in_hero(skill_id, hero):
     """Return (incantation_name, kind, rank, description, keywords) if
     the skill_id appears in this hero's incantation rows. For
@@ -575,6 +647,7 @@ def walk_skill(skill_id, ctx):
     if unwired_behs:
         semantic_flags.append(f"unwired behavior types: {sorted(set(unwired_behs))}")
 
+    activity = fixture_activity(skill_id)
     return {
         "skill_id": skill_id,
         "name": name,
@@ -591,6 +664,7 @@ def walk_skill(skill_id, ctx):
         "event_triggers": triggers,
         "has_event_driven_condition": has_event_cond,
         "semantic_flags": semantic_flags,
+        "fixture_activity": activity,
     }
 
 
@@ -651,6 +725,14 @@ def render_text(result):
             f"  channel-monitored gating buffs: {result['channel_chain_buffs']} "
             f"(referenced by some buff's MonitorContinueChannel act 1024)"
         )
+    activity = result.get("fixture_activity") or []
+    if activity:
+        out.append("  fixture activity (per-battle LIVE / OURS / Δ):")
+        for battle, l, o, d in activity:
+            tag = "✓" if d == 0 else ("⚠" if abs(d) <= 1 else "✗")
+            out.append(f"    {tag} {battle}: LIVE={l} OURS={o} Δ={d:+d}")
+    else:
+        out.append("  fixture activity: NONE (skill never fires in any test fixture)")
     if result["semantic_flags"]:
         out.append("  semantic flags:")
         for f in result["semantic_flags"]:
