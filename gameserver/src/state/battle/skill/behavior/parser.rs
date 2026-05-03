@@ -95,6 +95,24 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             max_stacks,
         };
     }
+    // `PoisonConvertToTargetBuff` (skill_behavior id 60110) — Willow's
+    // basic1 `Hag's Bane Pose` (skill 31040113) carries
+    // `60110#<cap>#<buff_id>` per skill_effect (e.g. `60110#5#31040013`
+    // for Lv.3). Per the in-game text: "1-target attack. Deals X% Mental
+    // DMG; if the target hit already has an instance of [Poison],
+    // convert 1 instance of [Poison] into 1 stack of [Hag's Bane] that
+    // lasts 2 rounds; up to N instances of Poison can be converted by
+    // this effect." LIVE-side the BuffAdd actEffect carries layer = cap,
+    // duration = skill_buff.duringTime — no explicit Poison removal
+    // event, the engine just stamps the buff. Argument order swaps the
+    // `AddBuff` convention (`buff_id#count`) so route by id and re-pack
+    // into the existing AddBuff runtime.
+    if id == 60110 {
+        return BehaviorType::AddBuff {
+            buff_id: p2,
+            count: p1,
+        };
+    }
     // `OriginDamageByAttrAndBuffGroupSize` (skill_behavior id 60127)
     // encodes a bonus damage emission of
     // `caster.attr[attr_id] × permille × buff_group_stacks_on_target / 1000`.
