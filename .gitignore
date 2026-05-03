@@ -21,5 +21,8 @@ CLAUDE.md
 # side effects) and is referenced from Codex briefs, so it needs to
 # live in the repo proper.
 !/scripts/audit_skill_gaps.py
+# Rule-provenance + primitive-coverage diagnostics — same rationale.
+!/scripts/rule_provenance.py
+!/scripts/primitive_coverage.py
 # Local findings / scratch markdown produced during investigations.
 /_*_findings.md
