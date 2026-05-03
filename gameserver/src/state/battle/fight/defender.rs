@@ -221,16 +221,18 @@ impl Defender {
         let skill_group1 = parse_skill_group(&skill_template.active_skill, 1);
         let skill_group2 = parse_skill_group(&skill_template.active_skill, 2);
 
+        // Both `#` and `|` are used as separators across the monster
+        // tables (~1996 entries use `|`, ~60 use `#`). Split on either.
         let base_passives: Vec<i32> = skill_template
             .passive_skill
-            .split('#')
-            .filter_map(|s| s.parse::<i32>().ok())
+            .split(['#', '|'])
+            .filter_map(|s| s.trim().parse::<i32>().ok())
             .collect();
 
         let ex_passives: Vec<i32> = monster
             .passive_skills_ex
-            .split('#')
-            .filter_map(|s| s.parse::<i32>().ok())
+            .split(['#', '|'])
+            .filter_map(|s| s.trim().parse::<i32>().ok())
             .collect();
 
         // battle rule skills get injected between base and ex
