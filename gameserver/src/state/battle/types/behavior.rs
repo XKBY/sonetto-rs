@@ -255,6 +255,22 @@ pub enum BehaviorType {
         self_loss_param: i32,
     },
 
+    /// Round-start poison-settle on the carrier (the entity holding the
+    /// passive `30980151` slot whose `behavior1=60073#1`). Walks the
+    /// carrier's own Poison / DeadlyPoison buffs, emits one
+    /// `OriginDamage(130)` per stack at `caster.atk × permille / 1000`,
+    /// and decrements `duringTime` by `rounds` UNLESS the carrier also
+    /// holds a `LockPoison(810)` buff from the array owner — Tuesday's
+    /// `30980131` "lock duration" debuff applied via
+    /// `magic_circle 22100003.enemy_buff`. Per the in-game text:
+    /// "At the start of the round, resolve 1 round of [Poison] effects."
+    /// Combined with Tuesday's array Lock-effect: "if tick is 2 after 3
+    /// rounds it still be 2 not 0". The 810 lock pins `duringTime` so
+    /// the same Poison stacks keep ticking damage every round.
+    SettleDotAndCostDotDuration {
+        rounds: i32,
+    },
+
     Unknown {
         raw: String,
     },

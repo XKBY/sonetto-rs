@@ -8,6 +8,7 @@ mod catapult;
 mod damage;
 mod direct_skill;
 mod disperse;
+mod dot_settle;
 mod empathy;
 mod ex_point;
 mod heal;
@@ -135,6 +136,7 @@ pub fn execute_behavior(
         BehaviorType::Bloodlust { .. }
             | BehaviorType::AddExPoint { .. }
             | BehaviorType::DirectUseBigSkill
+            | BehaviorType::SettleDotAndCostDotDuration { .. }
     );
 
     let targets = behavior_ctx.resolve_targets(self_targeted, behavior);

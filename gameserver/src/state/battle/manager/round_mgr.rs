@@ -907,6 +907,7 @@ impl FightRoundMgr {
                     let mut per_entity_effects: Vec<ActEffect> = Vec::new();
                     let mut skill_ids = collected.merged_for(uid);
                     self.extend_with_buff_granted_passives(ctx, uid, &mut skill_ids);
+                    self.extend_with_magic_circle_enemy_skills(ctx, uid, &mut skill_ids);
                     if !is_attacker_uid {
                         for sid in &battle_rule_skills {
                             if !skill_ids.contains(sid)
@@ -1114,6 +1115,61 @@ impl FightRoundMgr {
         }
 
         steps
+    }
+
+    /// Magic-circle `enemy_skills` round-start delivery. When a circle is
+    /// active and `uid` sits on the opposite side from the circle owner,
+    /// every id in the circle config's `enemy_skills` field becomes a
+    /// passive on `uid` for this sweep.
+    ///
+    /// Tuesday's `magic_circle 22100003` is the fixture caller — its
+    /// `enemy_skills="30980151"` advertises the round-start Poison
+    /// settle to each enemy of the circle owner. LIVE always emits
+    /// `30980151` with `fromId == toId == defender_uid` (`-5` in r5,
+    /// `-7` in r6/r8/r9), confirming the carrier is each enemy, not
+    /// the array owner. The skill itself has `cond=101 beh=60073#1`,
+    /// so the round-start scope gate (`scope::is_round_start_only`)
+    /// already blocks any combat-event path from re-firing it.
+    fn extend_with_magic_circle_enemy_skills(
+        &self,
+        ctx: &FightContext<'_>,
+        uid: i64,
+        skill_ids: &mut Vec<i32>,
+    ) {
+        let Some(circle) = ctx.fight.magic_circle.as_ref() else {
+            return;
+        };
+        let Some(circle_id) = circle.magic_circle_id else {
+            return;
+        };
+        if circle.round.unwrap_or(0) == 0 {
+            return;
+        }
+        let create_uid = circle.create_uid.unwrap_or(0);
+        if create_uid == 0 || uid == 0 || create_uid.signum() == uid.signum() {
+            return;
+        }
+        let cfg = config::configs::get();
+        let Some(circle_cfg) = cfg.magic_circle.get(circle_id) else {
+            return;
+        };
+        for piece in circle_cfg
+            .enemy_skills
+            .split(['|', ',', ';', '#'])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let Ok(skill_id) = piece.parse::<i32>() else {
+                continue;
+            };
+            if skill_id <= 0 {
+                continue;
+            }
+            let resolved = resolve_with_euphoria(ctx.fight, uid, skill_id);
+            if !skill_ids.contains(&resolved) {
+                skill_ids.push(resolved);
+            }
+        }
     }
 
     fn extend_with_buff_granted_passives(

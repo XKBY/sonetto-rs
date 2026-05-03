@@ -95,6 +95,20 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             max_stacks,
         };
     }
+    // `SettleDotAndCostDotDuration` (skill_behavior id 60073) — fires on
+    // each enemy carrying skill 30980151 as a round-start passive (delivered
+    // via `magic_circle 22100003.enemy_skills`). Per the in-game text on
+    // 30980151: "At the start of the round, resolve 1 round of [Poison]
+    // effects." The carrier walks its own Poison/DeadlyPoison buffs, deals
+    // `caster.atk × permille / 1000` Genesis damage per stack, and
+    // decrements `duringTime` by `rounds` — except when the carrier also
+    // holds a `LockPoison(810)` buff (Tuesday's 30980131 lock-duration
+    // debuff also applied by the array via `enemy_buff`), in which case the
+    // damage still emits but `duringTime` stays pinned. LIVE encodes 60073
+    // as `60073#<rounds>` (30980151 slot 1 = `60073#1` = 1 round per tick).
+    if id == 60073 {
+        return BehaviorType::SettleDotAndCostDotDuration { rounds: p1 };
+    }
     // `PoisonConvertToTargetBuff` (skill_behavior id 60110) — Willow's
     // basic1 `Hag's Bane Pose` (skill 31040113) carries
     // `60110#<cap>#<buff_id>` per skill_effect (e.g. `60110#5#31040013`
