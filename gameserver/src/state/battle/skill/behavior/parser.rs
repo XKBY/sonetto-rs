@@ -46,6 +46,20 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             multiplier_permille: p1,
         };
     }
+    // `Disperse2` (skill_behavior id 30009) is a single-buff drop —
+    // e.g. Sentinel `31260131 slot4 = '30009#31260121'`. The
+    // type-name wildcard below (`starts_with("Disperse")`) catches
+    // it as the argless `Disperse` (drop every buff), discarding
+    // the buff_id. Route this specific id to the existing
+    // `DisperseForce` runtime to preserve the targeted-buff
+    // semantic. Other Disperse-family ids (e.g. 30003 / 30004 /
+    // 30008 / 30016 / 30017 / 90002) keep the legacy mapping until
+    // we have evidence each carries a buff_id arg LIVE-side; the
+    // wildcard route already widens enough to be wrong if their
+    // semantics also differ — addressed one id at a time.
+    if id == 30009 && p1 > 0 {
+        return BehaviorType::DisperseForce { buff_id: p1 };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {
