@@ -987,6 +987,7 @@ fn is_active_use_skill_passive(skill_id: i32) -> bool {
             | ConditionType::UseSkillEffectTag { .. }
             | ConditionType::UseSpecificSkill { .. }
             | ConditionType::UseHurtSkill
+            | ConditionType::UseExSkill
             | ConditionType::CombatNone => {}
             _ => return false,
         }

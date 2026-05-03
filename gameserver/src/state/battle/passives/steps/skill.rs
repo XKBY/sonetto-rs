@@ -1,9 +1,13 @@
-use sonettobuf::{ActEffect, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, effect_type_enum::EffectType, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
-    skill::{PhaseFilter, build_skill_act_effect},
+    skill::{
+        PhaseFilter, build_skill_act_effect,
+        cache::{SKILL_CACHE, resolve_skill_effect_id},
+    },
+    types::{behavior::BehaviorType, condition::ConditionType},
     utils::buff_has_bloodpool,
 };
 
@@ -18,16 +22,13 @@ pub fn execute_skill(
 ) -> Result<Vec<ActEffect>, anyhow::Error> {
     // build_skill_act_effect already returns top-level ActEffect containers (usually 162/FightStep).
     // Passive flow should preserve that container order/shape for live parity.
-    let mut skill_effects = build_skill_act_effect(ctx, uid, target_uid, skill_id, phase)?;
+    let skill_effects = build_skill_act_effect(ctx, uid, target_uid, skill_id, phase)?;
     if skill_effects.is_empty() {
         return Ok(vec![]);
     }
 
     // Keep execute_skill output shape intact: each returned 162 (and any side effects)
     // must remain a sibling entry, not folded into the first 162.
-    let mut effects = Vec::with_capacity(skill_effects.len());
-    let mut act_effect = skill_effects.remove(0);
-
     // Combat callers (trigger/combat.rs, round_mgr.rs sweeps, card_mgr.rs)
     // replay these steps via calculate_mgr::play_step_data, which applies
     // ExPointChange effects itself. Battle-start callers
@@ -37,20 +38,18 @@ pub fn execute_skill(
     // 2x expected moxie on TeammateUseExSkill + AddExPointWithMax).
     let should_mirror_ex = !phase.is_combat();
 
-    if let Some(step) = act_effect.fight_step.as_mut() {
-        sync_buff_state(ctx, uid, &step.act_effect);
-        if should_mirror_ex {
-            sync_ex_point_state(ctx, uid, &step.act_effect);
-        }
-    }
-
-    effects.push(act_effect);
-
-    // Process additional returned effects (monitor triggers, halo side-steps, etc.)
-    // as siblings and sync state from each nested fight step.
-    for effect in skill_effects {
-        // Side containers must remain siblings; only sync state when the container is a FightStep.
-        if effect.effect_type == Some(EffectType::Fightstep as i32)
+    let mut effects = Vec::with_capacity(skill_effects.len());
+    for mut effect in skill_effects {
+        if should_inline_use_ex_replace_buff2(skill_id, phase, &effect) {
+            if let Some(step) = effect.fight_step.take() {
+                sync_buff_state(ctx, uid, &step.act_effect);
+                if should_mirror_ex {
+                    sync_ex_point_state(ctx, uid, &step.act_effect);
+                }
+                effects.extend(step.act_effect);
+                continue;
+            }
+        } else if effect.effect_type == Some(EffectType::Fightstep as i32)
             && let Some(step) = effect.fight_step.as_ref()
         {
             sync_buff_state(ctx, uid, &step.act_effect);
@@ -80,6 +79,49 @@ pub fn execute_skill(
     effects.extend(bt_pending);
 
     Ok(effects)
+}
+
+fn should_inline_use_ex_replace_buff2(
+    skill_id: i32,
+    phase: &PhaseFilter,
+    effect: &ActEffect,
+) -> bool {
+    let PhaseFilter::Combat(event) = phase else {
+        return false;
+    };
+    if !event.active_use_skill || !event.used_ex_skill {
+        return false;
+    }
+
+    let Some(step) = effect.fight_step.as_ref() else {
+        return false;
+    };
+    if effect.effect_type != Some(EffectType::Fightstep as i32)
+        || step.act_type != Some(fight_step::ActType::Skill as i32)
+        || step.act_id != Some(skill_id)
+        || step.act_effect.is_empty()
+        || step.act_effect.iter().any(|effect| effect.fight_step.is_some())
+        || !step.act_effect.iter().all(|effect| {
+            matches!(
+                effect.effect_type,
+                Some(x)
+                    if x == EffectType::Buffdel as i32 || x == EffectType::Buffupdate as i32
+            )
+        })
+    {
+        return false;
+    }
+
+    let effect_id = resolve_skill_effect_id(skill_id);
+    SKILL_CACHE
+        .get(&effect_id)
+        .map(|rows| {
+            rows.iter().any(|row| {
+                matches!(row.condition, ConditionType::UseExSkill)
+                    && matches!(row.behavior, BehaviorType::ReplaceBuff2 { .. })
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// Mirror ExPointChange (type 111) effects into ex_point_mgr. Only safe to
