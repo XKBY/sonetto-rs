@@ -322,6 +322,7 @@ impl FightCardMgr {
             dealer_uids: vec![],
             deleted_buff_ids: ctx.managers.buff_mgr.step_deleted_buff_ids().to_vec(),
             added_buff_uids: vec![],
+            added_buff_ids: vec![],
             trigger_bullet: false,
             bloodpool_gain_by_team: vec![],
             bloodpool_gain_by_skill_team: vec![],

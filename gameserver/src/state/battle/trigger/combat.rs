@@ -67,6 +67,8 @@ pub struct TriggerEvent {
     pub deleted_buff_ids: Vec<i32>,
     /// Buff instance uids added during this step.
     pub added_buff_uids: Vec<i64>,
+    /// Buff ids added during this step.
+    pub added_buff_ids: Vec<i32>,
     /// Whether this step triggered bullet mechanics.
     pub trigger_bullet: bool,
     /// Positive bloodpool gain deltas emitted during this step, keyed by team_type.
@@ -227,7 +229,7 @@ pub fn event_from_step(
     let mut dealer_uids = Vec::new();
     let mut deleted_buff_ids = Vec::new();
     let mut added_buff_uids = Vec::new();
-    let mut _added_buff_ids = Vec::new();
+    let mut added_buff_ids = Vec::new();
 
     collect_damage_uids(
         fight,
@@ -241,7 +243,7 @@ pub fn event_from_step(
     );
     collect_lost_expoint_uids(effects, &mut lost_expoint_uids);
     collect_deleted_buff_ids(effects, &mut deleted_buff_ids);
-    collect_added_buffs(effects, &mut added_buff_uids, &mut _added_buff_ids);
+    collect_added_buffs(effects, &mut added_buff_uids, &mut added_buff_ids);
     let mut nested_skill_ids = Vec::new();
     collect_nested_skill_ids(effects, &mut nested_skill_ids);
     let mut nested_skill_uses = Vec::new();
@@ -316,6 +318,7 @@ pub fn event_from_step(
         dealer_uids,
         deleted_buff_ids,
         added_buff_uids,
+        added_buff_ids,
         trigger_bullet,
         bloodpool_gain_by_team,
         bloodpool_gain_by_skill_team,
@@ -619,15 +622,6 @@ pub(crate) fn run_combat_passives_pass(
             if is_enter_fight_only_passive(skill_id) {
                 continue;
             }
-            if skill_id == 31260181
-                && ctx.managers.buff_mgr.has(uid, 31260131)
-                && event
-                    .skill_used_by(uid)
-                    .map(|(sid, _, _)| sid == 31260121)
-                    .unwrap_or(false)
-            {
-                continue;
-            }
             let is_buff_granted_has_buff_skill = buff_granted_has_buff_set.contains(&skill_id);
             if !is_buff_granted_has_buff_skill
                 && !has_combat_reactive_condition(skill_id, CombatPassiveScanMode::TriggerPass)
@@ -635,7 +629,7 @@ pub(crate) fn run_combat_passives_pass(
                 continue;
             }
             let should_fire = if is_buff_granted_has_buff_skill {
-                event.used_card(uid)
+                buff_granted_passive_should_fire(skill_id, uid, event)
             } else {
                 skill_should_fire(
                     uid,
@@ -841,6 +835,93 @@ fn skill_has_has_buff_id_condition(skill_id: i32) -> bool {
         }
     }
     false
+}
+
+fn is_channel_monitored_buff(buff_id: i32) -> bool {
+    if buff_id <= 0 {
+        return false;
+    }
+    let cfg = config::configs::get();
+    cfg.skill_buff.iter().any(|buff| {
+        buff.features.split('|').any(|entry| {
+            let mut parts = entry.split('#');
+            let Some(act) = parts.next() else {
+                return false;
+            };
+            if act.trim() != "1024" {
+                return false;
+            }
+            parts.any(|part| part.trim().parse::<i32>().ok() == Some(buff_id))
+        })
+    })
+}
+
+fn collect_has_buff_id_gating_buffs(skill_id: i32) -> Vec<i32> {
+    if skill_id <= 0 {
+        return Vec::new();
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let Some(skill) = cfg.skill_effect.iter().find(|s| s.id == effect_id) else {
+        return Vec::new();
+    };
+    let raws = [
+        skill.condition1.as_str(),
+        skill.condition2.as_str(),
+        skill.condition3.as_str(),
+        skill.condition4.as_str(),
+        skill.condition5.as_str(),
+        skill.condition6.as_str(),
+        skill.condition7.as_str(),
+        skill.condition8.as_str(),
+        skill.condition9.as_str(),
+        skill.condition10.as_str(),
+    ];
+    let mut out = Vec::new();
+    for raw in raws {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let (cond, _) = parse_condition(trimmed);
+        collect_has_buff_ids_from_condition(&cond, &mut out);
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+fn collect_has_buff_ids_from_condition(cond: &ConditionType, out: &mut Vec<i32>) {
+    match cond {
+        ConditionType::HasBuffId { buff_ids } => {
+            out.extend(buff_ids.iter().copied().filter(|buff_id| *buff_id > 0));
+        }
+        ConditionType::EnterFightAnd(parts) | ConditionType::EnterFightOr(parts) => {
+            for part in parts {
+                collect_has_buff_ids_from_condition(part, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn skill_is_channel_chain_reactive(skill_id: i32) -> bool {
+    collect_has_buff_id_gating_buffs(skill_id)
+        .into_iter()
+        .any(is_channel_monitored_buff)
+}
+
+fn buff_granted_passive_should_fire(skill_id: i32, uid: i64, event: &TriggerEvent) -> bool {
+    if !skill_is_channel_chain_reactive(skill_id) {
+        return event.used_card(uid);
+    }
+    if !event.used_card(uid) {
+        return false;
+    }
+    let gating_buffs = collect_has_buff_id_gating_buffs(skill_id);
+    !gating_buffs
+        .iter()
+        .any(|buff_id| event.added_buff_ids.contains(buff_id))
 }
 
 fn condition_contains_has_buff_id(cond: &ConditionType) -> bool {
