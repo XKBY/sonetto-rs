@@ -36,7 +36,7 @@ use crate::state::battle::skill::targets::{alive_enemies, get_entity, get_team_t
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
-use super::has_active_use_trigger_condition;
+use super::active_use_trigger_emit_skill_id;
 
 pub(super) struct DirectSkill;
 
@@ -72,7 +72,9 @@ fn execute_direct_use_skill(ctx: &mut ActionCtx<'_, '_>, skill_id: i32) -> Resul
         return Ok(vec![]);
     }
     let phase = PhaseFilter::combat_with(
-        TriggerState::on_active_use_skill(skill_id).with_buff_mgr(&ctx.managers.buff_mgr),
+        TriggerState::on_active_use_skill(skill_id)
+            .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
+            .with_buff_mgr(&ctx.managers.buff_mgr),
     );
     ctx.executor.execute_skill(
         ctx.rng,
@@ -167,7 +169,9 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     // forcing the EX cast.
     for precast_id in prep_skill_ids {
         let phase = PhaseFilter::combat_with(
-            TriggerState::on_active_use_skill(precast_id).with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(precast_id)
+                .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
+                .with_buff_mgr(&ctx.managers.buff_mgr),
         );
         let mut pre = ctx.executor.execute_skill(
             ctx.rng,
@@ -247,6 +251,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     let mut ex = {
         let phase = PhaseFilter::combat_with(
             TriggerState::on_active_use_skill(ex_skill_id)
+                .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
                 .with_used_ex_skill(true)
                 .with_buff_mgr(&ctx.managers.buff_mgr),
         );
@@ -401,6 +406,7 @@ fn execute_direct_use_group_and_star_skill(
         chosen_skill_id,
         &PhaseFilter::combat_with(
             TriggerState::on_active_use_skill(chosen_skill_id)
+                .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
                 .with_buff_mgr(&ctx.managers.buff_mgr),
         ),
     )?;
@@ -428,16 +434,32 @@ fn execute_direct_use_group_and_star_skill(
     out.extend(derived_effects);
 
     let passive_phase = PhaseFilter::combat_with(
-        TriggerState::on_active_use_skill(chosen_skill_id).with_buff_mgr(&ctx.managers.buff_mgr),
+        TriggerState::on_active_use_skill(chosen_skill_id)
+            .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
+            .with_buff_mgr(&ctx.managers.buff_mgr),
     );
     let passive_skills: Vec<i32> = get_entity(fight, ctx.caster_uid)
         .map(|e| e.passive_skill.clone())
         .unwrap_or_default();
     for passive_skill_id in passive_skills {
+        let Some(passive_emit_skill_id) = active_use_trigger_emit_skill_id(passive_skill_id) else {
+            continue;
+        };
+        let passive_skill_to_execute = if passive_emit_skill_id != passive_skill_id
+            && ctx
+                .managers
+                .buff_mgr
+                .has(ctx.caster_uid, passive_emit_skill_id)
+        {
+            passive_skill_id
+        } else {
+            passive_emit_skill_id
+        };
         if passive_skill_id <= 0
             || passive_skill_id == ctx.skill_id
             || passive_skill_id == chosen_skill_id
-            || !has_active_use_trigger_condition(passive_skill_id)
+            || passive_skill_to_execute == ctx.skill_id
+            || passive_skill_to_execute == chosen_skill_id
         {
             continue;
         }
@@ -448,7 +470,7 @@ fn execute_direct_use_group_and_star_skill(
             ctx.mechanics,
             ctx.caster_uid,
             ctx.target,
-            passive_skill_id,
+            passive_skill_to_execute,
             &passive_phase,
         )?;
         if !passive_effects.is_empty() {
@@ -494,7 +516,9 @@ fn execute_random_use_skill(ctx: &mut ActionCtx<'_, '_>, raw: &str) -> Result<Ve
         ctx.target,
         pick,
         &PhaseFilter::combat_with(
-            TriggerState::on_active_use_skill(pick).with_buff_mgr(&ctx.managers.buff_mgr),
+            TriggerState::on_active_use_skill(pick)
+                .inherit_round_active_card_casts_from_phase(ctx.behavior_ctx.phase)
+                .with_buff_mgr(&ctx.managers.buff_mgr),
         ),
     )
 }

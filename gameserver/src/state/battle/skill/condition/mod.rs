@@ -18,6 +18,7 @@ use crate::state::battle::{
     mechanics::bloodtithe::BloodtitheState,
 };
 use sonettobuf::Fight;
+use std::collections::HashSet;
 
 pub use crate::state::battle::types::condition::ConditionType;
 
@@ -31,6 +32,7 @@ pub struct ConditionEval<'a> {
     pub(super) target_uid: i64,
     pub(super) condition_target: i32,
     pub(super) has_trigger_state: bool,
+    pub(super) active_card_cast_uids: Option<&'a HashSet<i64>>,
 }
 
 impl<'a> ConditionEval<'a> {
@@ -50,6 +52,7 @@ impl<'a> ConditionEval<'a> {
             target_uid: caster_uid,
             condition_target: 0,
             has_trigger_state: false,
+            active_card_cast_uids: None,
         }
     }
 
@@ -68,6 +71,11 @@ impl<'a> ConditionEval<'a> {
         self
     }
 
+    pub fn with_active_card_cast_uids(mut self, active_card_cast_uids: &'a HashSet<i64>) -> Self {
+        self.active_card_cast_uids = Some(active_card_cast_uids);
+        self
+    }
+
     pub fn resolve_entity_target_uid(&self) -> i64 {
         match self.condition_target {
             103 => self.caster_uid,
@@ -77,6 +85,14 @@ impl<'a> ConditionEval<'a> {
     }
 
     pub fn check(&self, condition: &ConditionType) -> bool {
+        if matches!(condition, ConditionType::NoActRound) {
+            return self.has_trigger_state
+                && self
+                    .active_card_cast_uids
+                    .map(|uids| !uids.contains(&self.caster_uid))
+                    .unwrap_or(true);
+        }
+
         if self.has_trigger_state && is_grouped_combat_event_condition(condition) {
             return true;
         }

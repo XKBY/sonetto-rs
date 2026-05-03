@@ -14,7 +14,7 @@ use super::super::{
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::RoundState,
     skill::{
-        PhaseFilter, SkillExecutor, TriggerState,
+        PhaseFilter, SkillExecutor,
         cache::{SKILL_CACHE, resolve_skill_effect_id},
         collect_precast_skills_for_caster,
         euphoria::{resolve_skill_effect_id_for_entity, resolve_with_euphoria},
@@ -227,6 +227,7 @@ impl FightCardMgr {
             .and_then(|e| e.ex_skill)
             .map(|ex| ex == resolved_skill_id)
             .unwrap_or(false);
+        ctx.mark_round_active_card_cast(exec_caster_uid);
 
         let mut raw_skill_effects = if is_direct_ex_card {
             self.build_direct_ex_card_prefix(rng, ctx, exec_caster_uid, resolved_skill_id)?
@@ -242,7 +243,7 @@ impl FightCardMgr {
             target_uid,
             resolved_skill_id,
             &PhaseFilter::combat_with(
-                TriggerState::on_active_use_skill(resolved_skill_id)
+                ctx.active_use_trigger_state(resolved_skill_id)
                     .with_action_order_index(action_order_index)
                     .with_used_ex_skill(used_ex_skill)
                     .with_buff_mgr(&ctx.managers.buff_mgr),
@@ -295,7 +296,7 @@ impl FightCardMgr {
         // inside the card skill step's actEffect.
         let collected = collect(ctx.fight, 0);
         let passive_phase = PhaseFilter::combat_with(
-            TriggerState::on_active_use_skill(resolved_skill_id)
+            ctx.active_use_trigger_state(resolved_skill_id)
                 .with_action_order_index(action_order_index)
                 .with_used_ex_skill(used_ex_skill)
                 .with_buff_mgr(&ctx.managers.buff_mgr),
@@ -476,7 +477,7 @@ impl FightCardMgr {
                         caster_uid,
                         target_uid,
                         resolved_skill_id,
-                        &PhaseFilter::combat(),
+                        &ctx.combat_phase(),
                     )?;
                     let pending_summons = self.skill_executor.take_pending_summons();
                     SkillExecutor::apply_summon_batch(
@@ -670,7 +671,7 @@ impl FightCardMgr {
                 caster_uid,
                 target_uid,
                 resolved_skill_id,
-                &PhaseFilter::combat(),
+                &ctx.combat_phase(),
             )?;
             let pending_summons = self.skill_executor.take_pending_summons();
             SkillExecutor::apply_summon_batch(
@@ -783,7 +784,7 @@ impl FightCardMgr {
                 caster_uid,
                 prep_id,
                 &PhaseFilter::combat_with(
-                    TriggerState::on_active_use_skill(prep_id)
+                    ctx.active_use_trigger_state(prep_id)
                         .with_buff_mgr(&ctx.managers.buff_mgr),
                 ),
             )?;
@@ -847,7 +848,7 @@ impl FightCardMgr {
             target_uid,
             ex_skill_id,
             &PhaseFilter::combat_with(
-                TriggerState::on_active_use_skill(ex_skill_id)
+                ctx.active_use_trigger_state(ex_skill_id)
                     .with_used_ex_skill(true)
                     .with_buff_mgr(&ctx.managers.buff_mgr),
             ),
@@ -943,7 +944,7 @@ impl FightCardMgr {
                     caster_uid,
                     prep_id,
                     &PhaseFilter::combat_with(
-                        TriggerState::on_active_use_skill(prep_id)
+                        ctx.active_use_trigger_state(prep_id)
                             .with_buff_mgr(&ctx.managers.buff_mgr),
                     ),
                 )?;
@@ -972,7 +973,7 @@ impl FightCardMgr {
                     caster_uid,
                     prep_id,
                     &PhaseFilter::combat_with(
-                        TriggerState::on_active_use_skill(prep_id)
+                        ctx.active_use_trigger_state(prep_id)
                             .with_buff_mgr(&ctx.managers.buff_mgr),
                     ),
                 )?;

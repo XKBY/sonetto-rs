@@ -211,11 +211,11 @@ fn infer_enter_fight_seed_layer(skill_id: i32, buff_or_type_id: i32) -> Option<i
     })
 }
 
-pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
+pub(super) fn active_use_trigger_emit_skill_id(skill_id: i32) -> Option<i32> {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);
     let Some(row) = cfg.skill_effect.iter().find(|s| s.id == effect_id) else {
-        return false;
+        return None;
     };
     let conditions = [
         row.condition1.as_str(),
@@ -229,13 +229,15 @@ pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
         row.condition9.as_str(),
         row.condition10.as_str(),
     ];
-    conditions.iter().any(|raw| {
+    let mut has_trigger = false;
+    let mut prefers_effect_wrapper = false;
+    for raw in conditions {
         let raw = raw.trim();
         if raw.is_empty() {
-            return false;
+            continue;
         }
         let (cond, _) = parse_condition(raw);
-        matches!(
+        let is_trigger = matches!(
             cond,
             ConditionType::ActiveUseSkill
                 | ConditionType::ActiveUseSkillId { .. }
@@ -243,6 +245,23 @@ pub(super) fn has_active_use_trigger_condition(skill_id: i32) -> bool {
                 | ConditionType::UseSkillEffectTag { .. }
                 | ConditionType::UseSpecificSkill { .. }
                 | ConditionType::UseHurtSkill
-        )
+                | ConditionType::NoActRound
+        );
+        if is_trigger {
+            has_trigger = true;
+            if matches!(cond, ConditionType::NoActRound) && effect_id != skill_id {
+                prefers_effect_wrapper = true;
+            }
+        }
+    }
+
+    if !has_trigger {
+        return None;
+    }
+
+    Some(if prefers_effect_wrapper {
+        effect_id
+    } else {
+        skill_id
     })
 }

@@ -33,7 +33,6 @@ use super::super::{
     },
     round_end_emission,
     skill::{
-        PhaseFilter,
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
         condition::{misc::HriEvalGuard, parser::parse_condition},
@@ -265,7 +264,7 @@ impl FightRoundMgr {
         collected: &CollectedPassives,
     ) -> Vec<ActEffect> {
         let cur_round = crate::state::battle::round_state::simulated_round();
-        let passive_phase = PhaseFilter::combat();
+        let passive_phase = ctx.combat_phase();
         let mut wrapped = Vec::new();
 
         for uid in collected.defender_uids() {
@@ -898,7 +897,7 @@ impl FightRoundMgr {
             PhaseSkillSet::ExcludeBattleRule | PhaseSkillSet::CombatReactive => {
                 let battle_rule_skills = self.collect_battle_rule_skills(ctx.fight);
                 let stop_at_first = matches!(config.depth, PhaseDepth::FirstMatch);
-                let passive_phase = PhaseFilter::combat();
+                let passive_phase = ctx.combat_phase();
                 let is_defender_sweep = matches!(config.scope, PhaseScope::Defenders);
                 let mut out = Vec::new();
 
@@ -920,6 +919,7 @@ impl FightRoundMgr {
                     }
                     for skill_id in skill_ids {
                         if matches!(config.skill_set, PhaseSkillSet::CombatReactive)
+                            && skill_id != 30630171
                             && !has_combat_reactive_condition(
                                 skill_id,
                                 CombatPassiveScanMode::RoundSweep,
@@ -1008,7 +1008,7 @@ impl FightRoundMgr {
                             continue;
                         }
                         if let Ok(effects) =
-                            execute_passive_skill(ctx, *uid, *uid, skill_id, &PhaseFilter::combat())
+                            execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);
@@ -1094,7 +1094,7 @@ impl FightRoundMgr {
                             continue;
                         }
                         if let Ok(effects) =
-                            execute_passive_skill(ctx, *uid, *uid, skill_id, &PhaseFilter::combat())
+                            execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()
                         {
                             let inner = build_effect_step(effects);

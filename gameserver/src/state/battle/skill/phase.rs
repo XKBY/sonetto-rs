@@ -2,6 +2,7 @@ use super::super::manager::buff_mgr::BuffMgr;
 use super::super::{BehaviorType, ConditionType};
 use super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::condition::{self, buff::deleted_matches};
+use std::collections::HashSet;
 
 /// Which conditions are active for this trigger event.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -31,6 +32,7 @@ pub struct TriggerState {
     pub teammate_injury_count_not_reset: i32,
     pub team_injury_count_round: bool,
     pub deleted_buff_ids: Vec<i32>,
+    pub active_card_cast_uids: HashSet<i64>,
     /// Attacker-side bloodpool max snapshot. `None` means the caller didn't
     /// populate it, so BloodPool/BloodPoolMax conditions fall back to
     /// always-pass for backward compatibility.
@@ -68,6 +70,22 @@ impl TriggerState {
             self.deleted_buff_ids = buff_mgr.step_deleted_buff_ids().to_vec();
         }
         self
+    }
+
+    pub fn with_round_active_card_cast_uids(mut self, uids: &HashSet<i64>) -> Self {
+        self.active_card_cast_uids = uids.clone();
+        self
+    }
+
+    pub fn inherit_round_active_card_casts_from_phase(mut self, phase: &PhaseFilter) -> Self {
+        if let PhaseFilter::Combat(event) = phase {
+            self.active_card_cast_uids = event.active_card_cast_uids.clone();
+        }
+        self
+    }
+
+    pub fn no_act_round_for(&self, owner_uid: i64) -> bool {
+        owner_uid == 0 || !self.active_card_cast_uids.contains(&owner_uid)
     }
 }
 
@@ -118,15 +136,15 @@ impl PhaseFilter {
         true
     }
 
-    pub fn check(&self, condition: &ConditionType, behavior_target: i32) -> bool {
+    pub fn check(&self, condition: &ConditionType, behavior_target: i32, owner_uid: i64) -> bool {
         if let Self::Combat(event) = self {
-            return self.check_combat(condition, event);
+            return self.check_combat(condition, event, owner_uid);
         }
         self.check_non_combat(condition, behavior_target)
     }
 
-    fn check_combat(&self, condition: &ConditionType, event: &TriggerState) -> bool {
-        condition::fold(condition, &mut |cond| self.check_combat_leaf(cond, event))
+    fn check_combat(&self, condition: &ConditionType, event: &TriggerState, owner_uid: i64) -> bool {
+        condition::fold(condition, &mut |cond| self.check_combat_leaf(cond, event, owner_uid))
     }
 
     fn check_non_combat(&self, condition: &ConditionType, behavior_target: i32) -> bool {
@@ -203,7 +221,12 @@ impl PhaseFilter {
         }
     }
 
-    fn check_combat_leaf(&self, condition: &ConditionType, event: &TriggerState) -> bool {
+    fn check_combat_leaf(
+        &self,
+        condition: &ConditionType,
+        event: &TriggerState,
+        owner_uid: i64,
+    ) -> bool {
         match condition {
             // Non-event conditions always pass in combat
             ConditionType::None
@@ -284,7 +307,7 @@ impl PhaseFilter {
                 deleted_matches(&event.deleted_buff_ids, buff_ids)
             }
             ConditionType::TriggerBullet => event.trigger_bullet,
-            ConditionType::NoActRound => !event.active_use_skill,
+            ConditionType::NoActRound => event.no_act_round_for(owner_uid),
 
             // Not yet implemented in combat
             _ => false,

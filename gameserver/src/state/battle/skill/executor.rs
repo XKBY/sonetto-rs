@@ -337,7 +337,7 @@ impl SkillExecutor {
                 }
             }
 
-            if !phase.check(&b.condition, b.behavior_target) {
+            if !phase.check(&b.condition, b.behavior_target, caster_uid) {
                 continue;
             }
 
@@ -387,7 +387,7 @@ impl SkillExecutor {
                         Some(deleted_matches(&event.deleted_buff_ids, buff_ids))
                     }
                     ConditionType::TriggerBullet => Some(event.trigger_bullet),
-                    ConditionType::NoActRound => Some(!event.active_use_skill),
+                    ConditionType::NoActRound => Some(event.no_act_round_for(caster_uid)),
                     // All stateful/static conditions (HasBuffId/NoBuffId/TargetCareer/CareerCheck/etc.)
                     // must be evaluated against live fight state in check_condition.
                     _ => None,
@@ -424,6 +424,11 @@ impl SkillExecutor {
                     )
                     .with_trigger_state(has_trigger_state)
                     .with_condition_target(b.condition_target);
+                    let condition_eval = if let PhaseFilter::Combat(event) = phase {
+                        condition_eval.with_active_card_cast_uids(&event.active_card_cast_uids)
+                    } else {
+                        condition_eval
+                    };
                     let raw = if has_trigger_state
                         && b.condition_target == 103
                         && target_uid != 0
@@ -507,6 +512,11 @@ impl SkillExecutor {
                 )
                 .with_trigger_state(has_trigger_state)
                 .with_condition_target(b.condition_target);
+                let condition_eval = if let PhaseFilter::Combat(event) = phase {
+                    condition_eval.with_active_card_cast_uids(&event.active_card_cast_uids)
+                } else {
+                    condition_eval
+                };
                 let raw = condition_eval.for_target(condition_uid).check(&b.condition);
                 let raw = apply_no_act_seed_hint(
                     &sim_fight,
@@ -843,6 +853,7 @@ impl SkillExecutor {
                 mechanics,
                 trigger_uid,
                 trigger_skill_id,
+                phase,
             ) {
                 Ok((trigger_162, buff_dels)) => {
                     result.push(trigger_162);
@@ -989,8 +1000,14 @@ impl SkillExecutor {
         mechanics: &mut Mechanics,
         caster_uid: i64,
         skill_id: i32,
+        parent_phase: &PhaseFilter,
     ) -> Result<(ActEffect, Vec<(i64, i32)>)> {
         let mut inner_executor = SkillExecutor::new();
+        let active_card_cast_uids = if let PhaseFilter::Combat(event) = parent_phase {
+            event.active_card_cast_uids.clone()
+        } else {
+            HashSet::new()
+        };
         let phase = PhaseFilter::combat_with(TriggerState {
             active_use_skill: false,
             skill_id: 0,
@@ -1008,6 +1025,7 @@ impl SkillExecutor {
             teammate_injury_count_not_reset: 0,
             team_injury_count_round: false,
             deleted_buff_ids: managers.buff_mgr.step_deleted_buff_ids().to_vec(),
+            active_card_cast_uids,
             bloodpool_max_attacker: Some(mechanics.bloodtithe.get_max(1)),
             bloodpool_value_attacker: Some(mechanics.bloodtithe.get_value(1)),
         });

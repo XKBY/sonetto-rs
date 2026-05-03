@@ -33,7 +33,6 @@ use crate::state::battle::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
     round::step_shape::build_effect_step,
-    skill::PhaseFilter,
     steps::broadcast,
     utils::buff_update,
 };
@@ -173,7 +172,7 @@ pub(crate) fn build_terminal_attacker_round_end_passive_step(
     collected: &CollectedPassives,
 ) -> Option<FightStep> {
     let _ = mgr;
-    let passive_phase = PhaseFilter::combat();
+    let passive_phase = ctx.combat_phase();
     let battle_rule_skills = mgr.collect_battle_rule_skills(ctx.fight);
 
     for uid in collected.attacker_uids() {

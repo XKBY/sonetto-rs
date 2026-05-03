@@ -387,6 +387,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
                 .teammate_injury_not_reset(caster_uid),
             team_injury_count_round: teammate_injury_hits > 0,
             deleted_buff_ids: event.deleted_buff_ids.clone(),
+            active_card_cast_uids: ctx.active_card_cast_uids.clone(),
             bloodpool_max_attacker: Some(ctx.mechanics.bloodtithe.get_max(1)),
             bloodpool_value_attacker: Some(ctx.mechanics.bloodtithe.get_value(1)),
         };
@@ -456,7 +457,7 @@ pub fn inject_monitor_continue_into_enemy_skill_step<F, G>(
         holder.holder_uid,
         enemy_caster_uid,
         holder.reactive_skill_id,
-        &PhaseFilter::combat(),
+        &ctx.combat_phase(),
     ) else {
         return;
     };
@@ -593,7 +594,9 @@ pub(crate) fn inject_channel_followup_buffs_if_missing(
 
     let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
     let phase = crate::state::battle::skill::PhaseFilter::combat_with(
-        crate::state::battle::skill::TriggerState::default().with_buff_mgr(&ctx.managers.buff_mgr),
+        crate::state::battle::skill::TriggerState::default()
+            .with_round_active_card_cast_uids(&ctx.active_card_cast_uids)
+            .with_buff_mgr(&ctx.managers.buff_mgr),
     );
     let Ok(channel_effects) =
         execute_passive_skill(ctx, caster_uid, target_uid, extra_skill_id, &phase)
@@ -737,8 +740,10 @@ fn build_display_only_consume_channel_embeds(
         &mut shadow_managers,
         &mut shadow_mechanics,
     );
+    shadow_ctx.set_round_active_card_cast_uids(&ctx.active_card_cast_uids);
     let phase = PhaseFilter::combat_with(
-        TriggerState::on_active_use_skill(emit_effect_id)
+        shadow_ctx
+            .active_use_trigger_state(emit_effect_id)
             .with_buff_mgr(&shadow_ctx.managers.buff_mgr),
     );
     let Ok(skill_effects) = execute_passive_skill(

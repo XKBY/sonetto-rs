@@ -246,6 +246,7 @@ fn magic_circle_aura_state(
                 .teammate_injury_not_reset(host_caster_uid),
             team_injury_count_round: teammate_injury_hits > 0,
             deleted_buff_ids: event.deleted_buff_ids.clone(),
+            active_card_cast_uids: ctx.active_card_cast_uids.clone(),
             bloodpool_max_attacker: Some(ctx.mechanics.bloodtithe.get_max(1)),
             bloodpool_value_attacker: Some(ctx.mechanics.bloodtithe.get_value(1)),
         },

@@ -1,6 +1,25 @@
 use sonettobuf::{ActEffect, FightStep};
 
 use crate::state::battle::fight_step::{FightStepBuilder, wrap_step};
+fn preserve_round_start_wrapper(step: &FightStep) -> bool {
+    step.act_id == Some(30630171)
+}
+
+fn is_round_start_wrapper_container(effect: &ActEffect) -> bool {
+    effect
+        .fight_step
+        .as_ref()
+        .map(|step| {
+            step.act_effect.iter().all(|inner| {
+                inner
+                    .fight_step
+                    .as_ref()
+                    .map(preserve_round_start_wrapper)
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
+}
 
 pub fn build_effect_step(effects: Vec<ActEffect>) -> FightStep {
     FightStepBuilder::effect().with_many(effects).build()
@@ -29,6 +48,10 @@ pub fn split_updates_and_wrap_rest(steps: Vec<FightStep>) -> Vec<FightStep> {
             if effect.effect_type == Some(162)
                 && let Some(inner_step) = effect.fight_step.as_mut()
             {
+                if preserve_round_start_wrapper(inner_step) {
+                    non_update_effects.push(effect);
+                    continue;
+                }
                 let mut kept_inner: Vec<ActEffect> = Vec::new();
                 for inner_effect in inner_step.act_effect.drain(..) {
                     if inner_effect.effect_type == Some(7) {
@@ -55,6 +78,13 @@ pub fn split_updates_and_wrap_rest(steps: Vec<FightStep>) -> Vec<FightStep> {
 
     let mut merged = Vec::new();
     if !flat_effects.is_empty() {
+        if !wrapped_effects.is_empty()
+            && wrapped_effects.iter().all(is_round_start_wrapper_container)
+        {
+            flat_effects.extend(wrapped_effects);
+            merged.push(build_effect_step(flat_effects));
+            return merged;
+        }
         merged.push(build_effect_step(flat_effects));
     }
     if !wrapped_effects.is_empty() {

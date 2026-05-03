@@ -1,4 +1,5 @@
 use crate::state::battle::{
+    heroes::pickles,
     skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
     types::condition::ConditionType,
 };
@@ -142,6 +143,12 @@ fn collect_side_passives(
                     return None;
                 }
                 let mut passive_skill = e.passive_skill.clone();
+                if pickles::is_pickles(e.model_id)
+                    && passive_skill.contains(&30630161)
+                    && !passive_skill.contains(&30630171)
+                {
+                    passive_skill.push(30630171);
+                }
                 if let Some(exclude) = exclude_skill_ids {
                     passive_skill.retain(|sid| !exclude.contains(sid));
                 }
