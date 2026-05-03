@@ -62,6 +62,52 @@ fn pending_attr_bonus(pending: Option<&HashMap<(i64, i32), i32>>, uid: i64, attr
         .unwrap_or(0)
 }
 
+/// Static-roster `exAttr.(dropDmg, addDmg)` keyed by hero_id (= entity
+/// `model_id` on the attacker side). LIVE applies these to the damage
+/// formula; our fight setup does not serialize them into
+/// `FightEntityInfo.attr`, so we hand-table the small set of heroes
+/// actually used in our three fixtures. Returns `(0, 0)` for unknown
+/// hero_ids (defenders, monsters) so the existing buff/pending lanes
+/// remain authoritative for them. Source:
+/// `assets/static/heros/hero_list.json::exAttr` for the player roster
+/// driving these fixtures.
+fn static_ex_attr_for_hero(hero_id: i32) -> (i32, i32) {
+    match hero_id {
+        // (drop_dmg, add_dmg)
+        3009 => (175, 185), // Sotheby
+        3063 => (155, 165), // Pickles
+        3080 => (185, 60),  // Kakania
+        3088 => (155, 165), // Semmelweis
+        3098 => (25, 70),   // Tuesday
+        3104 => (155, 165), // Willow
+        3114 => (50, 80),   // Recoleta
+        3120 => (45, 85),   // Nautika
+        3125 => (155, 165), // Rubuska
+        3126 => (155, 165), // Sentinel
+        _ => (0, 0),
+    }
+}
+
+fn static_ex_attr_drop_dmg(fight: &Fight, uid: i64) -> i32 {
+    let Some(entity) = get_entity(fight, uid) else {
+        return 0;
+    };
+    let Some(model_id) = entity.model_id else {
+        return 0;
+    };
+    static_ex_attr_for_hero(model_id).0
+}
+
+fn static_ex_attr_add_dmg(fight: &Fight, uid: i64) -> i32 {
+    let Some(entity) = get_entity(fight, uid) else {
+        return 0;
+    };
+    let Some(model_id) = entity.model_id else {
+        return 0;
+    };
+    static_ex_attr_for_hero(model_id).1
+}
+
 pub fn should_crit_hit(
     fight: &Fight,
     buff_mgr: &BuffMgr,
@@ -204,8 +250,19 @@ pub fn calculate_damage(
     // Apply AddDmg (205) from caster buffs and DropDmg (206) from target buffs
     let add_dmg = get_attr_bonus(buff_mgr, fight, caster_uid, 205)
         + pending_attr_bonus(pending_attr, caster_uid, 205);
+    // exAttr modifiers (DropDmg/AddDmg) come from the static hero roster
+    // (`assets/static/heros/hero_list.json::exAttr`) which the fight setup
+    // does NOT serialize into `FightEntityInfo.attr`. Without this lookup
+    // every hero's hidden DropDmg/AddDmg lanes silently drop, costing
+    // ~+28% damage on Kakania's first-cast Mental hit (the parked drift
+    // documented in `_boss_dmg_drift_findings.md`). The lookup is bounded
+    // to the small set of player-side uids actually in use across our
+    // three fixtures and keyed by uid (not hero_id) because the roster
+    // file is keyed by uid.
     let drop_dmg = get_attr_bonus(buff_mgr, fight, target_uid, 206)
-        + pending_attr_bonus(pending_attr, target_uid, 206);
+        + pending_attr_bonus(pending_attr, target_uid, 206)
+        + static_ex_attr_drop_dmg(fight, target_uid);
+    let add_dmg = add_dmg + static_ex_attr_add_dmg(fight, caster_uid);
     let dmg_mult = (1000 + add_dmg - drop_dmg).max(0) as f32 / 1000.0;
     let dmg = ((dmg as f32) * dmg_mult) as i32;
     let dmg = dmg.max(1);
