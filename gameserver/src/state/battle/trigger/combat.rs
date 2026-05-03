@@ -14,6 +14,7 @@ use crate::state::battle::{
     },
     skill::condition::buff::deleted_matches,
     skill::condition::parser::parse_condition,
+    skill::condition::scope::is_round_start_only,
     skill::euphoria::resolve_with_euphoria,
     skill::{PhaseFilter, TriggerState},
     trigger::passes::{
@@ -991,6 +992,19 @@ pub fn skill_should_fire(
         if condition_str.is_empty() {
             break;
         }
+        // Round-start-scoped condition rows (`c100`, `c101`, `c104`) describe
+        // "at the start of the round" passives in LIVE. The round manager's
+        // own start-of-round sweep fires these directly via
+        // `execute_passive_skill`, bypassing this function. So when we get
+        // here — i.e. inline card execution or combat-trigger replay — we
+        // must NOT let a round-start slot satisfy `should_fire`. Without
+        // this gate, mixed-mode passives (e.g. Sotheby's `30090146` Duality
+        // Potion grant) double-fire on every ally card play.
+        if let Some(cond_id) = first_condition_id(&condition_str)
+            && is_round_start_only(cond_id)
+        {
+            continue;
+        }
         let (condition, _negated) = parse_condition(&condition_str);
         if let Some(pass) = condition_fires_for(
             skill_id,
@@ -1358,6 +1372,19 @@ fn collect_added_buffs(effects: &[ActEffect], out_uids: &mut Vec<i64>, out_ids: 
 
 // --- Config field accessors ---
 // Look up by skill_id each call to avoid holding a reference into the config guard.
+
+/// Extract the leading numeric id from a condition string like `"100"`,
+/// `"101#1"`, `"19203#31260131!"`, or compound forms like `"203&201"`. We
+/// only need the head id because compound conditions never mix round-start
+/// scope with combat scope (the round-start ids are always standalone in
+/// the data — verified empirically via `scripts/condition_scope_discovery.py`).
+fn first_condition_id(raw: &str) -> Option<i32> {
+    let s = raw.trim_start_matches('!').trim_start_matches('！');
+    let head_end = s
+        .find(|c: char| c == '#' || c == '&' || c == '|' || c == '!' || c == '！')
+        .unwrap_or(s.len());
+    s[..head_end].trim().parse::<i32>().ok()
+}
 
 fn get_condition(skill_id: i32, i: i32) -> String {
     let cfg = config::configs::get();
