@@ -24,5 +24,6 @@ CLAUDE.md
 # Rule-provenance + primitive-coverage diagnostics — same rationale.
 !/scripts/rule_provenance.py
 !/scripts/primitive_coverage.py
+!/scripts/primitive_audit.py
 # Local findings / scratch markdown produced during investigations.
 /_*_findings.md
