@@ -345,66 +345,6 @@ impl FightCardMgr {
                     _ => {}
                 }
             }
-
-            // Phase A probe — env-gated ally-reactive inline expansion. Walks
-            // same-side ally uids (excluding the caster) and emits each
-            // matching reactive passive as a direct child of the host wrapper.
-            // Validates the diagnosis in `_inline_attachment_findings.md`:
-            // LIVE attaches reactive passives like Willow's `31040141` flat
-            // under the host (depth=1, parent=host) but OURS currently catches
-            // them via recursive expansion of OTHER reactive wrappers (depth=2,
-            // parent=1148002 / 430811). If this probe moves the audit
-            // (especially `31040141` count + battle3 Σ|Δ|), the diagnosis is
-            // confirmed and Phase B (recursion suppression) becomes the next
-            // commit.
-            //
-            // Gated by `SONETTO_INLINE_ALLY_REACTIVES=1` so the default build
-            // is byte-identical to baseline. To enable:
-            //   $env:SONETTO_INLINE_ALLY_REACTIVES = "1"
-            //   ./target/release/battle_gen.exe ...
-            if std::env::var_os("SONETTO_INLINE_ALLY_REACTIVES").is_some() {
-                let caster_on_attacker_side = exec_caster_uid > 0;
-                let ally_uids: Vec<i64> = if caster_on_attacker_side {
-                    collected.attacker_uids()
-                } else {
-                    collected.defender_uids()
-                };
-                // De-dup against the caster's own passive list: skills owned
-                // by every entity (e.g. battle-rule skill `1148002` listed
-                // in all four attackers' `passive_skill`) are already fired
-                // by the caster-own loop above. Only emit from an ally if
-                // the ally owns a passive the caster doesn't, so e.g.
-                // Willow's `31040141` (Willow-only) fires from Willow when
-                // Sotheby casts, but `1148002` (all attackers) doesn't
-                // double-emit.
-                let caster_passives: std::collections::HashSet<i32> =
-                    collected.merged_for(exec_caster_uid).into_iter().collect();
-                for ally_uid in ally_uids {
-                    if ally_uid == exec_caster_uid || ally_uid == 0 {
-                        continue;
-                    }
-                    for passive_skill_id in collected.merged_for(ally_uid) {
-                        if caster_passives.contains(&passive_skill_id) {
-                            continue;
-                        }
-                        if !skill_should_fire(ally_uid, passive_skill_id, &use_card_event, 0, 0) {
-                            continue;
-                        }
-                        match execute_passive_skill(
-                            ctx,
-                            ally_uid,
-                            target_uid,
-                            passive_skill_id,
-                            &passive_phase,
-                        ) {
-                            Ok(effects) if !effects.is_empty() => {
-                                skill_effects.extend(effects);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
         }
 
         state.used_cards.push(card_index as i32);
