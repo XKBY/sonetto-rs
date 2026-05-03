@@ -10,7 +10,7 @@ use crate::state::battle::types::condition::ConditionType;
 /// variant either emits nothing or logs a warning.
 ///
 /// Variants owned (all currently emit `Ok(vec![])`):
-/// * `Summon { .. }` — placeholder; no live data uses this yet.
+/// * `Summon { .. }` — queues a silent defender-side entity spawn.
 /// * `Kill` — placeholder.
 /// * `MonsterChange` — placeholder.
 /// * `ShellUseSkill { .. }` — Shell-system placeholder.
@@ -26,12 +26,20 @@ impl BehaviorAction for Misc {
     fn execute(
         &self,
         behavior: &BehaviorType,
-        _ctx: &mut ActionCtx<'_, '_>,
+        ctx: &mut ActionCtx<'_, '_>,
         _condition: &ConditionType,
     ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
-            BehaviorType::Summon { .. }
-            | BehaviorType::Kill
+            BehaviorType::Summon { skill_id: monster_id } => {
+                ctx.executor
+                    .pending_summons
+                    .push(crate::state::battle::skill::executor::PendingSummon {
+                        caster_uid: ctx.caster_uid,
+                        monster_id: *monster_id,
+                    });
+                Some(Ok(vec![]))
+            }
+            BehaviorType::Kill
             | BehaviorType::MonsterChange
             | BehaviorType::ShellUseSkill { .. }
             | BehaviorType::ShellAssign { .. }

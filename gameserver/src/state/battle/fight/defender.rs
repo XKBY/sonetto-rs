@@ -175,7 +175,7 @@ impl Defender {
         Self::build_enemy_with_uid(monster_id, uid, position, team_type)
     }
 
-    fn build_enemy_with_uid(
+    pub(crate) fn build_enemy_with_uid(
         monster_id: i32,
         uid: i64,
         position: i32,

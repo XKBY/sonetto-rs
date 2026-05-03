@@ -9,6 +9,7 @@ use super::super::{
     card::CardOpType,
     context::FightContext,
     fight_step::make_skill_step,
+    mechanics::Mechanics,
     passives::collector::collect,
     passives::steps::skill::execute_skill as execute_passive_skill,
     round::RoundState,
@@ -37,6 +38,31 @@ impl FightCardMgr {
         Self {
             skill_executor: SkillExecutor::new(),
         }
+    }
+
+    fn execute_skill_and_apply_pending_summons(
+        &mut self,
+        rng: &mut StdRng,
+        fight: &mut Fight,
+        managers: &mut Managers,
+        mechanics: &mut Mechanics,
+        caster_uid: i64,
+        target_uid: i64,
+        skill_id: i32,
+        phase: &PhaseFilter,
+    ) -> Result<Vec<ActEffect>> {
+        let effects = self.skill_executor.execute_skill(
+            rng,
+            &*fight,
+            managers,
+            mechanics,
+            caster_uid,
+            target_uid,
+            skill_id,
+            phase,
+        )?;
+        self.skill_executor.apply_pending_summons(fight, managers)?;
+        Ok(effects)
     }
 
     pub async fn execute_operation(
@@ -214,7 +240,7 @@ impl FightCardMgr {
         } else {
             Vec::new()
         };
-        let mut main_skill_effects = self.skill_executor.execute_skill(
+        let mut main_skill_effects = self.execute_skill_and_apply_pending_summons(
             rng,
             ctx.fight,
             ctx.managers,
@@ -237,7 +263,7 @@ impl FightCardMgr {
         );
         if is_temp_card && skill_effects.is_empty() {
             for fallback_phase in [PhaseFilter::unconditional(), PhaseFilter::enter_fight()] {
-                let retry = self.skill_executor.execute_skill(
+                let retry = self.execute_skill_and_apply_pending_summons(
                     rng,
                     ctx.fight,
                     ctx.managers,
@@ -448,13 +474,24 @@ impl FightCardMgr {
                     }
                     let per_behavior = self.skill_executor.execute_skill(
                         rng,
-                        &preview_fight,
+                        &mut preview_fight,
                         &mut preview_managers,
                         &mut preview_mechanics,
                         caster_uid,
                         target_uid,
                         resolved_skill_id,
                         &PhaseFilter::combat(),
+                    )?;
+                    let pending_summons = self.skill_executor.take_pending_summons();
+                    SkillExecutor::apply_summon_batch(
+                        &mut preview_fight,
+                        &mut preview_managers,
+                        &pending_summons,
+                    )?;
+                    SkillExecutor::apply_summon_batch(
+                        ctx.fight,
+                        ctx.managers,
+                        &pending_summons,
                     )?;
                     let mut op_effects = normalize_skill_effects_for_operation(
                         per_behavior,
@@ -635,7 +672,7 @@ impl FightCardMgr {
             let resolved_skill_id = resolve_with_euphoria(&preview_fight, caster_uid, skill_id);
             let per_behavior = self.skill_executor.execute_skill(
                 rng,
-                &preview_fight,
+                &mut preview_fight,
                 &mut preview_managers,
                 &mut preview_mechanics,
                 caster_uid,
@@ -643,6 +680,13 @@ impl FightCardMgr {
                 resolved_skill_id,
                 &PhaseFilter::combat(),
             )?;
+            let pending_summons = self.skill_executor.take_pending_summons();
+            SkillExecutor::apply_summon_batch(
+                &mut preview_fight,
+                &mut preview_managers,
+                &pending_summons,
+            )?;
+            SkillExecutor::apply_summon_batch(ctx.fight, ctx.managers, &pending_summons)?;
             let mut op_effects =
                 normalize_skill_effects_for_operation(per_behavior, caster_uid, resolved_skill_id);
             clamp_ai_add_ex_with_max_effects(
@@ -738,7 +782,7 @@ impl FightCardMgr {
             .set_recent_decr_ex_point(caster_uid, consume);
 
         for &prep_id in &prep_skill_ids {
-            let mut pre = self.skill_executor.execute_skill(
+            let mut pre = self.execute_skill_and_apply_pending_summons(
                 rng,
                 ctx.fight,
                 ctx.managers,
@@ -802,7 +846,7 @@ impl FightCardMgr {
             });
         }
 
-        let mut ex = self.skill_executor.execute_skill(
+        let mut ex = self.execute_skill_and_apply_pending_summons(
             rng,
             ctx.fight,
             ctx.managers,
@@ -898,7 +942,7 @@ impl FightCardMgr {
                 .ex_point_mgr
                 .set_recent_decr_ex_point(caster_uid, attr_consume);
             for &prep_id in &prep_skill_ids {
-                let mut pre = self.skill_executor.execute_skill(
+                let mut pre = self.execute_skill_and_apply_pending_summons(
                     rng,
                     ctx.fight,
                     ctx.managers,
@@ -927,7 +971,7 @@ impl FightCardMgr {
                 .ex_point_mgr
                 .set_recent_decr_ex_point(caster_uid, point_cost);
             for &prep_id in &prep_skill_ids {
-                let mut pre = self.skill_executor.execute_skill(
+                let mut pre = self.execute_skill_and_apply_pending_summons(
                     rng,
                     ctx.fight,
                     ctx.managers,

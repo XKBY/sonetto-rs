@@ -9,10 +9,14 @@ use std::{
 
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
+    fight::defender::Defender,
     fight_step::ActEffectBuilder,
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
+        ex_point_mgr::sync_from_fight,
         fight_data_mgr::Managers,
+        round_mgr::seed_entry_max_hp_from_fight,
+        wave_mgr::WaveMgr,
     },
     mechanics::{Mechanics, empathy::has_empathy_buff},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
@@ -54,8 +58,16 @@ pub struct SkillExecutor {
     /// This lets combat damage emit live-like positive 335 packets without mutating
     /// authoritative bloodtithe state before play_step_data replays the step.
     pub pending_bloodtithe_preview: HashMap<i32, (i32, i32)>,
+    /// Deferred silent summons applied by the outer caller once a mutable `Fight` is available.
+    pub(crate) pending_summons: Vec<PendingSummon>,
     override_damage_targets: Option<Vec<i64>>,
     call_depth: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingSummon {
+    pub caster_uid: i64,
+    pub monster_id: i32,
 }
 
 struct DepthGuard {
@@ -137,9 +149,23 @@ impl SkillExecutor {
             current_skill_context: None,
             pending_attr_bonus: HashMap::new(),
             pending_bloodtithe_preview: HashMap::new(),
+            pending_summons: Vec::new(),
             override_damage_targets: None,
             call_depth: 0,
         }
+    }
+
+    pub fn apply_pending_summons(
+        &mut self,
+        fight: &mut Fight,
+        managers: &mut Managers,
+    ) -> Result<()> {
+        let pending = self.take_pending_summons();
+        if pending.is_empty() {
+            return Ok(());
+        }
+
+        Self::apply_summon_batch(fight, managers, &pending)
     }
 
     pub fn set_override_damage_targets(&mut self, targets: Vec<i64>) {
@@ -148,6 +174,30 @@ impl SkillExecutor {
 
     pub fn take_override_damage_targets(&mut self) -> Option<Vec<i64>> {
         self.override_damage_targets.take()
+    }
+
+    pub(crate) fn take_pending_summons(&mut self) -> Vec<PendingSummon> {
+        self.pending_summons.drain(..).collect()
+    }
+
+    pub(crate) fn apply_summon_batch(
+        fight: &mut Fight,
+        managers: &mut Managers,
+        summons: &[PendingSummon],
+    ) -> Result<()> {
+        if summons.is_empty() {
+            return Ok(());
+        }
+
+        for summon in summons.iter().copied() {
+            apply_pending_summon(fight, managers, summon)?;
+        }
+
+        sync_from_fight(fight, &mut managers.ex_point_mgr);
+        seed_entry_max_hp_from_fight(fight);
+        managers.entity_mgr.rebuild_cache(fight);
+        managers.calculate_mgr.update_cache(fight);
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments, clippy::extend_with_drain)]
@@ -512,6 +562,7 @@ impl SkillExecutor {
                 b.logic_target,
                 phase,
             );
+            let preview_summon_start = self.pending_summons.len();
             let behavior_effects = execute_behavior(
                 self,
                 rng,
@@ -522,6 +573,9 @@ impl SkillExecutor {
                 b.condition_id,
                 &b.condition,
             )?;
+            for summon in self.pending_summons[preview_summon_start..].iter().copied() {
+                preview_pending_summon(&mut sim_fight, summon)?;
+            }
             let behavior_effects = inject_empathy_storage_injuries(
                 mechanics,
                 &mut sim_buff_mgr,
@@ -1672,10 +1726,83 @@ pub fn build_skill_act_effect(
         }
         None => &mut fallback_rng,
     };
-    let fight = &*ctx.fight;
-    let managers = &mut *ctx.managers;
-    let mechanics = &mut *ctx.mechanics;
-    executor.execute_skill(
-        rng, fight, managers, mechanics, caster_uid, target_uid, skill_id, phase,
-    )
+    let effects = executor.execute_skill(
+        rng,
+        &*ctx.fight,
+        &mut *ctx.managers,
+        &mut *ctx.mechanics,
+        caster_uid,
+        target_uid,
+        skill_id,
+        phase,
+    )?;
+    executor.apply_pending_summons(ctx.fight, ctx.managers)?;
+    Ok(effects)
+}
+
+fn apply_pending_summon(
+    fight: &mut Fight,
+    managers: &mut Managers,
+    summon: PendingSummon,
+) -> Result<()> {
+    let new_uid = spawn_summoned_entity(fight, summon)?;
+    managers.buff_mgr.clear(new_uid);
+
+    tracing::info!(
+        "applied summon caster={} monster={} uid={}",
+        summon.caster_uid,
+        summon.monster_id,
+        new_uid
+    );
+    Ok(())
+}
+
+fn next_summon_uid(fight: &Fight) -> i64 {
+    let min_existing_uid = fight
+        .defender
+        .as_ref()
+        .into_iter()
+        .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+        .filter_map(|entity| entity.uid)
+        .min()
+        .unwrap_or(0);
+    let min_wave_reserved_uid = -(2 * WaveMgr::max_wave_for_fight(fight) as i64);
+    min_existing_uid.min(min_wave_reserved_uid) - 1
+}
+
+fn next_summon_position(fight: &Fight) -> i32 {
+    fight.defender
+        .as_ref()
+        .into_iter()
+        .flat_map(|defender| defender.sub_entitys.iter())
+        .filter_map(|entity| entity.position)
+        .filter(|position| *position < 0)
+        .min()
+        .map(|position| position - 1)
+        .unwrap_or(-1)
+}
+
+fn preview_pending_summon(fight: &mut Fight, summon: PendingSummon) -> Result<()> {
+    let new_uid = spawn_summoned_entity(fight, summon)?;
+    tracing::debug!(
+        "previewed summon caster={} monster={} uid={}",
+        summon.caster_uid,
+        summon.monster_id,
+        new_uid
+    );
+    Ok(())
+}
+
+fn spawn_summoned_entity(fight: &mut Fight, summon: PendingSummon) -> Result<i64> {
+    let uid = next_summon_uid(fight);
+    let position = next_summon_position(fight);
+    let entity = Defender::build_enemy_with_uid(summon.monster_id, uid, position, 2)?;
+    let new_uid = entity.uid.unwrap_or(uid);
+
+    let defender = fight
+        .defender
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Fight missing defender team"))?;
+    defender.sub_entitys.push(entity);
+    Ok(new_uid)
 }
