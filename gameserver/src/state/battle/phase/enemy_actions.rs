@@ -77,125 +77,22 @@ pub(crate) async fn run(
         magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
         let expanded_steps =
             mgr.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
-        let preferred_nested_act_id = host_step.act_id.unwrap_or(0) - 20;
-        let nested_skill_idx = host_step
-            .act_effect
-            .iter()
-            .position(|e| {
-                e.effect_type == Some(162)
-                    && e.fight_step
-                        .as_ref()
-                        .map(|s| {
-                            s.act_type == Some(fight_step::ActType::Skill as i32)
-                                && s.act_id == Some(preferred_nested_act_id)
-                        })
-                        .unwrap_or(false)
-            })
-            .or_else(|| {
-                host_step.act_effect.iter().rposition(|e| {
-                    e.effect_type == Some(162)
-                        && e.fight_step
-                            .as_ref()
-                            .map(|s| {
-                                s.act_type == Some(fight_step::ActType::Skill as i32)
-                                    && s.act_id != host_step.act_id
-                            })
-                            .unwrap_or(false)
-                })
-            });
-
-        if let Some(idx) = nested_skill_idx {
-            if let Some(nested) = host_step
+        // Splice combat triggers as direct children of the host wrapper.
+        // Same fix applied to `phase/player_actions.rs` in `4cdf572d` —
+        // the `host_act_id - 20` heuristic was dead code (0/18 enemy
+        // SKILL hosts across battle1/2/3 have a `host_id - 20` nested
+        // wrapper) and the `or_else(rposition)` fallback was rerouting
+        // boss-side reactive triggers into the wrong wrapper.
+        let mut embedded_steps: Vec<ActEffect> = Vec::new();
+        for trigger_step in expanded_steps.into_iter().skip(1) {
+            let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+            embedded_steps.push(embedded);
+        }
+        if !embedded_steps.is_empty() {
+            let insert_at = step_walker::host_trigger_insert_index(&host_step);
+            host_step
                 .act_effect
-                .get_mut(idx)
-                .and_then(|e| e.fight_step.as_mut())
-            {
-                // Inline pre-embeds (e.g. magic-circle aura follow-ups) can
-                // surface a buff-granted passive as the chosen `nested`
-                // wrapper. The combat-trigger pass then fires the same
-                // passive again, and fallback-splices the duplicate into
-                // `nested.act_effect`, producing a self-nested
-                // act_id-in-act_id pair (e.g. 31260181 inside 31260181).
-                // Drop any trigger whose SKILL id + from id match `nested`.
-                let nested_act_id = nested.act_id;
-                let nested_from_id = nested.from_id;
-                let mut top_level_prefix: Vec<ActEffect> = Vec::new();
-                let mut nested_embedded: Vec<ActEffect> = Vec::new();
-                for trigger_step in expanded_steps.into_iter().skip(1) {
-                    let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-                    let duplicates_nested = embedded
-                        .fight_step
-                        .as_ref()
-                        .map(|s| {
-                            s.act_type == Some(fight_step::ActType::Skill as i32)
-                                && s.act_id == nested_act_id
-                                && s.from_id == nested_from_id
-                        })
-                        .unwrap_or(false);
-                    if duplicates_nested {
-                        continue;
-                    }
-                    let is_prep_prefix = embedded
-                        .fight_step
-                        .as_ref()
-                        .map(|s| {
-                            s.act_type == Some(fight_step::ActType::Skill as i32)
-                                && s.from_id == host_step.from_id
-                                && s.to_id == host_step.from_id
-                                && s.act_id != host_step.act_id
-                        })
-                        .unwrap_or(false);
-                    if is_prep_prefix {
-                        top_level_prefix.push(embedded);
-                    } else {
-                        nested_embedded.push(embedded);
-                    }
-                }
-                if !nested_embedded.is_empty() {
-                    nested_embedded.sort_by_key(|e| {
-                        let step = e.fight_step.as_ref();
-                        let act_type = step.and_then(|s| s.act_type).unwrap_or(0);
-                        if act_type == fight_step::ActType::Effect as i32 {
-                            return 0;
-                        }
-                        let from = step.and_then(|s| s.from_id).unwrap_or(0);
-                        if from < 0 { 1 } else { 2 }
-                    });
-                    let mut fallback_nested: Vec<ActEffect> = Vec::new();
-                    for embedded in nested_embedded {
-                        if !trigger_embed::insert_trigger_into_matching_nested(
-                            nested,
-                            embedded.clone(),
-                        ) {
-                            fallback_nested.push(embedded);
-                        }
-                    }
-                    if !fallback_nested.is_empty() {
-                        let insert_at =
-                            trigger_embed::find_trigger_insert_index(&nested.act_effect);
-                        nested
-                            .act_effect
-                            .splice(insert_at..insert_at, fallback_nested);
-                    }
-                }
-                if !top_level_prefix.is_empty() {
-                    let mut merged = top_level_prefix;
-                    merged.extend(std::mem::take(&mut host_step.act_effect));
-                    host_step.act_effect = merged;
-                }
-            }
-        } else {
-            let mut embedded_steps: Vec<ActEffect> = Vec::new();
-            for trigger_step in expanded_steps.into_iter().skip(1) {
-                let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-                embedded_steps.push(embedded);
-            }
-            if !embedded_steps.is_empty() {
-                let insert_at = step_walker::host_trigger_insert_index(&host_step);
-                host_step
-                    .act_effect
-                    .splice(insert_at..insert_at, embedded_steps);
-            }
+                .splice(insert_at..insert_at, embedded_steps);
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
         trigger_embed::normalize_player_skill_effect_order(&mut host_step);
