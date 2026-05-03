@@ -1799,7 +1799,8 @@ fn next_summon_uid(fight: &Fight) -> i64 {
 }
 
 fn next_summon_position(fight: &Fight) -> i32 {
-    fight.defender
+    fight
+        .defender
         .as_ref()
         .into_iter()
         .flat_map(|defender| defender.sub_entitys.iter())

@@ -104,11 +104,7 @@ pub fn determine_spawn_form(monster_id: i32, will_buff_ids: &[i32]) -> Option<i3
 /// static list (e.g. `70009` from `additionRule`, `30980151` from
 /// Tuesday's `enemy_buff` fanout) are preserved by re-prepending them
 /// to the front of the new passive list.
-pub fn transform_entity(
-    fight: &mut Fight,
-    uid: i64,
-    new_monster_id: i32,
-) -> anyhow::Result<bool> {
+pub fn transform_entity(fight: &mut Fight, uid: i64, new_monster_id: i32) -> anyhow::Result<bool> {
     let cfg = configs::get();
     let Some(monster) = cfg.monster.get(new_monster_id) else {
         anyhow::bail!("MonsterChange: monster {new_monster_id} not found");
@@ -144,7 +140,11 @@ pub fn transform_entity(
         .split(['#', '|'])
         .filter_map(|s| s.trim().parse::<i32>().ok())
         .collect();
-    let new_static_passives: Vec<i32> = base_passives.iter().chain(ex_passives.iter()).copied().collect();
+    let new_static_passives: Vec<i32> = base_passives
+        .iter()
+        .chain(ex_passives.iter())
+        .copied()
+        .collect();
 
     let Some(defender) = fight.defender.as_mut() else {
         return Ok(false);

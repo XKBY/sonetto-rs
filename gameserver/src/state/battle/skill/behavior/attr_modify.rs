@@ -62,8 +62,7 @@ impl BehaviorAction for AttrModify {
                     return Some(Ok(vec![]));
                 }
                 let bonus = stacks.saturating_mul(*bonus_per_stack);
-                ctx.executor
-                    .add_attr_bonus(ctx.caster_uid, *attr_id, bonus);
+                ctx.executor.add_attr_bonus(ctx.caster_uid, *attr_id, bonus);
                 Some(Ok(vec![attr_update(ctx.caster_uid)]))
             }
             BehaviorType::RaspberryAddCount { attr_id, rate } => {

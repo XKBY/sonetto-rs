@@ -17,6 +17,7 @@ use crate::state::battle::{
     buff_actions::round_end as round_end_handler,
     context::FightContext,
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
+    heroes::rubuska,
     manager::{
         buff_mgr::reset_buff_uid_to,
         card_mgr::FightCardMgr,
@@ -333,7 +334,29 @@ pub(crate) async fn run(
     // New-round boundary: reset per-slot round-limit usage trackers before
     // post-round-start passive sweeps execute.
     ctx.managers.buff_mgr.reset_skill_slot_round_usage();
+    let round_start_tail_start = steps.len();
+    run_post_change_round_tail(mgr, ctx, collected, steps, deck_num, injected_channel_buffs)?;
 
+    // LIVE still applies the downstream Shadow Cloak / bloodpool state updates
+    // on terminal transitions, but it does not surface the visible
+    // `31250151` Shadow Friend HP-loss wrapper when the same round-start tail
+    // ends the battle. Suppress only that packet shape after the full tail
+    // resolves so runtime state remains unchanged.
+    if mgr.check_battle_end(ctx.fight) {
+        suppress_terminal_shadow_friend_packets(steps, round_start_tail_start);
+    }
+
+    Ok(())
+}
+
+fn run_post_change_round_tail(
+    mgr: &FightRoundMgr,
+    ctx: &mut FightContext<'_>,
+    collected: &CollectedPassives,
+    steps: &mut Vec<FightStep>,
+    deck_num: i32,
+    injected_channel_buffs: bool,
+) -> Result<()> {
     // Battle2 bloodtithe parity: live re-runs the same blood-pool pipeline
     // here that battle start uses before the next-round attacker sweep.
     for step in bloodtithe::build_round_transition_bloodtithe_steps(mgr, ctx, collected) {
@@ -424,6 +447,40 @@ pub(crate) async fn run(
     );
 
     Ok(())
+}
+
+fn suppress_terminal_shadow_friend_packets(steps: &mut Vec<FightStep>, start_idx: usize) {
+    let mut idx = start_idx;
+    while idx < steps.len() {
+        suppress_terminal_shadow_friend_effects(&mut steps[idx].act_effect);
+        if steps[idx].act_effect.is_empty() {
+            steps.remove(idx);
+        } else {
+            idx += 1;
+        }
+    }
+}
+
+fn suppress_terminal_shadow_friend_effects(effects: &mut Vec<ActEffect>) {
+    let mut idx = 0;
+    while idx < effects.len() {
+        let remove = if let Some(step) = effects[idx].fight_step.as_mut() {
+            if step.act_id == Some(rubuska::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID) {
+                true
+            } else {
+                suppress_terminal_shadow_friend_effects(&mut step.act_effect);
+                step.act_effect.is_empty()
+            }
+        } else {
+            false
+        };
+
+        if remove {
+            effects.remove(idx);
+        } else {
+            idx += 1;
+        }
+    }
 }
 
 /// Emit the per-round magic-circle tick: counters with remaining

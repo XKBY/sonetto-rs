@@ -106,11 +106,10 @@ impl WaveMgr {
             .filter_map(|e| {
                 let uid = e.uid?;
                 let mid = e.model_id?;
-                let new_form =
-                    crate::state::battle::mechanics::phase_change::determine_spawn_form(
-                        mid,
-                        &will_buff_ids,
-                    )?;
+                let new_form = crate::state::battle::mechanics::phase_change::determine_spawn_form(
+                    mid,
+                    &will_buff_ids,
+                )?;
                 Some((uid, new_form))
             })
             .collect();

@@ -52,14 +52,7 @@ impl FightCardMgr {
         phase: &PhaseFilter,
     ) -> Result<Vec<ActEffect>> {
         let effects = self.skill_executor.execute_skill(
-            rng,
-            &*fight,
-            managers,
-            mechanics,
-            caster_uid,
-            target_uid,
-            skill_id,
-            phase,
+            rng, &*fight, managers, mechanics, caster_uid, target_uid, skill_id, phase,
         )?;
         self.skill_executor.apply_pending_summons(fight, managers)?;
         Ok(effects)
@@ -491,11 +484,7 @@ impl FightCardMgr {
                         &mut preview_managers,
                         &pending_summons,
                     )?;
-                    SkillExecutor::apply_summon_batch(
-                        ctx.fight,
-                        ctx.managers,
-                        &pending_summons,
-                    )?;
+                    SkillExecutor::apply_summon_batch(ctx.fight, ctx.managers, &pending_summons)?;
                     let mut op_effects = normalize_skill_effects_for_operation(
                         per_behavior,
                         caster_uid,

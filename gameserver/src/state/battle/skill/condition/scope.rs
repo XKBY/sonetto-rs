@@ -159,7 +159,10 @@ mod tests {
         // Inline-action / event-driven ids — should NOT be RoundStart
         // or RoundEnd. These are the "None"-typed catch-alls the
         // engine uses for skill-execution and combat-event hooks.
-        for id in [0, 5, 55, 103, 106, 201, 203, 208, 210, 591].iter().copied() {
+        for id in [0, 5, 55, 103, 106, 201, 203, 208, 210, 591]
+            .iter()
+            .copied()
+        {
             assert_eq!(
                 condition_scope(id),
                 ConditionScope::Always,

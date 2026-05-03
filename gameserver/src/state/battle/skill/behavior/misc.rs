@@ -28,13 +28,15 @@ impl BehaviorAction for Misc {
         _condition: &ConditionType,
     ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
-            BehaviorType::Summon { skill_id: monster_id } => {
-                ctx.executor
-                    .pending_summons
-                    .push(crate::state::battle::skill::executor::PendingSummon {
+            BehaviorType::Summon {
+                skill_id: monster_id,
+            } => {
+                ctx.executor.pending_summons.push(
+                    crate::state::battle::skill::executor::PendingSummon {
                         caster_uid: ctx.caster_uid,
                         monster_id: *monster_id,
-                    });
+                    },
+                );
                 Some(Ok(vec![]))
             }
             BehaviorType::MonsterChange {
@@ -50,12 +52,12 @@ impl BehaviorAction for Misc {
                         probability_permille
                     );
                 }
-                ctx.executor
-                    .pending_monster_changes
-                    .push(crate::state::battle::skill::executor::PendingMonsterChange {
+                ctx.executor.pending_monster_changes.push(
+                    crate::state::battle::skill::executor::PendingMonsterChange {
                         target_uid: ctx.target,
                         new_monster_id: *new_monster_id,
-                    });
+                    },
+                );
                 Some(Ok(vec![]))
             }
             BehaviorType::Kill

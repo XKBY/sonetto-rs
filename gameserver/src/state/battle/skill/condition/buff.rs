@@ -160,11 +160,7 @@ fn target_has_buff_group(buff_mgr: &BuffMgr, target_uid: i64, group: i32) -> boo
 /// damage / heal output by group membership (e.g.
 /// `OriginDamageByAttrAndBuffGroupSize`, where the "buff group
 /// size" is the per-target Poison stack count).
-pub(crate) fn target_count_buffs_in_group(
-    buff_mgr: &BuffMgr,
-    target_uid: i64,
-    group: i32,
-) -> i32 {
+pub(crate) fn target_count_buffs_in_group(buff_mgr: &BuffMgr, target_uid: i64, group: i32) -> i32 {
     let cfg = config::configs::get();
     let group_token = group.to_string();
     let buffs = buff_mgr.get(target_uid);
