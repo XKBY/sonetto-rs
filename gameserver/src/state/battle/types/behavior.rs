@@ -156,7 +156,13 @@ pub enum BehaviorType {
     RandomUseSkill {
         raw: String,
     },
-    MonsterChange,
+    /// `40006#new_monster_id#probability_permille#flag` — transforms
+    /// the target entity into a different monster form. See
+    /// `mechanics::phase_change` for the implementation.
+    MonsterChange {
+        new_monster_id: i32,
+        probability_permille: i32,
+    },
     Kill,
     Summon {
         skill_id: i32,

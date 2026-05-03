@@ -91,6 +91,35 @@ impl WaveMgr {
         ctx.fight.cur_wave = Some(new_wave);
         ctx.fight.is_finish = Some(false);
 
+        // Phase-shift hook: for each freshly-spawned entity, ask
+        // `phase_change::determine_spawn_form` whether the monster
+        // should transform based on accumulated Will buffs. If so,
+        // apply the form swap immediately so passive triggers fire
+        // against the post-transform state.
+        let will_buff_ids = ctx.mechanics.phase_change.pending_will_buff_ids();
+        let spawn_targets: Vec<(i64, i32)> = ctx
+            .fight
+            .defender
+            .as_ref()
+            .into_iter()
+            .flat_map(|d| d.entitys.iter())
+            .filter_map(|e| {
+                let uid = e.uid?;
+                let mid = e.model_id?;
+                let new_form =
+                    crate::state::battle::mechanics::phase_change::determine_spawn_form(
+                        mid,
+                        &will_buff_ids,
+                    )?;
+                Some((uid, new_form))
+            })
+            .collect();
+        for (uid, new_form) in spawn_targets {
+            crate::state::battle::mechanics::phase_change::transform_entity(
+                ctx.fight, uid, new_form,
+            )?;
+        }
+
         let fight = ctx.fight.clone();
         let mut steps = vec![
             FightStepBuilder::effect()

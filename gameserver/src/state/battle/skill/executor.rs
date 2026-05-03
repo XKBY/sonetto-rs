@@ -60,6 +60,10 @@ pub struct SkillExecutor {
     pub pending_bloodtithe_preview: HashMap<i32, (i32, i32)>,
     /// Deferred silent summons applied by the outer caller once a mutable `Fight` is available.
     pub(crate) pending_summons: Vec<PendingSummon>,
+    /// Deferred monster-form transformations from `MonsterChange`
+    /// behavior — drained by `apply_pending_monster_changes` once the
+    /// outer caller can take a mutable `Fight`.
+    pub(crate) pending_monster_changes: Vec<PendingMonsterChange>,
     override_damage_targets: Option<Vec<i64>>,
     call_depth: usize,
 }
@@ -68,6 +72,12 @@ pub struct SkillExecutor {
 pub(crate) struct PendingSummon {
     pub caster_uid: i64,
     pub monster_id: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingMonsterChange {
+    pub target_uid: i64,
+    pub new_monster_id: i32,
 }
 
 struct DepthGuard {
@@ -150,6 +160,7 @@ impl SkillExecutor {
             pending_attr_bonus: HashMap::new(),
             pending_bloodtithe_preview: HashMap::new(),
             pending_summons: Vec::new(),
+            pending_monster_changes: Vec::new(),
             override_damage_targets: None,
             call_depth: 0,
         }
@@ -166,6 +177,21 @@ impl SkillExecutor {
         }
 
         Self::apply_summon_batch(fight, managers, &pending)
+    }
+
+    /// Drain queued `MonsterChange` requests and apply them to the
+    /// fight via `mechanics::phase_change::transform_entity`. Called
+    /// from sites that hold a mutable `Fight` after behavior dispatch.
+    pub fn apply_pending_monster_changes(&mut self, fight: &mut Fight) -> Result<()> {
+        let pending: Vec<PendingMonsterChange> = self.pending_monster_changes.drain(..).collect();
+        for change in pending {
+            crate::state::battle::mechanics::phase_change::transform_entity(
+                fight,
+                change.target_uid,
+                change.new_monster_id,
+            )?;
+        }
+        Ok(())
     }
 
     pub fn set_override_damage_targets(&mut self, targets: Vec<i64>) {

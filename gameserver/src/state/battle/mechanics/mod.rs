@@ -6,11 +6,13 @@ pub mod empathy;
 pub mod injury_counter;
 pub mod magic_circle;
 pub mod nautika;
+pub mod phase_change;
 pub mod shadowcloak;
 
 use bloodtithe::BloodtitheState;
 use channel::ChannelState;
 use empathy::EmpathyState;
+use phase_change::PhaseChangeState;
 use shadowcloak::ShadowCloakState;
 
 use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
@@ -21,6 +23,7 @@ pub struct Mechanics {
     pub bloodtithe: BloodtitheState,
     pub channel: ChannelState,
     pub empathy: EmpathyState,
+    pub phase_change: PhaseChangeState,
     pub shadow_cloak: ShadowCloakState,
 }
 
@@ -30,6 +33,7 @@ impl Mechanics {
             bloodtithe: BloodtitheState::new(),
             channel: ChannelState::new(),
             empathy: EmpathyState::new(),
+            phase_change: PhaseChangeState::new(),
             shadow_cloak: ShadowCloakState::new(),
         }
     }

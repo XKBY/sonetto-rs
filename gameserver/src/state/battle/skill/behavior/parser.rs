@@ -267,7 +267,10 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         "RandomUseSkill" => BehaviorType::RandomUseSkill {
             raw: raw.to_string(),
         },
-        "MonsterChange" => BehaviorType::MonsterChange,
+        "MonsterChange" => BehaviorType::MonsterChange {
+            new_monster_id: p1,
+            probability_permille: p2,
+        },
         "Kill" => BehaviorType::Kill,
         "Summon" => BehaviorType::Summon { skill_id: p1 },
         "RaspberryAddCount" => BehaviorType::RaspberryAddCount {

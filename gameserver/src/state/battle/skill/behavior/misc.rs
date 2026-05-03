@@ -9,16 +9,14 @@ use crate::state::battle::types::condition::ConditionType;
 /// currently no-ops or simple skill-execution placeholders. Each
 /// variant either emits nothing or logs a warning.
 ///
-/// Variants owned (all currently emit `Ok(vec![])`):
+/// Variants owned:
 /// * `Summon { .. }` — queues a silent defender-side entity spawn.
-/// * `Kill` — placeholder.
-/// * `MonsterChange` — placeholder.
-/// * `ShellUseSkill { .. }` — Shell-system placeholder.
-/// * `ShellAssign { .. }` — Shell-system placeholder.
-/// * `BeAttackedAssassinate { .. }` — placeholder.
-/// * `CrystalAddCard` — placeholder.
-/// * `IgnoreSkillConfigDamageRate` — flag-only behavior; the actual
-///   suppression happens elsewhere in the executor.
+/// * `MonsterChange { .. }` — applies entity form swap via
+///   `mechanics::phase_change::transform_entity`.
+/// * `Kill`, `ShellUseSkill { .. }`, `ShellAssign { .. }`,
+///   `BeAttackedAssassinate { .. }`, `CrystalAddCard` — placeholders.
+/// * `IgnoreSkillConfigDamageRate` — flag-only behavior; suppression
+///   happens elsewhere in the executor.
 /// * `Unknown { raw }` — log and skip.
 pub(super) struct Misc;
 
@@ -39,8 +37,28 @@ impl BehaviorAction for Misc {
                     });
                 Some(Ok(vec![]))
             }
+            BehaviorType::MonsterChange {
+                new_monster_id,
+                probability_permille,
+            } => {
+                // Probability gate: 1000 = always, sub-1000 needs RNG.
+                // Treat anything ≥1000 as deterministic; deterministic
+                // sub-1000 cases haven't surfaced in our fixtures yet.
+                if *probability_permille < 1000 {
+                    tracing::trace!(
+                        "MonsterChange probability_permille={} treated as deterministic",
+                        probability_permille
+                    );
+                }
+                ctx.executor
+                    .pending_monster_changes
+                    .push(crate::state::battle::skill::executor::PendingMonsterChange {
+                        target_uid: ctx.target,
+                        new_monster_id: *new_monster_id,
+                    });
+                Some(Ok(vec![]))
+            }
             BehaviorType::Kill
-            | BehaviorType::MonsterChange
             | BehaviorType::ShellUseSkill { .. }
             | BehaviorType::ShellAssign { .. }
             | BehaviorType::BeAttackedAssassinate { .. }
