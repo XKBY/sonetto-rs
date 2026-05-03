@@ -25,7 +25,7 @@ use crate::state::battle::{
         traits::Manager,
     },
     mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics, dot},
-    passives::collector::CollectedPassives,
+    passives::{self, collector::CollectedPassives},
     phase,
     round::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
@@ -108,15 +108,27 @@ pub(crate) async fn run(
         boss_subtree.extend(boss_wrappers);
         let reactive_target_skills =
             channel_mechanics::gather_boss_invoked_reactive_target_skills(ctx.fight);
-        channel_mechanics::graft_monitor_continue_reactives_onto_enemy_subtree(
+        // Walker (passives::inject) handles depth-first recursion +
+        // identifying enemy SKILL emission slots. Per-step injector
+        // (channel_mechanics::inject_monitor_continue_into_enemy_skill_step)
+        // owns Sentinel's holder lookup, channel-buff wrapping, and
+        // layer-counter consumption.
+        passives::inject::inject_ally_reactives_into_enemy_subtree(
             ctx,
             collected,
             boss_subtree,
-            &reactive_target_skills,
-            &|ctx, collected, root, deleted| {
-                mgr.expand_trigger_chain(ctx, collected, root, deleted)
+            &|ctx, collected, step| {
+                channel_mechanics::inject_monitor_continue_into_enemy_skill_step(
+                    ctx,
+                    collected,
+                    step,
+                    &reactive_target_skills,
+                    &|ctx, collected, root, deleted| {
+                        mgr.expand_trigger_chain(ctx, collected, root, deleted)
+                    },
+                    &|before, after| mgr.deleted_buff_ids_from_delta(before, after),
+                );
             },
-            &|before, after| mgr.deleted_buff_ids_from_delta(before, after),
         );
     }
 

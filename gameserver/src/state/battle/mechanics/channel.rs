@@ -410,20 +410,28 @@ pub(crate) fn build_monitor_continue_channel_embeds(
     out
 }
 
-/// Walk an enemy-side subtree (typically a boss-passive bundle's
-/// `act_effect` Vec) and graft a MonitorContinueChannel reactive onto
-/// every eligible enemy SKILL emission.
+/// Inject a MonitorContinueChannel reactive into a single enemy SKILL
+/// emission's `act_effect` Vec. Returns silently if no Sentinel-shaped
+/// holder is currently eligible, the target skill isn't in the
+/// `reactive_target_skills` filter, or the holder's reactive emits
+/// nothing.
 ///
-/// The reactive only fires on enemy SKILLs whose `act_id` is in
-/// `reactive_target_skills` — typically the set produced by
-/// `gather_boss_invoked_reactive_target_skills(fight)`. Without that
-/// filter the channel would over-fire on broadcasts and deeper
-/// sub-emissions; the filter keeps grafting at the depth the official
-/// mechanic text describes (battle-rule-invoked sub-skills only).
-pub fn graft_monitor_continue_reactives_onto_enemy_subtree<F, G>(
+/// This is the per-step injector used by
+/// `passives::inject::inject_ally_reactives_into_enemy_subtree`. The
+/// walker handles recursion + identifying enemy SKILL slots; this
+/// function owns Sentinel's holder lookup, channel-buff wrapping,
+/// trigger-chain expansion, splice placement, and layer-counter
+/// consumption.
+///
+/// The `reactive_target_skills` filter is typically the set produced
+/// by `gather_boss_invoked_reactive_target_skills(fight)` — the
+/// channel only answers boss skills directly invoked by a battle-rule
+/// passive (e.g. `530000721/751/752`), not deeper sub-emissions or
+/// generic broadcasts.
+pub fn inject_monitor_continue_into_enemy_skill_step<F, G>(
     ctx: &mut FightContext<'_>,
     collected: &CollectedPassives,
-    enemy_subtree: &mut Vec<ActEffect>,
+    step: &mut FightStep,
     reactive_target_skills: &HashSet<i32>,
     expand_trigger_chain: &F,
     deleted_buff_ids_from_delta: &G,
@@ -431,81 +439,61 @@ pub fn graft_monitor_continue_reactives_onto_enemy_subtree<F, G>(
     F: Fn(&mut FightContext<'_>, &CollectedPassives, &FightStep, &[i32]) -> Vec<FightStep>,
     G: Fn(&[(i64, BuffInstance)], &[(i64, BuffInstance)]) -> Vec<i32>,
 {
-    for effect in enemy_subtree.iter_mut() {
-        let Some(step) = effect.fight_step.as_mut() else {
-            continue;
-        };
-        graft_monitor_continue_reactives_onto_enemy_subtree(
-            ctx,
-            collected,
-            &mut step.act_effect,
-            reactive_target_skills,
-            expand_trigger_chain,
-            deleted_buff_ids_from_delta,
-        );
-
-        if effect.effect_type != Some(EffectType::FightStep as i32)
-            || step.act_type != Some(fight_step::ActType::Skill as i32)
-            || step.from_id.unwrap_or(0) >= 0
-            || !reactive_target_skills.contains(&step.act_id.unwrap_or(0))
-        {
-            continue;
-        }
-
-        let Some(holder) = find_eligible_monitor_continue_holders(ctx)
-            .into_iter()
-            .next()
-        else {
-            continue;
-        };
-        let enemy_caster_uid = step.from_id.unwrap_or(0);
-        let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
-        let Ok(skill_effects) = execute_passive_skill(
-            ctx,
-            holder.holder_uid,
-            enemy_caster_uid,
-            holder.reactive_skill_id,
-            &PhaseFilter::combat(),
-        ) else {
-            continue;
-        };
-        if skill_effects.is_empty() {
-            continue;
-        }
-        let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
-        let runtime_deleted_buff_ids =
-            deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
-
-        let mut monitor_step = effect_container_step(
-            holder.holder_uid,
-            enemy_caster_uid,
-            holder.channel_buff_id,
-            skill_effects,
-        );
-        let expanded_steps =
-            expand_trigger_chain(ctx, collected, &monitor_step, &runtime_deleted_buff_ids);
-        let mut fallback_nested: Vec<ActEffect> = Vec::new();
-        for trigger_step in expanded_steps.into_iter().skip(1) {
-            let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-            if !trigger_embed::insert_trigger_into_matching_nested(
-                &mut monitor_step,
-                embedded.clone(),
-            ) {
-                fallback_nested.push(embedded);
-            }
-        }
-        if !fallback_nested.is_empty() {
-            let insert_at = trigger_embed::find_trigger_insert_index(&monitor_step.act_effect);
-            monitor_step
-                .act_effect
-                .splice(insert_at..insert_at, fallback_nested);
-        }
-
-        let monitor_wrapper = wrap_step(monitor_step);
-        let insert_at = monitor_continue_splice_index(&step.act_effect);
-        step.act_effect.insert(insert_at, monitor_wrapper);
-        consume_monitor_continue_layer(ctx, holder.holder_uid, holder.layer_counter_buff_id);
+    if !reactive_target_skills.contains(&step.act_id.unwrap_or(0)) {
+        return;
     }
+
+    let Some(holder) = find_eligible_monitor_continue_holders(ctx)
+        .into_iter()
+        .next()
+    else {
+        return;
+    };
+    let enemy_caster_uid = step.from_id.unwrap_or(0);
+    let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
+    let Ok(skill_effects) = execute_passive_skill(
+        ctx,
+        holder.holder_uid,
+        enemy_caster_uid,
+        holder.reactive_skill_id,
+        &PhaseFilter::combat(),
+    ) else {
+        return;
+    };
+    if skill_effects.is_empty() {
+        return;
+    }
+    let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
+    let runtime_deleted_buff_ids =
+        deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
+
+    let mut monitor_step = effect_container_step(
+        holder.holder_uid,
+        enemy_caster_uid,
+        holder.channel_buff_id,
+        skill_effects,
+    );
+    let expanded_steps =
+        expand_trigger_chain(ctx, collected, &monitor_step, &runtime_deleted_buff_ids);
+    let mut fallback_nested: Vec<ActEffect> = Vec::new();
+    for trigger_step in expanded_steps.into_iter().skip(1) {
+        let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
+        if !trigger_embed::insert_trigger_into_matching_nested(&mut monitor_step, embedded.clone())
+        {
+            fallback_nested.push(embedded);
+        }
+    }
+    if !fallback_nested.is_empty() {
+        let insert_at = trigger_embed::find_trigger_insert_index(&monitor_step.act_effect);
+        monitor_step
+            .act_effect
+            .splice(insert_at..insert_at, fallback_nested);
+    }
+
+    let monitor_wrapper = wrap_step(monitor_step);
+    let insert_at = monitor_continue_splice_index(&step.act_effect);
+    step.act_effect.insert(insert_at, monitor_wrapper);
+    consume_monitor_continue_layer(ctx, holder.holder_uid, holder.layer_counter_buff_id);
 }
 
 pub(crate) fn inject_channel_followup_buffs_if_missing(
