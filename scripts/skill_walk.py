@@ -211,10 +211,13 @@ def find_skill_in_hero(skill_id, hero):
 
 
 def find_owner(skill_id, heroes, character_rows):
-    """Return (owner_label, source_dict|None). owner_label tells you
-    where this skill comes from (which hero, or boss/battle-rule/psychube).
+    """Return (owner_label, source_dict|None, hero|None). owner_label tells
+    you where this skill comes from (which hero, or boss/battle-rule/psychube).
     source_dict is the per-hero record from prydwen, if any."""
     sid_str = str(skill_id)
+
+    # Pass 1: prydwen-scraped heroes — preferred because the scrape carries
+    # incantation descriptions + keyword glossary.
     for slug, hero in heroes.items():
         sig = hero.get("signature", "")
         if sig and sid_str.startswith(sig + "0"):
@@ -223,6 +226,39 @@ def find_owner(skill_id, heroes, character_rows):
         if skill_id in (hero.get("skill_ids") or []) or skill_id == hero.get("ex_skill_id"):
             src = find_skill_in_hero(skill_id, hero)
             return (f"hero:{slug} (id={hero.get('id')}, exact match)", src, hero)
+        # Short buff/skill ids of the form `<sig><1-2 digits>` (e.g. Pickles
+        # `30631` = sig 3063 + "1") aren't covered by `<sig>0…` because they
+        # never carry the trailing zero. Match them when the prefix is the
+        # full signature and the residual digits fit within the 2-character
+        # buff-id slot the engine uses.
+        if sig and sid_str.startswith(sig) and 0 < len(sid_str) - len(sig) <= 2:
+            src = find_skill_in_hero(skill_id, hero)
+            return (
+                f"hero:{slug} (id={hero.get('id')}, sig+short — buff/keyword id)",
+                src,
+                hero,
+            )
+
+    # Pass 2: fall back to `character.json` so heroes without a prydwen
+    # scrape still get a name. Pickles (3063) currently has no scrape file
+    # but is in `data/excel2json/character.json` with signature "3063".
+    for row in character_rows or []:
+        if not isinstance(row, dict):
+            continue
+        sig = str(row.get("signature") or "").strip()
+        name = row.get("nameEng") or ""
+        hero_id = row.get("id")
+        if not sig:
+            continue
+        if sid_str.startswith(sig + "0") or (
+            sid_str.startswith(sig) and 0 < len(sid_str) - len(sig) <= 2
+        ):
+            return (
+                f"hero:{name.lower() or '?'} (id={hero_id}, signature={sig}, no prydwen scrape)",
+                None,
+                None,
+            )
+
     # boss/monster — id starts with 5xxxxxxxx or 1xxxxxxx (rough heuristic)
     if 1_000_000 <= skill_id < 9_999_999:
         return (f"battle-rule/psychube/boss (id range {skill_id // 100000}xxxxx)", None, None)
@@ -492,6 +528,115 @@ def find_act_type_for_buff_id(act_id, act_rows):
     return ""
 
 
+# ----------------------------------------- buff feature decoder (inline 850/803/etc.)
+
+# Hand-curated arg shape for known buff_act ids. Pulled from
+# `gameserver/src/state/battle/buff_actions/*.rs` parsers — these label the
+# numeric segments so the script can render `850#300901412#101#30091111` as
+# `850 AddBuffBoth (buff_a=300901412 [Poison...], _=101, buff_b=30091111 [Cure...])`.
+# Unrecognised ids fall back to a generic "look up any segment that matches a
+# buff/skill id and annotate it" pass.
+_ACT_ARG_LABELS = {
+    "803": ["permille"],                                # Poison
+    "844": ["permille"],                                # DeadlyPoison
+    "849": ["permille"],                                # AdvancedCure
+    "850": ["buff_a", "_", "buff_b"],                  # AddBuffBoth
+    "865": ["skill_id", "skill_id", "skill_id", "skill_id"],  # AddPassiveSkills
+    "933": ["child_buff"],                              # SubBuff
+    "1024": ["watched_buff"],                           # MonitorContinueChannel
+    "771": ["_", "slave_buff", "_", "_"],              # MasterHalo
+    "772": ["_"],                                       # SlaveHalo
+    "806": ["overflow_amount"],                         # ExPointOverflowBank (Rubuska)
+    "60038": ["multiplier"],                            # OriginDamageFromInjuryBank
+    "60040": ["multiplier"],                            # ConsumeInjuryBankAndDamage
+    "60052": ["per_empathy"],                           # Kakania bounce damage
+    "60073": ["dot_buff"],                              # SettleDotAndCostDotDuration
+    "162": [],                                          # EmptyEffectMarker
+    "167": [],                                          # StorageInjury
+    "192": [],                                          # DamageFromAbsorb
+    "195": [],                                          # InjuryBankHeal
+}
+
+
+def _name_for_buff_id(bid_str, buff_rows, lang):
+    """If `bid_str` is a numeric id matching a row in `skill_buff.json`,
+    return a short label `name [first sentence]` to annotate it. Returns
+    empty string for non-matching values so the caller can leave the raw
+    number in place."""
+    try:
+        bid = int(bid_str)
+    except (ValueError, TypeError):
+        return ""
+    for r in buff_rows:
+        if not isinstance(r, dict):
+            continue
+        if r.get("id") != bid:
+            continue
+        nm_key = r.get("name") or ""
+        desc_key = r.get("desc") or ""
+        nm = (lang.get(nm_key) or "").strip()
+        desc = (lang.get(desc_key) or "").strip()
+        first = desc.splitlines()[0] if desc else ""
+        if nm and first:
+            return f"{nm} — {first[:60]}"
+        return nm or first[:60] or ""
+    return ""
+
+
+def decode_features(features_str, act_rows, buff_rows, lang):
+    """Decode a buff `features` string into annotated `|`-separated entries.
+    Returns a list of `{raw, act_id, act_type, args, decoded_str}` dicts —
+    one per `|` segment — so callers can render or process them.
+
+    Example: `"850#300901412#101#30091111|865#30631"` →
+        [
+          {"raw": "850#300901412#101#30091111", "act_id": "850",
+           "act_type": "AddBuffBoth", "args": ["300901412","101","30091111"],
+           "decoded_str": "850 AddBuffBoth (buff_a=300901412 [Poison: ...], _=101, buff_b=30091111 [Cure: ...])"},
+          {"raw": "865#30631", "act_id": "865", "act_type": "AddPassiveSkills",
+           "args": ["30631"],
+           "decoded_str": "865 AddPassiveSkills (skill_id=30631)"},
+        ]
+    """
+    if not features_str:
+        return []
+    out = []
+    for entry in features_str.split("|"):
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split("#")
+        act_id = parts[0]
+        args = parts[1:]
+        act_type = find_act_type_for_buff_id(act_id, act_rows) if act_id.isdigit() else ""
+        labels = _ACT_ARG_LABELS.get(act_id, [])
+        rendered = []
+        for i, a in enumerate(args):
+            label = labels[i] if i < len(labels) else None
+            ann = _name_for_buff_id(a, buff_rows, lang)
+            if label and label != "_":
+                if ann:
+                    rendered.append(f"{label}={a} [{ann}]")
+                else:
+                    rendered.append(f"{label}={a}")
+            else:
+                if ann:
+                    rendered.append(f"{a} [{ann}]")
+                else:
+                    rendered.append(a)
+        decoded = f"{act_id} {act_type or '?'}"
+        if rendered:
+            decoded += f" ({', '.join(rendered)})"
+        out.append({
+            "raw": entry,
+            "act_id": act_id,
+            "act_type": act_type,
+            "args": args,
+            "decoded_str": decoded,
+        })
+    return out
+
+
 # -------------------------------------------------------------- semantic flag
 
 EVENT_TRIGGER_PHRASES = [
@@ -529,6 +674,75 @@ def detect_event_triggers(description):
 
 
 STATIC_CONDITION_TYPES = {"None", "HasBuffId", "NoBuffId", "EnterFight"}
+
+
+# Skills flagged in `memory/MEMORY.md` as architectural — fixing them needs
+# multi-file or event-queue work, not a one-shot edit. Drift on these is
+# expected; the classifier surfaces it as `architectural` so the user
+# doesn't waste time chasing them.
+ARCHITECTURAL_SKILL_IDS = {
+    # 434415 / 435611 — psychube riders (Recoleta's "The Final Roll" /
+    # Rubuska's "The Wandering Improviser"). Need PsychubeRider event
+    # attachment per `_434415_psychube_findings.md`.
+    434415, 435611,
+    # Sotheby Duality Potion — 2 prior failed attempts, needs 4-piece fix.
+    30091120, 30091111, 30091123, 30091129, 30091130, 30090146, 300901412,
+    # Battle3 boss / wave-spawn timing related — upstream damage-value drift.
+    1145004, 1145006, 1145002, 1144005, 1144007, 1144002, 1143002, 1143004,
+    1143006, 11450041, 11450061, 1148002, 1144005,
+    # Battle3 boss skills (40120111 etc.) — value drift from missing inline
+    # passive families.
+    40120111, 114300831, 114300811,
+}
+
+
+def architectural_skill_ids():
+    return ARCHITECTURAL_SKILL_IDS
+
+
+def findings_files_for_skill(skill_id, repo_root=REPO):
+    """Return the list of `_<…>_findings.md` files at `repo_root` whose
+    name contains the skill_id digits. Used by the drift classifier to
+    flag a skill as `blocked` (prior failed-attempt context exists)."""
+    sid_str = str(skill_id)
+    out = []
+    try:
+        for path in repo_root.glob("_*_findings*.md"):
+            if sid_str in path.name:
+                out.append(path.name)
+    except OSError:
+        pass
+    return out
+
+
+def classify_drift(activity, skill_id, findings):
+    """Categorise a skill's drift using the audit signal we already have.
+
+    Inputs:
+      - activity: list of `(battle, live, ours, delta)` from `fixture_activity`
+      - skill_id: int
+      - findings: list of findings filenames (from `findings_files_for_skill`)
+
+    Returns one of:
+      - `clean`       — no fixture activity OR all Δ=0
+      - `blocked`     — a `_<sid>_findings.md` documents a prior failed attempt
+      - `architectural` — skill_id in the architectural memory set
+      - `small`       — max |Δ| ≤ 2 across all battles, fixture-active in ≤ 1 battle
+      - `actionable`  — has fixture activity with drift but doesn't match above
+    """
+    if not activity:
+        return "clean"
+    deltas = [abs(d) for _, _, _, d in activity]
+    if all(d == 0 for d in deltas):
+        return "clean"
+    if findings:
+        return "blocked"
+    if skill_id in ARCHITECTURAL_SKILL_IDS:
+        return "architectural"
+    active_battles = sum(1 for _, l, o, _ in activity if l or o)
+    if max(deltas) <= 2 and active_battles <= 1:
+        return "small"
+    return "actionable"
 
 
 def has_event_driven_condition(parsed_conditions):
@@ -648,6 +862,19 @@ def walk_skill(skill_id, ctx):
         semantic_flags.append(f"unwired behavior types: {sorted(set(unwired_behs))}")
 
     activity = fixture_activity(skill_id)
+    findings = findings_files_for_skill(skill_id)
+    drift_class = classify_drift(activity, skill_id, findings)
+
+    # Decode each provider buff's full `features` string so the user can
+    # read `850 AddBuffBoth (buff_a=…, …)` instead of a raw `850#x#y#z`.
+    for prov in providers:
+        prov["decoded_features"] = decode_features(
+            prov.get("features", "") or "",
+            ctx["act_rows"],
+            ctx["buff_rows"],
+            ctx["lang"],
+        )
+
     return {
         "skill_id": skill_id,
         "name": name,
@@ -665,6 +892,8 @@ def walk_skill(skill_id, ctx):
         "has_event_driven_condition": has_event_cond,
         "semantic_flags": semantic_flags,
         "fixture_activity": activity,
+        "findings_files": findings,
+        "drift_class": drift_class,
     }
 
 
@@ -718,8 +947,14 @@ def render_text(result):
         out.append("  buff providers (this skill is granted via buff features):")
         for prov in result["buff_providers"]:
             out.append(
-                f"    buff {prov['buff_id']} (depth {prov['depth']}, via {prov['kind']}): features={prov['features']!r}"
+                f"    buff {prov['buff_id']} (depth {prov['depth']}, via {prov['kind']}):"
             )
+            decoded = prov.get("decoded_features") or []
+            if decoded:
+                for d in decoded:
+                    out.append(f"      • {d['decoded_str']}")
+            elif prov.get("features"):
+                out.append(f"      raw features: {prov['features']!r}")
     if result["channel_chain_buffs"]:
         out.append(
             f"  channel-monitored gating buffs: {result['channel_chain_buffs']} "
@@ -733,6 +968,23 @@ def render_text(result):
             out.append(f"    {tag} {battle}: LIVE={l} OURS={o} Δ={d:+d}")
     else:
         out.append("  fixture activity: NONE (skill never fires in any test fixture)")
+    drift_class = result.get("drift_class")
+    if drift_class:
+        # `clean / small / actionable / architectural / blocked` — pick a
+        # tag the user can grep for.
+        cls_tag = {
+            "clean": "✓",
+            "small": "⚠",
+            "actionable": "‼",
+            "architectural": "🏛",
+            "blocked": "⛔",
+        }.get(drift_class, "?")
+        out.append(f"  drift class: {cls_tag} {drift_class}")
+    findings = result.get("findings_files") or []
+    if findings:
+        out.append("  findings files (prior failed attempts):")
+        for f in findings:
+            out.append(f"    - {f}")
     if result["semantic_flags"]:
         out.append("  semantic flags:")
         for f in result["semantic_flags"]:
