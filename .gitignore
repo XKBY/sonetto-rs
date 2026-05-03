@@ -28,3 +28,7 @@ CLAUDE.md
 # Local findings / scratch markdown produced during investigations.
 /_*_findings.md
 !/scripts/condition_scope_discovery.py
+# Skill walker — pairs prydwen description with parsed conditions/
+# behaviors + wiring status. Lets us read "what should this skill do?"
+# next to "what is the engine actually doing?" without code-grepping.
+!/scripts/skill_walk.py
