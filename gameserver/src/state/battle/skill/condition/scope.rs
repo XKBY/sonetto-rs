@@ -8,16 +8,20 @@
 //! is `"None"` but whose IDs almost certainly mean different firing
 //! contexts inside the engine:
 //!
-//! * `c100` — "at the start of the round" (`30090146` Sotheby
-//!   Duality Potion, `31040141` Willow start-of-round Poison)
-//! * `c101` — same round-start scope (`30980151` Tuesday's Insight
-//!   III "resolve 1 round of Poison")
-//! * `c104` — same round-start scope (`30630171` Pickles "gain 1
-//!   stack of Clarified Topic")
+//! * `c100` / `c101` / `c102` / `c104` — "at the start of the round"
+//!   (`30090146` Sotheby Duality Potion, `30980151` Tuesday's Insight
+//!   III "resolve 1 round of Poison", `30630171` Pickles "gain 1
+//!   stack of Clarified Topic", and a long tail of round-start
+//!   passive auras — see "Empirical basis" below).
 //! * `c208` — inline action / boss-reactive emission default
 //! * `c210` — inline action default for player skills (see
 //!   `30090111`/`31020121` etc.)
 //! * `c203`/`c201` — same-side action reactive
+//! * `c301` / `c302` / `c303` / `c304` / `c307` — "at the end of the
+//!   round" (`2107`, `2114`, `2363`, `2415`, `2506`, …). Currently
+//!   classified as `RoundEnd` purely on description evidence — none
+//!   of the fixture battles exercise these so emit-context evidence
+//!   is pending.
 //!
 //! Our parser collapses all "None"-typed ids to `ConditionType::None`,
 //! losing the discriminator. This module recovers it via the cached
@@ -27,20 +31,48 @@
 //! ## Usage
 //!
 //! Anywhere we'd want to gate "fires at round-start only" behavior
-//! (today: would have unblocked `60073 SettleDotAndCostDotDuration`'s
-//! double-fire bug without inventing a behavior-side `has_round_sweep_
-//! behavior` predicate), call `condition_scope(b.condition_id)` and
-//! match the resulting `ConditionScope`.
+//! (today: `60073 SettleDotAndCostDotDuration`'s double-fire bug, the
+//! generic `30090146`/`30980151`/`30630171` over-fire from inline card
+//! paths), call `condition_scope(b.condition_id)` and match the
+//! resulting `ConditionScope`.
+//!
+//! Round-end scoping is documented but not yet wired into a gate —
+//! the engine doesn't currently have a round-end-only sweep that
+//! needs to consult this. When that lands, use `is_round_end_only`
+//! analogous to `is_round_start_only`.
 //!
 //! ## Empirical basis
 //!
 //! IDs were classified by `scripts/condition_scope_discovery.py` —
 //! group skills sharing each condition id, read their in-game
 //! descriptions, and look at LIVE's emission depth/parent context.
-//! Round-start IDs all said "At the start of the round" and emitted
-//! at `depth=2 parent_aid=0` (top-level round wrappers). Inline IDs
-//! emit at varied depths under skill parents and never have round-
-//! start phrasing.
+//!
+//! `c100/c101/c104` round-start IDs all said "At the start of the
+//! round" and emitted at `depth=2 parent_aid=0` (top-level round
+//! wrappers). Inline IDs emit at varied depths under skill parents
+//! and never have round-start phrasing.
+//!
+//! `c102` was added on description evidence alone (217/272 ≈ 80% of
+//! skills using `c102` carry round-start phrasing in their visible
+//! description; the remaining "other" cases are passive auras that
+//! re-fire each round-start under different wording like "Starts the
+//! round with X" or "Starts a round in [Break Time] status"). No
+//! fixture battle exercises a `c102` skill today, so the parity
+//! impact of this classification is zero. Promoted to `RoundStart`
+//! anyway because the engine evidently reuses round-start scope IDs
+//! 100/101/102/103/104 as a contiguous block.
+//!
+//! `c103` was considered but kept at `Always` because ~30% of its
+//! skills are passive-aura statlines like "Enhance [Break Time]
+//! effect: DMG Taken Reduction +15%" which would mis-fire if forced
+//! to round-start.
+//!
+//! `c301`–`c307` were classified `RoundEnd` based on description
+//! evidence: 81–97% of skills using each id carry "at the end of the
+//! round" / "when a round ends" phrasing. `c307` specifically is the
+//! "every N rounds" variant ("At the end of every 3 rounds, …"). No
+//! fixture battle exercises these today, so this is defensive
+//! infrastructure for the eventual round-end gate.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConditionScope {
@@ -52,6 +84,11 @@ pub enum ConditionScope {
     /// sweep. Must be blocked from inline card execution and
     /// combat-trigger replay.
     RoundStart,
+    /// Fires only during the round manager's end-of-round passive
+    /// sweep. Currently no engine gate consults this (no round-end
+    /// fixture skills fire today), but the classification is
+    /// documented so the gate can read it cleanly when wired.
+    RoundEnd,
 }
 
 /// Map a `skill_behavior_condition.id` to its firing scope. IDs not
@@ -62,7 +99,12 @@ pub fn condition_scope(condition_id: i32) -> ConditionScope {
         // Round-start sweep — descriptions all read "At the start of
         // the round, [...]" and LIVE emits these at depth=2 under a
         // parent_aid=0 round wrapper.
-        100 | 101 | 104 => ConditionScope::RoundStart,
+        100 | 101 | 102 | 104 => ConditionScope::RoundStart,
+        // Round-end sweep — descriptions all read "When a round
+        // ends, [...]" / "At the end of the round, [...]" / "At the
+        // end of every N rounds, [...]" (c307). Description-only
+        // classification; no fixture coverage yet.
+        301 | 302 | 303 | 304 | 307 => ConditionScope::RoundEnd,
         _ => ConditionScope::Always,
     }
 }
@@ -74,37 +116,57 @@ pub fn is_round_start_only(condition_id: i32) -> bool {
     matches!(condition_scope(condition_id), ConditionScope::RoundStart)
 }
 
+/// Convenience predicate for the (future) round-end gate. Today no
+/// caller wires this — it exists for parity with `is_round_start_only`
+/// so the eventual round-end pipeline doesn't have to re-derive the
+/// classification.
+pub fn is_round_end_only(condition_id: i32) -> bool {
+    matches!(condition_scope(condition_id), ConditionScope::RoundEnd)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn round_start_ids_classified() {
-        assert_eq!(condition_scope(100), ConditionScope::RoundStart);
-        assert_eq!(condition_scope(101), ConditionScope::RoundStart);
-        assert_eq!(condition_scope(104), ConditionScope::RoundStart);
-        assert!(is_round_start_only(100));
-        assert!(is_round_start_only(101));
-        assert!(is_round_start_only(104));
+        for id in [100, 101, 102, 104] {
+            assert_eq!(
+                condition_scope(id),
+                ConditionScope::RoundStart,
+                "id {id} should be RoundStart"
+            );
+            assert!(is_round_start_only(id));
+            assert!(!is_round_end_only(id));
+        }
+    }
+
+    #[test]
+    fn round_end_ids_classified() {
+        for id in [301, 302, 303, 304, 307] {
+            assert_eq!(
+                condition_scope(id),
+                ConditionScope::RoundEnd,
+                "id {id} should be RoundEnd"
+            );
+            assert!(is_round_end_only(id));
+            assert!(!is_round_start_only(id));
+        }
     }
 
     #[test]
     fn unmapped_ids_default_to_always() {
-        // Inline-action ids — should NOT be RoundStart.
-        for id in [0, 5, 100, 203, 208, 210, 591].iter().copied() {
-            if id == 100 {
-                continue;
-            }
-            assert_ne!(
+        // Inline-action / event-driven ids — should NOT be RoundStart
+        // or RoundEnd. These are the "None"-typed catch-alls the
+        // engine uses for skill-execution and combat-event hooks.
+        for id in [0, 5, 55, 103, 106, 201, 203, 208, 210, 591].iter().copied() {
+            assert_eq!(
                 condition_scope(id),
-                ConditionScope::RoundStart,
-                "id {id} should not be RoundStart"
+                ConditionScope::Always,
+                "id {id} should be Always"
             );
+            assert!(!is_round_start_only(id));
+            assert!(!is_round_end_only(id));
         }
-        assert_eq!(condition_scope(208), ConditionScope::Always);
-        assert_eq!(condition_scope(210), ConditionScope::Always);
-        assert_eq!(condition_scope(203), ConditionScope::Always);
-        assert!(!is_round_start_only(208));
-        assert!(!is_round_start_only(0));
     }
 }
