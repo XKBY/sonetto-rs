@@ -6,10 +6,12 @@ use sonettobuf::{ActEffect, FightStep};
 use crate::state::battle::{
     buff_actions::blood_value_use_skill::buff_get_blood_value_use_skill_params,
     context::FightContext,
+    fight_step::{effect_container_step, wrap_step},
     passives::{collector::CollectedPassives, steps::skill::execute_skill},
     round::step_shape::build_effect_step,
     skill::{PhaseFilter, TriggerState},
-    trigger::combat::TriggerEvent,
+    steps::trigger_embed,
+    trigger::combat::{TriggerEvent, event_from_step, fire_combat_triggers},
     types::effects::EffectType,
 };
 
@@ -143,7 +145,20 @@ impl TriggerPass for BloodValueUseSkillPass {
                             holder_uid,
                             team_type,
                         );
-                        holder_effects.append(&mut effects);
+                        maybe_embed_nested_trigger_steps(
+                            ctx,
+                            collected,
+                            &mut effects,
+                            wrapper_skill_id,
+                        );
+                        if !effects.is_empty() {
+                            holder_effects.push(wrap_step(effect_container_step(
+                                holder_uid,
+                                holder_uid,
+                                instance.buff_id,
+                                effects,
+                            )));
+                        }
                     }
                 }
             }
@@ -154,6 +169,35 @@ impl TriggerPass for BloodValueUseSkillPass {
         }
 
         out
+    }
+}
+
+fn maybe_embed_nested_trigger_steps(
+    ctx: &mut FightContext<'_>,
+    collected: &CollectedPassives,
+    effects: &mut [ActEffect],
+    wrapper_skill_id: i32,
+) {
+    let Some(skill_step) = find_skill_step_mut(effects, wrapper_skill_id) else {
+        return;
+    };
+    let skill_event = event_from_step(
+        ctx.fight,
+        skill_step.from_id.unwrap_or(0),
+        skill_step.to_id.unwrap_or(0),
+        skill_step.act_id.unwrap_or(0),
+        &skill_step.act_effect,
+    );
+    let trigger_steps = fire_combat_triggers(ctx, collected, &skill_event);
+    if trigger_steps.is_empty() {
+        return;
+    }
+    let Some(skill_step) = find_skill_step_mut(effects, wrapper_skill_id) else {
+        return;
+    };
+    for ts in trigger_steps {
+        let embedded = trigger_embed::trigger_step_to_embedded_effect(ts);
+        skill_step.act_effect.push(embedded);
     }
 }
 
