@@ -232,6 +232,7 @@ pub fn event_from_step(
         fight,
         effects,
         caster_uid,
+        skill_id,
         &mut damaged_uids,
         &mut cross_side_damaged_uids,
         &mut mental_damaged_uids,
@@ -402,6 +403,7 @@ fn collect_damage_uids(
     fight: &Fight,
     effects: &[ActEffect],
     caster_uid: i64,
+    act_id: i32,
     damaged: &mut Vec<i64>,
     cross_side_damaged: &mut Vec<i64>,
     mental_damaged: &mut Vec<i64>,
@@ -434,26 +436,38 @@ fn collect_damage_uids(
             if is_cross_side && !cross_side_damaged.contains(&target) {
                 cross_side_damaged.push(target);
             }
-            // Mental-damage attribution: the dealer's hero `dmgType` from
-            // `character.json` is the source of truth (1=Reality, 2=Mental).
-            // Resolve via the dealer's `model_id` on the fight; non-hero
-            // dealers (mob skills, missing entries) are treated as
-            // non-Mental and skipped.
-            if is_cross_side && hero_dmg_type_is_mental(fight, caster_uid) {
-                if !mental_damaged.contains(&target) {
-                    mental_damaged.push(target);
-                }
+            // Mental-damage attribution: prefer the firing skill's owner
+            // (act_id signature → hero_id → character.dmgType). Fall back
+            // to the dealer entity's model_id when act_id is unavailable
+            // (raw effect with no parent skill).
+            //
+            // Why skill-first: nested reactive skills (e.g. Kakania's
+            // `30800161` heal-bounce) carry the parent step's `from_id`
+            // as caster_uid even though the actual dealer is a different
+            // hero. Without this, Kakania's Mental damage to `-7`
+            // attributed to Semmelweis (Reality) and silently bypassed
+            // the boss's HurtMagic reactive.
+            if is_cross_side
+                && skill_act_id_dmg_type_is_mental(act_id)
+                    .unwrap_or_else(|| hero_dmg_type_is_mental(fight, caster_uid))
+                && !mental_damaged.contains(&target)
+            {
+                mental_damaged.push(target);
             }
         }
 
-        // Recurse into any nested fightStep payload and keep dealer attribution
-        // aligned with the nested step's own caster when present.
+        // Recurse into any nested fightStep payload. Use the nested
+        // step's own `act_id` for Mental attribution (so Kakania's
+        // heal-bounce skill is identified by `30800161`, not by its
+        // ambient `from_id`).
         if let Some(step) = &effect.fight_step {
             let nested_caster = step.from_id.unwrap_or(caster_uid);
+            let nested_act_id = step.act_id.unwrap_or(0);
             collect_damage_uids(
                 fight,
                 &step.act_effect,
                 nested_caster,
+                nested_act_id,
                 damaged,
                 cross_side_damaged,
                 mental_damaged,
@@ -463,9 +477,34 @@ fn collect_damage_uids(
     }
 }
 
+/// Map a hero skill's `act_id` to whether its owner deals Mental
+/// damage (`character.dmgType == 2`).
+///
+/// Skill ids follow the format `hero_id * 10000 + slot * 100 + rank`
+/// (e.g. `30800161` → hero 3080 = Kakania). For non-hero skills (boss
+/// templates, battle rules, magic circles) the `hero_id / 10000`
+/// quotient doesn't map to a `character.json` entry and we return
+/// `None`, signalling the caller to fall back to entity-based
+/// attribution.
+fn skill_act_id_dmg_type_is_mental(act_id: i32) -> Option<bool> {
+    if act_id <= 0 {
+        return None;
+    }
+    let hero_id = act_id / 10000;
+    if hero_id == 0 {
+        return None;
+    }
+    config::configs::get()
+        .character
+        .iter()
+        .find(|c| c.id == hero_id)
+        .map(|c| c.dmg_type == 2)
+}
+
 /// Returns true when `dealer_uid` resolves to a hero with `dmgType == 2`
-/// (Mental) per `character.json`. Used to attribute Mental damage in
-/// `collect_damage_uids` so `ConditionType::HurtMagic` fires correctly.
+/// (Mental) per `character.json`. Used as a fallback in
+/// `collect_damage_uids` when the firing skill's `act_id` is unknown
+/// or doesn't map to a hero.
 fn hero_dmg_type_is_mental(fight: &Fight, dealer_uid: i64) -> bool {
     if dealer_uid == 0 {
         return false;
