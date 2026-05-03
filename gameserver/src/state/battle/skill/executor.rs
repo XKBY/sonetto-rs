@@ -974,6 +974,8 @@ impl SkillExecutor {
             trigger_bullet: false,
             event_driven_only: false,
             be_attacked: false,
+            hurt_magic: false,
+            lost_ex_point: false,
             hurt_not_restraint: false,
             hurt_restraint: false,
             teammate_injury_count: 0,

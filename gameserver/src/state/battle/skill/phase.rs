@@ -16,6 +16,15 @@ pub struct TriggerState {
     /// Static/start-of-fight condition rows are filtered out by executor.
     pub event_driven_only: bool,
     pub be_attacked: bool,
+    /// Set when the passive owner took Mental DMG in this event (gates
+    /// `ConditionType::HurtMagic`). Source-side discrimination uses the
+    /// dealer's hero `dmgType` from `character.json` (2 = Mental).
+    pub hurt_magic: bool,
+    /// Set when the passive owner's ExPoint (Moxie / Faith / etc.) just
+    /// decreased in this event (gates `ConditionType::LostExPoint`).
+    /// Detected by scanning emitted `ExPointChange(111)` actEffects with
+    /// negative `effect_num` targeting the owner.
+    pub lost_ex_point: bool,
     pub hurt_not_restraint: bool,
     pub hurt_restraint: bool,
     pub teammate_injury_count: i32,
@@ -260,6 +269,8 @@ impl PhaseFilter {
             ConditionType::UseExSkill => event.active_use_skill && event.used_ex_skill,
             ConditionType::TeammateUseExSkill => event.teammate_use_ex_skill,
             ConditionType::BeAttacked => event.be_attacked,
+            ConditionType::HurtMagic => event.hurt_magic,
+            ConditionType::LostExPoint { .. } => event.lost_ex_point,
             ConditionType::HurtNotRestraint => event.hurt_not_restraint,
             ConditionType::HurtRestraint => event.hurt_restraint,
             ConditionType::TeammateInjuryCount { threshold } => {

@@ -317,6 +317,8 @@ impl FightCardMgr {
             nested_skill_uses: vec![],
             damaged_uids: vec![],
             cross_side_damaged_uids: vec![],
+            mental_damaged_uids: vec![],
+            lost_expoint_uids: vec![],
             dealer_uids: vec![],
             deleted_buff_ids: ctx.managers.buff_mgr.step_deleted_buff_ids().to_vec(),
             added_buff_uids: vec![],

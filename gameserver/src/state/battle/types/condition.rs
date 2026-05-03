@@ -68,6 +68,12 @@ pub enum ConditionType {
         threshold: i32,
     },
     BeAttacked,
+    /// Reactive: carrier took Mental damage (skill_buff_condition `21209`,
+    /// "HurtMagic"). Boss passive `1143004` slot 1 fires this to grant the
+    /// carrier `+1 Moxie` per Mental hit. Source-side discrimination uses
+    /// the dealer's hero `dmgType` (1=Reality, 2=Mental) from
+    /// `character.json`.
+    HurtMagic,
     BloodPool,
     HurtNotRestraint,
     ExpointMoreThan {
@@ -127,6 +133,14 @@ pub enum ConditionType {
     },
     PerDecrExPoint {
         threshold: i32,
+    },
+    /// Reactive: carrier just lost an ExPoint (skill_buff_condition `40`,
+    /// "LostExPoint"). Boss passive `1143004` slot 2 carries `40#0` and
+    /// fires `1#5082` (Moxie Guard) when the carrier's Moxie decreases.
+    /// `power_type` mirrors the parser arg (0 = Moxie, 1 = Faith, etc.);
+    /// 0 here matches "any Moxie loss".
+    LostExPoint {
+        power_type: i32,
     },
     PerHasTargetCareerList {
         careers: Vec<i32>,

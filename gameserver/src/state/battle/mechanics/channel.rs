@@ -376,6 +376,8 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             trigger_bullet: true,
             event_driven_only: false,
             be_attacked: event.was_attacked_by_enemy(caster_uid),
+            hurt_magic: event.took_mental_damage(caster_uid),
+            lost_ex_point: event.lost_expoint(caster_uid),
             hurt_not_restraint: event.dealt_damage(caster_uid),
             hurt_restraint: event.dealt_damage(caster_uid),
             teammate_injury_count: teammate_injury_hits,

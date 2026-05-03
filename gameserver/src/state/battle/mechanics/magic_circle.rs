@@ -235,6 +235,8 @@ fn magic_circle_aura_state(
             trigger_bullet: event.triggered_bullet_for(host_caster_uid),
             event_driven_only: false,
             be_attacked: event.was_attacked_by_enemy(host_caster_uid),
+            hurt_magic: event.took_mental_damage(host_caster_uid),
+            lost_ex_point: event.lost_expoint(host_caster_uid),
             hurt_not_restraint: event.dealt_damage(host_caster_uid),
             hurt_restraint: event.dealt_damage(host_caster_uid),
             teammate_injury_count: teammate_injury_hits,

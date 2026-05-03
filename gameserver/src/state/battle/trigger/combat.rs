@@ -47,6 +47,19 @@ pub struct TriggerEvent {
     /// cost on Nautika does not fire BeAttacked-triggered behaviors like
     /// 31200222 c1, which LIVE only fires for actual enemy attacks.
     pub cross_side_damaged_uids: Vec<i64>,
+    /// Subset of `damaged_uids` whose damage source was a Mental-type dealer
+    /// (per `character.json::dmgType == 2`). Gates `ConditionType::HurtMagic`
+    /// reactive passives like boss `1143004` slot 1 ("When taking Mental DMG,
+    /// Moxie +1"). Hero damage type is innate to the caster; for non-hero
+    /// damage sources (DOT ticks, summons) the source's owning hero is
+    /// looked up via `from_uid` on the buff.
+    pub mental_damaged_uids: Vec<i64>,
+    /// Entities whose ExPoint (Moxie / Faith) decreased in this event,
+    /// detected by `ExPointChange(111)` actEffects with negative
+    /// `effect_num`. Gates `ConditionType::LostExPoint` reactive passives
+    /// like boss `1143004` slot 2 ("When losing Moxie, gain [Moxie Guard]
+    /// for 3 rounds").
+    pub lost_expoint_uids: Vec<i64>,
     /// Entities that dealt damage this step (usually just the caster).
     pub dealer_uids: Vec<i64>,
     /// Buff ids/type-ids deleted during this step.
@@ -73,6 +86,16 @@ impl TriggerEvent {
     /// passives gated on BeAttacked do not fire on internal HP drops.
     pub fn was_attacked_by_enemy(&self, uid: i64) -> bool {
         self.cross_side_damaged_uids.contains(&uid)
+    }
+    /// Returns true when `uid` took Mental damage from a hero in this
+    /// event (gates `ConditionType::HurtMagic`).
+    pub fn took_mental_damage(&self, uid: i64) -> bool {
+        self.mental_damaged_uids.contains(&uid)
+    }
+    /// Returns true when `uid`'s ExPoint decreased in this event
+    /// (gates `ConditionType::LostExPoint`).
+    pub fn lost_expoint(&self, uid: i64) -> bool {
+        self.lost_expoint_uids.contains(&uid)
     }
     pub fn dealt_damage(&self, uid: i64) -> bool {
         self.dealer_uids.contains(&uid)
@@ -198,18 +221,23 @@ pub fn event_from_step(
 ) -> TriggerEvent {
     let mut damaged_uids = Vec::new();
     let mut cross_side_damaged_uids = Vec::new();
+    let mut mental_damaged_uids = Vec::new();
+    let mut lost_expoint_uids = Vec::new();
     let mut dealer_uids = Vec::new();
     let mut deleted_buff_ids = Vec::new();
     let mut added_buff_uids = Vec::new();
     let mut _added_buff_ids = Vec::new();
 
     collect_damage_uids(
+        fight,
         effects,
         caster_uid,
         &mut damaged_uids,
         &mut cross_side_damaged_uids,
+        &mut mental_damaged_uids,
         &mut dealer_uids,
     );
+    collect_lost_expoint_uids(effects, &mut lost_expoint_uids);
     collect_deleted_buff_ids(effects, &mut deleted_buff_ids);
     collect_added_buffs(effects, &mut added_buff_uids, &mut _added_buff_ids);
     let mut nested_skill_ids = Vec::new();
@@ -281,6 +309,8 @@ pub fn event_from_step(
         nested_skill_uses,
         damaged_uids,
         cross_side_damaged_uids,
+        mental_damaged_uids,
+        lost_expoint_uids,
         dealer_uids,
         deleted_buff_ids,
         added_buff_uids,
@@ -369,10 +399,12 @@ fn collect_bloodpool_gains_inner(
 }
 
 fn collect_damage_uids(
+    fight: &Fight,
     effects: &[ActEffect],
     caster_uid: i64,
     damaged: &mut Vec<i64>,
     cross_side_damaged: &mut Vec<i64>,
+    mental_damaged: &mut Vec<i64>,
     dealers: &mut Vec<i64>,
 ) {
     for effect in effects {
@@ -402,6 +434,16 @@ fn collect_damage_uids(
             if is_cross_side && !cross_side_damaged.contains(&target) {
                 cross_side_damaged.push(target);
             }
+            // Mental-damage attribution: the dealer's hero `dmgType` from
+            // `character.json` is the source of truth (1=Reality, 2=Mental).
+            // Resolve via the dealer's `model_id` on the fight; non-hero
+            // dealers (mob skills, missing entries) are treated as
+            // non-Mental and skipped.
+            if is_cross_side && hero_dmg_type_is_mental(fight, caster_uid) {
+                if !mental_damaged.contains(&target) {
+                    mental_damaged.push(target);
+                }
+            }
         }
 
         // Recurse into any nested fightStep payload and keep dealer attribution
@@ -409,12 +451,55 @@ fn collect_damage_uids(
         if let Some(step) = &effect.fight_step {
             let nested_caster = step.from_id.unwrap_or(caster_uid);
             collect_damage_uids(
+                fight,
                 &step.act_effect,
                 nested_caster,
                 damaged,
                 cross_side_damaged,
+                mental_damaged,
                 dealers,
             );
+        }
+    }
+}
+
+/// Returns true when `dealer_uid` resolves to a hero with `dmgType == 2`
+/// (Mental) per `character.json`. Used to attribute Mental damage in
+/// `collect_damage_uids` so `ConditionType::HurtMagic` fires correctly.
+fn hero_dmg_type_is_mental(fight: &Fight, dealer_uid: i64) -> bool {
+    if dealer_uid == 0 {
+        return false;
+    }
+    let Some(entity) = crate::state::battle::skill::get_entity(fight, dealer_uid) else {
+        return false;
+    };
+    let Some(model_id) = entity.model_id else {
+        return false;
+    };
+    let cfg = config::configs::get();
+    cfg.character
+        .iter()
+        .find(|c| c.id == model_id)
+        .map(|c| c.dmg_type == 2)
+        .unwrap_or(false)
+}
+
+/// Walk `effects` (recursing into nested fightStep payloads) and collect
+/// every uid whose `ExPointChange(111)` actEffect carries a strictly
+/// negative `effect_num` (= ExPoint decreased). Used to gate
+/// `ConditionType::LostExPoint`.
+fn collect_lost_expoint_uids(effects: &[ActEffect], lost: &mut Vec<i64>) {
+    for effect in effects {
+        let et = effect.effect_type.unwrap_or(0);
+        if et == EffectType::Expointchange as i32
+            && effect.effect_num.unwrap_or(0) < 0
+            && let Some(uid) = effect.target_id
+            && !lost.contains(&uid)
+        {
+            lost.push(uid);
+        }
+        if let Some(step) = &effect.fight_step {
+            collect_lost_expoint_uids(&step.act_effect, lost);
         }
     }
 }
@@ -544,6 +629,8 @@ pub(crate) fn run_combat_passives_pass(
                 event_driven_only: should_use_strict_event_only(ctx.fight, skill_id)
                     || skill_is_mixed_mode_passive(skill_id),
                 be_attacked: event.was_attacked_by_enemy(uid),
+                hurt_magic: event.took_mental_damage(uid),
+                lost_ex_point: event.lost_expoint(uid),
                 hurt_not_restraint: event.dealt_damage(uid),
                 hurt_restraint: event.dealt_damage(uid),
                 teammate_injury_count: teammate_injury_hits,
@@ -987,6 +1074,15 @@ fn condition_fires_for(
         ),
         ConditionType::HurtNotRestraint => Some(event.dealt_damage(uid)),
         ConditionType::HurtRestraint => Some(event.dealt_damage(uid)),
+        // Mental-DMG reactive (boss `1143004` slot 1). Source-side
+        // discrimination on the dealer's `dmgType` is done up front in
+        // `collect_damage_uids`, so this branch just consults the
+        // pre-tagged mental_damaged_uids set.
+        ConditionType::HurtMagic => Some(event.took_mental_damage(uid)),
+        // ExPoint-loss reactive (boss `1143004` slot 2). Set when the
+        // owner's ExPoint went down in this event (negative
+        // `ExPointChange` actEffect targeting the owner).
+        ConditionType::LostExPoint { .. } => Some(event.lost_expoint(uid)),
         ConditionType::TeammateInjuryCount { threshold } => {
             Some(teammate_injury_hits >= *threshold)
         }

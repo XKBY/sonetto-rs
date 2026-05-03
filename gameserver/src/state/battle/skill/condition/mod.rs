@@ -94,6 +94,8 @@ impl<'a> ConditionEval<'a> {
                     | ConditionType::UseHurtSkill
                     | ConditionType::TriggerBullet
                     | ConditionType::BeAttacked
+                    | ConditionType::HurtMagic
+                    | ConditionType::LostExPoint { .. }
                     | ConditionType::HurtNotRestraint
                     | ConditionType::HurtRestraint
                     | ConditionType::TeammateInjuryCount { .. }
@@ -191,6 +193,8 @@ fn is_grouped_combat_event_condition(condition: &ConditionType) -> bool {
             | ConditionType::TeammateUseExSkill
             | ConditionType::TriggerBullet
             | ConditionType::BeAttacked
+            | ConditionType::HurtMagic
+            | ConditionType::LostExPoint { .. }
             | ConditionType::HurtNotRestraint
             | ConditionType::HurtRestraint
             | ConditionType::TeammateInjuryCount { .. }

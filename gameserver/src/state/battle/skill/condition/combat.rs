@@ -27,6 +27,10 @@ impl Condition for Combat {
                 threshold: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(1),
             }),
             "BeAttacked" => Some(ConditionType::BeAttacked),
+            "HurtMagic" => Some(ConditionType::HurtMagic),
+            "LostExPoint" => Some(ConditionType::LostExPoint {
+                power_type: parts.get(1).and_then(|v| v.parse().ok()).unwrap_or(0),
+            }),
             "BloodPoolValue" | "BloodPoolCompare" => Some(ConditionType::BloodPool),
             "HurtNotRestraint" => Some(ConditionType::HurtNotRestraint),
             "CanUseSkill" => Some(ConditionType::CanUseSkill),
@@ -74,7 +78,9 @@ impl Condition for Combat {
             | ConditionType::PowerCompare
             | ConditionType::Dead
             | ConditionType::NoActRound
-            | ConditionType::TeammateUseExSkill => Some(false),
+            | ConditionType::TeammateUseExSkill
+            | ConditionType::HurtMagic
+            | ConditionType::LostExPoint { .. } => Some(false),
             _ => None,
         }
     }
