@@ -479,17 +479,24 @@ impl Manager for BuffMgr {
             }
             buffs.retain(|b| {
                 // Permanent buffs (cfg duringTime == 0) never expire at round
-                // end regardless of stack count — the previous stacks>0 check
-                // wrongly dropped Sentinel/Rubuska's 31260151 between rounds,
-                // which broke HasBuffId-gated buff-granted passives in later
-                // rounds (e.g. Dread Bullet 31260181 firing 0 times in r2).
+                // end regardless of stack count — that case is gated by
+                // `!was_timed` below. The previous predicate also OR'd in
+                // `b.stacks == 0`, intending to protect the same permanent
+                // buffs from a stacks-based drop, but `BuffInstance::stacks`
+                // is initialized from `cfg.effect_count` which is 0 for most
+                // buffs (Poison family, Sotheby's AdvancedCure 30091122 et
+                // al.), so the carve-out kept every timed buff alive forever
+                // once duration hit 0. Round-end ticks then over-fired by
+                // Σ ~+85 across battle3 (30091122/30091111 HoT + 31040005/
+                // 300901412/30980145 Poison families). Sentinel/Rubuska's
+                // 31260151 stays safe via `!was_timed` (its `duringTime=0`).
                 let was_timed = cfg
                     .skill_buff
                     .iter()
                     .find(|c| c.id == b.buff_id)
                     .map(|c| c.during_time > 0)
                     .unwrap_or(false);
-                !was_timed || b.duration != 0 || b.stacks == 0
+                !was_timed || b.duration != 0
             });
         }
     }
