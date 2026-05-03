@@ -60,6 +60,21 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
     if id == 30009 && p1 > 0 {
         return BehaviorType::DisperseForce { buff_id: p1 };
     }
+    // `CritRateAlter2` (skill_behavior id 60228) bumps the caster's
+    // Crit Rate (Attr::Cri = 201). LIVE encodes it as `60228#<permille>`
+    // — e.g. Sentinel `31260181 slot2 = '60228#800'` (+80% Cri while
+    // her Hour of Repentance buff 31260151 is up). Route to the
+    // existing `AttrFix` runtime: the Cri attr is one of the
+    // attribute slots `executor.add_attr_bonus` already updates.
+    // Note: id 100023 is also tagged `CritRateAlter2` in the data
+    // bundle but is not in current fixtures — leaving it
+    // unaliased until we see a LIVE use.
+    if id == 60228 {
+        return BehaviorType::AttrFix {
+            attr_id: crate::state::battle::types::attr::AttrId::Cri as i32,
+            amount: p1,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {
