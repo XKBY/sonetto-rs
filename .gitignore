@@ -27,3 +27,4 @@ CLAUDE.md
 !/scripts/primitive_audit.py
 # Local findings / scratch markdown produced during investigations.
 /_*_findings.md
+!/scripts/condition_scope_discovery.py

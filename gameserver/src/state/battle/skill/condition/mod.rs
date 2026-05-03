@@ -9,6 +9,7 @@ mod life;
 pub mod misc;
 
 pub mod parser;
+pub mod scope;
 
 use self::action::CONDITION_REGISTRY;
 
