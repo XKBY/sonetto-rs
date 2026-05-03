@@ -150,6 +150,12 @@ fn add_buff_both_targets(
         if !poisoned_targets.is_empty() {
             return poisoned_targets;
         }
+        // No hostile targets for a bad buff — drop, don't fall back to self.
+        // Otherwise AddBuffBoth applies the debuff to the caster (e.g.
+        // Sotheby poisoning herself when buff 30091120's AddBuffBoth fires
+        // outside a hostile-skill context), and each fire stacks a fresh
+        // self-poison instance on the caster.
+        return Vec::new();
     }
 
     if is_good_buff(child_buff_id) {
