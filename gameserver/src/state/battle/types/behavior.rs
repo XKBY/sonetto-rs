@@ -113,6 +113,23 @@ pub enum BehaviorType {
         bonus_per_stack: i32,
         max_stacks: i32,
     },
+    /// Bonus `OriginDamage` emission whose value is
+    /// `caster.attr[attr_id] × permille × stack_count_on_target / 1000`,
+    /// where `stack_count_on_target` is the number of buff stacks on
+    /// the target whose `bufftype.include_types` contains `group_id`.
+    /// LIVE encodes it as `60127#<mode>#<attr_id>#<permille>#<group_id>` —
+    /// e.g. Tuesday's Lock-Sound mass attack
+    /// `30980131 slot 2 = '60127#1#102#300#7'` reads as: Tuesday's
+    /// `ATK × 30% × number of Poison stacks (group 7) on the target`,
+    /// per her in-game text "deals an additional (caster's ATK ×
+    /// number of instances of [Poison] on the target × 30%) Genesis
+    /// DMG". `mode` is preserved but currently unused.
+    OriginDamageByAttrAndBuffGroupSize {
+        mode: i32,
+        attr_id: i32,
+        permille: i32,
+        group_id: i32,
+    },
     SkillRateUp {
         rate: i32,
     },

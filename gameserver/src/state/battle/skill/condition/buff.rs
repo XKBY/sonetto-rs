@@ -153,6 +153,41 @@ fn target_has_buff_group(buff_mgr: &BuffMgr, target_uid: i64, group: i32) -> boo
     })
 }
 
+/// Sum of stack counts across every buff on `target_uid` whose
+/// `bufftype.includeTypes` contains `group` as a `#`-delimited
+/// token. Sibling of [`target_has_buff_group`] that returns the
+/// stack-count instead of a bool — used by behaviors that scale
+/// damage / heal output by group membership (e.g.
+/// `OriginDamageByAttrAndBuffGroupSize`, where the "buff group
+/// size" is the per-target Poison stack count).
+pub(crate) fn target_count_buffs_in_group(
+    buff_mgr: &BuffMgr,
+    target_uid: i64,
+    group: i32,
+) -> i32 {
+    let cfg = config::configs::get();
+    let group_token = group.to_string();
+    let buffs = buff_mgr.get(target_uid);
+    if buffs.is_empty() {
+        return 0;
+    }
+    buffs
+        .iter()
+        .filter(|instance| {
+            cfg.skill_bufftype
+                .iter()
+                .find(|t| t.id == instance.type_id)
+                .map(|bt| {
+                    bt.include_types
+                        .split('#')
+                        .any(|tok| tok.trim() == group_token)
+                })
+                .unwrap_or(false)
+        })
+        .map(|inst| inst.layer.max(1))
+        .sum()
+}
+
 pub fn check(condition: &ConditionType, buff_mgr: &BuffMgr, condition_uid: i64) -> Option<bool> {
     match condition {
         ConditionType::HasBuffId { buff_ids } => {

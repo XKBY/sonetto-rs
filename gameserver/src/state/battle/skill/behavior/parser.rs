@@ -95,6 +95,24 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
             max_stacks,
         };
     }
+    // `OriginDamageByAttrAndBuffGroupSize` (skill_behavior id 60127)
+    // encodes a bonus damage emission of
+    // `caster.attr[attr_id] × permille × buff_group_stacks_on_target / 1000`.
+    // Tuesday's Lock-Sound mass attack carries
+    // `30980131 slot 2 = '60127#1#102#300#7'` —
+    // `caster ATK × 30% × Poison stacks on target` per her in-game text.
+    if id == 60127 {
+        let mode = p1;
+        let attr_id = p2;
+        let permille = parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let group_id = parts.get(4).and_then(|v| v.parse().ok()).unwrap_or(0);
+        return BehaviorType::OriginDamageByAttrAndBuffGroupSize {
+            mode,
+            attr_id,
+            permille,
+            group_id,
+        };
+    }
     // Some live data uses 20021#<baseSkillId>#<rank> to direct-cast a derived skill id.
     // Keep AddBuffRanId behavior for true buff pools (small ids), but route skill-like ids.
     if id == 20021 && p1 >= 10000 {
