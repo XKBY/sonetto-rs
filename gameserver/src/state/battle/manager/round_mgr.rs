@@ -1092,15 +1092,10 @@ impl FightRoundMgr {
             crate::state::battle::utils::for_each_buff_feature_chain(
                 instance.buff_id,
                 |act_type, parts| {
-                    let value_start_idx = match act_type {
-                        "AddPassiveSkills" => 1,
-                        "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => 2,
-                        _ => 0,
-                    };
-                    if value_start_idx == 0 {
+                    if act_type != "AddPassiveSkills" {
                         return;
                     }
-                    for raw in parts.iter().skip(value_start_idx) {
+                    for raw in parts.iter().skip(1) {
                         for piece in raw.split(',') {
                             if let Ok(skill_id) = piece.trim().parse::<i32>()
                                 && skill_id > 0
