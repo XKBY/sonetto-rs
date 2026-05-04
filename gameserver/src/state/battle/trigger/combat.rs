@@ -645,8 +645,9 @@ pub(crate) fn run_combat_passives_pass(
             // ActiveUseSkill/CombatNone passives for the main caster are already
             // fired inline inside the card step — skip them here to avoid duplicates.
             if event.used_card(uid)
-                && is_active_use_skill_passive(skill_id)
                 && event_already_emitted_owner_skill(event, uid, skill_id)
+                && (is_active_use_skill_passive(skill_id)
+                    || skill_has_use_ex_owner_condition(skill_id))
             {
                 continue;
             }
@@ -656,11 +657,20 @@ pub(crate) fn run_combat_passives_pass(
                     .skill_used_for_passive_owner(uid)
                     .map(|(actor_uid, sid, ex, to)| (true, actor_uid, sid, ex, to))
                     .unwrap_or((false, 0, 0, false, 0));
+            let owner_used_ex = event
+                .skill_used_by(uid)
+                .map(|(_, used_ex, _)| used_ex)
+                .unwrap_or(false);
+            let used_ex_for_skill = if skill_has_use_ex_owner_condition(skill_id) {
+                owner_used_ex
+            } else {
+                uid_used_ex
+            };
             let trigger_state_base = TriggerState {
                 active_use_skill,
                 skill_id: uid_skill_id,
                 action_order_index: event.action_order_index,
-                used_ex_skill: uid_used_ex,
+                used_ex_skill: used_ex_for_skill,
                 teammate_use_ex_skill: event.teammate_used_ex_skill(uid),
                 trigger_bullet: event.triggered_bullet_for(uid),
                 event_driven_only: should_use_strict_event_only(ctx.fight, skill_id)
@@ -1006,6 +1016,22 @@ fn event_already_emitted_owner_skill(event: &TriggerEvent, owner_uid: i64, skill
             .any(|(uid, sid, _, _)| *uid == owner_uid && *sid == skill_id)
 }
 
+fn skill_has_use_ex_owner_condition(skill_id: i32) -> bool {
+    for i in 1..=10i32 {
+        let condition_str = get_condition(skill_id, i);
+        if condition_str.is_empty() {
+            break;
+        }
+        let (condition, _) = parse_condition(&condition_str);
+        if crate::state::battle::skill::condition::fold(&condition, &mut |c| {
+            matches!(c, ConditionType::UseExSkill | ConditionType::PerDecrExPoint { .. })
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
 fn is_enter_fight_only_passive(skill_id: i32) -> bool {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);
@@ -1247,23 +1273,31 @@ fn condition_fires_for(
                 .any(|&d| d.signum() == uid.signum()),
         ),
         ConditionType::TeammateUseExSkill => Some(teammate_used_ex),
-        ConditionType::UseExSkill => Some(if event.from_wrapper_card && uid == event.caster_uid {
-            false
-        } else {
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, _, used_ex, _)| used_ex)
-                .unwrap_or(false)
-        }),
+        ConditionType::UseExSkill => {
+            // `UseExSkill` is owner-scoped: only the passive holder's own
+            // skill-use event may satisfy this gate.
+            let owner_used_ex = event
+                .skill_used_by(uid)
+                .map(|(_, used_ex, _)| used_ex)
+                .unwrap_or(false);
+            Some(
+                owner_used_ex
+                    && !(event.used_card(uid) && event_already_emitted_owner_skill(event, uid, skill_id)),
+            )
+        }
         // "PerDecrExPoint" should only become a trigger candidate for the
         // acting entity on an EX-consuming action. Exact threshold check stays
         // in skill-side condition evaluation.
-        ConditionType::PerDecrExPoint { .. } => Some(
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, _, used_ex, _)| used_ex)
-                .unwrap_or(false),
-        ),
+        ConditionType::PerDecrExPoint { .. } => {
+            let owner_used_ex = event
+                .skill_used_by(uid)
+                .map(|(_, used_ex, _)| used_ex)
+                .unwrap_or(false);
+            Some(
+                owner_used_ex
+                    && !(event.used_card(uid) && event_already_emitted_owner_skill(event, uid, skill_id)),
+            )
+        }
         // Leave NoActRound gating to skill-side condition checks.
         // Returning None keeps this trigger candidate eligible.
         ConditionType::NoActRound => None,
