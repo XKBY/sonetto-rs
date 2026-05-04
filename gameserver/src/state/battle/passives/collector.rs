@@ -84,10 +84,26 @@ pub fn collect(fight: &Fight, battle_id: i32) -> CollectedPassives {
     let attacker_rule_set: HashSet<i32> = battle_attacker.iter().copied().collect();
     let defender_rule_set: HashSet<i32> = battle_defender.iter().copied().collect();
 
+    // Skills with addition_rule prefix=3 are defender-side rules (e.g. boss
+    // state cycle 530000151). The fight snapshot LIVE supplies often has
+    // them pre-listed in attacker.passive_skill too, but LIVE engine never
+    // fires them from attacker entities — only from defenders + nested
+    // inside boss skill chains. Strip the unfiltered defender-rule set
+    // (i.e. all addition_rule entries with prefix=3, not just the
+    // is_dedicated_battle_rule_skill subset) from attacker's regular sweep
+    // so we match LIVE shape.
+    let all_defender_only_rules: HashSet<i32> =
+        battle_passives.defender.iter().copied().collect();
+    let attacker_exclusion: HashSet<i32> = attacker_rule_set
+        .iter()
+        .chain(all_defender_only_rules.iter())
+        .copied()
+        .collect();
+
     CollectedPassives {
         // Battle addition-rule passives are emitted in a dedicated pre-pass.
         // Exclude them from normal passive list to prevent merge/duplication.
-        attacker: collect_side_passives(fight, true, Some(&attacker_rule_set)),
+        attacker: collect_side_passives(fight, true, Some(&attacker_exclusion)),
         defender: collect_side_passives(fight, false, Some(&defender_rule_set)),
         battle_attacker,
         battle_defender,

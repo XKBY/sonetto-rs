@@ -965,10 +965,24 @@ impl FightRoundMgr {
                     })
                     .unwrap_or_default();
 
+                // Skills with addition_rule prefix=3 are defender-side rules
+                // (e.g. boss state cycle 530000151). Even though attackers
+                // carry them in passive_skill (LIVE-supplied), LIVE engine
+                // does not fire them from attacker entities. Skip them here
+                // so the attacker BattleRuleOnly pass doesn't surface
+                // standalone self-cast wrappers LIVE never emits.
+                let defender_only_rules: std::collections::HashSet<i32> =
+                    crate::state::battle::passives::collector::collect_battle_passives(
+                        ctx.fight.battle_id.unwrap_or(0),
+                    )
+                    .defender
+                    .into_iter()
+                    .collect();
                 let mut battle_rule_skills: Vec<i32> = self
                     .collect_battle_rule_skills(ctx.fight)
                     .into_iter()
                     .filter(|sid| attacker_skill_set.contains(sid))
+                    .filter(|sid| !defender_only_rules.contains(sid))
                     .filter(|sid| {
                         let effect_id = resolve_skill_effect_id(*sid);
                         let cfg = config::configs::get();
