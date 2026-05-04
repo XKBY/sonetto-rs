@@ -4,7 +4,10 @@ use std::collections::HashSet;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::{
     ConditionType,
+    buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
     context::FightContext,
+    event_queue::{EventContext, EventQueue, drain_to_fight_steps, fight_step_to_event},
+    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
@@ -19,7 +22,7 @@ use crate::state::battle::{
     skill::{PhaseFilter, TriggerState},
     trigger::passes::{
         BloodPoolSyncPass, BloodValueUseSkillPass, BuffFeatureReactivesPass, CardEnergySyncPass,
-        CombatPassivesPass, ExPointSyncPass, HpSyncPass, TriggerPass,
+        CombatPassivesPass, ExPointSyncPass, HpSyncPass, TriggerPass, build_belief_gain_step,
     },
 };
 
@@ -572,6 +575,118 @@ pub fn fire_combat_triggers(
         .iter()
         .flat_map(|pass| pass.run(ctx, event, collected))
         .collect()
+}
+
+pub(crate) fn expand_trigger_chain_from_root_step(
+    ctx: &mut FightContext<'_>,
+    collected: &CollectedPassives,
+    root_step: &FightStep,
+    runtime_deleted_buff_ids: &[i32],
+) -> Vec<FightStep> {
+    let mut event = event_from_step(
+        ctx.fight,
+        root_step.from_id.unwrap_or(0),
+        root_step.to_id.unwrap_or(0),
+        root_step.act_id.unwrap_or(0),
+        &root_step.act_effect,
+    );
+    for buff_id in runtime_deleted_buff_ids {
+        if *buff_id > 0 && !event.deleted_buff_ids.contains(buff_id) {
+            event.deleted_buff_ids.push(*buff_id);
+        }
+    }
+    let trigger_steps = fire_combat_triggers(ctx, collected, &event);
+    let mut sync_steps_per_trigger = Vec::with_capacity(trigger_steps.len());
+    for ts in &trigger_steps {
+        ctx.managers
+            .calculate_mgr
+            .play_step_data(
+                ts,
+                ctx.fight,
+                &mut ctx.mechanics.bloodtithe,
+                &mut ctx.managers.buff_mgr,
+                &mut ctx.managers.ex_point_mgr,
+            )
+            .map_err(anyhow::Error::msg)
+            .ok();
+        let ts_event = event_from_step(
+            ctx.fight,
+            ts.from_id.unwrap_or(0),
+            ts.to_id.unwrap_or(0),
+            ts.act_id.unwrap_or(0),
+            &ts.act_effect,
+        );
+        let mut sync_steps_for_this = Vec::new();
+        if root_step.act_type == Some(sonettobuf::fight_step::ActType::Effect.into()) {
+            for &(team_type, gain) in &ts_event.bloodpool_gain_packets_by_team {
+                if let Some(sync_step) = build_belief_gain_step(ctx.fight, team_type, gain) {
+                    ctx.managers
+                        .calculate_mgr
+                        .play_step_data(
+                            &sync_step,
+                            ctx.fight,
+                            &mut ctx.mechanics.bloodtithe,
+                            &mut ctx.managers.buff_mgr,
+                            &mut ctx.managers.ex_point_mgr,
+                        )
+                        .map_err(anyhow::Error::msg)
+                        .ok();
+                    sync_steps_for_this.push(sync_step);
+                }
+            }
+        }
+        let gains = [
+            (1, ts_event.bloodpool_gain(1)),
+            (2, ts_event.bloodpool_gain(2)),
+        ];
+        if let Some(sync_step) = build_blood_pool_gain_ex_point_step(
+            &ctx.mechanics.bloodtithe,
+            ctx.fight,
+            &ctx.managers.buff_mgr,
+            &mut ctx.managers.ex_point_mgr,
+            &gains,
+            &ts_event.bloodpool_gain_by_skill_team,
+        ) {
+            ctx.managers
+                .calculate_mgr
+                .play_step_data(
+                    &sync_step,
+                    ctx.fight,
+                    &mut ctx.mechanics.bloodtithe,
+                    &mut ctx.managers.buff_mgr,
+                    &mut ctx.managers.ex_point_mgr,
+                )
+                .map_err(anyhow::Error::msg)
+                .ok();
+            sync_steps_for_this.push(sync_step);
+        }
+        sync_steps_per_trigger.push(sync_steps_for_this);
+    }
+
+    let mut queue = EventQueue::new();
+    for (ts, sync_steps) in trigger_steps.into_iter().zip(sync_steps_per_trigger) {
+        queue.push(fight_step_to_event(ts));
+        for sync_step in sync_steps {
+            queue.push(fight_step_to_event(sync_step));
+        }
+    }
+
+    let mut buff_mgr = BuffMgr::new();
+    let mut ex_point_mgr = ExPointMgr::new();
+    let mut event_ctx = EventContext {
+        fight: ctx.fight,
+        buff_mgr: &mut buff_mgr,
+        ex_point_mgr: &mut ex_point_mgr,
+    };
+    let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);
+
+    let mut out = vec![root_step.clone()];
+    for effect in drained {
+        if let Some(step) = effect.fight_step {
+            out.push(step);
+        }
+    }
+    out
 }
 
 pub(crate) fn run_combat_passives_pass(
