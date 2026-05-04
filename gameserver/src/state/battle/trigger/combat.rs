@@ -1351,7 +1351,12 @@ fn condition_fires_for(
         ConditionType::CareerCheck { .. } => Some(
             uid.signum() == event.caster_uid.signum()
                 && uid != event.caster_uid
-                && event.used_ex_skill,
+                && event.used_ex_skill
+                // Live parity: teammate-action CareerCheck reactives are tied to
+                // wrapper-origin EX card events; standalone non-wrapper skill
+                // steps that happen to carry an EX skill id should not seed
+                // this trigger candidate.
+                && event.from_wrapper_card,
         ),
         // Blood-pool state queries are not events — treat as None so they
         // don't turn a battle-start AND-clause (e.g. 435311's
