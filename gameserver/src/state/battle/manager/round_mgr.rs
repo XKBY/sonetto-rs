@@ -372,6 +372,22 @@ impl FightRoundMgr {
         {
             return;
         }
+        // Only graft on ultimate-skill bodies. LIVE never nests
+        // `BeAttacked` reactives inside basic-skill hosts — they fire
+        // once per round at top-level via the natural passive pipeline.
+        // Config-driven: skill_effect.isBigSkill == 1 marks the
+        // ultimate body (e.g. 31140131 for Recoleta) vs basics
+        // (31140111 / 31140121, isBigSkill == 0).
+        let host_act_id = host_step.act_id.unwrap_or(0);
+        let host_effect_id = resolve_skill_effect_id(host_act_id);
+        let host_is_big_skill = config::configs::get()
+            .skill_effect
+            .get(host_effect_id)
+            .map(|cfg| cfg.is_big_skill == 1)
+            .unwrap_or(false);
+        if !host_is_big_skill {
+            return;
+        }
         if host_step.act_effect.iter().any(|effect| {
             step_walker::wrapped_skill_from_effect(effect)
                 .map(|step| step.act_id == Some(BE_ATTACKED_REACTIVE_ACT_ID))
