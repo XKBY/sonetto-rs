@@ -644,7 +644,10 @@ pub(crate) fn run_combat_passives_pass(
             }
             // ActiveUseSkill/CombatNone passives for the main caster are already
             // fired inline inside the card step — skip them here to avoid duplicates.
-            if event.used_card(uid) && is_active_use_skill_passive(skill_id) {
+            if event.used_card(uid)
+                && is_active_use_skill_passive(skill_id)
+                && event_already_emitted_owner_skill(event, uid, skill_id)
+            {
                 continue;
             }
             // Build a TriggerState that reflects what actually happened for this entity.
@@ -995,6 +998,14 @@ fn is_active_use_skill_passive(skill_id: i32) -> bool {
     has_any
 }
 
+fn event_already_emitted_owner_skill(event: &TriggerEvent, owner_uid: i64, skill_id: i32) -> bool {
+    (event.caster_uid == owner_uid && event.skill_id == skill_id)
+        || event
+            .nested_skill_uses
+            .iter()
+            .any(|(uid, sid, _, _)| *uid == owner_uid && *sid == skill_id)
+}
+
 fn is_enter_fight_only_passive(skill_id: i32) -> bool {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);
@@ -1203,11 +1214,15 @@ fn condition_fires_for(
                 .map(|(_, sid, _, _)| skill_is_hurt(sid))
                 .unwrap_or(false),
         ),
-        ConditionType::CombatNone => Some(
-            event.skill_used_for_passive_owner(uid).is_some()
-                || event.took_damage(uid)
-                || event.dealt_damage(uid),
-        ),
+        ConditionType::CombatNone => {
+            // `CombatNone` ("after taking an action") is owner-scoped:
+            // only the passive holder's own skill-use event should satisfy
+            // this gate. Using same-side fallback here over-fires buffs like
+            // Nautika's [Higge] stack on ally actions. Some nested owner
+            // action chains are surfaced as dealer attribution in the combat
+            // event, so include `dealt_damage(uid)` to preserve those.
+            Some(event.skill_used_by(uid).is_some() || event.dealt_damage(uid))
+        }
         ConditionType::HurtNotRestraint => Some(event.dealt_damage(uid)),
         ConditionType::HurtRestraint => Some(event.dealt_damage(uid)),
         // Mental-DMG reactive (boss `1143004` slot 1). Source-side
