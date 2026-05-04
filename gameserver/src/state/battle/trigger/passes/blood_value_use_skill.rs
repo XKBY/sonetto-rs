@@ -9,7 +9,7 @@ use crate::state::battle::{
     fight_step::{effect_container_step, wrap_step},
     passives::{collector::CollectedPassives, steps::skill::execute_skill},
     round::step_shape::build_effect_step,
-    skill::{PhaseFilter, TriggerState},
+    skill::PhaseFilter,
     steps::trigger_embed,
     trigger::combat::{TriggerEvent, event_from_step, fire_combat_triggers},
     types::effects::EffectType,
@@ -135,7 +135,8 @@ impl TriggerPass for BloodValueUseSkillPass {
                         target_uid,
                         wrapper_skill_id,
                         &PhaseFilter::combat_with(
-                            TriggerState::default().with_buff_mgr(&ctx.managers.buff_mgr),
+                            ctx.active_use_trigger_state(wrapper_skill_id)
+                                .with_buff_mgr(&ctx.managers.buff_mgr),
                         ),
                     ) {
                         maybe_inject_wrapped_bloodpool_gain(
