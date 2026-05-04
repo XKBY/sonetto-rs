@@ -643,11 +643,15 @@ pub(crate) fn run_combat_passives_pass(
                 continue;
             }
             // ActiveUseSkill/CombatNone passives for the main caster are already
-            // fired inline inside the card step — skip them here to avoid duplicates.
+            // fired inline inside the card step — skip them here to avoid
+            // duplicates. Only matches once-per-cast trigger families
+            // (`is_active_use_skill_passive` and `UseExSkill`); per-instance
+            // triggers like `PerDecrExPoint` MUST NOT be suppressed here
+            // because LIVE legitimately fires them multiple times per cast.
             if event.used_card(uid)
                 && event_already_emitted_owner_skill(event, uid, skill_id)
                 && (is_active_use_skill_passive(skill_id)
-                    || skill_has_use_ex_owner_condition(skill_id))
+                    || skill_has_use_ex_skill_only_condition(skill_id))
             {
                 continue;
             }
@@ -1032,6 +1036,27 @@ fn skill_has_use_ex_owner_condition(skill_id: i32) -> bool {
     false
 }
 
+/// Subset of `skill_has_use_ex_owner_condition` that ONLY matches
+/// `UseExSkill`. Used for duplicate-emission suppression: only
+/// once-per-cast triggers should suppress; per-instance triggers like
+/// `PerDecrExPoint` (Recoleta's `434425` "for each Moxie consumed")
+/// legitimately fire multiple times in a single cast.
+fn skill_has_use_ex_skill_only_condition(skill_id: i32) -> bool {
+    for i in 1..=10i32 {
+        let condition_str = get_condition(skill_id, i);
+        if condition_str.is_empty() {
+            break;
+        }
+        let (condition, _) = parse_condition(&condition_str);
+        if crate::state::battle::skill::condition::fold(&condition, &mut |c| {
+            matches!(c, ConditionType::UseExSkill)
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
 fn is_enter_fight_only_passive(skill_id: i32) -> bool {
     let cfg = config::configs::get();
     let effect_id = resolve_skill_effect_id(skill_id);
@@ -1288,16 +1313,18 @@ fn condition_fires_for(
         // "PerDecrExPoint" should only become a trigger candidate for the
         // acting entity on an EX-consuming action. Exact threshold check stays
         // in skill-side condition evaluation.
-        ConditionType::PerDecrExPoint { .. } => {
-            let owner_used_ex = event
+        //
+        // Unlike `UseExSkill`, this is a per-instance trigger (fires once per
+        // Moxie point consumed) — Recoleta's psychube `434425` legitimately
+        // emits twice in a single ult cast when 2 points of Moxie are
+        // consumed. So we keep the owner-scoped gate but skip the
+        // already-emitted suppression that `UseExSkill` uses.
+        ConditionType::PerDecrExPoint { .. } => Some(
+            event
                 .skill_used_by(uid)
                 .map(|(_, used_ex, _)| used_ex)
-                .unwrap_or(false);
-            Some(
-                owner_used_ex
-                    && !(event.used_card(uid) && event_already_emitted_owner_skill(event, uid, skill_id)),
-            )
-        }
+                .unwrap_or(false),
+        ),
         // Leave NoActRound gating to skill-side condition checks.
         // Returning None keeps this trigger candidate eligible.
         ConditionType::NoActRound => None,
