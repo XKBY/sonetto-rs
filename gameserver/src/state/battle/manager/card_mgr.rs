@@ -228,6 +228,14 @@ impl FightCardMgr {
             .map(|ex| ex == resolved_skill_id)
             .unwrap_or(false);
         ctx.mark_round_active_card_cast(exec_caster_uid);
+        ctx.mechanics.emission_timeline.record(
+            crate::state::battle::emission_timeline::EmissionPhase::CardCast,
+            exec_caster_uid,
+            resolved_skill_id,
+            action_order_index,
+            None,
+            None,
+        );
 
         let mut raw_skill_effects = if is_direct_ex_card {
             self.build_direct_ex_card_prefix(rng, ctx, exec_caster_uid, resolved_skill_id)?

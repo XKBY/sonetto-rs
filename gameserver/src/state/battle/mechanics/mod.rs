@@ -15,6 +15,7 @@ use empathy::EmpathyState;
 use phase_change::PhaseChangeState;
 use shadowcloak::ShadowCloakState;
 
+use crate::state::battle::emission_timeline::EmissionTimeline;
 use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
 use sonettobuf::{Fight, FightStep};
 
@@ -25,6 +26,11 @@ pub struct Mechanics {
     pub empathy: EmpathyState,
     pub phase_change: PhaseChangeState,
     pub shadow_cloak: ShadowCloakState,
+    /// Round-scoped emission timeline. Read-only debug accounting:
+    /// every skill emission appends one record. Cleared at round
+    /// open; dumped at round end when `SONETTO_EMISSION_TIMELINE=1`.
+    /// Behavior is unaffected by recording.
+    pub emission_timeline: EmissionTimeline,
 }
 
 impl Mechanics {
@@ -35,6 +41,7 @@ impl Mechanics {
             empathy: EmpathyState::new(),
             phase_change: PhaseChangeState::new(),
             shadow_cloak: ShadowCloakState::new(),
+            emission_timeline: EmissionTimeline::new(),
         }
     }
 

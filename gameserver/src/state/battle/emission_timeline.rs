@@ -1,0 +1,341 @@
+//! Read-only emission accounting for runtime debugging.
+//!
+//! Records every skill emission with provenance metadata
+//! (which code path emitted it, who owns it, what triggered it).
+//! Records are appended in chronological order — the structure is
+//! literally a timeline of "what fired and from where" for one round.
+//!
+//! The timeline never affects engine behavior. It is round-scoped,
+//! cleared at round-open, populated as emissions happen, and dumped
+//! to stderr at round-end when `SONETTO_EMISSION_TIMELINE=1` is set
+//! in the environment. Without that env var, recording is a no-op
+//! beyond the `Vec::push`.
+//!
+//! ## Why this exists
+//!
+//! The engine has 5+ paths that can emit a skill (card-cast inline
+//! self-passive walk, behavior dispatch, combat trigger expansion,
+//! per-uid passive sweep, dedicated battle-rule pass, magic-circle
+//! enemy-skill walk). When LIVE captures show a skill firing once
+//! and OURS shows it firing four times, finding which paths
+//! over-fired is currently a manual `eprintln!` archaeology run.
+//! This module turns that archaeology into structured evidence the
+//! engine emits on demand.
+//!
+//! ## Read order
+//!
+//! - `EmissionPhase` — the enum identifying which code path emitted.
+//! - `EmissionRecord` — a single (phase, owner, skill, trigger) tuple.
+//! - `EmissionTimeline` — the chronological list of records, with
+//!   convenience accessors for spotting duplicates.
+
+use std::collections::HashMap;
+
+/// Which code path emitted a given skill. Each variant maps to a
+/// concrete call site in the engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EmissionPhase {
+    /// `card_mgr::play_card` resolves a player operation into a
+    /// SKILL step. The host card cast itself.
+    CardCast,
+    /// `card_mgr` inline active-use passive loop after the host
+    /// card resolves but before the host step is materialized.
+    CardInlinePassive,
+    /// `trigger::combat::run_combat_passives_pass` — fires per-uid
+    /// reactive passives in response to a player or enemy event.
+    TriggerCombatPassive,
+    /// `round_mgr::run_passive_phase` with `ExcludeBattleRule` —
+    /// the per-uid round-level passive sweep.
+    RoundPassiveSweep,
+    /// `round_mgr::run_passive_phase` with `BattleRuleOnly` — the
+    /// dedicated attacker-side battle-rule pass.
+    BattleRuleOnly,
+    /// `round_mgr::run_passive_phase` with `DefenderBootstrap` —
+    /// the defender-side bootstrap pass at round open.
+    DefenderBootstrap,
+    /// `round_mgr::run_passive_phase` with `CombatReactive` — the
+    /// post-action combat-reactive sweep.
+    CombatReactive,
+    /// `passives::executor::run_battle_start` — initial battle-start
+    /// passive emission (not used in replay path).
+    BattleStart,
+    /// `mechanics::channel` — Sentinel monitor-continue chain.
+    ChannelMechanic,
+    /// `magic_circle` enemy-skills walker.
+    MagicCircleEnemy,
+    /// Buff-feature reactive emission (BloodValueUseSkill, etc.).
+    BuffFeatureReactive,
+}
+
+impl EmissionPhase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            EmissionPhase::CardCast => "CardCast",
+            EmissionPhase::CardInlinePassive => "CardInlinePassive",
+            EmissionPhase::TriggerCombatPassive => "TriggerCombatPassive",
+            EmissionPhase::RoundPassiveSweep => "RoundPassiveSweep",
+            EmissionPhase::BattleRuleOnly => "BattleRuleOnly",
+            EmissionPhase::DefenderBootstrap => "DefenderBootstrap",
+            EmissionPhase::CombatReactive => "CombatReactive",
+            EmissionPhase::BattleStart => "BattleStart",
+            EmissionPhase::ChannelMechanic => "ChannelMechanic",
+            EmissionPhase::MagicCircleEnemy => "MagicCircleEnemy",
+            EmissionPhase::BuffFeatureReactive => "BuffFeatureReactive",
+        }
+    }
+}
+
+/// One emission, recorded chronologically.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmissionRecord {
+    /// Which code path emitted this skill.
+    pub phase: EmissionPhase,
+    /// Owner of the emitted skill (the entity in whose passive list
+    /// the skill lives, OR the card caster for `CardCast`).
+    pub owner_uid: i64,
+    /// Skill id being emitted.
+    pub skill_id: i32,
+    /// Action order index of the triggering event, if any.
+    /// 0 means "no specific action" (round-open / round-end / idle
+    /// sweep).
+    pub action_order_index: i32,
+    /// Skill id of the host event that triggered this emission, if
+    /// any. None for `CardCast` (the cast IS the trigger) and for
+    /// idle-sweep emissions.
+    pub triggered_by_skill_id: Option<i32>,
+    /// Caster of the host event that triggered this emission, if
+    /// any. None for `CardCast` and idle-sweep emissions.
+    pub triggered_by_caster_uid: Option<i64>,
+}
+
+/// Chronological record of every skill emission within one round.
+///
+/// Cleared at round-open; populated as emissions happen; dumped at
+/// round-end when `SONETTO_EMISSION_TIMELINE=1` is set in the
+/// environment.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct EmissionTimeline {
+    pub round_index: i32,
+    pub entries: Vec<EmissionRecord>,
+}
+
+impl EmissionTimeline {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Reset for a new round. Call at round-open.
+    pub fn reset(&mut self, round_index: i32) {
+        self.round_index = round_index;
+        self.entries.clear();
+    }
+
+    /// Append one emission. The hot path — keep cheap.
+    pub fn record(
+        &mut self,
+        phase: EmissionPhase,
+        owner_uid: i64,
+        skill_id: i32,
+        action_order_index: i32,
+        triggered_by_skill_id: Option<i32>,
+        triggered_by_caster_uid: Option<i64>,
+    ) {
+        self.entries.push(EmissionRecord {
+            phase,
+            owner_uid,
+            skill_id,
+            action_order_index,
+            triggered_by_skill_id,
+            triggered_by_caster_uid,
+        });
+    }
+
+    /// Group entries by `(skill_id, owner_uid)` and return groups
+    /// where the same `(skill_id, owner_uid)` was emitted more than
+    /// once — these are the duplication candidates.
+    pub fn duplicates_by_owner_skill(&self) -> Vec<DuplicateGroup> {
+        let mut groups: HashMap<(i32, i64), Vec<EmissionPhase>> = HashMap::new();
+        for record in &self.entries {
+            groups
+                .entry((record.skill_id, record.owner_uid))
+                .or_default()
+                .push(record.phase);
+        }
+        let mut out: Vec<DuplicateGroup> = groups
+            .into_iter()
+            .filter(|(_, phases)| phases.len() > 1)
+            .map(|((skill_id, owner_uid), phases)| DuplicateGroup {
+                skill_id,
+                owner_uid,
+                phases,
+            })
+            .collect();
+        out.sort_by(|a, b| a.skill_id.cmp(&b.skill_id).then(a.owner_uid.cmp(&b.owner_uid)));
+        out
+    }
+
+    /// Group entries by `skill_id` ignoring owner — useful for
+    /// spotting "one skill resolved through multiple paths" even
+    /// when emitted for different owners (e.g. boss state cycle
+    /// `530000151` running for every enemy in the same round).
+    pub fn duplicates_by_skill(&self) -> Vec<SkillDuplicateGroup> {
+        let mut groups: HashMap<i32, Vec<&EmissionRecord>> = HashMap::new();
+        for record in &self.entries {
+            groups.entry(record.skill_id).or_default().push(record);
+        }
+        let mut out: Vec<SkillDuplicateGroup> = groups
+            .into_iter()
+            .filter(|(_, recs)| recs.len() > 1)
+            .map(|(skill_id, recs)| SkillDuplicateGroup {
+                skill_id,
+                count: recs.len(),
+                phases: {
+                    let mut phases: Vec<EmissionPhase> = recs.iter().map(|r| r.phase).collect();
+                    phases.sort_by_key(|p| p.as_str());
+                    phases.dedup();
+                    phases
+                },
+            })
+            .collect();
+        out.sort_by(|a, b| b.count.cmp(&a.count).then(a.skill_id.cmp(&b.skill_id)));
+        out
+    }
+
+    /// Render the timeline as a human-readable dump. Called at
+    /// round-end when `SONETTO_EMISSION_TIMELINE=1`.
+    pub fn dump(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "=== EmissionTimeline round={} entries={} ===",
+            self.round_index,
+            self.entries.len()
+        );
+        for (i, record) in self.entries.iter().enumerate() {
+            let trigger = match (record.triggered_by_skill_id, record.triggered_by_caster_uid) {
+                (Some(sid), Some(uid)) => format!(" via skill={} caster={}", sid, uid),
+                _ => String::new(),
+            };
+            let _ = writeln!(
+                out,
+                "  [{:3}] phase={:<22} owner={:>11} skill={:>9} order={}{}",
+                i,
+                record.phase.as_str(),
+                record.owner_uid,
+                record.skill_id,
+                record.action_order_index,
+                trigger
+            );
+        }
+        let dup_skill = self.duplicates_by_skill();
+        if !dup_skill.is_empty() {
+            let _ = writeln!(
+                out,
+                "--- duplicates by skill_id ({} skills) ---",
+                dup_skill.len()
+            );
+            for group in &dup_skill {
+                let phases: Vec<&str> = group.phases.iter().map(|p| p.as_str()).collect();
+                let _ = writeln!(
+                    out,
+                    "  skill={:>9} count={} phases=[{}]",
+                    group.skill_id,
+                    group.count,
+                    phases.join(", ")
+                );
+            }
+        }
+        out
+    }
+
+    /// Whether the env var `SONETTO_EMISSION_TIMELINE` is set to
+    /// any non-empty value. Used by callers that print the dump.
+    pub fn dump_enabled() -> bool {
+        std::env::var("SONETTO_EMISSION_TIMELINE")
+            .map(|v| !v.is_empty() && v != "0")
+            .unwrap_or(false)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateGroup {
+    pub skill_id: i32,
+    pub owner_uid: i64,
+    pub phases: Vec<EmissionPhase>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillDuplicateGroup {
+    pub skill_id: i32,
+    pub count: usize,
+    pub phases: Vec<EmissionPhase>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timeline_records_in_order() {
+        let mut t = EmissionTimeline::new();
+        t.reset(1);
+        t.record(EmissionPhase::CardCast, 100, 31140151, 1, None, None);
+        t.record(
+            EmissionPhase::TriggerCombatPassive,
+            -1,
+            530000151,
+            1,
+            Some(31140131),
+            Some(100),
+        );
+        assert_eq!(t.entries.len(), 2);
+        assert_eq!(t.entries[0].phase, EmissionPhase::CardCast);
+        assert_eq!(t.entries[1].skill_id, 530000151);
+    }
+
+    #[test]
+    fn duplicates_by_skill_groups_correctly() {
+        let mut t = EmissionTimeline::new();
+        t.record(
+            EmissionPhase::TriggerCombatPassive,
+            -1,
+            530000151,
+            1,
+            Some(31140131),
+            Some(100),
+        );
+        t.record(
+            EmissionPhase::TriggerCombatPassive,
+            -2,
+            530000151,
+            1,
+            Some(31140131),
+            Some(100),
+        );
+        t.record(
+            EmissionPhase::DefenderBootstrap,
+            -3,
+            530000151,
+            0,
+            None,
+            None,
+        );
+        t.record(EmissionPhase::CardCast, 100, 31140151, 1, None, None);
+
+        let dups = t.duplicates_by_skill();
+        assert_eq!(dups.len(), 1);
+        assert_eq!(dups[0].skill_id, 530000151);
+        assert_eq!(dups[0].count, 3);
+    }
+
+    #[test]
+    fn reset_clears_entries() {
+        let mut t = EmissionTimeline::new();
+        t.record(EmissionPhase::CardCast, 100, 31140151, 1, None, None);
+        assert_eq!(t.entries.len(), 1);
+        t.reset(2);
+        assert_eq!(t.entries.len(), 0);
+        assert_eq!(t.round_index, 2);
+    }
+}

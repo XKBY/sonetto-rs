@@ -509,6 +509,10 @@ impl FightRoundMgr {
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
         mechanics::nautika::strip_redundant_post_round_emissions(ctx.fight, &mut open.steps);
 
+        if crate::state::battle::emission_timeline::EmissionTimeline::dump_enabled() {
+            eprint!("{}", ctx.mechanics.emission_timeline.dump());
+        }
+
         self.build_round_output(round_ctx, open, current_deck, ai_deck)
     }
 
@@ -840,6 +844,20 @@ impl FightRoundMgr {
                         if is_attacker_uid && battle_rule_skills.contains(&skill_id) {
                             continue;
                         }
+                        let timeline_phase = match config.skill_set {
+                            PhaseSkillSet::CombatReactive => {
+                                crate::state::battle::emission_timeline::EmissionPhase::CombatReactive
+                            }
+                            _ => crate::state::battle::emission_timeline::EmissionPhase::RoundPassiveSweep,
+                        };
+                        ctx.mechanics.emission_timeline.record(
+                            timeline_phase,
+                            uid,
+                            skill_id,
+                            0,
+                            None,
+                            None,
+                        );
                         if let Ok(effects) =
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
@@ -917,6 +935,14 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
+                        ctx.mechanics.emission_timeline.record(
+                            crate::state::battle::emission_timeline::EmissionPhase::DefenderBootstrap,
+                            *uid,
+                            skill_id,
+                            0,
+                            None,
+                            None,
+                        );
                         if let Ok(effects) =
                             execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()
@@ -1017,6 +1043,14 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
+                        ctx.mechanics.emission_timeline.record(
+                            crate::state::battle::emission_timeline::EmissionPhase::BattleRuleOnly,
+                            *uid,
+                            skill_id,
+                            0,
+                            None,
+                            None,
+                        );
                         if let Ok(effects) =
                             execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()

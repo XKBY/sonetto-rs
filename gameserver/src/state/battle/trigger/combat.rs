@@ -846,6 +846,14 @@ pub(crate) fn run_combat_passives_pass(
                     ts.team_injury_count_round = true;
                     ts
                 };
+                ctx.mechanics.emission_timeline.record(
+                    crate::state::battle::emission_timeline::EmissionPhase::TriggerCombatPassive,
+                    uid,
+                    skill_id,
+                    event.action_order_index,
+                    Some(event.skill_id),
+                    Some(event.caster_uid),
+                );
                 match execute_skill(
                     ctx,
                     uid,

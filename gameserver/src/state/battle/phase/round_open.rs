@@ -68,6 +68,7 @@ pub(crate) fn run(
     tracing::warn!("process_round round_index={}", round_ctx.round_index);
     let ctx = &mut *round_ctx.fight_ctx;
     ctx.clear_round_active_card_casts();
+    ctx.mechanics.emission_timeline.reset(round_ctx.round_index);
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
     injury_counter::sync_round_injury_index(battle_id, 1, round_ctx.round_index);
     injury_counter::sync_round_injury_index(battle_id, 2, round_ctx.round_index);
