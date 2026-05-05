@@ -7,7 +7,6 @@ use crate::state::battle::{
     buff_actions::blood_value_use_skill::buff_get_blood_value_use_skill_params,
     context::FightContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
-    fight_step::{effect_container_step, wrap_step},
     passives::{collector::CollectedPassives, steps::skill::execute_skill},
     round::step_shape::build_effect_step,
     skill::PhaseFilter,
@@ -154,12 +153,30 @@ impl TriggerPass for BloodValueUseSkillPass {
                             wrapper_skill_id,
                         );
                         if !effects.is_empty() {
-                            holder_effects.push(wrap_step(effect_container_step(
-                                holder_uid,
-                                holder_uid,
-                                instance.buff_id,
-                                effects,
-                            )));
+                            let mut queue = EventQueue::new();
+                            queue.push(BattleEvent::SkillEmit {
+                                skill_id: instance.buff_id,
+                                from: holder_uid,
+                                to: holder_uid,
+                                children: effects
+                                    .into_iter()
+                                    .map(|effect| BattleEvent::SerializedActEffect { effect })
+                                    .collect(),
+                                kind: crate::state::battle::event_queue::SkillEmitKind::EventTriggered,
+                            });
+                            let mut event_ctx = EventContext {
+                                fight: ctx.fight,
+                                buff_mgr: &mut ctx.managers.buff_mgr,
+                                ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                                bloodtithe: &mut ctx.mechanics.bloodtithe,
+                            };
+                            let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+                                .into_iter()
+                                .next()
+                                .expect(
+                                    "event-triggered skill emission should serialize to a single ActEffect",
+                                );
+                            holder_effects.push(drained);
                         }
                     }
                 }
