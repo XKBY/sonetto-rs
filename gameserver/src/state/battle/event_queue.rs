@@ -7,6 +7,7 @@ use sonettobuf::{
     effect_type_enum::EffectType, fight_step,
 };
 
+use crate::state::battle::skill::sibling_coalesce::parent_skill_fans_out_into_mergeable_siblings;
 use crate::state::battle::{
     fight_step::{ActEffectBuilder, effect_container_step, make_skill_step, wrap_step},
     manager::{
@@ -512,7 +513,10 @@ pub fn drain_to_fight_steps(
                 children,
                 kind: SkillEmitKind::EventTriggered,
             } => {
-                let child_effects = drain_to_fight_steps(children, _ctx);
+                let mut child_effects = drain_to_fight_steps(children, _ctx);
+                if parent_skill_fans_out_into_mergeable_siblings(skill_id) {
+                    child_effects = coalesce_sibling_skills(child_effects);
+                }
                 out.push(wrap_step(make_skill_step(
                     from,
                     to,
@@ -528,7 +532,10 @@ pub fn drain_to_fight_steps(
                 children,
                 kind: SkillEmitKind::AutomaticPhase,
             } => {
-                let child_effects = drain_to_fight_steps(children, _ctx);
+                let mut child_effects = drain_to_fight_steps(children, _ctx);
+                if parent_skill_fans_out_into_mergeable_siblings(skill_id) {
+                    child_effects = coalesce_sibling_skills(child_effects);
+                }
                 let inner_skill = make_skill_step(from, to, skill_id, 0, child_effects);
                 let inner_effect = effect_container_step(0, 0, 0, vec![wrap_step(inner_skill)]);
                 let outer_effect = effect_container_step(0, 0, 0, vec![wrap_step(inner_effect)]);
