@@ -484,6 +484,22 @@ pub fn drain_to_fight_steps(
                 let outer_effect = effect_container_step(0, 0, 0, vec![wrap_step(inner_effect)]);
                 out.push(wrap_step(outer_effect));
             }
+            BattleEvent::SkillEmit {
+                skill_id,
+                from,
+                to,
+                children,
+                kind: SkillEmitKind::EquipmentEmbedded,
+            } => {
+                let child_effects = drain_to_fight_steps(children, _ctx);
+                out.push(wrap_step(make_skill_step(
+                    from,
+                    to,
+                    skill_id,
+                    0,
+                    child_effects,
+                )));
+            }
             _ => {}
         }
     }
@@ -973,6 +989,59 @@ mod tests {
         assert_eq!(skill.from_id, Some(-1));
         assert_eq!(skill.to_id, Some(-2));
         assert_eq!(skill.act_effect, vec![synthetic_effect(654, 32)]);
+    }
+
+    #[test]
+    fn equipment_embedded_skill_emit_serializes_single_wrap_with_recursive_children() {
+        let direct = synthetic_effect(456, 21);
+        let reactive_direct = synthetic_effect(654, 32);
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id: 31200145,
+            from: 1111,
+            to: 2222,
+            children: vec![
+                BattleEvent::SerializedActEffect {
+                    effect: direct.clone(),
+                },
+                BattleEvent::SkillEmit {
+                    skill_id: 30630122,
+                    from: 3333,
+                    to: 4444,
+                    children: vec![BattleEvent::SerializedActEffect {
+                        effect: reactive_direct.clone(),
+                    }],
+                    kind: SkillEmitKind::EventTriggered,
+                },
+            ],
+            kind: SkillEmitKind::EquipmentEmbedded,
+        });
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(queue.drain(), &mut ctx);
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].effect_type, Some(162));
+        let root = out[0]
+            .fight_step
+            .as_ref()
+            .expect("embedded top-level act effect should carry fight_step");
+        assert_eq!(root.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(root.act_id, Some(31200145));
+        assert_eq!(root.from_id, Some(1111));
+        assert_eq!(root.to_id, Some(2222));
+        assert_eq!(root.act_effect.len(), 2);
+        assert_eq!(root.act_effect[0], direct);
+
+        let child = root.act_effect[1]
+            .fight_step
+            .as_ref()
+            .expect("embedded reactive child should be single-wrap fight_step");
+        assert_eq!(child.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(child.act_id, Some(30630122));
+        assert_eq!(child.from_id, Some(3333));
+        assert_eq!(child.to_id, Some(4444));
+        assert_eq!(child.act_effect, vec![reactive_direct]);
     }
 
     #[test]
