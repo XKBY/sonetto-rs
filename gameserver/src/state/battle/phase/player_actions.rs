@@ -212,8 +212,16 @@ pub(crate) async fn run(
                 .act_effect
                 .splice(insert_at..insert_at, monitor_drained);
         }
-        trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
-        trigger_embed::normalize_player_skill_effect_order(&mut host_step);
+        host_step.act_effect = trigger_embed::flatten_self_nested_skill_effects_v(
+            host_step.act_type,
+            host_step.act_id,
+            host_step.from_id,
+            std::mem::take(&mut host_step.act_effect),
+        );
+        host_step.act_effect = trigger_embed::normalize_player_skill_effect_order_v(
+            host_step.act_type,
+            std::mem::take(&mut host_step.act_effect),
+        );
         let be_attacked_lane_start = accumulator.lane_iter(HostLane::BeAttacked).count();
         let be_attacked_insert_at = mgr.inject_be_attacked_reactives_onto_player_host(
             state,

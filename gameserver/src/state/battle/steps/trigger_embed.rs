@@ -48,11 +48,19 @@ pub(crate) fn find_trigger_insert_index(effects: &[ActEffect]) -> usize {
 }
 
 pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
-    if step.act_type != Some(fight_step::ActType::Skill as i32) {
-        return;
+    let act_effect = std::mem::take(&mut step.act_effect);
+    step.act_effect = normalize_player_skill_effect_order_v(step.act_type, act_effect);
+}
+
+pub(crate) fn normalize_player_skill_effect_order_v(
+    host_act_type: Option<i32>,
+    act_effect: Vec<ActEffect>,
+) -> Vec<ActEffect> {
+    if host_act_type != Some(fight_step::ActType::Skill as i32) {
+        return act_effect;
     }
-    if step.act_effect.len() < 3 {
-        return;
+    if act_effect.len() < 3 {
+        return act_effect;
     }
 
     fn is_damage_effect(effect_type: i32) -> bool {
@@ -64,19 +72,18 @@ pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
     }
 
     let mut idx = 0usize;
-    while idx < step.act_effect.len()
-        && is_damage_effect(step.act_effect[idx].effect_type.unwrap_or(0))
+    while idx < act_effect.len() && is_damage_effect(act_effect[idx].effect_type.unwrap_or(0))
     {
         idx += 1;
     }
-    if idx == 0 || idx >= step.act_effect.len() {
-        return;
+    if idx == 0 || idx >= act_effect.len() {
+        return act_effect;
     }
 
-    let prefix = step.act_effect[..idx].to_vec();
+    let prefix = act_effect[..idx].to_vec();
     let mut wrappers = Vec::new();
     let mut tail = Vec::new();
-    for effect in step.act_effect[idx..].iter().cloned() {
+    for effect in act_effect[idx..].iter().cloned() {
         if effect.effect_type == Some(162) {
             wrappers.push(effect);
         } else {
@@ -84,7 +91,7 @@ pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
         }
     }
     if wrappers.is_empty() || tail.is_empty() {
-        return;
+        return act_effect;
     }
 
     wrappers.sort_by_key(|effect| {
@@ -103,17 +110,30 @@ pub(crate) fn normalize_player_skill_effect_order(step: &mut FightStep) {
     let mut reordered = prefix;
     reordered.extend(wrappers);
     reordered.extend(tail);
-    step.act_effect = reordered;
+    reordered
 }
 
 pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
-    if step.act_type != Some(fight_step::ActType::Skill as i32) {
-        return;
+    let act_effect = std::mem::take(&mut step.act_effect);
+    step.act_effect = flatten_self_nested_skill_effects_v(
+        step.act_type,
+        step.act_id,
+        step.from_id,
+        act_effect,
+    );
+}
+
+pub(crate) fn flatten_self_nested_skill_effects_v(
+    host_act_type: Option<i32>,
+    host_act_id: Option<i32>,
+    host_from: Option<i64>,
+    act_effect: Vec<ActEffect>,
+) -> Vec<ActEffect> {
+    if host_act_type != Some(fight_step::ActType::Skill as i32) {
+        return act_effect;
     }
-    let host_act_id = step.act_id;
-    let host_from = step.from_id;
-    let mut flattened = Vec::with_capacity(step.act_effect.len());
-    for mut effect in std::mem::take(&mut step.act_effect) {
+    let mut flattened = Vec::with_capacity(act_effect.len());
+    for mut effect in act_effect {
         if effect.effect_type == Some(162)
             && let Some(inner) = effect.fight_step.take()
         {
@@ -142,7 +162,7 @@ pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
         }
         flattened.push(effect);
     }
-    step.act_effect = flattened;
+    flattened
 }
 
 pub(crate) fn insert_trigger_into_matching_nested(
