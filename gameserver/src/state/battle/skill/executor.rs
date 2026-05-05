@@ -245,7 +245,7 @@ impl SkillExecutor {
         // record their own entries too — appearing twice in the timeline
         // is expected. Skills that appear ONLY with ExecutorLowLevel
         // identify call sites that lack a dedicated phase tag yet.
-        mechanics.emission_timeline.record(
+        let exec_record_idx = mechanics.emission_timeline.record(
             crate::state::battle::emission_timeline::EmissionPhase::ExecutorLowLevel,
             caster_uid,
             skill_id,
@@ -943,6 +943,9 @@ impl SkillExecutor {
             result.len()
         );
 
+        if !result.is_empty() {
+            mechanics.emission_timeline.mark_produced(exec_record_idx);
+        }
         Ok(result)
     }
 

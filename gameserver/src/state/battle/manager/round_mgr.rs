@@ -429,7 +429,7 @@ impl FightRoundMgr {
         let wrappers: Vec<ActEffect> = targets
             .into_iter()
             .map(|target_uid| {
-                mechanics.emission_timeline.record(
+                let graft_record_idx = mechanics.emission_timeline.record(
                     crate::state::battle::emission_timeline::EmissionPhase::BeAttackedGraft,
                     reactive_caster_uid,
                     BE_ATTACKED_REACTIVE_ACT_ID,
@@ -437,6 +437,9 @@ impl FightRoundMgr {
                     Some(host_step.act_id.unwrap_or(0)),
                     host_step.from_id,
                 );
+                // Graft always produces a wrapper at this point — every
+                // record corresponds to one synthesized output effect.
+                mechanics.emission_timeline.mark_produced(graft_record_idx);
                 let buff_uid = next_buff_uid_for_target(target_uid);
                 let effect = crate::state::battle::utils::buff_update(
                     target_uid,
@@ -859,7 +862,7 @@ impl FightRoundMgr {
                             }
                             _ => crate::state::battle::emission_timeline::EmissionPhase::RoundPassiveSweep,
                         };
-                        ctx.mechanics.emission_timeline.record(
+                        let sweep_record_idx = ctx.mechanics.emission_timeline.record(
                             timeline_phase,
                             uid,
                             skill_id,
@@ -871,6 +874,9 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
                         {
+                            ctx.mechanics
+                                .emission_timeline
+                                .mark_produced(sweep_record_idx);
                             // Defender-side idle sweeps in LIVE do not emit
                             // wrappers for state-machine passives whose only
                             // output is a BuffUpdate marker (e.g. 530000151
@@ -944,7 +950,7 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
-                        ctx.mechanics.emission_timeline.record(
+                        let bootstrap_record_idx = ctx.mechanics.emission_timeline.record(
                             crate::state::battle::emission_timeline::EmissionPhase::DefenderBootstrap,
                             *uid,
                             skill_id,
@@ -956,6 +962,9 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()
                         {
+                            ctx.mechanics
+                                .emission_timeline
+                                .mark_produced(bootstrap_record_idx);
                             let inner = build_effect_step(effects);
                             wrapped.push(wrap_step(inner));
                         }
@@ -1052,7 +1061,7 @@ impl FightRoundMgr {
                         if !should_try {
                             continue;
                         }
-                        ctx.mechanics.emission_timeline.record(
+                        let battle_rule_record_idx = ctx.mechanics.emission_timeline.record(
                             crate::state::battle::emission_timeline::EmissionPhase::BattleRuleOnly,
                             *uid,
                             skill_id,
@@ -1064,6 +1073,9 @@ impl FightRoundMgr {
                             execute_passive_skill(ctx, *uid, *uid, skill_id, &ctx.combat_phase())
                             && !effects.is_empty()
                         {
+                            ctx.mechanics
+                                .emission_timeline
+                                .mark_produced(battle_rule_record_idx);
                             let inner = build_effect_step(effects);
                             wrapped.push(wrap_step(inner));
                         }

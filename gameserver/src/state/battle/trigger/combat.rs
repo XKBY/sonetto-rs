@@ -846,7 +846,7 @@ pub(crate) fn run_combat_passives_pass(
                     ts.team_injury_count_round = true;
                     ts
                 };
-                ctx.mechanics.emission_timeline.record(
+                let trigger_record_idx = ctx.mechanics.emission_timeline.record(
                     crate::state::battle::emission_timeline::EmissionPhase::TriggerCombatPassive,
                     uid,
                     skill_id,
@@ -862,6 +862,9 @@ pub(crate) fn run_combat_passives_pass(
                     &PhaseFilter::combat_with(trigger_state),
                 ) {
                     Ok(mut skill_effects) if !skill_effects.is_empty() => {
+                        ctx.mechanics
+                            .emission_timeline
+                            .mark_produced(trigger_record_idx);
                         for effect in &mut skill_effects {
                             if effect.effect_type == Some(EffectType::Fightstep as i32)
                                 && let Some(step) = effect.fight_step.as_mut()

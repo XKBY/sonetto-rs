@@ -146,6 +146,20 @@ pub struct EmissionRecord {
     /// Caster of the host event that triggered this emission, if
     /// any. None for `CardCast` and idle-sweep emissions.
     pub triggered_by_caster_uid: Option<i64>,
+    /// Whether this emission produced non-empty output (i.e. the
+    /// underlying `execute_skill` call returned at least one
+    /// `ActEffect`, OR the call site directly constructed a wrapper).
+    /// `false` initially; set to `true` via `mark_produced` after
+    /// the emission completes if output is non-empty.
+    ///
+    /// **Why this matters**: a record with `produced_output=false`
+    /// is "intent without effect" — the engine considered emitting
+    /// but produced nothing (e.g. condition gates rejected the
+    /// emission inside `execute_skill`). Suppressing such a record
+    /// has no audit effect because the path wasn't producing output.
+    /// The duplication report distinguishes these from real
+    /// emissions so future fix attempts target the right paths.
+    pub produced_output: bool,
 }
 
 /// Chronological record of every skill emission within one round.
@@ -170,7 +184,9 @@ impl EmissionTimeline {
         self.entries.clear();
     }
 
-    /// Append one emission. The hot path — keep cheap.
+    /// Append one emission. Returns the index of the new entry —
+    /// pass it to `mark_produced` after the emission completes if
+    /// output was non-empty.
     ///
     /// Psychube emissions (skills in the equipment range that have
     /// a corresponding `skill_effect`/`skill_buff` config row) are
@@ -188,7 +204,7 @@ impl EmissionTimeline {
         action_order_index: i32,
         triggered_by_skill_id: Option<i32>,
         triggered_by_caster_uid: Option<i64>,
-    ) {
+    ) -> usize {
         let phase = if phase != EmissionPhase::CardCast
             && crate::state::battle::equipment::is_psychube_skill(skill_id)
         {
@@ -196,6 +212,7 @@ impl EmissionTimeline {
         } else {
             phase
         };
+        let idx = self.entries.len();
         self.entries.push(EmissionRecord {
             phase,
             owner_uid,
@@ -203,7 +220,19 @@ impl EmissionTimeline {
             action_order_index,
             triggered_by_skill_id,
             triggered_by_caster_uid,
+            produced_output: false,
         });
+        idx
+    }
+
+    /// Mark a previously-recorded entry as having produced
+    /// non-empty output. Call after `execute_skill` (or equivalent)
+    /// returns and the result is known to be non-empty. No-op if
+    /// the index is out of bounds.
+    pub fn mark_produced(&mut self, idx: usize) {
+        if let Some(rec) = self.entries.get_mut(idx) {
+            rec.produced_output = true;
+        }
     }
 
     /// Group entries by `(skill_id, owner_uid)` and return groups
@@ -234,6 +263,12 @@ impl EmissionTimeline {
     /// spotting "one skill resolved through multiple paths" even
     /// when emitted for different owners (e.g. boss state cycle
     /// `530000151` running for every enemy in the same round).
+    ///
+    /// Returns separate counts for total intent and produced
+    /// output. `produced_count > 0` means at least one record for
+    /// this skill produced FightStep output; `produced_count <
+    /// count` means some recorded calls were intent-without-output
+    /// (suppressing those would have no audit effect).
     pub fn duplicates_by_skill(&self) -> Vec<SkillDuplicateGroup> {
         let mut groups: HashMap<i32, Vec<&EmissionRecord>> = HashMap::new();
         for record in &self.entries {
@@ -242,18 +277,34 @@ impl EmissionTimeline {
         let mut out: Vec<SkillDuplicateGroup> = groups
             .into_iter()
             .filter(|(_, recs)| recs.len() > 1)
-            .map(|(skill_id, recs)| SkillDuplicateGroup {
-                skill_id,
-                count: recs.len(),
-                phases: {
-                    let mut phases: Vec<EmissionPhase> = recs.iter().map(|r| r.phase).collect();
-                    phases.sort_by_key(|p| p.as_str());
-                    phases.dedup();
-                    phases
-                },
+            .map(|(skill_id, recs)| {
+                let produced_count = recs.iter().filter(|r| r.produced_output).count();
+                let mut produced_phases: Vec<EmissionPhase> = recs
+                    .iter()
+                    .filter(|r| r.produced_output)
+                    .map(|r| r.phase)
+                    .collect();
+                produced_phases.sort_by_key(|p| p.as_str());
+                produced_phases.dedup();
+                let mut all_phases: Vec<EmissionPhase> =
+                    recs.iter().map(|r| r.phase).collect();
+                all_phases.sort_by_key(|p| p.as_str());
+                all_phases.dedup();
+                SkillDuplicateGroup {
+                    skill_id,
+                    count: recs.len(),
+                    produced_count,
+                    phases: all_phases,
+                    produced_phases,
+                }
             })
             .collect();
-        out.sort_by(|a, b| b.count.cmp(&a.count).then(a.skill_id.cmp(&b.skill_id)));
+        out.sort_by(|a, b| {
+            b.produced_count
+                .cmp(&a.produced_count)
+                .then(b.count.cmp(&a.count))
+                .then(a.skill_id.cmp(&b.skill_id))
+        });
         out
     }
 
@@ -262,21 +313,25 @@ impl EmissionTimeline {
     pub fn dump(&self) -> String {
         use std::fmt::Write as _;
         let mut out = String::new();
+        let produced_total = self.entries.iter().filter(|r| r.produced_output).count();
         let _ = writeln!(
             out,
-            "=== EmissionTimeline round={} entries={} ===",
+            "=== EmissionTimeline round={} entries={} produced={} ===",
             self.round_index,
-            self.entries.len()
+            self.entries.len(),
+            produced_total,
         );
         for (i, record) in self.entries.iter().enumerate() {
             let trigger = match (record.triggered_by_skill_id, record.triggered_by_caster_uid) {
                 (Some(sid), Some(uid)) => format!(" via skill={} caster={}", sid, uid),
                 _ => String::new(),
             };
+            let out_marker = if record.produced_output { "[OUT]" } else { "[   ]" };
             let _ = writeln!(
                 out,
-                "  [{:3}] phase={:<22} owner={:>11} skill={:>9} order={}{}",
+                "  [{:3}] {} phase={:<24} owner={:>11} skill={:>9} order={}{}",
                 i,
+                out_marker,
                 record.phase.as_str(),
                 record.owner_uid,
                 record.skill_id,
@@ -288,17 +343,21 @@ impl EmissionTimeline {
         if !dup_skill.is_empty() {
             let _ = writeln!(
                 out,
-                "--- duplicates by skill_id ({} skills) ---",
+                "--- duplicates by skill_id ({} skills) — count(intent) / produced ---",
                 dup_skill.len()
             );
             for group in &dup_skill {
                 let phases: Vec<&str> = group.phases.iter().map(|p| p.as_str()).collect();
+                let produced_phases: Vec<&str> =
+                    group.produced_phases.iter().map(|p| p.as_str()).collect();
                 let _ = writeln!(
                     out,
-                    "  skill={:>9} count={} phases=[{}]",
+                    "  skill={:>9} count={} produced={} phases=[{}] producing=[{}]",
                     group.skill_id,
                     group.count,
-                    phases.join(", ")
+                    group.produced_count,
+                    phases.join(", "),
+                    produced_phases.join(", ")
                 );
             }
         }
@@ -324,8 +383,14 @@ pub struct DuplicateGroup {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkillDuplicateGroup {
     pub skill_id: i32,
+    /// Total recorded intent (every `record()` call).
     pub count: usize,
+    /// Subset of `count` whose `produced_output` flag is true.
+    pub produced_count: usize,
+    /// All phases that recorded this skill (intent-level).
     pub phases: Vec<EmissionPhase>,
+    /// Subset of `phases` that produced non-empty output.
+    pub produced_phases: Vec<EmissionPhase>,
 }
 
 #[cfg(test)]

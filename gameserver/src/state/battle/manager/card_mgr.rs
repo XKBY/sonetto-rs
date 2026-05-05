@@ -228,7 +228,7 @@ impl FightCardMgr {
             .map(|ex| ex == resolved_skill_id)
             .unwrap_or(false);
         ctx.mark_round_active_card_cast(exec_caster_uid);
-        ctx.mechanics.emission_timeline.record(
+        let card_cast_record_idx = ctx.mechanics.emission_timeline.record(
             crate::state::battle::emission_timeline::EmissionPhase::CardCast,
             exec_caster_uid,
             resolved_skill_id,
@@ -257,6 +257,11 @@ impl FightCardMgr {
                     .with_buff_mgr(&ctx.managers.buff_mgr),
             ),
         )?;
+        if !main_skill_effects.is_empty() {
+            ctx.mechanics
+                .emission_timeline
+                .mark_produced(card_cast_record_idx);
+        }
         raw_skill_effects.append(&mut main_skill_effects);
         let mut skill_effects = normalize_skill_effects_for_operation(
             std::mem::take(&mut raw_skill_effects),

@@ -463,7 +463,7 @@ fn execute_direct_use_group_and_star_skill(
         {
             continue;
         }
-        ctx.mechanics.emission_timeline.record(
+        let dugss_record_idx = ctx.mechanics.emission_timeline.record(
             crate::state::battle::emission_timeline::EmissionPhase::DirectUseBigSkillFanout,
             ctx.caster_uid,
             passive_skill_to_execute,
@@ -482,6 +482,9 @@ fn execute_direct_use_group_and_star_skill(
             &passive_phase,
         )?;
         if !passive_effects.is_empty() {
+            ctx.mechanics
+                .emission_timeline
+                .mark_produced(dugss_record_idx);
             out.extend(passive_effects);
         }
     }
