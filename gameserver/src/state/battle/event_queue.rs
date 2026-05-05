@@ -444,6 +444,22 @@ pub fn drain_to_fight_steps(
                 from,
                 to,
                 children,
+                kind: SkillEmitKind::PlayerInitiated,
+            } => {
+                let child_effects = drain_to_fight_steps(children, _ctx);
+                out.push(wrap_step(make_skill_step(
+                    from,
+                    to,
+                    skill_id,
+                    0,
+                    child_effects,
+                )));
+            }
+            BattleEvent::SkillEmit {
+                skill_id,
+                from,
+                to,
+                children,
                 kind: SkillEmitKind::EventTriggered,
             } => {
                 let child_effects = drain_to_fight_steps(children, _ctx);
@@ -844,6 +860,58 @@ mod tests {
                 vec![child]
             ))]
         );
+    }
+
+    #[test]
+    fn player_initiated_skill_emit_serializes_single_wrap_with_recursive_children() {
+        let direct = synthetic_effect(123, 9);
+        let reactive_direct = synthetic_effect(321, 11);
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id: 31140151,
+            from: 1001,
+            to: 2002,
+            children: vec![
+                BattleEvent::SerializedActEffect {
+                    effect: direct.clone(),
+                },
+                BattleEvent::SkillEmit {
+                    skill_id: 30630122,
+                    from: 7777,
+                    to: 8888,
+                    children: vec![BattleEvent::SerializedActEffect {
+                        effect: reactive_direct.clone(),
+                    }],
+                    kind: SkillEmitKind::EventTriggered,
+                },
+            ],
+            kind: SkillEmitKind::PlayerInitiated,
+        });
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(queue.drain(), &mut ctx);
+
+        assert_eq!(out.len(), 1);
+        let root = out[0]
+            .fight_step
+            .as_ref()
+            .expect("top-level act effect should carry fight_step");
+        assert_eq!(root.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(root.act_id, Some(31140151));
+        assert_eq!(root.from_id, Some(1001));
+        assert_eq!(root.to_id, Some(2002));
+        assert_eq!(root.act_effect.len(), 2);
+        assert_eq!(root.act_effect[0], direct);
+
+        let child = root.act_effect[1]
+            .fight_step
+            .as_ref()
+            .expect("reactive child should be single-wrap fight_step");
+        assert_eq!(child.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(child.act_id, Some(30630122));
+        assert_eq!(child.from_id, Some(7777));
+        assert_eq!(child.to_id, Some(8888));
+        assert_eq!(child.act_effect, vec![reactive_direct]);
     }
 
     #[test]
