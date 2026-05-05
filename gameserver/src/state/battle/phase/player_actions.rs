@@ -68,7 +68,6 @@ fn capture_inserted_host_children(
 enum HostAccumulatorLane {
     Direct,
     TriggerLane,
-    BeAttacked,
     Injury,
 }
 
@@ -81,7 +80,6 @@ fn push_host_accumulator_lane(
     match lane {
         HostAccumulatorLane::Direct => accumulator.push_direct(event),
         HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
-        HostAccumulatorLane::BeAttacked => accumulator.push_be_attacked(event),
         HostAccumulatorLane::Injury => accumulator.push_injury(event),
     }
 }
@@ -212,14 +210,21 @@ pub(crate) async fn run(
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
         trigger_embed::normalize_player_skill_effect_order(&mut host_step);
-        let host_children_before_be_attacked = host_step.act_effect.clone();
-        mgr.inject_be_attacked_reactives_onto_player_host(state, &mut host_step, ctx);
-        capture_inserted_host_children(
+        let be_attacked_lane_start = accumulator.lane_iter(HostLane::BeAttacked).count();
+        let be_attacked_insert_at = mgr.inject_be_attacked_reactives_onto_player_host(
+            state,
+            &host_step,
+            ctx,
             &mut accumulator,
-            HostAccumulatorLane::BeAttacked,
-            &host_children_before_be_attacked,
-            &host_step.act_effect,
         );
+        if let Some(insert_at) = be_attacked_insert_at {
+            let drained: Vec<ActEffect> = accumulator
+                .lane_iter(HostLane::BeAttacked)
+                .skip(be_attacked_lane_start)
+                .cloned()
+                .collect();
+            host_step.act_effect.splice(insert_at..insert_at, drained);
+        }
         if let Some((holder_uid, injury_count)) =
             injury_counter::find_card_host_injury_marker_params(
                 ctx.fight,

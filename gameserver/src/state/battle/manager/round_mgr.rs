@@ -11,7 +11,10 @@ use super::super::{
     ConditionType,
     card::CardOpType,
     context::{FightContext, RoundContext},
-    event_queue::{BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps},
+    event_queue::{
+        BattleEvent, EventContext, EventQueue, HostEventAccumulator, SkillEmitKind,
+        drain_to_fight_steps,
+    },
     fight_step::{
         FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step,
     },
@@ -363,16 +366,17 @@ impl FightRoundMgr {
     pub(crate) fn inject_be_attacked_reactives_onto_player_host(
         &self,
         state: &RoundState,
-        host_step: &mut FightStep,
+        host_step: &FightStep,
         ctx: &mut FightContext<'_>,
-    ) {
+        accumulator: &mut HostEventAccumulator,
+    ) -> Option<usize> {
         const BE_ATTACKED_REACTIVE_ACT_ID: i32 = 530000411;
         let mechanics = &mut *ctx.mechanics;
 
         if host_step.act_type != Some(fight_step::ActType::Skill as i32)
             || host_step.from_id.unwrap_or(0) <= 0
         {
-            return;
+            return None;
         }
         // Only inject on ultimate-skill bodies. LIVE never nests
         // `BeAttacked` reactives inside basic-skill hosts — they fire
@@ -388,14 +392,14 @@ impl FightRoundMgr {
             .map(|cfg| cfg.is_big_skill == 1)
             .unwrap_or(false);
         if !host_is_big_skill {
-            return;
+            return None;
         }
         if host_step.act_effect.iter().any(|effect| {
             step_walker::wrapped_skill_from_effect(effect)
                 .map(|step| step.act_id == Some(BE_ATTACKED_REACTIVE_ACT_ID))
                 .unwrap_or(false)
         }) {
-            return;
+            return None;
         }
 
         let reactive_caster_uid = state
@@ -407,7 +411,7 @@ impl FightRoundMgr {
             .and_then(|card| card.uid)
             .unwrap_or(0);
         if reactive_caster_uid >= 0 {
-            return;
+            return None;
         }
 
         let mut targets = Vec::new();
@@ -424,7 +428,7 @@ impl FightRoundMgr {
             }
         }
         if targets.is_empty() {
-            return;
+            return None;
         }
 
         let wrappers: Vec<ActEffect> = targets
@@ -477,7 +481,10 @@ impl FightRoundMgr {
             .rposition(|effect| effect.target_id.unwrap_or(0) < 0)
             .map(|idx| idx + 1)
             .unwrap_or_else(|| step_walker::host_trigger_insert_index(host_step));
-        host_step.act_effect.splice(insert_at..insert_at, wrappers);
+        for effect in wrappers {
+            accumulator.push_be_attacked(BattleEvent::SerializedActEffect { effect });
+        }
+        Some(insert_at)
     }
 
     #[allow(clippy::too_many_arguments)]
