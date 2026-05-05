@@ -147,6 +147,8 @@ pub fn damage_with_hurt(
 ) -> ActEffect {
     // TODO(event-queue): Phase 3 - route helper-based Damage-with-hurt
     // emissions through EventQueue drain after call sites move to queued mutation.
+    // Harder-than-expected in this pass: helper is used as a pure ActEffect
+    // builder and lacks EventContext required by queue-based draining.
     ActEffect {
         effect_type: Some(EffectType::Damage as i32),
         target_id: Some(target_uid),

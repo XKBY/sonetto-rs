@@ -274,6 +274,8 @@ pub fn calculate_damage(
 
     // TODO(event-queue): Phase 3 - route primary Damage/Crit emission
     // through EventQueue drain instead of direct ActEffectBuilder construction.
+    // Harder-than-expected in this pass: queue Damage currently serializes
+    // `EffectType::Damage` only and needs a Crit-capable event shape first.
     vec![
         ActEffectBuilder::new(primary_effect, target_uid)
             .effect_num(dmg)
@@ -344,6 +346,8 @@ pub fn calculate_heal_by_two_attr(
 pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect {
     // TODO(event-queue): Phase 3 - route Heal/HealCrit emission through
     // EventQueue drain instead of direct ActEffectBuilder construction.
+    // Harder-than-expected in this pass: queue Heal currently emits `Heal`
+    // only and needs HealCrit-aware serialization before migration.
     ActEffectBuilder::new(
         if is_crit {
             EffectType::Healcrit as i32

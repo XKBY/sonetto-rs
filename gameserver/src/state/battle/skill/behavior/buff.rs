@@ -448,18 +448,24 @@ pub fn apply(
                 spec.buff_id,
                 spec.has_bloodpool,
             ));
-            // TODO(event-queue): Phase 3 - route this includeType=10 replacement
-            // BuffAdd state sync through EventQueue drain.
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
-                    spec.target,
-                    spec.buff_id,
-                    spec.caster_uid,
-                    initial_stacks,
-                    initial_layer,
-                    buff_uid,
-                );
+            let mut queue = EventQueue::new();
+            queue.push(BattleEvent::BuffSyncAddWithUid {
+                target: spec.target,
+                buff_id: spec.buff_id,
+                from: spec.caster_uid,
+                count: initial_stacks,
+                layer: initial_layer,
+                buff_uid,
             });
+            let mut local_fight = Fight::default();
+            let mut local_bloodtithe = BloodtitheState::new();
+            let mut event_ctx = EventContext {
+                fight: &mut local_fight,
+                buff_mgr: &mut managers.buff_mgr,
+                ex_point_mgr: &mut managers.ex_point_mgr,
+                bloodtithe: &mut local_bloodtithe,
+            };
+            effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
             return effects;
         }
 
@@ -662,8 +668,7 @@ pub fn apply(
             spec.has_bloodpool,
         ));
 
-        // TODO(event-queue): Phase 3 - route fresh BuffAdd state sync through
-        // EventQueue drain instead of direct add_with_uid mirrors.
+        let mut queue = EventQueue::new();
         if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
             for stack in (initial_stacks + 1)..=count {
                 effects.push(buff_update(
@@ -675,28 +680,33 @@ pub fn apply(
                     initial_layer,
                 ));
             }
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
-                    spec.target,
-                    spec.buff_id,
-                    spec.caster_uid,
-                    count,
-                    initial_layer,
-                    buff_uid,
-                );
+            queue.push(BattleEvent::BuffSyncAddWithUid {
+                target: spec.target,
+                buff_id: spec.buff_id,
+                from: spec.caster_uid,
+                count,
+                layer: initial_layer,
+                buff_uid,
             });
         } else {
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
-                    spec.target,
-                    spec.buff_id,
-                    spec.caster_uid,
-                    initial_stacks,
-                    initial_layer,
-                    buff_uid,
-                );
+            queue.push(BattleEvent::BuffSyncAddWithUid {
+                target: spec.target,
+                buff_id: spec.buff_id,
+                from: spec.caster_uid,
+                count: initial_stacks,
+                layer: initial_layer,
+                buff_uid,
             });
-        }
+        };
+        let mut local_fight = Fight::default();
+        let mut local_bloodtithe = BloodtitheState::new();
+        let mut event_ctx = EventContext {
+            fight: &mut local_fight,
+            buff_mgr: &mut managers.buff_mgr,
+            ex_point_mgr: &mut managers.ex_point_mgr,
+            bloodtithe: &mut local_bloodtithe,
+        };
+        effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
     }
 
     effects
@@ -751,26 +761,26 @@ pub fn replace_buff2(
     let buff_uid = existing
         .map(|b| b.uid)
         .unwrap_or_else(|| next_buff_uid_for_target(target));
-    effects.push(buff_update(
+    let mut queue = EventQueue::new();
+    queue.push(BattleEvent::BuffSyncAddWithUidAndEmitUpdate {
         target,
-        caster_uid,
-        replacement_buff_id,
+        buff_id: replacement_buff_id,
+        from: caster_uid,
+        sync_count: duration,
+        sync_layer: 0,
         buff_uid,
-        count,
-        0,
-    ));
-    // TODO(event-queue): Phase 3 - route replace_buff2 BuffUpdate through
-    // EventQueue drain instead of direct mutation + manual ActEffect.
-    with_buff_ctx(fight, managers, |buff_ctx| {
-        buff_ctx.add_with_uid(
-            target,
-            replacement_buff_id,
-            caster_uid,
-            duration,
-            0,
-            buff_uid,
-        );
+        emit_count: count,
+        emit_layer: 0,
     });
+    let mut local_fight = Fight::default();
+    let mut local_bloodtithe = BloodtitheState::new();
+    let mut event_ctx = EventContext {
+        fight: &mut local_fight,
+        buff_mgr: &mut managers.buff_mgr,
+        ex_point_mgr: &mut managers.ex_point_mgr,
+        bloodtithe: &mut local_bloodtithe,
+    };
+    effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
     effects
 }
 

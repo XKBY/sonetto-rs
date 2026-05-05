@@ -38,6 +38,24 @@ pub enum BattleEvent {
         target: i64,
         buff_uid: i64,
     },
+    BuffSyncAddWithUid {
+        target: i64,
+        buff_id: i32,
+        from: i64,
+        count: i32,
+        layer: i32,
+        buff_uid: i64,
+    },
+    BuffSyncAddWithUidAndEmitUpdate {
+        target: i64,
+        buff_id: i32,
+        from: i64,
+        sync_count: i32,
+        sync_layer: i32,
+        buff_uid: i64,
+        emit_count: i32,
+        emit_layer: i32,
+    },
     Damage {
         target: i64,
         amount: i32,
@@ -259,6 +277,39 @@ pub fn drain_to_fight_steps(
                         instance.from_uid,
                     ));
                 }
+            }
+            BattleEvent::BuffSyncAddWithUid {
+                target,
+                buff_id,
+                from,
+                count,
+                layer,
+                buff_uid,
+            } => {
+                _ctx.buff_mgr
+                    .add_with_uid(target, buff_id, from, count, layer, buff_uid);
+            }
+            BattleEvent::BuffSyncAddWithUidAndEmitUpdate {
+                target,
+                buff_id,
+                from,
+                sync_count,
+                sync_layer,
+                buff_uid,
+                emit_count,
+                emit_layer,
+            } => {
+                _ctx.buff_mgr.add_with_uid(
+                    target,
+                    buff_id,
+                    from,
+                    sync_count,
+                    sync_layer,
+                    buff_uid,
+                );
+                out.push(buff_update(
+                    target, from, buff_id, buff_uid, emit_count, emit_layer,
+                ));
             }
             BattleEvent::Damage {
                 target,
