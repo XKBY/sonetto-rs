@@ -17,7 +17,7 @@ use crate::state::battle::{
     },
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
-    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
+    event_queue::{BattleEvent, EventContext, EventQueue, HostEventAccumulator, drain_to_fight_steps},
     fight_step::ActEffectBuilder,
     hero::HeroId,
     heroes::{semmelweis, tuesday},
@@ -427,10 +427,33 @@ fn direct_root_skill_child(host_step: &FightStep) -> Option<&FightStep> {
         .and_then(|effect| effect.fight_step.as_ref())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MagicCircleApplyKind {
+    /// No embeds were applied.
+    None,
+    /// Embeds spliced into host_step.act_effect at top level.
+    /// All embeds were also pushed into accumulator's direct lane.
+    TopLevel,
+    /// Embeds spliced into a nested SKILL wrapper's act_effect.
+    /// Embeds are NOT in the accumulator (nested-path inserts
+    /// can't be checked at host top level — known limitation).
+    NestedPath,
+}
+
 pub(crate) fn apply_magic_circle_self_skill_embeds(
     ctx: &mut FightContext<'_>,
     host_step: &mut FightStep,
 ) {
+    let mut accumulator = HostEventAccumulator::new();
+    let _ =
+        apply_magic_circle_self_skill_embeds_with_accumulator(ctx, host_step, &mut accumulator);
+}
+
+pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(
+    ctx: &mut FightContext<'_>,
+    host_step: &mut FightStep,
+    accumulator: &mut HostEventAccumulator,
+) -> MagicCircleApplyKind {
     if let Some(path) = find_last_nested_aura_target(ctx, host_step)
         && let Some(target_snapshot) = nested_step_ref_at_path(host_step, &path).cloned()
     {
@@ -444,7 +467,7 @@ pub(crate) fn apply_magic_circle_self_skill_embeds(
         {
             let insert_at = trigger_embed::find_trigger_insert_index(&target_step.act_effect);
             target_step.act_effect.splice(insert_at..insert_at, embeds);
-            return;
+            return MagicCircleApplyKind::NestedPath;
         }
     }
 
@@ -456,17 +479,24 @@ pub(crate) fn apply_magic_circle_self_skill_embeds(
             target_snapshot.from_id.unwrap_or(0),
         );
         if !embeds.is_empty() {
+            for effect in embeds.iter().cloned() {
+                accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
+            }
             let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
             host_step.act_effect.splice(insert_at..insert_at, embeds);
-            return;
+            return MagicCircleApplyKind::TopLevel;
         }
     }
 
     let embeds =
         build_magic_circle_self_skill_embeds(ctx, host_step, host_step.from_id.unwrap_or(0));
     if embeds.is_empty() {
-        return;
+        return MagicCircleApplyKind::None;
+    }
+    for effect in embeds.iter().cloned() {
+        accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
     }
     let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
     host_step.act_effect.splice(insert_at..insert_at, embeds);
+    MagicCircleApplyKind::TopLevel
 }

@@ -21,7 +21,7 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BeginRoundOper, FightStep, effect_type_enum::EffectType, fight_step};
+use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
@@ -40,33 +40,8 @@ use crate::state::battle::{
     trigger::passes::sync_blood_value_baseline,
 };
 
-fn capture_inserted_host_children(
-    accumulator: &mut HostEventAccumulator,
-    lane: HostAccumulatorLane,
-    before: &[ActEffect],
-    after: &[ActEffect],
-) {
-    if after.len() <= before.len() {
-        return;
-    }
-
-    let mut consumed_before = vec![false; before.len()];
-    for effect in after {
-        let matched_before = before
-            .iter()
-            .enumerate()
-            .find(|(idx, before_effect)| !consumed_before[*idx] && *before_effect == effect);
-        if let Some((idx, _)) = matched_before {
-            consumed_before[idx] = true;
-            continue;
-        }
-        push_host_accumulator_lane(accumulator, lane, effect.clone());
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 enum HostAccumulatorLane {
-    Direct,
     TriggerLane,
 }
 
@@ -77,7 +52,6 @@ fn push_host_accumulator_lane(
 ) {
     let event = BattleEvent::SerializedActEffect { effect };
     match lane {
-        HostAccumulatorLane::Direct => accumulator.push_direct(event),
         HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
     }
 }
@@ -143,13 +117,10 @@ pub(crate) async fn run(
         for effect in host_step.act_effect.clone() {
             accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
         }
-        let host_children_before_magic_circle = host_step.act_effect.clone();
-        magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
-        capture_inserted_host_children(
+        let mc_kind = magic_circle::apply_magic_circle_self_skill_embeds_with_accumulator(
+            ctx,
+            &mut host_step,
             &mut accumulator,
-            HostAccumulatorLane::Direct,
-            &host_children_before_magic_circle,
-            &host_step.act_effect,
         );
         let expanded_steps =
             mgr.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
@@ -259,11 +230,8 @@ pub(crate) async fn run(
             host_step.act_id.unwrap_or(0),
             host_step.from_id.unwrap_or(0),
         );
-        let has_magic_circle_add = host_step
-            .act_effect
-            .iter()
-            .any(|effect| effect.effect_type == Some(EffectType::Magiccircleadd as i32));
-        if !has_magic_circle_add {
+        let mc_skipped = matches!(mc_kind, magic_circle::MagicCircleApplyKind::NestedPath);
+        if !mc_skipped {
             let mut captured_effects: Vec<&ActEffect> = Vec::new();
             for effect in accumulator.iter_captured_act_effects() {
                 if let Some(nested_step) = effect.fight_step.as_ref()
