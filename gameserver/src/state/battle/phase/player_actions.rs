@@ -68,7 +68,6 @@ fn capture_inserted_host_children(
 enum HostAccumulatorLane {
     Direct,
     TriggerLane,
-    Injury,
 }
 
 fn push_host_accumulator_lane(
@@ -80,7 +79,6 @@ fn push_host_accumulator_lane(
     match lane {
         HostAccumulatorLane::Direct => accumulator.push_direct(event),
         HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
-        HostAccumulatorLane::Injury => accumulator.push_injury(event),
     }
 }
 
@@ -231,19 +229,18 @@ pub(crate) async fn run(
                 host_step.from_id.unwrap_or(0),
             )
         {
-            let host_children_before_injury_markers = host_step.act_effect.clone();
-            injury_counter::inject_card_host_injury_markers(
-                &mut host_step,
+            let mut markers = injury_counter::inject_card_host_injury_markers(
+                &host_step,
                 ctx.fight,
                 holder_uid,
                 injury_count,
-            );
-            capture_inserted_host_children(
                 &mut accumulator,
-                HostAccumulatorLane::Injury,
-                &host_children_before_injury_markers,
-                &host_step.act_effect,
             );
+            // Splice in reverse-index order so earlier positions don't shift.
+            markers.sort_by(|(a, _), (b, _)| b.cmp(a));
+            for (idx, marker) in markers {
+                host_step.act_effect.insert(idx, marker);
+            }
         }
         let (direct, trigger, be_attacked, injury) = accumulator.lane_counts();
         tracing::debug!(

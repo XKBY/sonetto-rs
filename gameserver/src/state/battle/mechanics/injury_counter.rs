@@ -1,4 +1,5 @@
 use crate::state::battle::{
+    event_queue::{BattleEvent, HostEventAccumulator},
     fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
     skill::{cache::resolve_skill_effect_id, get_entity},
     types::effects::EffectType,
@@ -413,46 +414,54 @@ pub(crate) fn find_card_host_injury_marker_params(
 }
 
 pub(crate) fn inject_card_host_injury_markers(
-    host_step: &mut FightStep,
+    host_step: &FightStep,
     fight: &Fight,
     holder_uid: i64,
     injury_count: i32,
-) {
+    accumulator: &mut HostEventAccumulator,
+) -> Vec<(usize, ActEffect)> {
     if injury_count <= 0 || holder_uid == 0 {
-        return;
+        return Vec::new();
     }
     let Some(caster_team_type) = host_step
         .from_id
         .and_then(|uid| get_entity(fight, uid))
         .and_then(|entity| entity.team_type)
     else {
-        return;
+        return Vec::new();
     };
 
-    let mut next = Vec::with_capacity(host_step.act_effect.len() + 4);
-    for effect in std::mem::take(&mut host_step.act_effect) {
-        if let Some(injured_uid) = flat_host_injury_marker_uid(fight, &effect, caster_team_type) {
-            next.push(build_card_host_injury_marker(
+    let mut markers = Vec::with_capacity(4);
+    for (idx, effect) in host_step.act_effect.iter().enumerate() {
+        if let Some(injured_uid) = flat_host_injury_marker_uid(fight, effect, caster_team_type) {
+            let marker = build_card_host_injury_marker(
                 injured_uid,
                 holder_uid,
                 injury_count,
-            ));
+            );
+            accumulator.push_injury(BattleEvent::SerializedActEffect {
+                effect: marker.clone(),
+            });
+            markers.push((idx, marker));
         }
 
         let nested_marker_uid = effect
             .fight_step
             .as_ref()
             .and_then(|step| nested_host_injury_marker_uid(fight, step, caster_team_type));
-        next.push(effect);
         if let Some(injured_uid) = nested_marker_uid {
-            next.push(build_card_host_injury_marker(
+            let marker = build_card_host_injury_marker(
                 injured_uid,
                 holder_uid,
                 injury_count,
-            ));
+            );
+            accumulator.push_injury(BattleEvent::SerializedActEffect {
+                effect: marker.clone(),
+            });
+            markers.push((idx + 1, marker));
         }
     }
-    host_step.act_effect = next;
+    markers
 }
 
 pub(crate) fn is_damage_effect_type(effect_type: i32) -> bool {
