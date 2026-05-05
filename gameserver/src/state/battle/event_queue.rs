@@ -136,7 +136,7 @@ pub enum SkillEmitKind {
 pub struct HostEventAccumulator {
     direct: Vec<BattleEvent>,
     trigger_lane: Vec<BattleEvent>,
-    graft: Vec<BattleEvent>,
+    be_attacked: Vec<BattleEvent>,
     injury: Vec<BattleEvent>,
 }
 
@@ -153,8 +153,8 @@ impl HostEventAccumulator {
         self.trigger_lane.push(event);
     }
 
-    pub fn push_graft(&mut self, event: BattleEvent) {
-        self.graft.push(event);
+    pub fn push_be_attacked(&mut self, event: BattleEvent) {
+        self.be_attacked.push(event);
     }
 
     pub fn push_injury(&mut self, event: BattleEvent) {
@@ -162,14 +162,14 @@ impl HostEventAccumulator {
     }
 
     pub fn child_count(&self) -> usize {
-        self.direct.len() + self.trigger_lane.len() + self.graft.len() + self.injury.len()
+        self.direct.len() + self.trigger_lane.len() + self.be_attacked.len() + self.injury.len()
     }
 
     pub fn lane_counts(&self) -> (usize, usize, usize, usize) {
         (
             self.direct.len(),
             self.trigger_lane.len(),
-            self.graft.len(),
+            self.be_attacked.len(),
             self.injury.len(),
         )
     }

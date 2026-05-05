@@ -357,10 +357,10 @@ impl FightRoundMgr {
     ///
     /// TODO(event-queue): EventQueue Phase 4
     /// (`SkillEmitKind::EventTriggered`) eventually replaces this
-    /// post-emission graft with a damage-event-tied reactive emission
+    /// post-emission inject with a damage-event-tied reactive emission
     /// during drain. Until that lands, this is the cleanest non-
     /// hardcoded approximation of the LIVE shape.
-    pub(crate) fn graft_be_attacked_reactives_onto_player_host(
+    pub(crate) fn inject_be_attacked_reactives_onto_player_host(
         &self,
         state: &RoundState,
         host_step: &mut FightStep,
@@ -374,7 +374,7 @@ impl FightRoundMgr {
         {
             return;
         }
-        // Only graft on ultimate-skill bodies. LIVE never nests
+        // Only inject on ultimate-skill bodies. LIVE never nests
         // `BeAttacked` reactives inside basic-skill hosts — they fire
         // once per round at top-level via the natural passive pipeline.
         // Config-driven: skill_effect.isBigSkill == 1 marks the
@@ -430,17 +430,17 @@ impl FightRoundMgr {
         let wrappers: Vec<ActEffect> = targets
             .into_iter()
             .map(|target_uid| {
-                let graft_record_idx = mechanics.emission_timeline.record(
-                    crate::state::battle::emission_timeline::EmissionPhase::BeAttackedGraft,
+                let inject_record_idx = mechanics.emission_timeline.record(
+                    crate::state::battle::emission_timeline::EmissionPhase::BeAttackedInject,
                     reactive_caster_uid,
                     BE_ATTACKED_REACTIVE_ACT_ID,
                     0,
                     Some(host_step.act_id.unwrap_or(0)),
                     host_step.from_id,
                 );
-                // Graft always produces a wrapper at this point — every
+                // The inject always produces a wrapper at this point — every
                 // record corresponds to one synthesized output effect.
-                mechanics.emission_timeline.mark_produced(graft_record_idx);
+                mechanics.emission_timeline.mark_produced(inject_record_idx);
                 let buff_uid = next_buff_uid_for_target(target_uid);
                 let effect = crate::state::battle::utils::buff_update(
                     target_uid,

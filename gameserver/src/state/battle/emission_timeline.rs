@@ -94,12 +94,12 @@ pub enum EmissionPhase {
     /// reactives into emitted enemy fightStep subtrees. Operates on
     /// the already-built tree.
     AllyReactiveInject,
-    /// Post-emission graft from
-    /// `round_mgr::graft_be_attacked_reactives_onto_player_host` —
+    /// Post-emission inject from
+    /// `round_mgr::inject_be_attacked_reactives_onto_player_host` —
     /// synthesizes a wrapper directly without going through
     /// `execute_skill`. Recorded separately so the timeline still
     /// sees it.
-    BeAttackedGraft,
+    BeAttackedInject,
 }
 
 impl EmissionPhase {
@@ -120,7 +120,7 @@ impl EmissionPhase {
             EmissionPhase::ExecutorLowLevel => "ExecutorLowLevel",
             EmissionPhase::DirectUseBigSkillFanout => "DirectUseBigSkillFanout",
             EmissionPhase::AllyReactiveInject => "AllyReactiveInject",
-            EmissionPhase::BeAttackedGraft => "BeAttackedGraft",
+            EmissionPhase::BeAttackedInject => "BeAttackedInject",
         }
     }
 }
