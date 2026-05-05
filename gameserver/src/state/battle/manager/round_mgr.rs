@@ -11,9 +11,9 @@ use super::super::{
     ConditionType,
     card::CardOpType,
     context::{FightContext, RoundContext},
+    event_queue::{BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps},
     fight_step::{
-        FightStepBuilder, effect_container_step, make_skill_step, split_step_by_effect_limit,
-        wrap_step,
+        FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step,
     },
     manager::{
         buff_mgr::next_buff_uid_for_target,
@@ -364,9 +364,10 @@ impl FightRoundMgr {
         &self,
         state: &RoundState,
         host_step: &mut FightStep,
-        mechanics: &mut crate::state::battle::mechanics::Mechanics,
+        ctx: &mut FightContext<'_>,
     ) {
         const BE_ATTACKED_REACTIVE_ACT_ID: i32 = 530000411;
+        let mechanics = &mut *ctx.mechanics;
 
         if host_step.act_type != Some(fight_step::ActType::Skill as i32)
             || host_step.from_id.unwrap_or(0) <= 0
@@ -449,12 +450,24 @@ impl FightRoundMgr {
                     0,
                     0,
                 );
-                wrap_step(effect_container_step(
-                    reactive_caster_uid,
-                    target_uid,
-                    BE_ATTACKED_REACTIVE_ACT_ID,
-                    vec![effect],
-                ))
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::SkillEmit {
+                    skill_id: BE_ATTACKED_REACTIVE_ACT_ID,
+                    from: reactive_caster_uid,
+                    to: target_uid,
+                    children: vec![BattleEvent::SerializedActEffect { effect }],
+                    kind: SkillEmitKind::EventTriggered,
+                });
+                let mut event_ctx = EventContext {
+                    fight: ctx.fight,
+                    buff_mgr: &mut ctx.managers.buff_mgr,
+                    ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                    bloodtithe: &mut mechanics.bloodtithe,
+                };
+                drain_to_fight_steps(queue.drain(), &mut event_ctx)
+                    .into_iter()
+                    .next()
+                    .expect("event-triggered be_attacked graft should serialize to a single ActEffect")
             })
             .collect();
 
