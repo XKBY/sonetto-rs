@@ -275,6 +275,8 @@ impl FightDataMgr {
                     rebuilt.initialized = true;
                     let current_max = rebuilt.get_max(team_type);
                     if amount > current_max {
+                        // TODO(event-queue): Phase 3 - replay seeding still mutates
+                        // bloodpool max directly outside EventQueue drain.
                         rebuilt.set_max(team_type, amount);
                     }
                 }
@@ -404,6 +406,8 @@ impl FightDataMgr {
                     let next_max = effect.effect_num1.unwrap_or(0);
                     let current_max = rebuilt.get_max(team_type);
                     if next_max > current_max {
+                        // TODO(event-queue): Phase 3 - replay seeding still mutates
+                        // bloodpool max directly outside EventQueue drain.
                         rebuilt.set_max(team_type, next_max);
                     }
                 }

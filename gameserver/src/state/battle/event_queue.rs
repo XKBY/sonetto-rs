@@ -172,6 +172,7 @@ pub fn drain_to_fight_steps(
                 ));
             }
             BattleEvent::BloodpoolMaxChange { team_type, max } => {
+                _ctx.bloodtithe.set_max(team_type, max);
                 out.push(ActEffectBuilder::bloodpool_max_change(team_type, max));
             }
             BattleEvent::SerializedActEffect { effect } => out.push(effect),
@@ -375,6 +376,31 @@ mod tests {
         assert_eq!(out[0].target_id, Some(uid));
         assert_eq!(out[0].effect_num, Some(team_type));
         assert_eq!(out[0].effect_num1, Some(-3));
+    }
+
+    #[test]
+    fn bloodpool_max_change_updates_state_and_serializes() {
+        let mut ctx = test_ctx();
+        let team_type = 1;
+        ctx.bloodtithe.set_max(team_type, 24);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::BloodpoolMaxChange {
+                team_type,
+                max: 57,
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(ctx.bloodtithe.get_max(team_type), 57);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Bloodpoolmaxchange as i32)
+        );
+        assert_eq!(out[0].target_id, Some(0));
+        assert_eq!(out[0].effect_num, Some(team_type));
+        assert_eq!(out[0].effect_num1, Some(57));
     }
 
     #[test]

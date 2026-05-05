@@ -5,6 +5,10 @@ use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::heroes::{nautika, rubuska, semmelweis};
+use crate::state::battle::{
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
+    manager::{buff_mgr::BuffMgr as EventBuffMgr, ex_point_mgr::ExPointMgr as EventExPointMgr},
+};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -44,7 +48,7 @@ impl BehaviorAction for BloodPool {
 }
 use crate::state::battle::manager::buff_mgr::BuffMgr;
 use crate::state::battle::mechanics::bloodtithe::{
-    BloodtitheState, bloodtithe_add_to_pool, bloodtithe_max_change, bloodtithe_value_change,
+    BloodtitheState, bloodtithe_add_to_pool, bloodtithe_value_change,
 };
 use crate::state::battle::types::effects::EffectType;
 use crate::state::battle::utils::{apply_real_hurt_fix, damage_with_hurt};
@@ -248,9 +252,24 @@ pub fn pool_max_change(
     _target: i64,
     amount: i32,
 ) -> Vec<ActEffect> {
-    bloodtithe
-        .pending_effects
-        .push(bloodtithe_max_change(amount, 1));
+    let mut queue = EventQueue::new();
+    queue.push(BattleEvent::BloodpoolMaxChange {
+        team_type: 1,
+        max: amount,
+    });
+    let mut synthetic_fight = Fight::default();
+    let mut synthetic_buff_mgr = EventBuffMgr::new();
+    let mut synthetic_ex_point_mgr = EventExPointMgr::new();
+    let drained = {
+        let mut event_ctx = EventContext {
+            fight: &mut synthetic_fight,
+            buff_mgr: &mut synthetic_buff_mgr,
+            ex_point_mgr: &mut synthetic_ex_point_mgr,
+            bloodtithe,
+        };
+        drain_to_fight_steps(queue.drain(), &mut event_ctx)
+    };
+    bloodtithe.pending_effects.extend(drained);
     vec![]
 }
 

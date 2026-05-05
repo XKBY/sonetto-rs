@@ -716,6 +716,8 @@ impl FightCalculateDataMgr {
     ) -> Result<(), String> {
         let team_type = effect.team_type.unwrap_or(1);
         let max = effect.effect_num1.unwrap_or(0);
+        // TODO(event-queue): Phase 3 - this replay lane still mutates max
+        // outside EventQueue drain ownership.
         bloodtithe.set_max(team_type, bloodtithe.get_max(team_type).max(max));
         tracing::trace!("Bloodtithe max set: team={}, max={}", team_type, max);
         Ok(())
@@ -736,6 +738,8 @@ impl FightCalculateDataMgr {
             let current = bloodtithe.get_value(team_type);
             let next = (current + effect_num1).max(0);
             if effect_num1 > 0 && next > bloodtithe.get_max(team_type) {
+                // TODO(event-queue): Phase 3 - positive BloodPoolValueChange replay
+                // still raises max directly instead of via drain-owned mutation.
                 bloodtithe.set_max(team_type, next);
             }
             bloodtithe.set_value(team_type, next);

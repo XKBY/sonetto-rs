@@ -244,6 +244,8 @@ fn maybe_inject_wrapped_bloodpool_gain(
 
     // TODO(event-queue): Phase 3 - route this BloodPoolValueChange emission
     // through EventQueue drain instead of inline mutation + effect insert.
+    // TODO(event-queue): Phase 3 - cap growth still mutates bloodpool max
+    // (`set_max`) outside drain on this path.
     let current = ctx.mechanics.bloodtithe.get_value(team_type).max(0);
     let next = current + 2;
     if next > ctx.mechanics.bloodtithe.get_max(team_type) {
