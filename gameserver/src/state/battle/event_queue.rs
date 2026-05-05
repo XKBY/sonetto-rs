@@ -145,6 +145,15 @@ pub fn drain_to_fight_steps(
 
     for event in events {
         match event {
+            BattleEvent::ExPointChange { target, delta } => {
+                _ctx.ex_point_mgr.add_ex_point(target, delta);
+                out.push(ActEffect {
+                    effect_type: Some(EffectType::Expointchange as i32),
+                    effect_num: Some(delta),
+                    target_id: Some(target),
+                    ..Default::default()
+                });
+            }
             BattleEvent::PowerChange { delta } => out.push(ActEffect {
                 effect_type: Some(EffectType::Powerchange as i32),
                 effect_num: Some(delta),
@@ -276,6 +285,30 @@ mod tests {
         );
 
         assert_eq!(out, vec![effect]);
+    }
+
+    #[test]
+    fn ex_point_change_updates_manager_and_serializes() {
+        let mut ctx = test_ctx();
+        let uid = 77;
+        ctx.ex_point_mgr.set_ex_point(uid, 2);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::ExPointChange {
+                target: uid,
+                delta: 3,
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(ctx.ex_point_mgr.get_ex_point(uid), 5);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Expointchange as i32)
+        );
+        assert_eq!(out[0].effect_num, Some(3));
+        assert_eq!(out[0].target_id, Some(uid));
     }
 
     #[test]

@@ -5,6 +5,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, figh
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::{
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     heroes::rubuska,
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
@@ -89,8 +90,6 @@ pub fn build_blood_pool_ex_point_step(
                 continue;
             }
 
-            ex_point_mgr.add_ex_point(uid, gain);
-
             let mut act_effect = Vec::new();
             for _ in 0..gain {
                 act_effect.push(ActEffect {
@@ -100,12 +99,19 @@ pub fn build_blood_pool_ex_point_step(
                     target_id: Some(uid),
                     ..Default::default()
                 });
-                act_effect.push(ActEffect {
-                    effect_type: Some(EffectType::Expointchange as i32),
-                    effect_num: Some(1),
-                    target_id: Some(uid),
-                    ..Default::default()
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::ExPointChange {
+                    target: uid,
+                    delta: 1,
                 });
+                let mut synthetic_fight = Fight::default();
+                let mut synthetic_buff_mgr = BuffMgr::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut synthetic_fight,
+                    buff_mgr: &mut synthetic_buff_mgr,
+                    ex_point_mgr,
+                };
+                act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
             }
 
             outer_effects.push(ActEffect {
@@ -195,6 +201,8 @@ pub fn build_blood_pool_gain_ex_point_step(
                 continue;
             }
             *entry %= threshold;
+            // TODO(event-queue): Phase 3 - route this remaining ExPointChange emitter
+            // through EventQueue drain, matching build_blood_pool_ex_point_step.
             ex_point_mgr.add_ex_point(uid, gain);
 
             let mut act_effect = Vec::new();
