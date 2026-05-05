@@ -1,5 +1,4 @@
 use super::super::{
-    fight_step::ActEffectBuilder,
     manager::buff_mgr::BuffMgr,
     types::attr::AttrId,
     utils::{
@@ -8,6 +7,7 @@ use super::super::{
     },
 };
 use super::targets::get_entity;
+use crate::state::battle::event_queue::{BattleEvent, serialize_leaf_event};
 use sonettobuf::{
     fight_hurt_info::DamageFromType,
     {ActEffect, Fight, effect_type_enum::EffectType},
@@ -272,32 +272,29 @@ pub fn calculate_damage(
         EffectType::Damage as i32
     };
 
-    // TODO(event-queue): Phase 3 - route primary Damage/Crit emission
-    // through EventQueue drain instead of direct ActEffectBuilder construction.
-    // Harder-than-expected in this pass: queue Damage currently serializes
-    // `EffectType::Damage` only and needs a Crit-capable event shape first.
-    vec![
-        ActEffectBuilder::new(primary_effect, target_uid)
-            .effect_num(dmg)
-            .config_effect(-1)
-            .hurt_info(sonettobuf::FightHurtInfo {
-                damage: Some(dmg),
-                reduce_hp: Some(0),
-                reduce_shield: Some(0),
-                career_restraint: Some(restraint),
-                critical: Some(is_crit),
-                assassinate: Some(false),
-                hurt_effect: Some(primary_effect),
-                damage_from_type: Some(DamageFromType::Skill as i32),
-                config_effect: Some(-1),
-                buff_act_id: Some(0),
-                buff_uid: Some(0),
-                effect_id: Some(0),
-                skill_id: Some(0),
-                from_uid: Some(caster_uid),
-            })
-            .build(),
-    ]
+    vec![serialize_leaf_event(BattleEvent::Damage {
+        target: target_uid,
+        amount: dmg,
+        is_crit: primary_effect == EffectType::Crit as i32,
+        hurt_info: sonettobuf::FightHurtInfo {
+            damage: Some(dmg),
+            reduce_hp: Some(0),
+            reduce_shield: Some(0),
+            career_restraint: Some(restraint),
+            critical: Some(is_crit),
+            assassinate: Some(false),
+            hurt_effect: Some(primary_effect),
+            damage_from_type: Some(DamageFromType::Skill as i32),
+            config_effect: Some(-1),
+            buff_act_id: Some(0),
+            buff_uid: Some(0),
+            effect_id: Some(0),
+            skill_id: Some(0),
+            from_uid: Some(caster_uid),
+        },
+        from: caster_uid,
+        skill_id: None,
+    })]
 }
 
 pub fn calculate_heal(
@@ -344,19 +341,19 @@ pub fn calculate_heal_by_two_attr(
 }
 
 pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect {
-    // TODO(event-queue): Phase 3 - route Heal/HealCrit emission through
-    // EventQueue drain instead of direct ActEffectBuilder construction.
-    // Harder-than-expected in this pass: queue Heal currently emits `Heal`
-    // only and needs HealCrit-aware serialization before migration.
-    ActEffectBuilder::new(
-        if is_crit {
-            EffectType::Healcrit as i32
-        } else {
-            EffectType::Heal as i32
-        },
-        target_id,
-    )
-    .effect_num(heal)
-    .config_effect(VfxConfig::Heal as i32)
-    .build()
+    let mut effect = if is_crit {
+        serialize_leaf_event(BattleEvent::HealCrit {
+            target: target_id,
+            amount: heal,
+            from: 0,
+        })
+    } else {
+        serialize_leaf_event(BattleEvent::Heal {
+            target: target_id,
+            amount: heal,
+            from: 0,
+        })
+    };
+    effect.config_effect = Some(VfxConfig::Heal as i32);
+    effect
 }

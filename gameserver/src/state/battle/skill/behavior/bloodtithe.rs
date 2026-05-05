@@ -213,6 +213,7 @@ pub fn lost_life(
         queue.push(BattleEvent::Damage {
             target,
             amount: actual_loss,
+            is_crit: false,
             hurt_info: FightHurtInfo {
                 damage: Some(actual_loss),
                 reduce_hp: Some(0),

@@ -89,6 +89,7 @@ impl BehaviorAction for LostLife {
                     queue.push(BattleEvent::Damage {
                         target: target_id,
                         amount,
+                        is_crit: false,
                         hurt_info,
                         from: ctx.caster_uid,
                         skill_id: Some(ctx.skill_id),

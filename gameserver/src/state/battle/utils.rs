@@ -1,4 +1,5 @@
 use super::{
+    event_queue::{BattleEvent, serialize_leaf_event},
     manager::buff_mgr::{BuffMgr, next_buff_uid_for_target, next_slave_buff_uid_for_target},
     skill::get_entity,
     types::{buff::BuffLayerType, career::CareerType},
@@ -145,16 +146,11 @@ pub fn damage_with_hurt(
     skill_id: i32,
     from_uid: i64,
 ) -> ActEffect {
-    // TODO(event-queue): Phase 3 - route helper-based Damage-with-hurt
-    // emissions through EventQueue drain after call sites move to queued mutation.
-    // Harder-than-expected in this pass: helper is used as a pure ActEffect
-    // builder and lacks EventContext required by queue-based draining.
-    ActEffect {
-        effect_type: Some(EffectType::Damage as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        config_effect: Some(config_effect),
-        hurt_info: Some(FightHurtInfo {
+    serialize_leaf_event(BattleEvent::Damage {
+        target: target_uid,
+        amount,
+        is_crit: false,
+        hurt_info: FightHurtInfo {
             damage: Some(amount),
             reduce_hp: Some(0),
             hurt_effect: Some(EffectType::Damage as i32),
@@ -164,9 +160,10 @@ pub fn damage_with_hurt(
             skill_id: Some(skill_id),
             from_uid: Some(from_uid),
             ..Default::default()
-        }),
-        ..Default::default()
-    }
+        },
+        from: from_uid,
+        skill_id: Some(skill_id),
+    })
 }
 
 /// Damage details

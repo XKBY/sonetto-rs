@@ -59,11 +59,17 @@ pub enum BattleEvent {
     Damage {
         target: i64,
         amount: i32,
+        is_crit: bool,
         hurt_info: HurtInfo,
         from: i64,
         skill_id: Option<i32>,
     },
     Heal {
+        target: i64,
+        amount: i32,
+        from: i64,
+    },
+    HealCrit {
         target: i64,
         amount: i32,
         from: i64,
@@ -314,6 +320,7 @@ pub fn drain_to_fight_steps(
             BattleEvent::Damage {
                 target,
                 amount,
+                is_crit,
                 mut hurt_info,
                 from,
                 skill_id,
@@ -337,12 +344,17 @@ pub fn drain_to_fight_steps(
                 if hurt_info.damage.is_none() {
                     hurt_info.damage = Some(damage);
                 }
+                let effect_type = if is_crit {
+                    EffectType::Crit as i32
+                } else {
+                    EffectType::Damage as i32
+                };
                 if hurt_info.hurt_effect.is_none() {
-                    hurt_info.hurt_effect = Some(EffectType::Damage as i32);
+                    hurt_info.hurt_effect = Some(effect_type);
                 }
 
                 out.push(ActEffect {
-                    effect_type: Some(EffectType::Damage as i32),
+                    effect_type: Some(effect_type),
                     target_id: Some(target),
                     effect_num: Some(damage),
                     config_effect: hurt_info.config_effect,
@@ -369,6 +381,30 @@ pub fn drain_to_fight_steps(
 
                 out.push(ActEffect {
                     effect_type: Some(EffectType::Heal as i32),
+                    target_id: Some(target),
+                    effect_num: Some(amount),
+                    ..Default::default()
+                });
+            }
+            BattleEvent::HealCrit {
+                target,
+                amount,
+                from: _from,
+            } => {
+                if let Some(entity) = find_entity_mut(_ctx.fight, target) {
+                    let current_hp = entity.current_hp.unwrap_or(0);
+                    let max_hp = entity
+                        .attr
+                        .as_ref()
+                        .and_then(|attr| attr.hp)
+                        .unwrap_or(current_hp);
+                    let new_hp = (current_hp + amount).min(max_hp);
+                    entity.current_hp = Some(new_hp);
+                    _ctx.ex_point_mgr.set_hp(target, new_hp);
+                }
+
+                out.push(ActEffect {
+                    effect_type: Some(EffectType::Healcrit as i32),
                     target_id: Some(target),
                     effect_num: Some(amount),
                     ..Default::default()
@@ -641,6 +677,7 @@ mod tests {
             vec![BattleEvent::Damage {
                 target: uid,
                 amount: 35,
+                is_crit: false,
                 hurt_info: hurt,
                 from: 404,
                 skill_id: Some(505),
@@ -676,6 +713,95 @@ mod tests {
             emitted_hurt.hurt_effect,
             Some(sonettobuf::effect_type_enum::EffectType::Damage as i32)
         );
+    }
+
+    #[test]
+    fn crit_damage_serializes_with_crit_effect_type() {
+        let mut ctx = test_ctx();
+        let uid = 305_i64;
+        ctx.fight.attacker = Some(FightTeam {
+            entitys: vec![FightEntityInfo {
+                uid: Some(uid),
+                current_hp: Some(90),
+                attr: Some(HeroAttribute {
+                    hp: Some(100),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        ctx.ex_point_mgr.set_hp(uid, 90);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::Damage {
+                target: uid,
+                amount: 10,
+                is_crit: true,
+                hurt_info: sonettobuf::FightHurtInfo::default(),
+                from: 404,
+                skill_id: Some(505),
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Crit as i32)
+        );
+        assert_eq!(
+            out[0]
+                .hurt_info
+                .as_ref()
+                .and_then(|hurt| hurt.hurt_effect),
+            Some(sonettobuf::effect_type_enum::EffectType::Crit as i32)
+        );
+    }
+
+    #[test]
+    fn heal_crit_updates_state_and_serializes() {
+        let mut ctx = test_ctx();
+        let uid = 306_i64;
+        ctx.fight.attacker = Some(FightTeam {
+            entitys: vec![FightEntityInfo {
+                uid: Some(uid),
+                current_hp: Some(30),
+                attr: Some(HeroAttribute {
+                    hp: Some(100),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        ctx.ex_point_mgr.set_hp(uid, 30);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::HealCrit {
+                target: uid,
+                amount: 80,
+                from: 404,
+            }],
+            &mut ctx,
+        );
+
+        let hp = ctx
+            .fight
+            .attacker
+            .as_ref()
+            .and_then(|team| team.entitys.first())
+            .and_then(|entity| entity.current_hp)
+            .expect("healed entity should remain in fight");
+        assert_eq!(hp, 100);
+        assert_eq!(ctx.ex_point_mgr.get_hp(uid), 100);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Healcrit as i32)
+        );
+        assert_eq!(out[0].target_id, Some(uid));
+        assert_eq!(out[0].effect_num, Some(80));
     }
 
     #[test]
