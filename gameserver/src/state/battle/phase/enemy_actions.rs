@@ -21,6 +21,7 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
+    event_queue::{self, BattleEvent, HostEventAccumulator, HostLane},
     manager::{card_mgr::FightCardMgr, round_mgr::FightRoundMgr},
     mechanics::magic_circle,
     passives::collector::CollectedPassives,
@@ -74,7 +75,15 @@ pub(crate) async fn run(
 
         let mut host_step = step.clone();
         step_walker::inline_magic_circle_root_wrapper(&mut host_step);
-        magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
+        let mut accumulator = HostEventAccumulator::new();
+        for effect in host_step.act_effect.clone() {
+            accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
+        }
+        let mc_kind = magic_circle::apply_magic_circle_self_skill_embeds_with_accumulator(
+            ctx,
+            &mut host_step,
+            &mut accumulator,
+        );
         let expanded_steps =
             mgr.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
         // Splice combat triggers as direct children of the host wrapper.
@@ -83,19 +92,76 @@ pub(crate) async fn run(
         // SKILL hosts across battle1/2/3 have a `host_id - 20` nested
         // wrapper) and the `or_else(rposition)` fallback was rerouting
         // boss-side reactive triggers into the wrong wrapper.
-        let mut embedded_steps: Vec<ActEffect> = Vec::new();
+        let trigger_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for trigger_step in expanded_steps.into_iter().skip(1) {
             let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-            embedded_steps.push(embedded);
+            accumulator.push_trigger_lane(BattleEvent::SerializedActEffect { effect: embedded });
         }
-        if !embedded_steps.is_empty() {
-            let insert_at = step_walker::host_trigger_insert_index(&host_step);
-            host_step
-                .act_effect
-                .splice(insert_at..insert_at, embedded_steps);
+        accumulator.splice_lane_drain_into_host(
+            HostLane::Trigger,
+            trigger_offset,
+            &mut host_step,
+            |host| step_walker::host_trigger_insert_index(host),
+        );
+        host_step.act_effect = trigger_embed::flatten_self_nested_skill_effects_v(
+            host_step.act_type,
+            host_step.act_id,
+            host_step.from_id,
+            std::mem::take(&mut host_step.act_effect),
+        );
+        host_step.act_effect = trigger_embed::normalize_player_skill_effect_order_v(
+            host_step.act_type,
+            std::mem::take(&mut host_step.act_effect),
+        );
+        let mc_skipped = matches!(mc_kind, magic_circle::MagicCircleApplyKind::NestedPath);
+        if !mc_skipped {
+            let mut captured_effects: Vec<&ActEffect> = Vec::new();
+            for effect in accumulator.iter_captured_act_effects() {
+                if let Some(nested_step) = effect.fight_step.as_ref()
+                    && nested_step.act_type == Some(fight_step::ActType::Skill as i32)
+                    && nested_step.act_id == host_step.act_id
+                {
+                    captured_effects.extend(nested_step.act_effect.iter());
+                } else {
+                    captured_effects.push(effect);
+                }
+            }
+            match event_queue::check_host_lane_membership(&captured_effects, &host_step.act_effect)
+            {
+                Ok(()) => {}
+                Err(diff) => {
+                    for (lane_name, lane) in [
+                        ("direct", HostLane::Direct),
+                        ("trigger", HostLane::Trigger),
+                        ("be_attacked", HostLane::BeAttacked),
+                        ("injury", HostLane::Injury),
+                    ] {
+                        let lane_count = accumulator.lane_iter(lane).count();
+                        tracing::debug!(
+                            target: "phase5_membership",
+                            "lane={} count={} skill_id={} caster={} (enemy)",
+                            lane_name,
+                            lane_count,
+                            host_step.act_id.unwrap_or(0),
+                            host_step.from_id.unwrap_or(0),
+                        );
+                    }
+                    tracing::warn!(
+                        target: "phase5_membership",
+                        "lane membership diff: {} captured effects missing from host (skill_id={} caster={} enemy=true)",
+                        diff.missing_from_host.len(),
+                        host_step.act_id.unwrap_or(0),
+                        host_step.from_id.unwrap_or(0),
+                    );
+                    debug_assert!(
+                        diff.missing_from_host.is_empty(),
+                        "Phase 5 lane membership assertion: {} captured effects missing from host (skill_id={})",
+                        diff.missing_from_host.len(),
+                        host_step.act_id.unwrap_or(0),
+                    );
+                }
+            }
         }
-        trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
-        trigger_embed::normalize_player_skill_effect_order(&mut host_step);
         steps.push(host_step);
     }
     Ok(())
