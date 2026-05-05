@@ -223,6 +223,23 @@ impl BuffMgr {
         false
     }
 
+    pub fn set_instance_count_layer(
+        &mut self,
+        target_uid: i64,
+        buff_uid: i64,
+        count: i32,
+        layer: i32,
+    ) -> bool {
+        if let Some(buffs) = self.active.get_mut(&target_uid)
+            && let Some(buff) = buffs.iter_mut().find(|b| b.uid == buff_uid)
+        {
+            buff.stacks = count.max(0);
+            buff.layer = layer.max(0);
+            return true;
+        }
+        false
+    }
+
     pub fn set_instance_act_common_params(
         &mut self,
         target_uid: i64,

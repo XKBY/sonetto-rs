@@ -7,8 +7,9 @@ use sonettobuf::{ActEffect, Fight};
 use super::super::super::{
     buff::{apply_buff_effects, pre_buff_effects},
     context::buff_context::BuffContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     manager::{buff_mgr::next_buff_uid_for_target, fight_data_mgr::Managers},
-    mechanics::Mechanics,
+    mechanics::{Mechanics, bloodtithe::BloodtitheState},
     types::behavior::BehaviorType,
     types::buff::{BAD_BUFF_TYPES, GOOD_BUFF_TYPES, stack_type::is_stackable},
     types::condition::ConditionType,
@@ -491,6 +492,8 @@ pub fn apply(
             } else {
                 cfg_effect_count.max(0)
             };
+            // TODO(event-queue): Phase 3 - route these existing-buff BuffUpdate
+            // emissions through EventQueue drain instead of manual effect pushes.
             if is_no_show {
                 effects.push(buff_update(
                     spec.target,
@@ -750,6 +753,8 @@ pub fn replace_buff2(
         count,
         0,
     ));
+    // TODO(event-queue): Phase 3 - route replace_buff2 BuffUpdate through
+    // EventQueue drain instead of direct mutation + manual ActEffect.
     with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx.add_with_uid(
             target,
@@ -892,44 +897,86 @@ pub fn consume_by_type(
 
         if buff.layer > 1 {
             let new_layer = buff.layer - 1;
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
+            if let Ok(buff_uid) = i32::try_from(buff.uid) {
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::BuffUpdate {
                     target,
-                    buff.buff_id,
+                    buff_uid,
+                    new_count: buff.stacks,
+                    new_layer,
+                });
+                let mut local_fight = Fight::default();
+                let mut local_bloodtithe = BloodtitheState::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut local_fight,
+                    buff_mgr: &mut managers.buff_mgr,
+                    ex_point_mgr: &mut managers.ex_point_mgr,
+                    bloodtithe: &mut local_bloodtithe,
+                };
+                out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+            } else {
+                // TODO(event-queue): Phase 3 - widen BuffUpdate uid typing to i64
+                // so overflow lanes can route through EventQueue drain as well.
+                with_buff_ctx(fight, managers, |buff_ctx| {
+                    buff_ctx.add_with_uid(
+                        target,
+                        buff.buff_id,
+                        buff.from_uid,
+                        buff.stacks,
+                        new_layer,
+                        buff.uid,
+                    );
+                });
+                out.push(crate::state::battle::utils::buff_update(
+                    target,
                     buff.from_uid,
+                    buff.buff_id,
+                    buff.uid,
                     buff.stacks,
                     new_layer,
-                    buff.uid,
-                );
-            });
-            out.push(crate::state::battle::utils::buff_update(
-                target,
-                buff.from_uid,
-                buff.buff_id,
-                buff.uid,
-                buff.stacks,
-                new_layer,
-            ));
+                ));
+            }
         } else if buff.stacks > 1 {
             let new_count = buff.stacks - 1;
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
+            if let Ok(buff_uid) = i32::try_from(buff.uid) {
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::BuffUpdate {
                     target,
-                    buff.buff_id,
+                    buff_uid,
+                    new_count,
+                    new_layer: buff.layer,
+                });
+                let mut local_fight = Fight::default();
+                let mut local_bloodtithe = BloodtitheState::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut local_fight,
+                    buff_mgr: &mut managers.buff_mgr,
+                    ex_point_mgr: &mut managers.ex_point_mgr,
+                    bloodtithe: &mut local_bloodtithe,
+                };
+                out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+            } else {
+                // TODO(event-queue): Phase 3 - widen BuffUpdate uid typing to i64
+                // so overflow lanes can route through EventQueue drain as well.
+                with_buff_ctx(fight, managers, |buff_ctx| {
+                    buff_ctx.add_with_uid(
+                        target,
+                        buff.buff_id,
+                        buff.from_uid,
+                        new_count,
+                        buff.layer,
+                        buff.uid,
+                    );
+                });
+                out.push(crate::state::battle::utils::buff_update(
+                    target,
                     buff.from_uid,
+                    buff.buff_id,
+                    buff.uid,
                     new_count,
                     buff.layer,
-                    buff.uid,
-                );
-            });
-            out.push(crate::state::battle::utils::buff_update(
-                target,
-                buff.from_uid,
-                buff.buff_id,
-                buff.uid,
-                new_count,
-                buff.layer,
-            ));
+                ));
+            }
         } else {
             // TODO(event-queue): Phase 3 - route this consume-by-type BuffDel
             // emission through EventQueue drain instead of direct mutation.

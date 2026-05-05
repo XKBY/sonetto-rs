@@ -9,7 +9,7 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
-    utils::buff_del,
+    utils::{buff_del, buff_update},
 };
 
 /// A typed event recording a state mutation or visual emission
@@ -148,6 +148,36 @@ pub fn drain_to_fight_steps(
 
     for event in events {
         match event {
+            BattleEvent::BuffUpdate {
+                target,
+                buff_uid,
+                new_count,
+                new_layer,
+            } => {
+                let buff_uid = i64::from(buff_uid);
+                let existing = _ctx
+                    .buff_mgr
+                    .get(target)
+                    .iter()
+                    .find(|instance| instance.uid == buff_uid)
+                    .cloned();
+
+                if let Some(instance) = existing {
+                    let updated = _ctx.buff_mgr.set_instance_count_layer(
+                        target, buff_uid, new_count, new_layer,
+                    );
+                    if updated {
+                        out.push(buff_update(
+                            target,
+                            instance.from_uid,
+                            instance.buff_id,
+                            buff_uid,
+                            new_count,
+                            new_layer,
+                        ));
+                    }
+                }
+            }
             BattleEvent::BuffRemove { target, buff_uid } => {
                 let buff_uid = i64::from(buff_uid);
                 let removed = _ctx
@@ -481,6 +511,52 @@ mod tests {
         assert_eq!(emitted.uid, Some(buff_uid));
         assert_eq!(emitted.buff_id, Some(buff_id));
         assert_eq!(emitted.from_uid, Some(from_uid));
+    }
+
+    #[test]
+    fn buff_update_updates_manager_and_serializes() {
+        ensure_game_data_initialized();
+
+        let mut ctx = test_ctx();
+        let target = 99_i64;
+        let buff_uid = 1_000_321_i64;
+        let buff_id = 30091122_i32;
+        let from_uid = 55_i64;
+        let buff_uid_event = i32::try_from(buff_uid).expect("test buff uid should fit in i32");
+        ctx.buff_mgr
+            .add_with_uid(target, buff_id, from_uid, 4, 3, buff_uid);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::BuffUpdate {
+                target,
+                buff_uid: buff_uid_event,
+                new_count: 2,
+                new_layer: 1,
+            }],
+            &mut ctx,
+        );
+
+        let updated = ctx
+            .buff_mgr
+            .get(target)
+            .iter()
+            .find(|instance| instance.uid == buff_uid)
+            .expect("buff should still exist after update");
+        assert_eq!(updated.stacks, 2);
+        assert_eq!(updated.layer, 1);
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Buffupdate as i32)
+        );
+        assert_eq!(out[0].target_id, Some(target));
+        let emitted = out[0].buff.as_ref().expect("buff payload should be present");
+        assert_eq!(emitted.uid, Some(buff_uid));
+        assert_eq!(emitted.buff_id, Some(buff_id));
+        assert_eq!(emitted.from_uid, Some(from_uid));
+        assert_eq!(emitted.count, Some(2));
+        assert_eq!(emitted.layer, Some(1));
     }
 
     #[test]
