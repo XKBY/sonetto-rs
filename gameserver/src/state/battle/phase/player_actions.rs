@@ -171,7 +171,7 @@ pub(crate) async fn run(
         // wrapper) — Willow's `31040141` reactive ended up at depth=2
         // nested inside `1148002` instead of as a direct child of
         // `30090111` at depth=1.
-        let trigger_lane_offset = accumulator.lane_iter(HostLane::Trigger).count();
+        let trigger_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for trigger_step in expanded_steps.into_iter().skip(1) {
             let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
             push_host_accumulator_lane(
@@ -180,20 +180,15 @@ pub(crate) async fn run(
                 embedded,
             );
         }
-        let trigger_drained: Vec<ActEffect> = accumulator
-            .lane_iter(HostLane::Trigger)
-            .skip(trigger_lane_offset)
-            .cloned()
-            .collect();
-        if !trigger_drained.is_empty() {
-            let insert_at = step_walker::host_trigger_insert_index(&host_step);
-            host_step
-                .act_effect
-                .splice(insert_at..insert_at, trigger_drained);
-        }
+        accumulator.splice_lane_drain_into_host(
+            HostLane::Trigger,
+            trigger_offset,
+            &mut host_step,
+            |host| step_walker::host_trigger_insert_index(host),
+        );
         let monitor_embeds =
             channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
-        let monitor_lane_offset = accumulator.lane_iter(HostLane::Trigger).count();
+        let monitor_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for effect in monitor_embeds {
             push_host_accumulator_lane(
                 &mut accumulator,
@@ -201,17 +196,12 @@ pub(crate) async fn run(
                 effect,
             );
         }
-        let monitor_drained: Vec<ActEffect> = accumulator
-            .lane_iter(HostLane::Trigger)
-            .skip(monitor_lane_offset)
-            .cloned()
-            .collect();
-        if !monitor_drained.is_empty() {
-            let insert_at = step_walker::host_trigger_insert_index(&host_step);
-            host_step
-                .act_effect
-                .splice(insert_at..insert_at, monitor_drained);
-        }
+        accumulator.splice_lane_drain_into_host(
+            HostLane::Trigger,
+            monitor_offset,
+            &mut host_step,
+            |host| step_walker::host_trigger_insert_index(host),
+        );
         host_step.act_effect = trigger_embed::flatten_self_nested_skill_effects_v(
             host_step.act_type,
             host_step.act_id,
@@ -222,7 +212,7 @@ pub(crate) async fn run(
             host_step.act_type,
             std::mem::take(&mut host_step.act_effect),
         );
-        let be_attacked_lane_start = accumulator.lane_iter(HostLane::BeAttacked).count();
+        let be_attacked_offset = accumulator.lane_iter(HostLane::BeAttacked).count();
         let be_attacked_insert_at = mgr.inject_be_attacked_reactives_onto_player_host(
             state,
             &host_step,
@@ -230,12 +220,12 @@ pub(crate) async fn run(
             &mut accumulator,
         );
         if let Some(insert_at) = be_attacked_insert_at {
-            let drained: Vec<ActEffect> = accumulator
-                .lane_iter(HostLane::BeAttacked)
-                .skip(be_attacked_lane_start)
-                .cloned()
-                .collect();
-            host_step.act_effect.splice(insert_at..insert_at, drained);
+            accumulator.splice_lane_drain_into_host(
+                HostLane::BeAttacked,
+                be_attacked_offset,
+                &mut host_step,
+                |_| insert_at,
+            );
         }
         if let Some((holder_uid, injury_count)) =
             injury_counter::find_card_host_injury_marker_params(

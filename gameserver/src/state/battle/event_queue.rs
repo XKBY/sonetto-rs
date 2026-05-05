@@ -209,6 +209,34 @@ impl HostEventAccumulator {
             _ => None,
         })
     }
+
+    /// Drain everything pushed into `lane` since `lane_offset_before_emit`
+    /// and splice the resulting `ActEffect`s into `host_step.act_effect`
+    /// at the position returned by `position_fn`. No-op when the drain
+    /// is empty.
+    ///
+    /// `lane_offset_before_emit` is the lane's `lane_iter().count()`
+    /// captured BEFORE the events were pushed — used to skip earlier
+    /// content in the same lane (e.g. so the monitor splice doesn't
+    /// re-pick up the trigger events).
+    pub fn splice_lane_drain_into_host(
+        &self,
+        lane: HostLane,
+        lane_offset_before_emit: usize,
+        host_step: &mut FightStep,
+        position_fn: impl FnOnce(&FightStep) -> usize,
+    ) {
+        let drained: Vec<ActEffect> = self
+            .lane_iter(lane)
+            .skip(lane_offset_before_emit)
+            .cloned()
+            .collect();
+        if drained.is_empty() {
+            return;
+        }
+        let insert_at = position_fn(host_step);
+        host_step.act_effect.splice(insert_at..insert_at, drained);
+    }
 }
 
 #[derive(Debug)]
