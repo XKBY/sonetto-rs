@@ -103,15 +103,10 @@ impl TriggerPass for ExPointSyncPass {
                         buff.layer,
                     ));
                 } else {
-                    let Ok(buff_uid) = i32::try_from(buff.uid) else {
-                        // TODO(event-queue): Phase 3 - widen BuffRemove uid typing to i64
-                        // to eliminate this overflow guard and route every delete through drain.
-                        continue;
-                    };
                     let mut queue = EventQueue::new();
                     queue.push(BattleEvent::BuffRemove {
                         target: *target_uid,
-                        buff_uid,
+                        buff_uid: buff.uid,
                     });
                     let mut event_ctx = EventContext {
                         fight: ctx.fight,

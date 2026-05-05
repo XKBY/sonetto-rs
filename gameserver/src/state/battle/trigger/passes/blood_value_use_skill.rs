@@ -1,11 +1,12 @@
 use std::{collections::HashMap, sync::Mutex};
 
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, FightStep};
+use sonettobuf::{ActEffect, Fight, FightStep};
 
 use crate::state::battle::{
     buff_actions::blood_value_use_skill::buff_get_blood_value_use_skill_params,
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::{effect_container_step, wrap_step},
     passives::{collector::CollectedPassives, steps::skill::execute_skill},
     round::step_shape::build_effect_step,
@@ -231,27 +232,23 @@ fn maybe_inject_wrapped_bloodpool_gain(
         .iter()
         .position(|effect| effect.effect_type == Some(EffectType::BuffAdd as i32))
         .unwrap_or(step.act_effect.len());
-    step.act_effect.insert(
-        insert_at,
-        ActEffect {
-            effect_type: Some(EffectType::BloodPoolValueChange as i32),
-            target_id: Some(holder_uid),
-            effect_num: Some(team_type),
-            effect_num1: Some(2),
-            ..Default::default()
-        },
-    );
-
-    // TODO(event-queue): Phase 3 - route this BloodPoolValueChange emission
-    // through EventQueue drain instead of inline mutation + effect insert.
-    // TODO(event-queue): Phase 3 - cap growth still mutates bloodpool max
-    // (`set_max`) outside drain on this path.
-    let current = ctx.mechanics.bloodtithe.get_value(team_type).max(0);
-    let next = current + 2;
-    if next > ctx.mechanics.bloodtithe.get_max(team_type) {
-        ctx.mechanics.bloodtithe.set_max(team_type, next);
+    let mut queue = EventQueue::new();
+    queue.push(BattleEvent::BloodpoolValueChange {
+        team_type,
+        target: holder_uid,
+        delta: 2,
+    });
+    let mut local_fight = Fight::default();
+    let mut event_ctx = EventContext {
+        fight: &mut local_fight,
+        buff_mgr: &mut ctx.managers.buff_mgr,
+        ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+        bloodtithe: &mut ctx.mechanics.bloodtithe,
+    };
+    let mut drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);
+    if let Some(effect) = drained.pop() {
+        step.act_effect.insert(insert_at, effect);
     }
-    ctx.mechanics.bloodtithe.set_value(team_type, next);
 }
 
 fn find_skill_step_mut(

@@ -30,13 +30,13 @@ pub enum BattleEvent {
     },
     BuffUpdate {
         target: i64,
-        buff_uid: i32,
+        buff_uid: i64,
         new_count: i32,
         new_layer: i32,
     },
     BuffRemove {
         target: i64,
-        buff_uid: i32,
+        buff_uid: i64,
     },
     Damage {
         target: i64,
@@ -219,7 +219,6 @@ pub fn drain_to_fight_steps(
                 new_count,
                 new_layer,
             } => {
-                let buff_uid = i64::from(buff_uid);
                 let existing = _ctx
                     .buff_mgr
                     .get(target)
@@ -244,7 +243,6 @@ pub fn drain_to_fight_steps(
                 }
             }
             BattleEvent::BuffRemove { target, buff_uid } => {
-                let buff_uid = i64::from(buff_uid);
                 let removed = _ctx
                     .buff_mgr
                     .get(target)
@@ -719,14 +717,13 @@ mod tests {
         let buff_uid = 1_000_123_i64;
         let buff_id = 30091122_i32;
         let from_uid = 77_i64;
-        let buff_uid_event = i32::try_from(buff_uid).expect("test buff uid should fit in i32");
         ctx.buff_mgr
             .add_with_uid(target, buff_id, from_uid, 1, 0, buff_uid);
 
         let out = drain_to_fight_steps(
             vec![BattleEvent::BuffRemove {
                 target,
-                buff_uid: buff_uid_event,
+                buff_uid,
             }],
             &mut ctx,
         );
@@ -814,14 +811,13 @@ mod tests {
         let buff_uid = 1_000_321_i64;
         let buff_id = 30091122_i32;
         let from_uid = 55_i64;
-        let buff_uid_event = i32::try_from(buff_uid).expect("test buff uid should fit in i32");
         ctx.buff_mgr
             .add_with_uid(target, buff_id, from_uid, 4, 3, buff_uid);
 
         let out = drain_to_fight_steps(
             vec![BattleEvent::BuffUpdate {
                 target,
-                buff_uid: buff_uid_event,
+                buff_uid,
                 new_count: 2,
                 new_layer: 1,
             }],
