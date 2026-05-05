@@ -22,12 +22,15 @@
 //! owns the dispatch wiring and the per-variant pre/post bookkeeping.
 
 use anyhow::Result;
-use sonettobuf::{ActEffect, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, Fight, effect_type_enum::EffectType};
 
 use super::action::{ActionCtx, BehaviorAction};
 use super::bloodtithe;
 use super::buff;
 use crate::state::battle::buff_actions::{EffectContext, lost_life as lost_life_handler};
+use crate::state::battle::event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps};
+use crate::state::battle::manager::buff_mgr::BuffMgr as EventBuffMgr;
+use crate::state::battle::mechanics::bloodtithe::BloodtitheState;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -52,7 +55,7 @@ impl BehaviorAction for LostLife {
             } => {
                 let floor_permille =
                     buff::ban_lost_life_floor_permille(fight, ctx.managers, ctx.target);
-                let effects = bloodtithe::lost_life(
+                let mut effects = bloodtithe::lost_life(
                     fight,
                     &ctx.managers.buff_mgr,
                     &mut ctx.mechanics.bloodtithe,
@@ -65,6 +68,49 @@ impl BehaviorAction for LostLife {
                     ctx.skill_id,
                     floor_permille,
                 );
+                let mut queue_routed_damage = 0;
+                if let Some((index, amount, target_id, hurt_info)) = effects
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, effect)| {
+                        (effect.effect_type == Some(EffectType::Damage as i32)
+                            && effect.effect_num.unwrap_or(0) > 0
+                            && effect.target_id.is_some()
+                            && effect.hurt_info.is_some())
+                        .then_some((
+                            index,
+                            effect.effect_num.unwrap_or(0),
+                            effect.target_id.unwrap_or(0),
+                            effect.hurt_info.clone().unwrap_or_default(),
+                        ))
+                    })
+                {
+                    let mut queue = EventQueue::new();
+                    queue.push(BattleEvent::Damage {
+                        target: target_id,
+                        amount,
+                        hurt_info,
+                        from: ctx.caster_uid,
+                        skill_id: Some(ctx.skill_id),
+                    });
+                    let mut synthetic_fight = Fight::default();
+                    let mut synthetic_buff_mgr = EventBuffMgr::new();
+                    let mut synthetic_bloodtithe = BloodtitheState::new();
+                    let mut event_ctx = EventContext {
+                        fight: &mut synthetic_fight,
+                        buff_mgr: &mut synthetic_buff_mgr,
+                        ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                        bloodtithe: &mut synthetic_bloodtithe,
+                    };
+                    if let Some(routed) = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+                        .into_iter()
+                        .next()
+                    {
+                        effects[index] = routed;
+                        queue_routed_damage = amount;
+                    }
+                }
+
                 let damage = effects
                     .iter()
                     .find(|e| {
@@ -80,7 +126,9 @@ impl BehaviorAction for LostLife {
                     .and_then(|e| e.effect_num)
                     .unwrap_or(0);
                 tracing::warn!("LostLife: target={} damage={}", ctx.target, damage);
-                if damage > 0 {
+                if queue_routed_damage > 0 {
+                    ctx.mechanics.shadow_cloak.add(ctx.target, queue_routed_damage);
+                } else if damage > 0 {
                     ctx.managers.ex_point_mgr.apply_damage(ctx.target, damage);
                     ctx.mechanics.shadow_cloak.add(ctx.target, damage);
                 }

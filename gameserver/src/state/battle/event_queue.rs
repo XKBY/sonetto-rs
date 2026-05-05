@@ -262,6 +262,45 @@ pub fn drain_to_fight_steps(
                     ));
                 }
             }
+            BattleEvent::Damage {
+                target,
+                amount,
+                mut hurt_info,
+                from,
+                skill_id,
+            } => {
+                let damage = amount.max(0);
+                if let Some(entity) = find_entity_mut(_ctx.fight, target) {
+                    let current_hp = entity.current_hp.unwrap_or(0);
+                    let new_hp = current_hp.saturating_sub(damage);
+                    entity.current_hp = Some(new_hp);
+                }
+                _ctx.ex_point_mgr.apply_damage(target, damage);
+
+                if hurt_info.from_uid.is_none() {
+                    hurt_info.from_uid = Some(from);
+                }
+                if hurt_info.skill_id.is_none()
+                    && let Some(skill_id) = skill_id
+                {
+                    hurt_info.skill_id = Some(skill_id);
+                }
+                if hurt_info.damage.is_none() {
+                    hurt_info.damage = Some(damage);
+                }
+                if hurt_info.hurt_effect.is_none() {
+                    hurt_info.hurt_effect = Some(EffectType::Damage as i32);
+                }
+
+                out.push(ActEffect {
+                    effect_type: Some(EffectType::Damage as i32),
+                    target_id: Some(target),
+                    effect_num: Some(damage),
+                    config_effect: hurt_info.config_effect,
+                    hurt_info: Some(hurt_info),
+                    ..Default::default()
+                });
+            }
             BattleEvent::Heal {
                 target,
                 amount,
@@ -525,6 +564,69 @@ mod tests {
         );
         assert_eq!(out[0].target_id, Some(uid));
         assert_eq!(out[0].effect_num, Some(80));
+    }
+
+    #[test]
+    fn damage_updates_state_and_serializes() {
+        let mut ctx = test_ctx();
+        let uid = 304_i64;
+        ctx.fight.attacker = Some(FightTeam {
+            entitys: vec![FightEntityInfo {
+                uid: Some(uid),
+                current_hp: Some(90),
+                attr: Some(HeroAttribute {
+                    hp: Some(100),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        ctx.ex_point_mgr.set_hp(uid, 90);
+
+        let hurt = sonettobuf::FightHurtInfo {
+            config_effect: Some(30006),
+            ..Default::default()
+        };
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::Damage {
+                target: uid,
+                amount: 35,
+                hurt_info: hurt,
+                from: 404,
+                skill_id: Some(505),
+            }],
+            &mut ctx,
+        );
+
+        let hp = ctx
+            .fight
+            .attacker
+            .as_ref()
+            .and_then(|team| team.entitys.first())
+            .and_then(|entity| entity.current_hp)
+            .expect("damaged entity should remain in fight");
+        assert_eq!(hp, 55);
+        assert_eq!(ctx.ex_point_mgr.get_hp(uid), 55);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Damage as i32)
+        );
+        assert_eq!(out[0].target_id, Some(uid));
+        assert_eq!(out[0].effect_num, Some(35));
+        assert_eq!(out[0].config_effect, Some(30006));
+        let emitted_hurt = out[0]
+            .hurt_info
+            .as_ref()
+            .expect("hurt payload should be present");
+        assert_eq!(emitted_hurt.damage, Some(35));
+        assert_eq!(emitted_hurt.from_uid, Some(404));
+        assert_eq!(emitted_hurt.skill_id, Some(505));
+        assert_eq!(
+            emitted_hurt.hurt_effect,
+            Some(sonettobuf::effect_type_enum::EffectType::Damage as i32)
+        );
     }
 
     #[test]

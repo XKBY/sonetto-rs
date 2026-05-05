@@ -209,6 +209,8 @@ pub fn lost_life(
             ..Default::default()
         });
     } else {
+        // TODO(event-queue): Phase 3 - route this LostLife Damage emission
+        // through EventQueue drain once all behavior-side damage helpers migrate.
         effects.push(damage_with_hurt(
             target,
             actual_loss,

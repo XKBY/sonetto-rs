@@ -272,6 +272,8 @@ pub fn calculate_damage(
         EffectType::Damage as i32
     };
 
+    // TODO(event-queue): Phase 3 - route primary Damage/Crit emission
+    // through EventQueue drain instead of direct ActEffectBuilder construction.
     vec![
         ActEffectBuilder::new(primary_effect, target_uid)
             .effect_num(dmg)

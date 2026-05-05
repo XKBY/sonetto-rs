@@ -145,6 +145,8 @@ pub fn damage_with_hurt(
     skill_id: i32,
     from_uid: i64,
 ) -> ActEffect {
+    // TODO(event-queue): Phase 3 - route helper-based Damage-with-hurt
+    // emissions through EventQueue drain after call sites move to queued mutation.
     ActEffect {
         effect_type: Some(EffectType::Damage as i32),
         target_id: Some(target_uid),
