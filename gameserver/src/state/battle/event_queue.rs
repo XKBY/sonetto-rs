@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use sonettobuf::{
-    ActEffect, BuffInfo, Fight, FightHurtInfo as HurtInfo, FightStep,
+    ActEffect, BuffInfo, Fight, FightEntityInfo, FightHurtInfo as HurtInfo, FightStep,
     effect_type_enum::EffectType, fight_step,
 };
 
@@ -140,6 +140,28 @@ pub struct EventContext<'a> {
     pub bloodtithe: &'a mut BloodtitheState,
 }
 
+fn find_entity_mut(fight: &mut Fight, uid: i64) -> Option<&mut FightEntityInfo> {
+    if let Some(attacker) = fight.attacker.as_mut()
+        && let Some(entity) = attacker
+            .entitys
+            .iter_mut()
+            .chain(attacker.sub_entitys.iter_mut())
+            .find(|entity| entity.uid == Some(uid))
+    {
+        return Some(entity);
+    }
+    if let Some(defender) = fight.defender.as_mut()
+        && let Some(entity) = defender
+            .entitys
+            .iter_mut()
+            .chain(defender.sub_entitys.iter_mut())
+            .find(|entity| entity.uid == Some(uid))
+    {
+        return Some(entity);
+    }
+    None
+}
+
 /// Serialize a queue to FightStep ActEffects. Phase 1 only: this
 /// is a stub that returns an empty Vec. Phase 2 migrations will
 /// fill it in incrementally as each migrated leaf adds its own
@@ -239,6 +261,30 @@ pub fn drain_to_fight_steps(
                         instance.from_uid,
                     ));
                 }
+            }
+            BattleEvent::Heal {
+                target,
+                amount,
+                from: _from,
+            } => {
+                if let Some(entity) = find_entity_mut(_ctx.fight, target) {
+                    let current_hp = entity.current_hp.unwrap_or(0);
+                    let max_hp = entity
+                        .attr
+                        .as_ref()
+                        .and_then(|attr| attr.hp)
+                        .unwrap_or(current_hp);
+                    let new_hp = (current_hp + amount).min(max_hp);
+                    entity.current_hp = Some(new_hp);
+                    _ctx.ex_point_mgr.set_hp(target, new_hp);
+                }
+
+                out.push(ActEffect {
+                    effect_type: Some(EffectType::Heal as i32),
+                    target_id: Some(target),
+                    effect_num: Some(amount),
+                    ..Default::default()
+                });
             }
             BattleEvent::ExPointChange { target, delta } => {
                 _ctx.ex_point_mgr.add_ex_point(target, delta);
@@ -352,7 +398,7 @@ mod tests {
         manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
         mechanics::bloodtithe::BloodtitheState,
     };
-    use sonettobuf::{ActEffect, Fight};
+    use sonettobuf::{ActEffect, Fight, FightEntityInfo, FightTeam, HeroAttribute};
     use std::{path::PathBuf, sync::Once};
 
     static TEST_CONFIG_INIT: Once = Once::new();
@@ -434,6 +480,51 @@ mod tests {
         );
         assert_eq!(out[0].effect_num, Some(3));
         assert_eq!(out[0].target_id, Some(uid));
+    }
+
+    #[test]
+    fn heal_updates_state_and_serializes() {
+        let mut ctx = test_ctx();
+        let uid = 303_i64;
+        ctx.fight.attacker = Some(FightTeam {
+            entitys: vec![FightEntityInfo {
+                uid: Some(uid),
+                current_hp: Some(30),
+                attr: Some(HeroAttribute {
+                    hp: Some(100),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        ctx.ex_point_mgr.set_hp(uid, 30);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::Heal {
+                target: uid,
+                amount: 80,
+                from: 404,
+            }],
+            &mut ctx,
+        );
+
+        let hp = ctx
+            .fight
+            .attacker
+            .as_ref()
+            .and_then(|team| team.entitys.first())
+            .and_then(|entity| entity.current_hp)
+            .expect("healed entity should remain in fight");
+        assert_eq!(hp, 100);
+        assert_eq!(ctx.ex_point_mgr.get_hp(uid), 100);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Heal as i32)
+        );
+        assert_eq!(out[0].target_id, Some(uid));
+        assert_eq!(out[0].effect_num, Some(80));
     }
 
     #[test]

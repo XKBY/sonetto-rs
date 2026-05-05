@@ -36,6 +36,7 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
+    event_queue::{BattleEvent, serialize_leaf_event},
     fight_step::{ActEffectBuilder, wrap_step},
     round::step_shape::build_effect_step,
     skill::get_entity,
@@ -85,9 +86,11 @@ pub fn build_round_end_advanced_cure_step(ctx: &FightContext<'_>) -> Option<Figh
                     ActEffectBuilder::new(EffectType::None as i32, target_uid)
                         .effect_num(instance.buff_id)
                         .build(),
-                    ActEffectBuilder::new(EffectType::Heal as i32, target_uid)
-                        .effect_num(heal)
-                        .build(),
+                    serialize_leaf_event(BattleEvent::Heal {
+                        target: target_uid,
+                        amount: heal,
+                        from: instance.from_uid,
+                    }),
                 ],
                 card_index: Some(0),
                 support_hero_id: Some(0),

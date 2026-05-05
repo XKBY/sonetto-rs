@@ -340,6 +340,8 @@ pub fn calculate_heal_by_two_attr(
 }
 
 pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect {
+    // TODO(event-queue): Phase 3 - route Heal/HealCrit emission through
+    // EventQueue drain instead of direct ActEffectBuilder construction.
     ActEffectBuilder::new(
         if is_crit {
             EffectType::Healcrit as i32
