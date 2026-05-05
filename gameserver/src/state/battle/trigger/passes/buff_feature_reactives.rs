@@ -3,7 +3,9 @@ use sonettobuf::FightStep;
 use crate::state::battle::{
     buff_actions::probability_add_buff::probability_add_buff_specs,
     context::FightContext,
-    fight_step::{effect_container_step, wrap_step},
+    event_queue::{
+        BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
+    },
     manager::buff_mgr::BuffInstance,
     passives::collector::CollectedPassives,
     round::step_shape::build_effect_step,
@@ -95,12 +97,29 @@ fn run_probability_add_buff_reactives(
             continue;
         }
 
-        let mut step = build_effect_step(vec![wrap_step(effect_container_step(
-            source_uid,
-            event.caster_uid,
-            carrier_buff_id,
-            inner_effects,
-        ))]);
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id: carrier_buff_id,
+            from: source_uid,
+            to: event.caster_uid,
+            children: inner_effects
+                .into_iter()
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .collect(),
+            kind: SkillEmitKind::EventTriggered,
+        });
+        let mut event_ctx = EventContext {
+            fight: ctx.fight,
+            buff_mgr: &mut ctx.managers.buff_mgr,
+            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            bloodtithe: &mut ctx.mechanics.bloodtithe,
+        };
+        let drained_act_effect = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            .into_iter()
+            .next()
+            .expect("event-triggered skill emission should serialize to a single ActEffect");
+
+        let mut step = build_effect_step(vec![drained_act_effect]);
         step.from_id = Some(source_uid);
         steps.push(step);
     }
