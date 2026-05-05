@@ -240,6 +240,19 @@ impl SkillExecutor {
     ) -> Result<Vec<ActEffect>> {
         let exec_start = Instant::now();
         let skill_id = euphoria::resolve_with_euphoria(fight, caster_uid, skill_id);
+        // Catch-all timeline record: every emission funnels through here.
+        // Higher-level call sites (CardCast, TriggerCombatPassive, etc.)
+        // record their own entries too — appearing twice in the timeline
+        // is expected. Skills that appear ONLY with ExecutorLowLevel
+        // identify call sites that lack a dedicated phase tag yet.
+        mechanics.emission_timeline.record(
+            crate::state::battle::emission_timeline::EmissionPhase::ExecutorLowLevel,
+            caster_uid,
+            skill_id,
+            0,
+            None,
+            None,
+        );
         let Some(_reentry_guard) = ReentryGuard::enter(caster_uid, target_uid, skill_id) else {
             tracing::warn!(
                 "[execute_skill] reentry loop blocked at skill={} caster={} target={}",

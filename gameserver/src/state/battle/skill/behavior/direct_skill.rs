@@ -463,6 +463,14 @@ fn execute_direct_use_group_and_star_skill(
         {
             continue;
         }
+        ctx.mechanics.emission_timeline.record(
+            crate::state::battle::emission_timeline::EmissionPhase::DirectUseBigSkillFanout,
+            ctx.caster_uid,
+            passive_skill_to_execute,
+            0,
+            Some(ctx.skill_id),
+            Some(ctx.caster_uid),
+        );
         let passive_effects = ctx.executor.execute_skill(
             ctx.rng,
             fight,

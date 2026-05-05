@@ -364,6 +364,7 @@ impl FightRoundMgr {
         &self,
         state: &RoundState,
         host_step: &mut FightStep,
+        mechanics: &mut crate::state::battle::mechanics::Mechanics,
     ) {
         const BE_ATTACKED_REACTIVE_ACT_ID: i32 = 530000411;
 
@@ -428,6 +429,14 @@ impl FightRoundMgr {
         let wrappers: Vec<ActEffect> = targets
             .into_iter()
             .map(|target_uid| {
+                mechanics.emission_timeline.record(
+                    crate::state::battle::emission_timeline::EmissionPhase::BeAttackedGraft,
+                    reactive_caster_uid,
+                    BE_ATTACKED_REACTIVE_ACT_ID,
+                    0,
+                    Some(host_step.act_id.unwrap_or(0)),
+                    host_step.from_id,
+                );
                 let buff_uid = next_buff_uid_for_target(target_uid);
                 let effect = crate::state::battle::utils::buff_update(
                     target_uid,

@@ -65,6 +65,41 @@ pub enum EmissionPhase {
     MagicCircleEnemy,
     /// Buff-feature reactive emission (BloodValueUseSkill, etc.).
     BuffFeatureReactive,
+    /// Psychube emission as a depth-1 inline child of a host card
+    /// cast. Recognized via `equipment::is_psychube_skill` —
+    /// any record-site that would otherwise tag a path-based phase
+    /// (TriggerCombatPassive, RoundPassiveSweep, etc.) reclassifies
+    /// to this variant when the skill_id matches an `equip_skill`
+    /// row. Lets the duplicates table separate "psychube via
+    /// inline attachment" (LIVE-correct shape) from "psychube via
+    /// sweep duplication" (bandaid duplicate).
+    PsychubeAttached,
+    /// Catch-all: every call into `skill::executor::execute_skill`
+    /// is recorded here. This is the lowest-level emission funnel
+    /// — every skill emission ultimately passes through it. Higher
+    /// level phases (CardCast, TriggerCombatPassive, etc.) will
+    /// also record their own entry, so most skills appear with both
+    /// a high-level and a low-level record. Skills that ONLY appear
+    /// with `ExecutorLowLevel` are emissions whose call site doesn't
+    /// have a dedicated phase tag yet — those are the "missing
+    /// coverage" cases that prior timeline-driven fix attempts
+    /// couldn't suppress.
+    ExecutorLowLevel,
+    /// `skill/behavior/direct_skill::execute_direct_use_big_skill`
+    /// passive-fanout loop. Each skill the DUGSS body fans out (the
+    /// passive_skill list of the active-use caster, the EX-skill
+    /// body's chained reactives) is recorded here.
+    DirectUseBigSkillFanout,
+    /// `passives/inject.rs` recursive walker that grafts ally
+    /// reactives into emitted enemy fightStep subtrees. Operates on
+    /// the already-built tree.
+    AllyReactiveInject,
+    /// Post-emission graft from
+    /// `round_mgr::graft_be_attacked_reactives_onto_player_host` —
+    /// synthesizes a wrapper directly without going through
+    /// `execute_skill`. Recorded separately so the timeline still
+    /// sees it.
+    BeAttackedGraft,
 }
 
 impl EmissionPhase {
@@ -81,6 +116,11 @@ impl EmissionPhase {
             EmissionPhase::ChannelMechanic => "ChannelMechanic",
             EmissionPhase::MagicCircleEnemy => "MagicCircleEnemy",
             EmissionPhase::BuffFeatureReactive => "BuffFeatureReactive",
+            EmissionPhase::PsychubeAttached => "PsychubeAttached",
+            EmissionPhase::ExecutorLowLevel => "ExecutorLowLevel",
+            EmissionPhase::DirectUseBigSkillFanout => "DirectUseBigSkillFanout",
+            EmissionPhase::AllyReactiveInject => "AllyReactiveInject",
+            EmissionPhase::BeAttackedGraft => "BeAttackedGraft",
         }
     }
 }
@@ -131,6 +171,15 @@ impl EmissionTimeline {
     }
 
     /// Append one emission. The hot path — keep cheap.
+    ///
+    /// Psychube emissions (skills in the equipment range that have
+    /// a corresponding `skill_effect`/`skill_buff` config row) are
+    /// automatically reclassified from path-based phases to
+    /// `PsychubeAttached`, regardless of which call site recorded
+    /// them. This keeps the call sites simple and ensures the
+    /// duplicates table separates psychube emissions from generic
+    /// hero-passive emissions even when both fire from the same
+    /// passive-sweep path.
     pub fn record(
         &mut self,
         phase: EmissionPhase,
@@ -140,6 +189,13 @@ impl EmissionTimeline {
         triggered_by_skill_id: Option<i32>,
         triggered_by_caster_uid: Option<i64>,
     ) {
+        let phase = if phase != EmissionPhase::CardCast
+            && crate::state::battle::equipment::is_psychube_skill(skill_id)
+        {
+            EmissionPhase::PsychubeAttached
+        } else {
+            phase
+        };
         self.entries.push(EmissionRecord {
             phase,
             owner_uid,

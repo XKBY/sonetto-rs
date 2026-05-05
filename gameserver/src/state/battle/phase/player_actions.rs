@@ -136,7 +136,7 @@ pub(crate) async fn run(
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
         trigger_embed::normalize_player_skill_effect_order(&mut host_step);
-        mgr.graft_be_attacked_reactives_onto_player_host(state, &mut host_step);
+        mgr.graft_be_attacked_reactives_onto_player_host(state, &mut host_step, ctx.mechanics);
         if let Some((holder_uid, injury_count)) =
             injury_counter::find_card_host_injury_marker_params(
                 ctx.fight,

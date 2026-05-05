@@ -6,6 +6,7 @@ pub mod context;
 pub mod destiny;
 pub mod emission_timeline;
 pub mod end_fight;
+pub mod equipment;
 pub mod event_queue;
 pub mod types;
 
