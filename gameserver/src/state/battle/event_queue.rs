@@ -9,6 +9,7 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
+    utils::buff_del,
 };
 
 /// A typed event recording a state mutation or visual emission
@@ -147,6 +148,25 @@ pub fn drain_to_fight_steps(
 
     for event in events {
         match event {
+            BattleEvent::BuffRemove { target, buff_uid } => {
+                let buff_uid = i64::from(buff_uid);
+                let removed = _ctx
+                    .buff_mgr
+                    .get(target)
+                    .iter()
+                    .find(|instance| instance.uid == buff_uid)
+                    .cloned();
+                _ctx.buff_mgr.remove_by_uid(target, buff_uid);
+
+                if let Some(instance) = removed {
+                    out.push(buff_del(
+                        target,
+                        buff_uid,
+                        instance.buff_id,
+                        instance.from_uid,
+                    ));
+                }
+            }
             BattleEvent::ExPointChange { target, delta } => {
                 _ctx.ex_point_mgr.add_ex_point(target, delta);
                 out.push(ActEffect {
@@ -260,6 +280,27 @@ mod tests {
         mechanics::bloodtithe::BloodtitheState,
     };
     use sonettobuf::{ActEffect, Fight};
+    use std::{path::PathBuf, sync::Once};
+
+    static TEST_CONFIG_INIT: Once = Once::new();
+
+    fn ensure_game_data_initialized() {
+        TEST_CONFIG_INIT.call_once(|| {
+            if config::configs::try_get().is_some() {
+                return;
+            }
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let excel_dir = root.join("data").join("excel2json");
+            if excel_dir.exists()
+                && let Some(path) = excel_dir.to_str()
+            {
+                let _ = config::configs::init(path);
+            }
+        });
+    }
 
     fn test_ctx() -> EventContext<'static> {
         let fight = Box::leak(Box::new(Fight::default()));
@@ -401,6 +442,45 @@ mod tests {
         assert_eq!(out[0].target_id, Some(0));
         assert_eq!(out[0].effect_num, Some(team_type));
         assert_eq!(out[0].effect_num1, Some(57));
+    }
+
+    #[test]
+    fn buff_remove_updates_manager_and_serializes() {
+        ensure_game_data_initialized();
+
+        let mut ctx = test_ctx();
+        let target = 88_i64;
+        let buff_uid = 1_000_123_i64;
+        let buff_id = 30091122_i32;
+        let from_uid = 77_i64;
+        let buff_uid_event = i32::try_from(buff_uid).expect("test buff uid should fit in i32");
+        ctx.buff_mgr
+            .add_with_uid(target, buff_id, from_uid, 1, 0, buff_uid);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::BuffRemove {
+                target,
+                buff_uid: buff_uid_event,
+            }],
+            &mut ctx,
+        );
+
+        assert!(
+            !ctx.buff_mgr
+                .get(target)
+                .iter()
+                .any(|instance| instance.uid == buff_uid)
+        );
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Buffdel as i32)
+        );
+        assert_eq!(out[0].target_id, Some(target));
+        let emitted = out[0].buff.as_ref().expect("buff metadata should be present");
+        assert_eq!(emitted.uid, Some(buff_uid));
+        assert_eq!(emitted.buff_id, Some(buff_id));
+        assert_eq!(emitted.from_uid, Some(from_uid));
     }
 
     #[test]

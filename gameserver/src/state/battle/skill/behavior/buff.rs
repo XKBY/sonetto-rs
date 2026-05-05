@@ -377,6 +377,8 @@ pub fn apply(
             });
             if let Some(old) = old {
                 effects.push(buff_del(spec.target, old.uid, old.buff_id, old.from_uid));
+                // TODO(event-queue): Phase 3 - route this BuffDel emission through
+                // EventQueue drain instead of direct remove + manual ActEffect.
                 with_buff_ctx(fight, managers, |buff_ctx| {
                     buff_ctx.remove_by_uid(spec.target, old.uid);
                 });
@@ -722,6 +724,8 @@ pub fn replace_buff2(
             instance.buff_id,
             instance.from_uid,
         ));
+        // TODO(event-queue): Phase 3 - route this BuffDel emission through
+        // EventQueue drain instead of direct remove + manual ActEffect.
         with_buff_ctx(fight, managers, |buff_ctx| {
             buff_ctx.remove_by_uid(target, instance.uid);
         });
@@ -927,6 +931,8 @@ pub fn consume_by_type(
                 buff.layer,
             ));
         } else {
+            // TODO(event-queue): Phase 3 - route this consume-by-type BuffDel
+            // emission through EventQueue drain instead of direct mutation.
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.remove_by_uid(target, buff.uid);
             });

@@ -2,11 +2,12 @@ use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::FightStepBuilder,
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
-    utils::{buff_del, buff_update, moxie_change},
+    utils::{buff_update, moxie_change},
 };
 
 use super::TriggerPass;
@@ -102,8 +103,23 @@ impl TriggerPass for ExPointSyncPass {
                         buff.layer,
                     ));
                 } else {
-                    ctx.managers.buff_mgr.remove_by_uid(*target_uid, buff.uid);
-                    act_effect.push(buff_del(*target_uid, buff.uid, buff.buff_id, buff.from_uid));
+                    let Ok(buff_uid) = i32::try_from(buff.uid) else {
+                        // TODO(event-queue): Phase 3 - widen BuffRemove uid typing to i64
+                        // to eliminate this overflow guard and route every delete through drain.
+                        continue;
+                    };
+                    let mut queue = EventQueue::new();
+                    queue.push(BattleEvent::BuffRemove {
+                        target: *target_uid,
+                        buff_uid,
+                    });
+                    let mut event_ctx = EventContext {
+                        fight: ctx.fight,
+                        buff_mgr: &mut ctx.managers.buff_mgr,
+                        ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                        bloodtithe: &mut ctx.mechanics.bloodtithe,
+                    };
+                    act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
                 }
 
                 act_effect.push(ActEffect {
