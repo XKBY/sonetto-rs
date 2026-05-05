@@ -17,10 +17,11 @@ use crate::state::battle::{
     },
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::ActEffectBuilder,
     hero::HeroId,
     heroes::{semmelweis, tuesday},
-    manager::buff_mgr::observe_explicit_buff_uid_for_target,
+    mechanics::bloodtithe::BloodtitheState,
     passives::steps::skill::execute_skill as execute_passive_skill,
     skill::{PhaseFilter, SkillExecutor, TriggerState},
     steps::trigger_embed,
@@ -89,13 +90,27 @@ pub fn add_magic_circle(
         if let Some(enemy_uid) = target {
             let original_target = ctx.target_uid();
             ctx.target = enemy_uid;
-            let effect = buff_add(enemy_uid, caster_uid, buff_id, 1);
-            if let Some(buff_uid) = effect.buff.as_ref().and_then(|buff| buff.uid) {
-                observe_explicit_buff_uid_for_target(enemy_uid, buff_uid);
-                ctx.buff_mgr_mut()
-                    .add_with_uid(enemy_uid, buff_id, caster_uid, 0, 1, buff_uid);
-            }
-            out.push(effect);
+            let applied = {
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::BuffApply {
+                    target: enemy_uid,
+                    buff_id,
+                    count: 0,
+                    layer: 1,
+                    from: caster_uid,
+                    config_effect: None,
+                });
+                let mut synthetic_fight = Fight::default();
+                let mut synthetic_bloodtithe = BloodtitheState::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut synthetic_fight,
+                    buff_mgr: &mut ctx.managers.buff_mgr,
+                    ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                    bloodtithe: &mut synthetic_bloodtithe,
+                };
+                drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            };
+            out.extend(applied);
             out.extend(apply_after_buff_add_features(ctx, executor, buff_id, false));
             ctx.target = original_target;
         }

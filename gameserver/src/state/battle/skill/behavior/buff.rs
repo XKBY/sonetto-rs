@@ -440,6 +440,8 @@ pub fn apply(
                 spec.buff_id,
                 spec.has_bloodpool,
             ));
+            // TODO(event-queue): Phase 3 - route this includeType=10 replacement
+            // BuffAdd state sync through EventQueue drain.
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx.add_with_uid(
                     spec.target,
@@ -661,6 +663,8 @@ pub fn apply(
             spec.has_bloodpool,
         ));
 
+        // TODO(event-queue): Phase 3 - route fresh BuffAdd state sync through
+        // EventQueue drain instead of direct add_with_uid mirrors.
         if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
             for stack in (initial_stacks + 1)..=count {
                 effects.push(buff_update(

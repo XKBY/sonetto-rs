@@ -1,15 +1,19 @@
 #![allow(dead_code)]
 
 use sonettobuf::{
-    ActEffect, Fight, FightHurtInfo as HurtInfo, FightStep, effect_type_enum::EffectType,
-    fight_step,
+    ActEffect, BuffInfo, Fight, FightHurtInfo as HurtInfo, FightStep,
+    effect_type_enum::EffectType, fight_step,
 };
 
 use crate::state::battle::{
     fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    manager::{
+        buff_mgr::{BuffMgr, next_buff_uid_for_target},
+        ex_point_mgr::ExPointMgr,
+    },
     mechanics::bloodtithe::BloodtitheState,
-    utils::{buff_del, buff_update},
+    types::buff::BuffLayerType,
+    utils::{buff_del, buff_get_act_common_params, buff_update},
 };
 
 /// A typed event recording a state mutation or visual emission
@@ -148,6 +152,45 @@ pub fn drain_to_fight_steps(
 
     for event in events {
         match event {
+            BattleEvent::BuffApply {
+                target,
+                buff_id,
+                count,
+                layer,
+                from,
+                config_effect,
+            } => {
+                let buff_uid = next_buff_uid_for_target(target);
+                let duration = config::configs::get()
+                    .skill_buff
+                    .iter()
+                    .find(|buff| buff.id == buff_id)
+                    .map(|buff| buff.during_time)
+                    .unwrap_or(0);
+                let act_common_params = buff_get_act_common_params(buff_id);
+
+                _ctx.buff_mgr
+                    .add_with_uid(target, buff_id, from, count, layer, buff_uid);
+                out.push(ActEffect {
+                    effect_type: Some(EffectType::Buffadd as i32),
+                    target_id: Some(target),
+                    effect_num: Some(buff_id),
+                    config_effect,
+                    buff: Some(BuffInfo {
+                        buff_id: Some(buff_id),
+                        duration: Some(duration),
+                        uid: Some(buff_uid),
+                        ex_info: Some(0),
+                        from_uid: Some(from),
+                        count: Some(count),
+                        act_common_params: Some(act_common_params),
+                        layer: Some(layer),
+                        r#type: Some(BuffLayerType::Normal as i32),
+                        act_info: vec![],
+                    }),
+                    ..Default::default()
+                });
+            }
             BattleEvent::BuffUpdate {
                 target,
                 buff_uid,
@@ -511,6 +554,62 @@ mod tests {
         assert_eq!(emitted.uid, Some(buff_uid));
         assert_eq!(emitted.buff_id, Some(buff_id));
         assert_eq!(emitted.from_uid, Some(from_uid));
+    }
+
+    #[test]
+    fn buff_apply_updates_manager_and_serializes() {
+        ensure_game_data_initialized();
+
+        let mut ctx = test_ctx();
+        let target = 101_i64;
+        let buff_id = 30091122_i32;
+        let from_uid = 77_i64;
+        let count = 0_i32;
+        let layer = 1_i32;
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::BuffApply {
+                target,
+                buff_id,
+                count,
+                layer,
+                from: from_uid,
+                config_effect: Some(30003),
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Buffadd as i32)
+        );
+        assert_eq!(out[0].target_id, Some(target));
+        assert_eq!(out[0].effect_num, Some(buff_id));
+        assert_eq!(out[0].config_effect, Some(30003));
+        let emitted = out[0].buff.as_ref().expect("buff payload should be present");
+        let emitted_uid = emitted.uid.expect("buff uid should be present");
+        assert_eq!(emitted.buff_id, Some(buff_id));
+        assert_eq!(emitted.from_uid, Some(from_uid));
+        assert_eq!(emitted.count, Some(count));
+        assert_eq!(emitted.layer, Some(layer));
+
+        let applied = ctx
+            .buff_mgr
+            .get(target)
+            .iter()
+            .find(|instance| instance.uid == emitted_uid)
+            .expect("buff should exist in manager after apply");
+        let expected_stacks = config::configs::get()
+            .skill_buff
+            .iter()
+            .find(|buff| buff.id == buff_id)
+            .map(|buff| if count > 0 { count } else { buff.effect_count })
+            .unwrap_or(count);
+        assert_eq!(applied.buff_id, buff_id);
+        assert_eq!(applied.from_uid, from_uid);
+        assert_eq!(applied.layer, layer);
+        assert_eq!(applied.stacks, expected_stacks);
     }
 
     #[test]
