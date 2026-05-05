@@ -2,11 +2,11 @@ use sonettobuf::{ActEffect, effect_type_enum::EffectType, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps},
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     skill::{
         PhaseFilter, build_skill_act_effect,
         cache::{SKILL_CACHE, resolve_skill_effect_id},
-        sibling_coalesce::coalesce_duplicate_sibling_skill_wrappers,
     },
     types::{behavior::BehaviorType, condition::ConditionType},
     utils::buff_has_bloodpool,
@@ -28,17 +28,43 @@ pub fn execute_skill(
         return Ok(vec![]);
     }
     for effect in &mut skill_effects {
-        if effect.effect_type != Some(EffectType::Fightstep as i32) {
-            continue;
-        }
-        let Some(step) = effect.fight_step.as_mut() else {
+        let Some(step) = effect.fight_step.as_ref() else {
             continue;
         };
-        if step.act_type != Some(fight_step::ActType::Skill as i32) || step.act_id != Some(skill_id)
+        if effect.effect_type != Some(EffectType::Fightstep as i32)
+            || step.act_type != Some(fight_step::ActType::Skill as i32)
+            || step.act_id != Some(skill_id)
         {
             continue;
         }
-        coalesce_duplicate_sibling_skill_wrappers(skill_id, &mut step.act_effect);
+
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id,
+            from: step.from_id.unwrap_or(uid),
+            to: step.to_id.unwrap_or(target_uid),
+            children: step
+                .act_effect
+                .clone()
+                .into_iter()
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .collect(),
+            kind: SkillEmitKind::EventTriggered,
+        });
+        let mut event_ctx = EventContext {
+            fight: ctx.fight,
+            buff_mgr: &mut ctx.managers.buff_mgr,
+            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            bloodtithe: &mut ctx.mechanics.bloodtithe,
+        };
+        let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            .into_iter()
+            .next()
+            .expect("event-triggered passive skill wrapper should serialize to one ActEffect");
+        if drained.effect_type != Some(EffectType::Fightstep as i32) {
+            continue;
+        }
+        *effect = drained;
     }
 
     // Keep execute_skill output shape intact: each returned 162 (and any side effects)
