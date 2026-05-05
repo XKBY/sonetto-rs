@@ -392,6 +392,14 @@ pub(crate) fn build_monitor_continue_channel_embeds(
             bloodpool_value_attacker: Some(ctx.mechanics.bloodtithe.get_value(1)),
         };
 
+        let channel_record_idx = ctx.mechanics.emission_timeline.record(
+            crate::state::battle::emission_timeline::EmissionPhase::ChannelMechanic,
+            caster_uid,
+            emit_skill_id,
+            0,
+            None,
+            None,
+        );
         let Ok(skill_effects) = execute_passive_skill(
             ctx,
             caster_uid,
@@ -401,6 +409,11 @@ pub(crate) fn build_monitor_continue_channel_embeds(
         ) else {
             continue;
         };
+        if !skill_effects.is_empty() {
+            ctx.mechanics
+                .emission_timeline
+                .mark_produced(channel_record_idx);
+        }
         out.extend(
             skill_effects
                 .into_iter()
@@ -452,6 +465,14 @@ pub fn inject_monitor_continue_into_enemy_skill_step<F, G>(
     };
     let enemy_caster_uid = step.from_id.unwrap_or(0);
     let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
+    let monitor_record_idx = ctx.mechanics.emission_timeline.record(
+        crate::state::battle::emission_timeline::EmissionPhase::ChannelMechanic,
+        holder.holder_uid,
+        holder.reactive_skill_id,
+        0,
+        step.act_id,
+        Some(enemy_caster_uid),
+    );
     let Ok(skill_effects) = execute_passive_skill(
         ctx,
         holder.holder_uid,
@@ -464,6 +485,9 @@ pub fn inject_monitor_continue_into_enemy_skill_step<F, G>(
     if skill_effects.is_empty() {
         return;
     }
+    ctx.mechanics
+        .emission_timeline
+        .mark_produced(monitor_record_idx);
     let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
     let runtime_deleted_buff_ids =
         deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);

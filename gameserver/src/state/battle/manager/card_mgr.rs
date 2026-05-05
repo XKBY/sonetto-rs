@@ -340,6 +340,14 @@ impl FightCardMgr {
                 if !skill_should_fire(exec_caster_uid, passive_skill_id, &use_card_event, 0, 0) {
                     continue;
                 }
+                let inline_passive_idx = ctx.mechanics.emission_timeline.record(
+                    crate::state::battle::emission_timeline::EmissionPhase::CardInlinePassive,
+                    exec_caster_uid,
+                    passive_skill_id,
+                    action_order_index,
+                    Some(resolved_skill_id),
+                    Some(exec_caster_uid),
+                );
                 match execute_passive_skill(
                     ctx,
                     exec_caster_uid,
@@ -348,6 +356,9 @@ impl FightCardMgr {
                     &passive_phase,
                 ) {
                     Ok(effects) if !effects.is_empty() => {
+                        ctx.mechanics
+                            .emission_timeline
+                            .mark_produced(inline_passive_idx);
                         skill_effects.extend(effects);
                     }
                     _ => {}

@@ -199,6 +199,14 @@ pub fn inject_into_enemy_skill_step<F>(
                 bloodpool_max_attacker: Some(ctx.mechanics.bloodtithe.get_max(1)),
                 bloodpool_value_attacker: Some(ctx.mechanics.bloodtithe.get_value(1)),
             };
+            let inject_record_idx = ctx.mechanics.emission_timeline.record(
+                crate::state::battle::emission_timeline::EmissionPhase::AllyReactiveInject,
+                owner_uid,
+                skill_id,
+                event.action_order_index,
+                Some(event.skill_id),
+                Some(event.caster_uid),
+            );
             let Ok(skill_effects) = execute_passive_skill(
                 ctx,
                 owner_uid,
@@ -212,6 +220,9 @@ pub fn inject_into_enemy_skill_step<F>(
             if skill_effects.is_empty() {
                 continue;
             }
+            ctx.mechanics
+                .emission_timeline
+                .mark_produced(inject_record_idx);
 
             apply_step(
                 ctx,
