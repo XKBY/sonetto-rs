@@ -716,9 +716,21 @@ impl FightCalculateDataMgr {
     ) -> Result<(), String> {
         let team_type = effect.team_type.unwrap_or(1);
         let max = effect.effect_num1.unwrap_or(0);
-        // TODO(event-queue): Phase 3 - this replay lane still mutates max
-        // outside EventQueue drain ownership.
-        bloodtithe.set_max(team_type, bloodtithe.get_max(team_type).max(max));
+        let mut events = EventQueue::new();
+        events.push(BattleEvent::BloodpoolMaxChange {
+            team_type,
+            max: bloodtithe.get_max(team_type).max(max),
+        });
+        let mut local_fight = Fight::default();
+        let mut local_buff_mgr = BuffMgr::new();
+        let mut local_ex_point_mgr = ExPointMgr::new();
+        let mut event_ctx = EventContext {
+            fight: &mut local_fight,
+            buff_mgr: &mut local_buff_mgr,
+            ex_point_mgr: &mut local_ex_point_mgr,
+            bloodtithe,
+        };
+        let _ = drain_to_fight_steps(events.drain(), &mut event_ctx);
         tracing::trace!("Bloodtithe max set: team={}, max={}", team_type, max);
         Ok(())
     }
@@ -735,14 +747,22 @@ impl FightCalculateDataMgr {
         // effectNum=team_type, effectNum1=delta (gain or consume)
         // legacy absolute-set packets encode the value in effectNum with effectNum1=0
         if effect_num == 1 && effect_num1 != 0 {
-            let current = bloodtithe.get_value(team_type);
-            let next = (current + effect_num1).max(0);
-            if effect_num1 > 0 && next > bloodtithe.get_max(team_type) {
-                // TODO(event-queue): Phase 3 - positive BloodPoolValueChange replay
-                // still raises max directly instead of via drain-owned mutation.
-                bloodtithe.set_max(team_type, next);
-            }
-            bloodtithe.set_value(team_type, next);
+            let mut events = EventQueue::new();
+            events.push(BattleEvent::BloodpoolValueChange {
+                team_type,
+                target: effect.target_id.unwrap_or(0),
+                delta: effect_num1,
+            });
+            let mut local_fight = Fight::default();
+            let mut local_buff_mgr = BuffMgr::new();
+            let mut local_ex_point_mgr = ExPointMgr::new();
+            let mut event_ctx = EventContext {
+                fight: &mut local_fight,
+                buff_mgr: &mut local_buff_mgr,
+                ex_point_mgr: &mut local_ex_point_mgr,
+                bloodtithe,
+            };
+            let _ = drain_to_fight_steps(events.drain(), &mut event_ctx);
         } else {
             // legacy absolute set
             bloodtithe.set_value(team_type, effect_num);

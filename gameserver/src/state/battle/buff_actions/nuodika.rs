@@ -8,13 +8,14 @@ use crate::state::battle::{
     buff_actions::attr_replace::buff_get_attr_replace_permille,
     buff_actions::nuodika_cast::buff_get_nuodika_channel_params,
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
     manager::{
         buff_mgr::BuffMgr,
         ex_point_mgr::ExPointMgr,
         round_mgr::{FightRoundMgr, lookup_entry_max_hp},
     },
-    mechanics::{injury_counter, magic_circle},
+    mechanics::{bloodtithe::BloodtitheState, injury_counter, magic_circle},
     passives::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
@@ -180,11 +181,23 @@ pub(crate) fn build_nuodika_channel_steps(
                 available - consume,
             );
 
-            // TODO(event-queue): Phase 3 - route this BloodPoolValueChange emitter
-            // through EventQueue drain once Nuodika's simulated pool path is migrated.
-            let mut step_effects = vec![ActEffectBuilder::bloodpool_value_change(
-                holder_uid, team_type, -consume,
-            )];
+            let mut queue = EventQueue::new();
+            queue.push(BattleEvent::BloodpoolValueChange {
+                team_type,
+                target: holder_uid,
+                delta: -consume,
+            });
+            let mut local_fight = Fight::default();
+            let mut local_buff_mgr = BuffMgr::new();
+            let mut local_ex_point_mgr = ExPointMgr::new();
+            let mut local_bloodtithe = BloodtitheState::new();
+            let mut event_ctx = EventContext {
+                fight: &mut local_fight,
+                buff_mgr: &mut local_buff_mgr,
+                ex_point_mgr: &mut local_ex_point_mgr,
+                bloodtithe: &mut local_bloodtithe,
+            };
+            let mut step_effects = drain_to_fight_steps(queue.drain(), &mut event_ctx);
             step_effects.push(
                 ActEffectBuilder::new(EffectType::NuoDiKaRandomAttackNum as i32, holder_uid)
                     .effect_num(granted_points)

@@ -1,5 +1,6 @@
 use super::super::{
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::split_step_by_effect_limit,
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
@@ -275,9 +276,21 @@ impl FightDataMgr {
                     rebuilt.initialized = true;
                     let current_max = rebuilt.get_max(team_type);
                     if amount > current_max {
-                        // TODO(event-queue): Phase 3 - replay seeding still mutates
-                        // bloodpool max directly outside EventQueue drain.
-                        rebuilt.set_max(team_type, amount);
+                        let mut queue = EventQueue::new();
+                        queue.push(BattleEvent::BloodpoolMaxChange {
+                            team_type,
+                            max: current_max.max(amount),
+                        });
+                        let mut local_fight = Fight::default();
+                        let mut local_buff_mgr = BuffMgr::new();
+                        let mut local_ex_point_mgr = ExPointMgr::new();
+                        let mut event_ctx = EventContext {
+                            fight: &mut local_fight,
+                            buff_mgr: &mut local_buff_mgr,
+                            ex_point_mgr: &mut local_ex_point_mgr,
+                            bloodtithe: &mut rebuilt,
+                        };
+                        let _ = drain_to_fight_steps(queue.drain(), &mut event_ctx);
                     }
                 }
                 EffectType::BloodPoolValueChange => {
@@ -406,9 +419,21 @@ impl FightDataMgr {
                     let next_max = effect.effect_num1.unwrap_or(0);
                     let current_max = rebuilt.get_max(team_type);
                     if next_max > current_max {
-                        // TODO(event-queue): Phase 3 - replay seeding still mutates
-                        // bloodpool max directly outside EventQueue drain.
-                        rebuilt.set_max(team_type, next_max);
+                        let mut queue = EventQueue::new();
+                        queue.push(BattleEvent::BloodpoolMaxChange {
+                            team_type,
+                            max: current_max.max(next_max),
+                        });
+                        let mut local_fight = Fight::default();
+                        let mut local_buff_mgr = BuffMgr::new();
+                        let mut local_ex_point_mgr = ExPointMgr::new();
+                        let mut event_ctx = EventContext {
+                            fight: &mut local_fight,
+                            buff_mgr: &mut local_buff_mgr,
+                            ex_point_mgr: &mut local_ex_point_mgr,
+                            bloodtithe: &mut rebuilt,
+                        };
+                        let _ = drain_to_fight_steps(queue.drain(), &mut event_ctx);
                     }
                 }
                 EffectType::BloodPoolValueChange => {

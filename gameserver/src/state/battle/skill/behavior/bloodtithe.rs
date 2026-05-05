@@ -51,7 +51,7 @@ use crate::state::battle::mechanics::bloodtithe::{
     BloodtitheState, bloodtithe_add_to_pool, bloodtithe_value_change,
 };
 use crate::state::battle::types::effects::EffectType;
-use crate::state::battle::utils::{apply_real_hurt_fix, damage_with_hurt};
+use crate::state::battle::utils::apply_real_hurt_fix;
 
 fn attr_value(entity: &sonettobuf::FightEntityInfo, attr_id: i32) -> i32 {
     let attr = entity.attr.as_ref();
@@ -209,15 +209,38 @@ pub fn lost_life(
             ..Default::default()
         });
     } else {
-        // TODO(event-queue): Phase 3 - route this LostLife Damage emission
-        // through EventQueue drain once all behavior-side damage helpers migrate.
-        effects.push(damage_with_hurt(
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::Damage {
             target,
-            actual_loss,
-            behavior_id,
-            skill_id,
-            caster_uid,
-        ));
+            amount: actual_loss,
+            hurt_info: FightHurtInfo {
+                damage: Some(actual_loss),
+                reduce_hp: Some(0),
+                hurt_effect: Some(EffectType::Damage as i32),
+                damage_from_type: Some(DamageFromType::SkillEffect as i32),
+                config_effect: Some(behavior_id),
+                effect_id: Some(skill_id),
+                skill_id: Some(skill_id),
+                from_uid: Some(caster_uid),
+                ..Default::default()
+            },
+            from: caster_uid,
+            skill_id: Some(skill_id),
+        });
+
+        let mut synthetic_fight = Fight::default();
+        let mut synthetic_buff_mgr = EventBuffMgr::new();
+        let mut synthetic_ex_point_mgr = EventExPointMgr::new();
+        let drained = {
+            let mut event_ctx = EventContext {
+                fight: &mut synthetic_fight,
+                buff_mgr: &mut synthetic_buff_mgr,
+                ex_point_mgr: &mut synthetic_ex_point_mgr,
+                bloodtithe,
+            };
+            drain_to_fight_steps(queue.drain(), &mut event_ctx)
+        };
+        effects.extend(drained);
     }
 
     let team_type = get_entity(fight, target).and_then(|e| e.team_type);
