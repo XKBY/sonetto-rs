@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
+
 use sonettobuf::{
     ActEffect, BuffInfo, Fight, FightEntityInfo, FightHurtInfo as HurtInfo, FightStep,
     effect_type_enum::EffectType, fight_step,
@@ -184,6 +186,54 @@ fn find_entity_mut(fight: &mut Fight, uid: i64) -> Option<&mut FightEntityInfo> 
         return Some(entity);
     }
     None
+}
+
+fn coalesce_sibling_skills(mut children: Vec<ActEffect>) -> Vec<ActEffect> {
+    let mut occurrences: HashMap<i32, Vec<usize>> = HashMap::new();
+
+    for (idx, effect) in children.iter().enumerate() {
+        let Some(162) = effect.effect_type else {
+            continue;
+        };
+        let Some(step) = effect.fight_step.as_ref() else {
+            continue;
+        };
+        if step.act_type != Some(fight_step::ActType::Skill as i32) {
+            continue;
+        }
+        let Some(act_id) = step.act_id else {
+            continue;
+        };
+        if act_id <= 0 {
+            continue;
+        }
+        occurrences.entry(act_id).or_default().push(idx);
+    }
+
+    let mut duplicate_indices: Vec<usize> = Vec::new();
+    for indices in occurrences.values() {
+        if indices.len() < 2 {
+            continue;
+        }
+        let first_idx = indices[0];
+        let mut merged_children: Vec<ActEffect> = Vec::new();
+        for &dup_idx in &indices[1..] {
+            if let Some(step) = children[dup_idx].fight_step.as_ref() {
+                merged_children.extend(step.act_effect.clone());
+            }
+            duplicate_indices.push(dup_idx);
+        }
+        if let Some(first_step) = children[first_idx].fight_step.as_mut() {
+            first_step.act_effect.extend(merged_children);
+        }
+    }
+
+    duplicate_indices.sort_unstable_by(|a, b| b.cmp(a));
+    for idx in duplicate_indices {
+        children.remove(idx);
+    }
+
+    children
 }
 
 /// Serialize a queue to FightStep ActEffects. Phase 1 only: this
@@ -559,8 +609,8 @@ pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
 #[cfg(test)]
 mod tests {
     use super::{
-        BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
-        fight_step_to_event,
+        BattleEvent, EventContext, EventQueue, SkillEmitKind, coalesce_sibling_skills,
+        drain_to_fight_steps, fight_step_to_event,
     };
     use crate::state::battle::{
         fight_step::{effect_container_step, make_skill_step, wrap_step},
@@ -610,6 +660,86 @@ mod tests {
             target_id: Some(42),
             ..Default::default()
         }
+    }
+
+    fn synthetic_skill_wrapper(skill_id: i32, child: ActEffect) -> ActEffect {
+        wrap_step(make_skill_step(1001, 2002, skill_id, 0, vec![child]))
+    }
+
+    #[test]
+    fn coalesce_sibling_skills_merges_duplicate_act_id_wrappers() {
+        let first_child = synthetic_effect(301, 1);
+        let second_child = synthetic_effect(302, 2);
+        let out = coalesce_sibling_skills(vec![
+            synthetic_skill_wrapper(30630122, first_child.clone()),
+            synthetic_skill_wrapper(30630122, second_child.clone()),
+        ]);
+
+        assert_eq!(out.len(), 1);
+        let merged = out[0]
+            .fight_step
+            .as_ref()
+            .expect("merged output should carry skill wrapper");
+        assert_eq!(merged.act_id, Some(30630122));
+        assert_eq!(merged.act_effect, vec![first_child, second_child]);
+    }
+
+    #[test]
+    fn coalesce_sibling_skills_preserves_unique_act_ids() {
+        let out = coalesce_sibling_skills(vec![
+            synthetic_skill_wrapper(30630122, synthetic_effect(401, 1)),
+            synthetic_skill_wrapper(30630161, synthetic_effect(402, 2)),
+            synthetic_skill_wrapper(30630122, synthetic_effect(403, 3)),
+        ]);
+
+        assert_eq!(out.len(), 2);
+        let first = out[0]
+            .fight_step
+            .as_ref()
+            .expect("first output should carry merged wrapper");
+        let second = out[1]
+            .fight_step
+            .as_ref()
+            .expect("second output should carry unique wrapper");
+        assert_eq!(first.act_id, Some(30630122));
+        assert_eq!(first.act_effect.len(), 2);
+        assert_eq!(second.act_id, Some(30630161));
+        assert_eq!(second.act_effect, vec![synthetic_effect(402, 2)]);
+    }
+
+    #[test]
+    fn coalesce_sibling_skills_passes_through_non_skill_effects() {
+        let direct_damage = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Damage as i32, 15);
+        let direct_heal = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Heal as i32, 7);
+        let skill = synthetic_skill_wrapper(30630161, synthetic_effect(501, 5));
+        let input = vec![direct_damage.clone(), skill.clone(), direct_heal.clone()];
+        let out = coalesce_sibling_skills(input.clone());
+
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn coalesce_sibling_skills_keeps_non_contiguous_relative_order() {
+        let child_a = synthetic_effect(601, 6);
+        let child_b = synthetic_effect(602, 7);
+        let damage = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Damage as i32, 20);
+        let heal = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Heal as i32, 10);
+        let out = coalesce_sibling_skills(vec![
+            synthetic_skill_wrapper(30630122, child_a.clone()),
+            damage.clone(),
+            synthetic_skill_wrapper(30630122, child_b.clone()),
+            heal.clone(),
+        ]);
+
+        assert_eq!(out.len(), 3);
+        let merged = out[0]
+            .fight_step
+            .as_ref()
+            .expect("first output should carry merged skill wrapper");
+        assert_eq!(merged.act_id, Some(30630122));
+        assert_eq!(merged.act_effect, vec![child_a, child_b]);
+        assert_eq!(out[1], damage);
+        assert_eq!(out[2], heal);
     }
 
     #[test]
