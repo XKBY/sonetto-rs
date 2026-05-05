@@ -8,6 +8,7 @@ use crate::state::battle::{
     context::FightContext,
     event_queue::{EventContext, EventQueue, drain_to_fight_steps, fight_step_to_event},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    mechanics::bloodtithe::BloodtitheState,
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
@@ -673,10 +674,12 @@ pub(crate) fn expand_trigger_chain_from_root_step(
 
     let mut buff_mgr = BuffMgr::new();
     let mut ex_point_mgr = ExPointMgr::new();
+    let mut bloodtithe = BloodtitheState::new();
     let mut event_ctx = EventContext {
         fight: ctx.fight,
         buff_mgr: &mut buff_mgr,
         ex_point_mgr: &mut ex_point_mgr,
+        bloodtithe: &mut bloodtithe,
     };
     let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);
 

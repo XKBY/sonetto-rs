@@ -18,11 +18,15 @@
 //!   `random::add_buff_ran_id`.
 
 use anyhow::Result;
-use sonettobuf::{ActEffect, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, Fight};
 
 use super::action::{ActionCtx, BehaviorAction};
 use super::buff;
 use super::random;
+use crate::state::battle::event_queue::{
+    BattleEvent, EventContext, EventQueue, drain_to_fight_steps,
+};
+use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -66,17 +70,25 @@ impl BehaviorAction for AddBuff {
                 if current < *consume {
                     return Some(Ok(vec![]));
                 }
-                ctx.mechanics.bloodtithe.set_value(1, current - consume);
-
-                // Emit BloodPoolValueChange as a side-effect sibling of the skill 162,
-                // not inline inside the skill act_effect payload.
-                ctx.executor.side_effects.push(ActEffect {
-                    effect_type: Some(EffectType::Bloodpoolvaluechange as i32),
-                    target_id: Some(ctx.target),
-                    effect_num: Some(1), // team_type = attacker side
-                    effect_num1: Some(-consume),
-                    ..Default::default()
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::BloodpoolValueChange {
+                    team_type: 1,
+                    target: ctx.target,
+                    delta: -*consume,
                 });
+                let mut synthetic_fight = Fight::default();
+                let mut synthetic_buff_mgr = BuffMgr::new();
+                let mut synthetic_ex_point_mgr = ExPointMgr::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut synthetic_fight,
+                    buff_mgr: &mut synthetic_buff_mgr,
+                    ex_point_mgr: &mut synthetic_ex_point_mgr,
+                    bloodtithe: &mut ctx.mechanics.bloodtithe,
+                };
+                // Emit BloodPoolValueChange as a side-effect sibling of the skill 162.
+                ctx.executor
+                    .side_effects
+                    .extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
 
                 Some(Ok(buff::apply(
                     buff::BuffApplySpec::new(*buff_id)

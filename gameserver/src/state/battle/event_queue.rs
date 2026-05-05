@@ -8,6 +8,7 @@ use sonettobuf::{
 use crate::state::battle::{
     fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    mechanics::bloodtithe::BloodtitheState,
 };
 
 /// A typed event recording a state mutation or visual emission
@@ -131,6 +132,7 @@ pub struct EventContext<'a> {
     pub fight: &'a mut Fight,
     pub buff_mgr: &'a mut BuffMgr,
     pub ex_point_mgr: &'a mut ExPointMgr,
+    pub bloodtithe: &'a mut BloodtitheState,
 }
 
 /// Serialize a queue to FightStep ActEffects. Phase 1 only: this
@@ -163,9 +165,12 @@ pub fn drain_to_fight_steps(
                 team_type,
                 target,
                 delta,
-            } => out.push(ActEffectBuilder::bloodpool_value_change(
-                target, team_type, delta,
-            )),
+            } => {
+                _ctx.bloodtithe.add_value(team_type, delta);
+                out.push(ActEffectBuilder::bloodpool_value_change(
+                    target, team_type, delta,
+                ));
+            }
             BattleEvent::BloodpoolMaxChange { team_type, max } => {
                 out.push(ActEffectBuilder::bloodpool_max_change(team_type, max));
             }
@@ -228,10 +233,12 @@ pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
     let mut fight = Fight::default();
     let mut buff_mgr = BuffMgr::new();
     let mut ex_point_mgr = ExPointMgr::new();
+    let mut bloodtithe = BloodtitheState::new();
     let mut ctx = EventContext {
         fight: &mut fight,
         buff_mgr: &mut buff_mgr,
         ex_point_mgr: &mut ex_point_mgr,
+        bloodtithe: &mut bloodtithe,
     };
 
     drain_to_fight_steps(queue.drain(), &mut ctx)
@@ -249,6 +256,7 @@ mod tests {
     use crate::state::battle::{
         fight_step::{make_skill_step, wrap_step},
         manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+        mechanics::bloodtithe::BloodtitheState,
     };
     use sonettobuf::{ActEffect, Fight};
 
@@ -256,10 +264,12 @@ mod tests {
         let fight = Box::leak(Box::new(Fight::default()));
         let buff_mgr = Box::leak(Box::new(BuffMgr::new()));
         let ex_point_mgr = Box::leak(Box::new(ExPointMgr::new()));
+        let bloodtithe = Box::leak(Box::new(BloodtitheState::new()));
         EventContext {
             fight,
             buff_mgr,
             ex_point_mgr,
+            bloodtithe,
         }
     }
 
@@ -338,6 +348,33 @@ mod tests {
                 vec![child]
             ))]
         );
+    }
+
+    #[test]
+    fn bloodpool_value_change_updates_state_and_serializes() {
+        let mut ctx = test_ctx();
+        let team_type = 1;
+        let uid = 66;
+        ctx.bloodtithe.set_value(team_type, 7);
+
+        let out = drain_to_fight_steps(
+            vec![BattleEvent::BloodpoolValueChange {
+                team_type,
+                target: uid,
+                delta: -3,
+            }],
+            &mut ctx,
+        );
+
+        assert_eq!(ctx.bloodtithe.get_value(team_type), 4);
+        assert_eq!(out.len(), 1);
+        assert_eq!(
+            out[0].effect_type,
+            Some(sonettobuf::effect_type_enum::EffectType::Bloodpoolvaluechange as i32)
+        );
+        assert_eq!(out[0].target_id, Some(uid));
+        assert_eq!(out[0].effect_num, Some(team_type));
+        assert_eq!(out[0].effect_num1, Some(-3));
     }
 
     #[test]

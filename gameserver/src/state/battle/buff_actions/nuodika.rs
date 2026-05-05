@@ -180,6 +180,8 @@ pub(crate) fn build_nuodika_channel_steps(
                 available - consume,
             );
 
+            // TODO(event-queue): Phase 3 - route this BloodPoolValueChange emitter
+            // through EventQueue drain once Nuodika's simulated pool path is migrated.
             let mut step_effects = vec![ActEffectBuilder::bloodpool_value_change(
                 holder_uid, team_type, -consume,
             )];

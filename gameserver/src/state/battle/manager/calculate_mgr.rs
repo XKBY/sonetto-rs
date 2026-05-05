@@ -803,10 +803,12 @@ impl FightCalculateDataMgr {
 
         let mut local_buff_mgr = BuffMgr::new();
         let mut local_ex_point_mgr = ExPointMgr::new();
+        let mut local_bloodtithe = BloodtitheState::new();
         let mut event_ctx = EventContext {
             fight,
             buff_mgr: &mut local_buff_mgr,
             ex_point_mgr: &mut local_ex_point_mgr,
+            bloodtithe: &mut local_bloodtithe,
         };
         let amount = drain_to_fight_steps(events.drain(), &mut event_ctx)
             .into_iter()

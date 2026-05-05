@@ -110,6 +110,7 @@ pub fn build_blood_pool_ex_point_step(
                     fight: &mut synthetic_fight,
                     buff_mgr: &mut synthetic_buff_mgr,
                     ex_point_mgr,
+                    bloodtithe,
                 };
                 act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
             }

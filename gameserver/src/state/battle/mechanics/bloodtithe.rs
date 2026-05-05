@@ -194,6 +194,15 @@ impl BloodtitheState {
         );
     }
 
+    pub fn add_value(&mut self, team_type: i32, delta: i32) {
+        let current = self.get_value(team_type);
+        let next = (current + delta).max(0);
+        if delta > 0 && next > self.get_max(team_type) {
+            self.set_max(team_type, next);
+        }
+        self.set_value(team_type, next);
+    }
+
     pub fn add_initial_gain(&mut self, team_type: i32, amount: i32) {
         let current = self.get_value(team_type);
         let new_value = current + amount;
