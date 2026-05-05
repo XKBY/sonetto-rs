@@ -15,7 +15,7 @@ use crate::state::battle::{
     event_queue::{
         BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
     },
-    fight_step::{effect_container_step, wrap_step},
+    fight_step::wrap_step,
     passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
     skill::{
         PhaseFilter, TriggerState,
@@ -320,10 +320,30 @@ pub fn inject_into_enemy_skill_step<F>(
                     continue;
                 }
 
-                apply_step(
-                    ctx,
-                    &effect_container_step(observer_uid, owner_uid, skill_id, skill_effects.clone()),
-                );
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::SkillEmit {
+                    skill_id,
+                    from: observer_uid,
+                    to: owner_uid,
+                    children: skill_effects
+                        .clone()
+                        .into_iter()
+                        .map(|effect| BattleEvent::SerializedActEffect { effect })
+                        .collect(),
+                    kind: SkillEmitKind::EventTriggered,
+                });
+                let mut event_ctx = EventContext {
+                    fight: ctx.fight,
+                    buff_mgr: &mut ctx.managers.buff_mgr,
+                    ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                    bloodtithe: &mut ctx.mechanics.bloodtithe,
+                };
+                let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);
+                for effect in drained {
+                    if let Some(fight_step) = effect.fight_step.as_ref() {
+                        apply_step(ctx, fight_step);
+                    }
+                }
                 injected_effects.extend(skill_effects);
             }
         }
