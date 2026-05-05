@@ -377,12 +377,27 @@ pub fn apply(
                     .cloned()
             });
             if let Some(old) = old {
-                effects.push(buff_del(spec.target, old.uid, old.buff_id, old.from_uid));
-                // TODO(event-queue): Phase 3 - route this BuffDel emission through
-                // EventQueue drain instead of direct remove + manual ActEffect.
-                with_buff_ctx(fight, managers, |buff_ctx| {
-                    buff_ctx.remove_by_uid(spec.target, old.uid);
-                });
+                if let Ok(buff_uid) = i32::try_from(old.uid) {
+                    let mut queue = EventQueue::new();
+                    queue.push(BattleEvent::BuffRemove {
+                        target: spec.target,
+                        buff_uid,
+                    });
+                    let mut local_fight = Fight::default();
+                    let mut local_bloodtithe = BloodtitheState::new();
+                    let mut event_ctx = EventContext {
+                        fight: &mut local_fight,
+                        buff_mgr: &mut managers.buff_mgr,
+                        ex_point_mgr: &mut managers.ex_point_mgr,
+                        bloodtithe: &mut local_bloodtithe,
+                    };
+                    effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+                } else {
+                    with_buff_ctx(fight, managers, |buff_ctx| {
+                        buff_ctx.remove_by_uid(spec.target, old.uid);
+                    });
+                    effects.push(buff_del(spec.target, old.uid, old.buff_id, old.from_uid));
+                }
             }
             let add_layer = if count > 0 {
                 count
@@ -725,17 +740,29 @@ pub fn replace_buff2(
     });
 
     if let Some(instance) = source {
-        effects.push(buff_del(
-            target,
-            instance.uid,
-            instance.buff_id,
-            instance.from_uid,
-        ));
-        // TODO(event-queue): Phase 3 - route this BuffDel emission through
-        // EventQueue drain instead of direct remove + manual ActEffect.
-        with_buff_ctx(fight, managers, |buff_ctx| {
-            buff_ctx.remove_by_uid(target, instance.uid);
-        });
+        if let Ok(buff_uid) = i32::try_from(instance.uid) {
+            let mut queue = EventQueue::new();
+            queue.push(BattleEvent::BuffRemove { target, buff_uid });
+            let mut local_fight = Fight::default();
+            let mut local_bloodtithe = BloodtitheState::new();
+            let mut event_ctx = EventContext {
+                fight: &mut local_fight,
+                buff_mgr: &mut managers.buff_mgr,
+                ex_point_mgr: &mut managers.ex_point_mgr,
+                bloodtithe: &mut local_bloodtithe,
+            };
+            effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+        } else {
+            with_buff_ctx(fight, managers, |buff_ctx| {
+                buff_ctx.remove_by_uid(target, instance.uid);
+            });
+            effects.push(buff_del(
+                target,
+                instance.uid,
+                instance.buff_id,
+                instance.from_uid,
+            ));
+        }
     }
 
     let existing = with_buff_ctx(fight, managers, |buff_ctx| {
@@ -982,17 +1009,29 @@ pub fn consume_by_type(
                 ));
             }
         } else {
-            // TODO(event-queue): Phase 3 - route this consume-by-type BuffDel
-            // emission through EventQueue drain instead of direct mutation.
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.remove_by_uid(target, buff.uid);
-            });
-            out.push(crate::state::battle::utils::buff_del(
-                target,
-                buff.uid,
-                buff.buff_id,
-                buff.from_uid,
-            ));
+            if let Ok(buff_uid) = i32::try_from(buff.uid) {
+                let mut queue = EventQueue::new();
+                queue.push(BattleEvent::BuffRemove { target, buff_uid });
+                let mut local_fight = Fight::default();
+                let mut local_bloodtithe = BloodtitheState::new();
+                let mut event_ctx = EventContext {
+                    fight: &mut local_fight,
+                    buff_mgr: &mut managers.buff_mgr,
+                    ex_point_mgr: &mut managers.ex_point_mgr,
+                    bloodtithe: &mut local_bloodtithe,
+                };
+                out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+            } else {
+                with_buff_ctx(fight, managers, |buff_ctx| {
+                    buff_ctx.remove_by_uid(target, buff.uid);
+                });
+                out.push(crate::state::battle::utils::buff_del(
+                    target,
+                    buff.uid,
+                    buff.buff_id,
+                    buff.from_uid,
+                ));
+            }
         }
         count -= 1;
     }
