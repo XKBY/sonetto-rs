@@ -6,7 +6,7 @@ use sonettobuf::{
 };
 
 use crate::state::battle::{
-    fight_step::{ActEffectBuilder, make_skill_step, wrap_step},
+    fight_step::{ActEffectBuilder, effect_container_step, make_skill_step, wrap_step},
     manager::{
         buff_mgr::{BuffMgr, next_buff_uid_for_target},
         ex_point_mgr::ExPointMgr,
@@ -455,6 +455,19 @@ pub fn drain_to_fight_steps(
                     child_effects,
                 )));
             }
+            BattleEvent::SkillEmit {
+                skill_id,
+                from,
+                to,
+                children,
+                kind: SkillEmitKind::AutomaticPhase,
+            } => {
+                let child_effects = drain_to_fight_steps(children, _ctx);
+                let inner_skill = make_skill_step(from, to, skill_id, 0, child_effects);
+                let inner_effect = effect_container_step(0, 0, 0, vec![wrap_step(inner_skill)]);
+                let outer_effect = effect_container_step(0, 0, 0, vec![wrap_step(inner_effect)]);
+                out.push(wrap_step(outer_effect));
+            }
             _ => {}
         }
     }
@@ -518,7 +531,7 @@ mod tests {
         fight_step_to_event,
     };
     use crate::state::battle::{
-        fight_step::{make_skill_step, wrap_step},
+        fight_step::{effect_container_step, make_skill_step, wrap_step},
         manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
         mechanics::bloodtithe::BloodtitheState,
     };
@@ -831,6 +844,67 @@ mod tests {
                 vec![child]
             ))]
         );
+    }
+
+    #[test]
+    fn automatic_phase_skill_emit_serializes_with_double_wrap() {
+        let child = synthetic_effect(654, 32);
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            skill_id: 530000411,
+            from: -1,
+            to: -2,
+            children: vec![BattleEvent::SerializedActEffect {
+                effect: child.clone(),
+            }],
+            kind: SkillEmitKind::AutomaticPhase,
+        });
+        let mut ctx = test_ctx();
+
+        let out = drain_to_fight_steps(queue.drain(), &mut ctx);
+
+        let expected_skill = make_skill_step(-1, -2, 530000411, 0, vec![child]);
+        let expected = vec![wrap_step(effect_container_step(
+            0,
+            0,
+            0,
+            vec![wrap_step(effect_container_step(
+                0,
+                0,
+                0,
+                vec![wrap_step(expected_skill.clone())],
+            ))],
+        ))];
+        assert_eq!(out, expected);
+
+        let outer = out[0]
+            .fight_step
+            .as_ref()
+            .expect("outer act effect should carry fight_step");
+        assert_eq!(outer.act_type, Some(sonettobuf::fight_step::ActType::Effect as i32));
+        assert_eq!(outer.act_id, Some(0));
+        assert_eq!(outer.act_effect.len(), 1);
+
+        let inner_effect = outer.act_effect[0]
+            .fight_step
+            .as_ref()
+            .expect("outer 162 should carry inner effect container");
+        assert_eq!(
+            inner_effect.act_type,
+            Some(sonettobuf::fight_step::ActType::Effect as i32)
+        );
+        assert_eq!(inner_effect.act_id, Some(0));
+        assert_eq!(inner_effect.act_effect.len(), 1);
+
+        let skill = inner_effect.act_effect[0]
+            .fight_step
+            .as_ref()
+            .expect("inner 162 should carry skill step");
+        assert_eq!(skill.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(skill.act_id, Some(530000411));
+        assert_eq!(skill.from_id, Some(-1));
+        assert_eq!(skill.to_id, Some(-2));
+        assert_eq!(skill.act_effect, vec![synthetic_effect(654, 32)]);
     }
 
     #[test]
