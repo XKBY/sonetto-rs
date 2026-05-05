@@ -5,6 +5,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use crate::state::battle::{
     buff_actions::monitor_continue::buff_get_monitor_continue_channel_params,
     context::FightContext,
+    event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::{effect_container_step, wrap_step},
     manager::{buff_mgr::BuffInstance, round_mgr::FightRoundMgr},
     passives::{
@@ -792,12 +793,29 @@ fn build_display_only_consume_channel_embeds(
         {
             continue;
         }
-        out.push(wrap_step(effect_container_step(
-            caster_uid,
-            caster_uid,
-            emit_effect_id,
-            step.act_effect.clone(),
-        )));
+        let child_effects = step.act_effect.clone();
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            kind: crate::state::battle::event_queue::SkillEmitKind::EventTriggered,
+            from: caster_uid,
+            to: caster_uid,
+            skill_id: emit_effect_id,
+            children: child_effects
+                .into_iter()
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .collect(),
+        });
+        let mut event_ctx = EventContext {
+            fight: ctx.fight,
+            buff_mgr: &mut ctx.managers.buff_mgr,
+            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            bloodtithe: &mut ctx.mechanics.bloodtithe,
+        };
+        let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            .into_iter()
+            .next()
+            .expect("event-triggered skill emission should serialize to a single ActEffect");
+        out.push(drained);
     }
 
     if let Some(existing) = ctx
@@ -807,19 +825,36 @@ fn build_display_only_consume_channel_embeds(
         .iter()
         .find(|buff| buff.buff_id == emit_effect_id)
     {
-        out.push(wrap_step(effect_container_step(
+        let child_effects = vec![buff_update(
             caster_uid,
-            caster_uid,
+            existing.from_uid,
             emit_effect_id,
-            vec![buff_update(
-                caster_uid,
-                existing.from_uid,
-                emit_effect_id,
-                existing.uid,
-                existing.stacks.max(1),
-                existing.layer,
-            )],
-        )));
+            existing.uid,
+            existing.stacks.max(1),
+            existing.layer,
+        )];
+        let mut queue = EventQueue::new();
+        queue.push(BattleEvent::SkillEmit {
+            kind: crate::state::battle::event_queue::SkillEmitKind::EventTriggered,
+            from: caster_uid,
+            to: caster_uid,
+            skill_id: emit_effect_id,
+            children: child_effects
+                .into_iter()
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .collect(),
+        });
+        let mut event_ctx = EventContext {
+            fight: ctx.fight,
+            buff_mgr: &mut ctx.managers.buff_mgr,
+            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            bloodtithe: &mut ctx.mechanics.bloodtithe,
+        };
+        let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            .into_iter()
+            .next()
+            .expect("event-triggered skill emission should serialize to a single ActEffect");
+        out.push(drained);
     }
 
     out
