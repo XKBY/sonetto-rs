@@ -25,6 +25,7 @@ use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
+    event_queue::{BattleEvent, HostEventAccumulator},
     manager::{
         card_mgr::FightCardMgr,
         round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
@@ -36,6 +37,27 @@ use crate::state::battle::{
     steps::{ex_gain, trigger_embed},
     trigger::passes::sync_blood_value_baseline,
 };
+
+fn capture_inserted_host_children(
+    accumulator: &mut HostEventAccumulator,
+    before: &[ActEffect],
+    after: &[ActEffect],
+) {
+    if after.len() <= before.len() {
+        return;
+    }
+
+    let mut before_idx = 0usize;
+    for effect in after {
+        if before_idx < before.len() && *effect == before[before_idx] {
+            before_idx += 1;
+            continue;
+        }
+        accumulator.push_child(BattleEvent::SerializedActEffect {
+            effect: effect.clone(),
+        });
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
@@ -94,7 +116,17 @@ pub(crate) async fn run(
         }
         let mut host_step = step.clone();
         step_walker::inline_magic_circle_root_wrapper(&mut host_step);
+        let mut accumulator = HostEventAccumulator::new();
+        for effect in host_step.act_effect.clone() {
+            accumulator.push_child(BattleEvent::SerializedActEffect { effect });
+        }
+        let host_children_before_magic_circle = host_step.act_effect.clone();
         magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
+        capture_inserted_host_children(
+            &mut accumulator,
+            &host_children_before_magic_circle,
+            &host_step.act_effect,
+        );
         let expanded_steps =
             mgr.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
         // Splice combat triggers as direct children of the host wrapper.
@@ -121,35 +153,67 @@ pub(crate) async fn run(
             embedded_steps.push(embedded);
         }
         if !embedded_steps.is_empty() {
+            let embedded_steps_for_accumulator = embedded_steps.clone();
             let insert_at = step_walker::host_trigger_insert_index(&host_step);
             host_step
                 .act_effect
                 .splice(insert_at..insert_at, embedded_steps);
+            for effect in &embedded_steps_for_accumulator {
+                accumulator.push_child(BattleEvent::SerializedActEffect {
+                    effect: effect.clone(),
+                });
+            }
         }
         let monitor_embeds =
             channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
         if !monitor_embeds.is_empty() {
+            let monitor_embeds_for_accumulator = monitor_embeds.clone();
             let insert_at = step_walker::host_trigger_insert_index(&host_step);
             host_step
                 .act_effect
                 .splice(insert_at..insert_at, monitor_embeds);
+            for effect in &monitor_embeds_for_accumulator {
+                accumulator.push_child(BattleEvent::SerializedActEffect {
+                    effect: effect.clone(),
+                });
+            }
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
         trigger_embed::normalize_player_skill_effect_order(&mut host_step);
+        let host_children_before_be_attacked = host_step.act_effect.clone();
         mgr.graft_be_attacked_reactives_onto_player_host(state, &mut host_step, ctx);
+        capture_inserted_host_children(
+            &mut accumulator,
+            &host_children_before_be_attacked,
+            &host_step.act_effect,
+        );
         if let Some((holder_uid, injury_count)) =
             injury_counter::find_card_host_injury_marker_params(
                 ctx.fight,
                 host_step.from_id.unwrap_or(0),
             )
         {
+            let host_children_before_injury_markers = host_step.act_effect.clone();
             injury_counter::inject_card_host_injury_markers(
                 &mut host_step,
                 ctx.fight,
                 holder_uid,
                 injury_count,
             );
+            capture_inserted_host_children(
+                &mut accumulator,
+                &host_children_before_injury_markers,
+                &host_step.act_effect,
+            );
         }
+        tracing::debug!(
+            target: "phase5_accumulator",
+            "host_step.act_effect.len()={} accumulator.child_count={} skill_id={} caster={}",
+            host_step.act_effect.len(),
+            accumulator.child_count(),
+            host_step.act_id.unwrap_or(0),
+            host_step.from_id.unwrap_or(0),
+        );
         steps.push(host_step);
         state.is_finish = mgr.check_battle_end(ctx.fight);
         if state.is_finish {

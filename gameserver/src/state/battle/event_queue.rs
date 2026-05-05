@@ -133,6 +133,31 @@ pub enum SkillEmitKind {
 }
 
 #[derive(Debug, Default)]
+pub struct HostEventAccumulator {
+    children: Vec<BattleEvent>,
+}
+
+impl HostEventAccumulator {
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+        }
+    }
+
+    pub fn push_child(&mut self, event: BattleEvent) {
+        self.children.push(event);
+    }
+
+    pub fn child_count(&self) -> usize {
+        self.children.len()
+    }
+
+    pub fn into_children(self) -> Vec<BattleEvent> {
+        self.children
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct EventQueue {
     events: Vec<BattleEvent>,
 }
