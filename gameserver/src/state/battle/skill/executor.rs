@@ -30,7 +30,6 @@ use super::{
     damage::{calculate_damage, should_crit_hit},
     euphoria,
     phase::{PhaseFilter, TriggerState},
-    sibling_coalesce::coalesce_duplicate_sibling_skill_wrappers,
     targets::{
         TargetResolver, alive_enemies, alive_enemies_by_position, get_ally_uids, get_entity,
     },
@@ -783,7 +782,6 @@ impl SkillExecutor {
             }
             normalized_effects.push(effect);
         }
-        coalesce_duplicate_sibling_skill_wrappers(skill_id, &mut normalized_effects);
         all_effects = normalized_effects;
 
         if all_effects.is_empty()

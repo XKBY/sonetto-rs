@@ -6,6 +6,7 @@ use crate::state::battle::{
     skill::{
         PhaseFilter, build_skill_act_effect,
         cache::{SKILL_CACHE, resolve_skill_effect_id},
+        sibling_coalesce::coalesce_duplicate_sibling_skill_wrappers,
     },
     types::{behavior::BehaviorType, condition::ConditionType},
     utils::buff_has_bloodpool,
@@ -22,9 +23,22 @@ pub fn execute_skill(
 ) -> Result<Vec<ActEffect>, anyhow::Error> {
     // build_skill_act_effect already returns top-level ActEffect containers (usually 162/FightStep).
     // Passive flow should preserve that container order/shape for live parity.
-    let skill_effects = build_skill_act_effect(ctx, uid, target_uid, skill_id, phase)?;
+    let mut skill_effects = build_skill_act_effect(ctx, uid, target_uid, skill_id, phase)?;
     if skill_effects.is_empty() {
         return Ok(vec![]);
+    }
+    for effect in &mut skill_effects {
+        if effect.effect_type != Some(EffectType::Fightstep as i32) {
+            continue;
+        }
+        let Some(step) = effect.fight_step.as_mut() else {
+            continue;
+        };
+        if step.act_type != Some(fight_step::ActType::Skill as i32) || step.act_id != Some(skill_id)
+        {
+            continue;
+        }
+        coalesce_duplicate_sibling_skill_wrappers(skill_id, &mut step.act_effect);
     }
 
     // Keep execute_skill output shape intact: each returned 162 (and any side effects)
