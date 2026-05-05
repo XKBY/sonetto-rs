@@ -140,6 +140,14 @@ pub struct HostEventAccumulator {
     injury: Vec<BattleEvent>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum HostLane {
+    Direct,
+    Trigger,
+    BeAttacked,
+    Injury,
+}
+
 impl HostEventAccumulator {
     pub fn new() -> Self {
         Self::default()
@@ -172,6 +180,67 @@ impl HostEventAccumulator {
             self.be_attacked.len(),
             self.injury.len(),
         )
+    }
+
+    /// Iterate every captured lane in push-order and yield the
+    /// inner ActEffect for SerializedActEffect events.
+    pub fn iter_captured_act_effects(&self) -> impl Iterator<Item = &ActEffect> {
+        self.direct
+            .iter()
+            .chain(self.trigger_lane.iter())
+            .chain(self.be_attacked.iter())
+            .chain(self.injury.iter())
+            .filter_map(|event| match event {
+                BattleEvent::SerializedActEffect { effect } => Some(effect),
+                _ => None,
+            })
+    }
+
+    /// Iterate a single captured lane for diagnostics.
+    pub fn lane_iter(&self, lane: HostLane) -> impl Iterator<Item = &ActEffect> {
+        let slice: &[BattleEvent] = match lane {
+            HostLane::Direct => &self.direct,
+            HostLane::Trigger => &self.trigger_lane,
+            HostLane::BeAttacked => &self.be_attacked,
+            HostLane::Injury => &self.injury,
+        };
+        slice.iter().filter_map(|event| match event {
+            BattleEvent::SerializedActEffect { effect } => Some(effect),
+            _ => None,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HostMembershipDiff {
+    /// Captured effects that were missing from the final host step.
+    pub missing_from_host: Vec<ActEffect>,
+}
+
+pub fn check_host_lane_membership(
+    captured: &[&ActEffect],
+    host_act_effects: &[ActEffect],
+) -> Result<(), HostMembershipDiff> {
+    let mut consumed = vec![false; host_act_effects.len()];
+    let mut missing = Vec::new();
+
+    for &captured_effect in captured {
+        let matched = host_act_effects
+            .iter()
+            .enumerate()
+            .find(|(idx, host_effect)| !consumed[*idx] && *host_effect == captured_effect);
+        match matched {
+            Some((idx, _)) => consumed[idx] = true,
+            None => missing.push(captured_effect.clone()),
+        }
+    }
+
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(HostMembershipDiff {
+            missing_from_host: missing,
+        })
     }
 }
 

@@ -21,11 +21,13 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
+use sonettobuf::{ActEffect, BeginRoundOper, FightStep, effect_type_enum::EffectType, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    event_queue::{BattleEvent, HostEventAccumulator},
+    event_queue::{
+        BattleEvent, HostEventAccumulator, HostLane, check_host_lane_membership,
+    },
     manager::{
         card_mgr::FightCardMgr,
         round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
@@ -48,10 +50,14 @@ fn capture_inserted_host_children(
         return;
     }
 
-    let mut before_idx = 0usize;
+    let mut consumed_before = vec![false; before.len()];
     for effect in after {
-        if before_idx < before.len() && *effect == before[before_idx] {
-            before_idx += 1;
+        let matched_before = before
+            .iter()
+            .enumerate()
+            .find(|(idx, before_effect)| !consumed_before[*idx] && *before_effect == effect);
+        if let Some((idx, _)) = matched_before {
+            consumed_before[idx] = true;
             continue;
         }
         push_host_accumulator_lane(accumulator, lane, effect.clone());
@@ -247,6 +253,57 @@ pub(crate) async fn run(
             host_step.act_id.unwrap_or(0),
             host_step.from_id.unwrap_or(0),
         );
+        let has_magic_circle_add = host_step
+            .act_effect
+            .iter()
+            .any(|effect| effect.effect_type == Some(EffectType::Magiccircleadd as i32));
+        if !has_magic_circle_add {
+            let mut captured_effects: Vec<&ActEffect> = Vec::new();
+            for effect in accumulator.iter_captured_act_effects() {
+                if let Some(nested_step) = effect.fight_step.as_ref()
+                    && nested_step.act_type == Some(fight_step::ActType::Skill as i32)
+                    && nested_step.act_id == host_step.act_id
+                {
+                    captured_effects.extend(nested_step.act_effect.iter());
+                } else {
+                    captured_effects.push(effect);
+                }
+            }
+            match check_host_lane_membership(&captured_effects, &host_step.act_effect) {
+                Ok(()) => {}
+                Err(diff) => {
+                    for (lane_name, lane) in [
+                        ("direct", HostLane::Direct),
+                        ("trigger", HostLane::Trigger),
+                        ("be_attacked", HostLane::BeAttacked),
+                        ("injury", HostLane::Injury),
+                    ] {
+                        let lane_count = accumulator.lane_iter(lane).count();
+                        tracing::debug!(
+                            target: "phase5_membership",
+                            "lane={} count={} skill_id={} caster={}",
+                            lane_name,
+                            lane_count,
+                            host_step.act_id.unwrap_or(0),
+                            host_step.from_id.unwrap_or(0),
+                        );
+                    }
+                    tracing::warn!(
+                        target: "phase5_membership",
+                        "lane membership diff: {} captured effects missing from host (skill_id={} caster={})",
+                        diff.missing_from_host.len(),
+                        host_step.act_id.unwrap_or(0),
+                        host_step.from_id.unwrap_or(0),
+                    );
+                    debug_assert!(
+                        diff.missing_from_host.is_empty(),
+                        "Phase 5 lane membership assertion: {} captured effects missing from host (skill_id={})",
+                        diff.missing_from_host.len(),
+                        host_step.act_id.unwrap_or(0),
+                    );
+                }
+            }
+        }
         steps.push(host_step);
         state.is_finish = mgr.check_battle_end(ctx.fight);
         if state.is_finish {
