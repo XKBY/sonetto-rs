@@ -171,40 +171,46 @@ pub(crate) async fn run(
         // wrapper) — Willow's `31040141` reactive ended up at depth=2
         // nested inside `1148002` instead of as a direct child of
         // `30090111` at depth=1.
-        let mut embedded_steps: Vec<ActEffect> = Vec::new();
+        let trigger_lane_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for trigger_step in expanded_steps.into_iter().skip(1) {
             let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-            embedded_steps.push(embedded);
+            push_host_accumulator_lane(
+                &mut accumulator,
+                HostAccumulatorLane::TriggerLane,
+                embedded,
+            );
         }
-        if !embedded_steps.is_empty() {
-            let embedded_steps_for_accumulator = embedded_steps.clone();
+        let trigger_drained: Vec<ActEffect> = accumulator
+            .lane_iter(HostLane::Trigger)
+            .skip(trigger_lane_offset)
+            .cloned()
+            .collect();
+        if !trigger_drained.is_empty() {
             let insert_at = step_walker::host_trigger_insert_index(&host_step);
             host_step
                 .act_effect
-                .splice(insert_at..insert_at, embedded_steps);
-            for effect in &embedded_steps_for_accumulator {
-                push_host_accumulator_lane(
-                    &mut accumulator,
-                    HostAccumulatorLane::TriggerLane,
-                    effect.clone(),
-                );
-            }
+                .splice(insert_at..insert_at, trigger_drained);
         }
         let monitor_embeds =
             channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
-        if !monitor_embeds.is_empty() {
-            let monitor_embeds_for_accumulator = monitor_embeds.clone();
+        let monitor_lane_offset = accumulator.lane_iter(HostLane::Trigger).count();
+        for effect in monitor_embeds {
+            push_host_accumulator_lane(
+                &mut accumulator,
+                HostAccumulatorLane::TriggerLane,
+                effect,
+            );
+        }
+        let monitor_drained: Vec<ActEffect> = accumulator
+            .lane_iter(HostLane::Trigger)
+            .skip(monitor_lane_offset)
+            .cloned()
+            .collect();
+        if !monitor_drained.is_empty() {
             let insert_at = step_walker::host_trigger_insert_index(&host_step);
             host_step
                 .act_effect
-                .splice(insert_at..insert_at, monitor_embeds);
-            for effect in &monitor_embeds_for_accumulator {
-                push_host_accumulator_lane(
-                    &mut accumulator,
-                    HostAccumulatorLane::TriggerLane,
-                    effect.clone(),
-                );
-            }
+                .splice(insert_at..insert_at, monitor_drained);
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
         trigger_embed::normalize_player_skill_effect_order(&mut host_step);
