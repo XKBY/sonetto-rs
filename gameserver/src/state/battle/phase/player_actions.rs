@@ -40,6 +40,7 @@ use crate::state::battle::{
 
 fn capture_inserted_host_children(
     accumulator: &mut HostEventAccumulator,
+    lane: HostAccumulatorLane,
     before: &[ActEffect],
     after: &[ActEffect],
 ) {
@@ -53,9 +54,29 @@ fn capture_inserted_host_children(
             before_idx += 1;
             continue;
         }
-        accumulator.push_child(BattleEvent::SerializedActEffect {
-            effect: effect.clone(),
-        });
+        push_host_accumulator_lane(accumulator, lane, effect.clone());
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum HostAccumulatorLane {
+    Direct,
+    TriggerLane,
+    Graft,
+    Injury,
+}
+
+fn push_host_accumulator_lane(
+    accumulator: &mut HostEventAccumulator,
+    lane: HostAccumulatorLane,
+    effect: ActEffect,
+) {
+    let event = BattleEvent::SerializedActEffect { effect };
+    match lane {
+        HostAccumulatorLane::Direct => accumulator.push_direct(event),
+        HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
+        HostAccumulatorLane::Graft => accumulator.push_graft(event),
+        HostAccumulatorLane::Injury => accumulator.push_injury(event),
     }
 }
 
@@ -118,12 +139,13 @@ pub(crate) async fn run(
         step_walker::inline_magic_circle_root_wrapper(&mut host_step);
         let mut accumulator = HostEventAccumulator::new();
         for effect in host_step.act_effect.clone() {
-            accumulator.push_child(BattleEvent::SerializedActEffect { effect });
+            accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
         }
         let host_children_before_magic_circle = host_step.act_effect.clone();
         magic_circle::apply_magic_circle_self_skill_embeds(ctx, &mut host_step);
         capture_inserted_host_children(
             &mut accumulator,
+            HostAccumulatorLane::Direct,
             &host_children_before_magic_circle,
             &host_step.act_effect,
         );
@@ -159,9 +181,11 @@ pub(crate) async fn run(
                 .act_effect
                 .splice(insert_at..insert_at, embedded_steps);
             for effect in &embedded_steps_for_accumulator {
-                accumulator.push_child(BattleEvent::SerializedActEffect {
-                    effect: effect.clone(),
-                });
+                push_host_accumulator_lane(
+                    &mut accumulator,
+                    HostAccumulatorLane::TriggerLane,
+                    effect.clone(),
+                );
             }
         }
         let monitor_embeds =
@@ -173,9 +197,11 @@ pub(crate) async fn run(
                 .act_effect
                 .splice(insert_at..insert_at, monitor_embeds);
             for effect in &monitor_embeds_for_accumulator {
-                accumulator.push_child(BattleEvent::SerializedActEffect {
-                    effect: effect.clone(),
-                });
+                push_host_accumulator_lane(
+                    &mut accumulator,
+                    HostAccumulatorLane::TriggerLane,
+                    effect.clone(),
+                );
             }
         }
         trigger_embed::flatten_self_nested_skill_effects(&mut host_step);
@@ -184,6 +210,7 @@ pub(crate) async fn run(
         mgr.graft_be_attacked_reactives_onto_player_host(state, &mut host_step, ctx);
         capture_inserted_host_children(
             &mut accumulator,
+            HostAccumulatorLane::Graft,
             &host_children_before_be_attacked,
             &host_step.act_effect,
         );
@@ -202,15 +229,21 @@ pub(crate) async fn run(
             );
             capture_inserted_host_children(
                 &mut accumulator,
+                HostAccumulatorLane::Injury,
                 &host_children_before_injury_markers,
                 &host_step.act_effect,
             );
         }
+        let (direct, trigger, graft, injury) = accumulator.lane_counts();
         tracing::debug!(
             target: "phase5_accumulator",
-            "host_step.act_effect.len()={} accumulator.child_count={} skill_id={} caster={}",
+            "host_step.act_effect.len()={} acc.total={} (direct={} trigger={} graft={} injury={}) skill_id={} caster={}",
             host_step.act_effect.len(),
             accumulator.child_count(),
+            direct,
+            trigger,
+            graft,
+            injury,
             host_step.act_id.unwrap_or(0),
             host_step.from_id.unwrap_or(0),
         );
