@@ -76,7 +76,7 @@ impl FightCardMgr {
                 if oper.to_id.unwrap_or(0) != 0 {
                     self.play_card(rng, ctx, state, oper).await
                 } else {
-                    Ok(self.select_card(oper))
+                    Ok(FightStep::default())
                 }
             }
             Ok(CardOpType::AssistBoss) => self.play_card(rng, ctx, state, oper).await,
@@ -84,22 +84,6 @@ impl FightCardMgr {
             Ok(CardOpType::BloodPool) => self.play_card(rng, ctx, state, oper).await,
             Ok(CardOpType::SimulateDissolveCard) => Ok(self.dissolve_card(oper, state)),
             _ => Ok(FightStep::default()),
-        }
-    }
-
-    fn select_card(&self, oper: BeginRoundOper) -> FightStep {
-        // Client sends 1-based index, convert to 0-based
-        let card_index = oper.param1.unwrap_or(1) - 1;
-        FightStep {
-            act_type: Some(fight_step::ActType::Effect.into()),
-            act_effect: vec![ActEffect {
-                effect_type: Some(EffectType::AddHandCard as i32),
-                effect_num: Some(card_index),
-                team_type: Some(1),
-                ..Default::default()
-            }],
-            card_index: Some(card_index),
-            ..Default::default()
         }
     }
 
