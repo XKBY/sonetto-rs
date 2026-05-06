@@ -17,6 +17,7 @@ use super::super::{
         most_recent_round_host_for_caster,
     },
     fight_step::{FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step},
+    heroes::pickles,
     manager::{
         buff_mgr::next_buff_uid_for_target,
         card_mgr::FightCardMgr,
@@ -549,6 +550,13 @@ impl FightRoundMgr {
         // standalone-Effect-with-single-162-Skill pattern.
         let attachment_candidates = find_attachment_candidates(&open.steps);
         AttachmentResolver::apply(&mut open.steps, attachment_candidates);
+        if pickles::repair_round_end_hedonism_emission(
+            ctx.fight,
+            &mut ctx.managers.buff_mgr,
+            &mut open.steps,
+        ) {
+            ctx.sync();
+        }
 
         if crate::state::battle::emission_timeline::EmissionTimeline::dump_enabled() {
             eprint!("{}", ctx.mechanics.emission_timeline.dump());
