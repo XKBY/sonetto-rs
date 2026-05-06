@@ -21,7 +21,7 @@ use super::super::{
     manager::{
         buff_mgr::next_buff_uid_for_target,
         card_mgr::FightCardMgr,
-        ex_point_mgr::{build_ex_point_info, sync_to_fight},
+        ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
     },
     mechanics::{self, injury_counter},
     passives::{
@@ -183,6 +183,41 @@ pub(crate) fn lookup_entry_max_hp(fight: &Fight, uid: i64) -> i32 {
         .get(&(battle_id, uid))
         .copied()
         .unwrap_or(0)
+}
+
+fn sync_new_change_wave_snapshot(ctx: &mut FightContext<'_>, snapshot: &Fight) {
+    let old_defender_uids: HashSet<i64> = ctx
+        .fight
+        .defender
+        .as_ref()
+        .into_iter()
+        .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+        .filter_map(|entity| entity.uid)
+        .collect();
+
+    let Some(mut new_defender) = snapshot.defender.clone() else {
+        return;
+    };
+    new_defender.sub_entitys.clear();
+
+    let new_defender_uids: HashSet<i64> = new_defender
+        .entitys
+        .iter()
+        .chain(new_defender.sub_entitys.iter())
+        .filter_map(|entity| entity.uid)
+        .collect();
+
+    ctx.fight.defender = Some(new_defender);
+    ctx.fight.cur_wave = snapshot.cur_wave;
+    ctx.fight.is_finish = snapshot.is_finish;
+
+    for uid in old_defender_uids.difference(&new_defender_uids) {
+        ctx.managers.buff_mgr.clear(*uid);
+    }
+
+    sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+    seed_entry_max_hp_from_fight(ctx.fight);
+    ctx.sync();
 }
 
 pub(crate) fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> {
@@ -732,6 +767,13 @@ impl FightRoundMgr {
             )
             .map_err(anyhow::Error::msg)?;
         ctx.mechanics.sync_from_buff_mgr(&ctx.managers.buff_mgr);
+        for effect in &step.act_effect {
+            if effect.effect_type == Some(EffectType::NewChangeWave as i32) {
+                if let Some(snapshot) = effect.fight.as_ref() {
+                    sync_new_change_wave_snapshot(ctx, snapshot);
+                }
+            }
+        }
         if sync_snapshot {
             sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
         }

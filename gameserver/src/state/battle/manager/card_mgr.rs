@@ -476,9 +476,10 @@ impl FightCardMgr {
                         );
                         continue;
                     }
-                    if target_uid != 0 && !entity_exists(&preview_fight, target_uid) {
-                        tracing::warn!(
-                            "ai_override skip step caster={} target={} skill={} reason=entity_missing",
+                    if target_uid > 0 && !entity_exists(&preview_fight, target_uid) {
+                        tracing::debug!(
+                            target: "ai_replay_skip",
+                            "ai_override skip step caster={} target={} skill={} reason=positive_target_missing",
                             caster_uid,
                             target_uid,
                             skill_id
