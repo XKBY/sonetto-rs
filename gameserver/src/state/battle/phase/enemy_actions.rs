@@ -45,10 +45,19 @@ pub(crate) async fn run(
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
     state.enemy_skill_actors.clear();
     let ai_steps = card_mgr.execute_ai_turn(rng, ctx, state).await?;
+    let mut previous_negative_skill_host: Option<(i64, i32)> = None;
     for step in ai_steps {
-        let pre_skill_ex_step = if step.act_type == Some(fight_step::ActType::Skill as i32)
-            && let Some(caster_uid) = step.from_id
-            && caster_uid < 0
+        let current_negative_skill_host = if step.act_type == Some(fight_step::ActType::Skill as i32)
+        {
+            step.from_id
+                .filter(|uid| *uid < 0)
+                .map(|uid| (uid, step.act_id.unwrap_or(0)))
+        } else {
+            None
+        };
+        let pre_skill_ex_step = if let Some((caster_uid, act_id)) = current_negative_skill_host
+            && (previous_negative_skill_host != current_negative_skill_host
+                || act_id != 114300811)
         {
             state.enemy_skill_actors.insert(caster_uid);
             ex_gain::standard_action_ex_gain_for_uid(mgr, ctx, caster_uid)
@@ -70,6 +79,7 @@ pub(crate) async fn run(
             let expanded_steps =
                 mgr.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             steps.extend(expanded_steps);
+            previous_negative_skill_host = current_negative_skill_host;
             continue;
         }
 
@@ -169,6 +179,7 @@ pub(crate) async fn run(
             steps.len(),
         );
         steps.push(host_step);
+        previous_negative_skill_host = current_negative_skill_host;
     }
     Ok(())
 }
