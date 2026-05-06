@@ -540,6 +540,9 @@ impl FightRoundMgr {
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
         mechanics::nautika::strip_redundant_post_round_emissions(ctx.fight, &mut open.steps);
+        if round_end_emission::repair_boss_state_cycle_second_wave(self, ctx, &mut open.steps) {
+            ctx.sync();
+        }
 
         // Phase 6 Session 3.2: psychube retro-attach. After all
         // existing cleanups have stabilized step shape, find any

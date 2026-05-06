@@ -33,9 +33,25 @@ use crate::state::battle::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
     round::step_shape::build_effect_step,
+    step_walker,
     steps::broadcast,
     utils::buff_update,
 };
+
+const BOSS_STATE_CYCLE_SKILL_ID: i32 = 530000151;
+const BOSS_STATE_ACTIVE_BUFF_ID: i32 = 530000111;
+const BOSS_STATE_INACTIVE_BUFF_ID: i32 = 530000112;
+const ROUND_END_STATE_MARKER_SKILL_ID: i32 = 4150001;
+const SMALL_ROUND_END_EFFECT_TYPE: i32 = 211;
+
+#[derive(Clone)]
+struct BossStateSnapshot {
+    buff_uid: i64,
+    from_uid: i64,
+    count: i32,
+    layer: i32,
+    duration: i32,
+}
 
 /// Emit the canonical terminal-round step stream:
 /// 1. Bloodtithe round-transition steps (one per active bloodpool).
@@ -300,4 +316,175 @@ pub(crate) fn merge_post_turn_reactives_into_host(steps: &mut Vec<FightStep>) {
     {
         steps.remove(source_idx);
     }
+}
+
+/// LIVE battle1 r1 re-broadcasts the current boss-state snapshot
+/// immediately after the round-end `4150001` wrapper and before the
+/// `SmallRoundEnd(211)` marker. The packet is not a fresh generic
+/// passive execution at this checkpoint; it is a replay of the active
+/// `530000111` state on defenders that still carry that buff after the
+/// round-end transition. That naturally excludes battle1's `-3`.
+pub(crate) fn repair_boss_state_cycle_second_wave(
+    mgr: &FightRoundMgr,
+    ctx: &mut FightContext<'_>,
+    steps: &mut Vec<FightStep>,
+) -> bool {
+    if !mgr
+        .collect_battle_rule_skills(ctx.fight)
+        .contains(&BOSS_STATE_CYCLE_SKILL_ID)
+    {
+        return false;
+    }
+
+    let Some(small_round_end_idx) = steps.iter().position(|step| {
+        step_walker::is_standalone_effect_marker(step, SMALL_ROUND_END_EFFECT_TYPE)
+    }) else {
+        return false;
+    };
+
+    let Some(state_marker_idx) = steps[..small_round_end_idx]
+        .iter()
+        .rposition(|step| step_walker::step_contains_act_id(step, ROUND_END_STATE_MARKER_SKILL_ID))
+    else {
+        return false;
+    };
+
+    if steps[state_marker_idx + 1..small_round_end_idx]
+        .iter()
+        .any(step_contains_boss_state_cycle_second_wave)
+    {
+        return false;
+    }
+
+    let mut wrapped = Vec::new();
+    let defender_uids: Vec<i64> = ctx
+        .fight
+        .defender
+        .as_ref()
+        .map(|side| {
+            side.entitys
+                .iter()
+                .chain(side.sub_entitys.iter())
+                .filter(|entity| {
+                    entity.position.unwrap_or(0) > 0
+                        && entity.passive_skill.contains(&BOSS_STATE_CYCLE_SKILL_ID)
+                })
+                .filter_map(|entity| entity.uid)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    for uid in defender_uids {
+        let Some(snapshot) = boss_state_snapshot_for_uid(ctx, &steps[..small_round_end_idx], uid)
+        else {
+            continue;
+        };
+
+        let mut update = buff_update(
+            uid,
+            snapshot.from_uid,
+            BOSS_STATE_ACTIVE_BUFF_ID,
+            snapshot.buff_uid,
+            snapshot.count,
+            snapshot.layer,
+        );
+        if let Some(buff) = update.buff.as_mut() {
+            buff.duration = Some(snapshot.duration);
+        }
+        let skill = FightStepBuilder::skill(uid, uid, BOSS_STATE_CYCLE_SKILL_ID)
+            .with(update)
+            .with(ActEffect {
+                effect_type: Some(26),
+                target_id: Some(uid),
+                effect_num: Some(0),
+                ..Default::default()
+            })
+            .build();
+        wrapped.push(wrap_step(build_effect_step(vec![wrap_step(skill)])));
+    }
+
+    if wrapped.is_empty() {
+        return false;
+    }
+
+    steps.insert(small_round_end_idx, build_effect_step(wrapped));
+    true
+}
+
+fn step_contains_boss_state_cycle_second_wave(step: &FightStep) -> bool {
+    step.act_effect.iter().any(|effect| {
+        let Some(skill) = step_walker::wrapped_skill_from_effect(effect) else {
+            return false;
+        };
+        let Some(uid) = skill.from_id else {
+            return false;
+        };
+        uid < 0 && skill_matches_boss_state_cycle_second_wave(skill, uid)
+    })
+}
+
+fn boss_state_snapshot_for_uid(
+    ctx: &FightContext<'_>,
+    steps: &[FightStep],
+    uid: i64,
+) -> Option<BossStateSnapshot> {
+    if let Some(instance) = ctx
+        .managers
+        .buff_mgr
+        .find_instance_by_buff_id(uid, BOSS_STATE_ACTIVE_BUFF_ID)
+    {
+        return Some(BossStateSnapshot {
+            buff_uid: instance.uid,
+            from_uid: instance.from_uid,
+            count: instance.stacks,
+            layer: instance.layer,
+            duration: instance.duration,
+        });
+    }
+
+    if ctx
+        .managers
+        .buff_mgr
+        .find_instance_by_buff_id(uid, BOSS_STATE_INACTIVE_BUFF_ID)
+        .is_some()
+    {
+        return None;
+    }
+
+    steps.iter().rev().find_map(|step| {
+        step.act_effect.iter().find_map(|effect| {
+            let skill = step_walker::wrapped_skill_from_effect(effect)?;
+            if skill.act_id != Some(BOSS_STATE_CYCLE_SKILL_ID) || skill.from_id != Some(uid) {
+                return None;
+            }
+            let first = skill.act_effect.first()?;
+            let buff = first.buff.as_ref()?;
+            (first.effect_type == Some(7) && buff.buff_id == Some(BOSS_STATE_ACTIVE_BUFF_ID)).then(
+                || BossStateSnapshot {
+                    buff_uid: buff.uid.unwrap_or(0),
+                    from_uid: buff.from_uid.unwrap_or(uid),
+                    count: buff.count.unwrap_or(0),
+                    layer: buff.layer.unwrap_or(0),
+                    duration: buff.duration.unwrap_or(0),
+                },
+            )
+        })
+    })
+}
+
+fn skill_matches_boss_state_cycle_second_wave(skill: &FightStep, uid: i64) -> bool {
+    skill.act_id == Some(BOSS_STATE_CYCLE_SKILL_ID)
+        && skill.from_id == Some(uid)
+        && skill.to_id == Some(uid)
+        && skill.act_effect.len() == 2
+        && skill
+            .act_effect
+            .first()
+            .map(|effect| effect.effect_type == Some(7) && effect.target_id == Some(uid))
+            .unwrap_or(false)
+        && skill
+            .act_effect
+            .get(1)
+            .map(|effect| effect.effect_type == Some(26) && effect.target_id == Some(uid))
+            .unwrap_or(false)
 }
