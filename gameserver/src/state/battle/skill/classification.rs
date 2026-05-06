@@ -60,13 +60,13 @@ pub fn has_injury_reactive_condition(skill_id: i32) -> bool {
     }
     for raw in collect_skill_condition_strings(skill_id, true) {
         let (condition, _) = parse_condition(&raw);
-        if condition::fold(&condition, &mut |c| {
-            matches!(
-                c,
-                ConditionType::TeammateInjuryCount { .. }
-                    | ConditionType::TeammateInjuryCountNotReset { .. }
-            )
-        }) {
+        if condition::is_reactive_passive_condition(
+            &condition,
+            condition::ReactivePassiveConditionOptions {
+                include_teammate_injury_count: true,
+                ..Default::default()
+            },
+        ) {
             return true;
         }
     }
@@ -79,7 +79,13 @@ pub fn has_be_attacked_reactive_condition(skill_id: i32) -> bool {
     }
     for raw in collect_skill_condition_strings(skill_id, true) {
         let (condition, _) = parse_condition(&raw);
-        if condition::fold(&condition, &mut |c| matches!(c, ConditionType::BeAttacked)) {
+        if condition::is_reactive_passive_condition(
+            &condition,
+            condition::ReactivePassiveConditionOptions {
+                include_be_attacked: true,
+                ..Default::default()
+            },
+        ) {
             return true;
         }
     }

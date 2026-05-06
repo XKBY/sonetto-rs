@@ -5,12 +5,12 @@ use super::super::damage::calculate_damage;
 use super::super::targets::get_entity;
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::heroes::{nautika, rubuska, semmelweis};
+use crate::state::battle::types::behavior::BehaviorType;
+use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::{
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     manager::{buff_mgr::BuffMgr as EventBuffMgr, ex_point_mgr::ExPointMgr as EventExPointMgr},
 };
-use crate::state::battle::types::behavior::BehaviorType;
-use crate::state::battle::types::condition::ConditionType;
 
 /// BloodPool action — handler for the two `BehaviorType` variants
 /// that mutate the bloodtithe pool directly via the

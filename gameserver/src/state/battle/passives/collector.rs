@@ -92,8 +92,7 @@ pub fn collect(fight: &Fight, battle_id: i32) -> CollectedPassives {
     // (i.e. all addition_rule entries with prefix=3, not just the
     // is_dedicated_battle_rule_skill subset) from attacker's regular sweep
     // so we match LIVE shape.
-    let all_defender_only_rules: HashSet<i32> =
-        battle_passives.defender.iter().copied().collect();
+    let all_defender_only_rules: HashSet<i32> = battle_passives.defender.iter().copied().collect();
     let attacker_exclusion: HashSet<i32> = attacker_rule_set
         .iter()
         .chain(all_defender_only_rules.iter())

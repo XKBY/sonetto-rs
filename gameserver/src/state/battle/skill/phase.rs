@@ -1,6 +1,5 @@
 use super::super::manager::buff_mgr::BuffMgr;
 use super::super::{BehaviorType, ConditionType};
-use super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::condition::{self, buff::deleted_matches};
 use std::collections::HashSet;
 
@@ -143,8 +142,15 @@ impl PhaseFilter {
         self.check_non_combat(condition, behavior_target)
     }
 
-    fn check_combat(&self, condition: &ConditionType, event: &TriggerState, owner_uid: i64) -> bool {
-        condition::fold(condition, &mut |cond| self.check_combat_leaf(cond, event, owner_uid))
+    fn check_combat(
+        &self,
+        condition: &ConditionType,
+        event: &TriggerState,
+        owner_uid: i64,
+    ) -> bool {
+        condition::fold(condition, &mut |cond| {
+            self.check_combat_leaf(cond, event, owner_uid)
+        })
     }
 
     fn check_non_combat(&self, condition: &ConditionType, behavior_target: i32) -> bool {
@@ -227,6 +233,13 @@ impl PhaseFilter {
         event: &TriggerState,
         owner_uid: i64,
     ) -> bool {
+        if let Some(pass) = condition::eval_active_use_skill_condition(
+            condition,
+            condition::active_use_skill_context_for_trigger_state(event),
+        ) {
+            return pass;
+        }
+
         match condition {
             // Non-event conditions always pass in combat
             ConditionType::None
@@ -270,25 +283,6 @@ impl PhaseFilter {
                 .unwrap_or(true),
 
             // Event-driven conditions — only fire for matching event
-            ConditionType::ActiveUseSkill => event.active_use_skill,
-            ConditionType::ActiveUseSkillId { skill_ids } => {
-                event.active_use_skill && skill_ids.contains(&event.skill_id)
-            }
-            ConditionType::ActOrder { order_index } => {
-                event.active_use_skill
-                    && event.action_order_index > 0
-                    && event.action_order_index == *order_index
-            }
-            ConditionType::UseSkillEffectTag { effect_tag } => {
-                event.active_use_skill
-                    && active_skill_effect_tag(event.skill_id)
-                        .map(|tag| tag == *effect_tag)
-                        .unwrap_or(false)
-            }
-            ConditionType::UseSpecificSkill { skill_id } => {
-                event.active_use_skill && skill_matches_specific(event.skill_id, *skill_id)
-            }
-            ConditionType::UseHurtSkill => event.active_use_skill && skill_is_hurt(event.skill_id),
             ConditionType::UseExSkill => event.active_use_skill && event.used_ex_skill,
             ConditionType::TeammateUseExSkill => event.teammate_use_ex_skill,
             ConditionType::BeAttacked => event.be_attacked,
@@ -313,64 +307,4 @@ impl PhaseFilter {
             _ => false,
         }
     }
-}
-
-fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
-    if skill_id <= 0 {
-        return None;
-    }
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    cfg.skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.effect_tag)
-}
-
-fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
-    if skill_id <= 0 || wanted <= 0 {
-        return false;
-    }
-    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
-        return true;
-    }
-
-    let cfg = config::configs::get();
-    let Some(skill) = cfg.skill.get(skill_id) else {
-        return false;
-    };
-
-    if wanted <= 3 && skill.skill_rank == wanted {
-        return true;
-    }
-
-    // LIVE wrapper rows that use `66210#4` fan out across normal card casts
-    // regardless of the concrete skill id. Treat `4` as the active-card family.
-    wanted == 4
-}
-
-fn skill_is_hurt(skill_id: i32) -> bool {
-    if skill_id <= 0 {
-        return false;
-    }
-
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    if cfg
-        .skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.damage_rate > 0)
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    SKILL_CACHE
-        .get(&effect_id)
-        .map(|rows| {
-            rows.iter()
-                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
-        })
-        .unwrap_or(false)
 }

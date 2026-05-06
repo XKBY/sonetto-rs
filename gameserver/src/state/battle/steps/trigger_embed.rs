@@ -72,8 +72,7 @@ pub(crate) fn normalize_player_skill_effect_order_v(
     }
 
     let mut idx = 0usize;
-    while idx < act_effect.len() && is_damage_effect(act_effect[idx].effect_type.unwrap_or(0))
-    {
+    while idx < act_effect.len() && is_damage_effect(act_effect[idx].effect_type.unwrap_or(0)) {
         idx += 1;
     }
     if idx == 0 || idx >= act_effect.len() {
@@ -115,12 +114,8 @@ pub(crate) fn normalize_player_skill_effect_order_v(
 
 pub(crate) fn flatten_self_nested_skill_effects(step: &mut FightStep) {
     let act_effect = std::mem::take(&mut step.act_effect);
-    step.act_effect = flatten_self_nested_skill_effects_v(
-        step.act_type,
-        step.act_id,
-        step.from_id,
-        act_effect,
-    );
+    step.act_effect =
+        flatten_self_nested_skill_effects_v(step.act_type, step.act_id, step.from_id, act_effect);
 }
 
 pub(crate) fn flatten_self_nested_skill_effects_v(

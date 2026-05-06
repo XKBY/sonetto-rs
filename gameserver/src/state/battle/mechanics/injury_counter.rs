@@ -434,11 +434,7 @@ pub(crate) fn inject_card_host_injury_markers(
     let mut markers = Vec::with_capacity(4);
     for (idx, effect) in host_step.act_effect.iter().enumerate() {
         if let Some(injured_uid) = flat_host_injury_marker_uid(fight, effect, caster_team_type) {
-            let marker = build_card_host_injury_marker(
-                injured_uid,
-                holder_uid,
-                injury_count,
-            );
+            let marker = build_card_host_injury_marker(injured_uid, holder_uid, injury_count);
             accumulator.push_injury(BattleEvent::SerializedActEffect {
                 effect: marker.clone(),
             });
@@ -450,11 +446,7 @@ pub(crate) fn inject_card_host_injury_markers(
             .as_ref()
             .and_then(|step| nested_host_injury_marker_uid(fight, step, caster_team_type));
         if let Some(injured_uid) = nested_marker_uid {
-            let marker = build_card_host_injury_marker(
-                injured_uid,
-                holder_uid,
-                injury_count,
-            );
+            let marker = build_card_host_injury_marker(injured_uid, holder_uid, injury_count);
             accumulator.push_injury(BattleEvent::SerializedActEffect {
                 effect: marker.clone(),
             });

@@ -255,7 +255,11 @@ impl EmissionTimeline {
                 phases,
             })
             .collect();
-        out.sort_by(|a, b| a.skill_id.cmp(&b.skill_id).then(a.owner_uid.cmp(&b.owner_uid)));
+        out.sort_by(|a, b| {
+            a.skill_id
+                .cmp(&b.skill_id)
+                .then(a.owner_uid.cmp(&b.owner_uid))
+        });
         out
     }
 
@@ -286,8 +290,7 @@ impl EmissionTimeline {
                     .collect();
                 produced_phases.sort_by_key(|p| p.as_str());
                 produced_phases.dedup();
-                let mut all_phases: Vec<EmissionPhase> =
-                    recs.iter().map(|r| r.phase).collect();
+                let mut all_phases: Vec<EmissionPhase> = recs.iter().map(|r| r.phase).collect();
                 all_phases.sort_by_key(|p| p.as_str());
                 all_phases.dedup();
                 SkillDuplicateGroup {
@@ -326,7 +329,11 @@ impl EmissionTimeline {
                 (Some(sid), Some(uid)) => format!(" via skill={} caster={}", sid, uid),
                 _ => String::new(),
             };
-            let out_marker = if record.produced_output { "[OUT]" } else { "[   ]" };
+            let out_marker = if record.produced_output {
+                "[OUT]"
+            } else {
+                "[   ]"
+            };
             let _ = writeln!(
                 out,
                 "  [{:3}] {} phase={:<24} owner={:>11} skill={:>9} order={}{}",

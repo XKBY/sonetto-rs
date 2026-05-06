@@ -3,9 +3,7 @@ use sonettobuf::FightStep;
 use crate::state::battle::{
     buff_actions::probability_add_buff::probability_add_buff_specs,
     context::FightContext,
-    event_queue::{
-        BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
-    },
+    event_queue::{BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps},
     manager::buff_mgr::BuffInstance,
     passives::collector::CollectedPassives,
     round::step_shape::build_effect_step,

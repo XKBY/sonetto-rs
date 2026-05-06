@@ -25,9 +25,7 @@ use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    event_queue::{
-        BattleEvent, HostEventAccumulator, HostLane, check_host_lane_membership,
-    },
+    event_queue::{BattleEvent, HostEventAccumulator, HostLane, check_host_lane_membership},
     manager::{
         card_mgr::FightCardMgr,
         round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
@@ -161,11 +159,7 @@ pub(crate) async fn run(
             channel_mechanics::build_monitor_continue_channel_embeds(ctx, &step, &host_step);
         let monitor_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for effect in monitor_embeds {
-            push_host_accumulator_lane(
-                &mut accumulator,
-                HostAccumulatorLane::TriggerLane,
-                effect,
-            );
+            push_host_accumulator_lane(&mut accumulator, HostAccumulatorLane::TriggerLane, effect);
         }
         accumulator.splice_lane_drain_into_host(
             HostLane::Trigger,

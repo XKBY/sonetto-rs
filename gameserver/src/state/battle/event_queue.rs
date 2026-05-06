@@ -442,9 +442,9 @@ pub fn drain_to_fight_steps(
                     .cloned();
 
                 if let Some(instance) = existing {
-                    let updated = _ctx.buff_mgr.set_instance_count_layer(
-                        target, buff_uid, new_count, new_layer,
-                    );
+                    let updated = _ctx
+                        .buff_mgr
+                        .set_instance_count_layer(target, buff_uid, new_count, new_layer);
                     if updated {
                         out.push(buff_update(
                             target,
@@ -496,14 +496,8 @@ pub fn drain_to_fight_steps(
                 emit_count,
                 emit_layer,
             } => {
-                _ctx.buff_mgr.add_with_uid(
-                    target,
-                    buff_id,
-                    from,
-                    sync_count,
-                    sync_layer,
-                    buff_uid,
-                );
+                _ctx.buff_mgr
+                    .add_with_uid(target, buff_id, from, sync_count, sync_layer, buff_uid);
                 out.push(buff_update(
                     target, from, buff_id, buff_uid, emit_count, emit_layer,
                 ));
@@ -856,8 +850,10 @@ mod tests {
 
     #[test]
     fn coalesce_sibling_skills_passes_through_non_skill_effects() {
-        let direct_damage = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Damage as i32, 15);
-        let direct_heal = synthetic_effect(sonettobuf::effect_type_enum::EffectType::Heal as i32, 7);
+        let direct_damage =
+            synthetic_effect(sonettobuf::effect_type_enum::EffectType::Damage as i32, 15);
+        let direct_heal =
+            synthetic_effect(sonettobuf::effect_type_enum::EffectType::Heal as i32, 7);
         let skill = synthetic_skill_wrapper(30630161, synthetic_effect(501, 5));
         let input = vec![direct_damage.clone(), skill.clone(), direct_heal.clone()];
         let out = coalesce_sibling_skills(input.clone());
@@ -1073,10 +1069,7 @@ mod tests {
             Some(sonettobuf::effect_type_enum::EffectType::Crit as i32)
         );
         assert_eq!(
-            out[0]
-                .hurt_info
-                .as_ref()
-                .and_then(|hurt| hurt.hurt_effect),
+            out[0].hurt_info.as_ref().and_then(|hurt| hurt.hurt_effect),
             Some(sonettobuf::effect_type_enum::EffectType::Crit as i32)
         );
     }
@@ -1189,7 +1182,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("top-level act effect should carry fight_step");
-        assert_eq!(root.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(
+            root.act_type,
+            Some(sonettobuf::fight_step::ActType::Skill as i32)
+        );
         assert_eq!(root.act_id, Some(31140151));
         assert_eq!(root.from_id, Some(1001));
         assert_eq!(root.to_id, Some(2002));
@@ -1200,7 +1196,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("reactive child should be single-wrap fight_step");
-        assert_eq!(child.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(
+            child.act_type,
+            Some(sonettobuf::fight_step::ActType::Skill as i32)
+        );
         assert_eq!(child.act_id, Some(30630122));
         assert_eq!(child.from_id, Some(7777));
         assert_eq!(child.to_id, Some(8888));
@@ -1242,7 +1241,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("outer act effect should carry fight_step");
-        assert_eq!(outer.act_type, Some(sonettobuf::fight_step::ActType::Effect as i32));
+        assert_eq!(
+            outer.act_type,
+            Some(sonettobuf::fight_step::ActType::Effect as i32)
+        );
         assert_eq!(outer.act_id, Some(0));
         assert_eq!(outer.act_effect.len(), 1);
 
@@ -1261,7 +1263,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("inner 162 should carry skill step");
-        assert_eq!(skill.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(
+            skill.act_type,
+            Some(sonettobuf::fight_step::ActType::Skill as i32)
+        );
         assert_eq!(skill.act_id, Some(530000411));
         assert_eq!(skill.from_id, Some(-1));
         assert_eq!(skill.to_id, Some(-2));
@@ -1303,7 +1308,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("embedded top-level act effect should carry fight_step");
-        assert_eq!(root.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(
+            root.act_type,
+            Some(sonettobuf::fight_step::ActType::Skill as i32)
+        );
         assert_eq!(root.act_id, Some(31200145));
         assert_eq!(root.from_id, Some(1111));
         assert_eq!(root.to_id, Some(2222));
@@ -1314,7 +1322,10 @@ mod tests {
             .fight_step
             .as_ref()
             .expect("embedded reactive child should be single-wrap fight_step");
-        assert_eq!(child.act_type, Some(sonettobuf::fight_step::ActType::Skill as i32));
+        assert_eq!(
+            child.act_type,
+            Some(sonettobuf::fight_step::ActType::Skill as i32)
+        );
         assert_eq!(child.act_id, Some(30630122));
         assert_eq!(child.from_id, Some(3333));
         assert_eq!(child.to_id, Some(4444));
@@ -1355,10 +1366,7 @@ mod tests {
         ctx.bloodtithe.set_max(team_type, 24);
 
         let out = drain_to_fight_steps(
-            vec![BattleEvent::BloodpoolMaxChange {
-                team_type,
-                max: 57,
-            }],
+            vec![BattleEvent::BloodpoolMaxChange { team_type, max: 57 }],
             &mut ctx,
         );
 
@@ -1385,13 +1393,8 @@ mod tests {
         ctx.buff_mgr
             .add_with_uid(target, buff_id, from_uid, 1, 0, buff_uid);
 
-        let out = drain_to_fight_steps(
-            vec![BattleEvent::BuffRemove {
-                target,
-                buff_uid,
-            }],
-            &mut ctx,
-        );
+        let out =
+            drain_to_fight_steps(vec![BattleEvent::BuffRemove { target, buff_uid }], &mut ctx);
 
         assert!(
             !ctx.buff_mgr
@@ -1405,7 +1408,10 @@ mod tests {
             Some(sonettobuf::effect_type_enum::EffectType::Buffdel as i32)
         );
         assert_eq!(out[0].target_id, Some(target));
-        let emitted = out[0].buff.as_ref().expect("buff metadata should be present");
+        let emitted = out[0]
+            .buff
+            .as_ref()
+            .expect("buff metadata should be present");
         assert_eq!(emitted.uid, Some(buff_uid));
         assert_eq!(emitted.buff_id, Some(buff_id));
         assert_eq!(emitted.from_uid, Some(from_uid));
@@ -1442,7 +1448,10 @@ mod tests {
         assert_eq!(out[0].target_id, Some(target));
         assert_eq!(out[0].effect_num, Some(buff_id));
         assert_eq!(out[0].config_effect, Some(30003));
-        let emitted = out[0].buff.as_ref().expect("buff payload should be present");
+        let emitted = out[0]
+            .buff
+            .as_ref()
+            .expect("buff payload should be present");
         let emitted_uid = emitted.uid.expect("buff uid should be present");
         assert_eq!(emitted.buff_id, Some(buff_id));
         assert_eq!(emitted.from_uid, Some(from_uid));
@@ -1504,7 +1513,10 @@ mod tests {
             Some(sonettobuf::effect_type_enum::EffectType::Buffupdate as i32)
         );
         assert_eq!(out[0].target_id, Some(target));
-        let emitted = out[0].buff.as_ref().expect("buff payload should be present");
+        let emitted = out[0]
+            .buff
+            .as_ref()
+            .expect("buff payload should be present");
         assert_eq!(emitted.uid, Some(buff_uid));
         assert_eq!(emitted.buff_id, Some(buff_id));
         assert_eq!(emitted.from_uid, Some(from_uid));

@@ -16,6 +16,11 @@ use self::action::CONDITION_REGISTRY;
 use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
+    skill::{
+        cache::{SKILL_CACHE, resolve_skill_effect_id},
+        phase::TriggerState,
+    },
+    types::behavior::BehaviorType,
 };
 use sonettobuf::Fight;
 use std::collections::HashSet;
@@ -190,7 +195,46 @@ pub(crate) fn is_combat_event_condition(
     condition: &ConditionType,
     options: CombatEventConditionOptions,
 ) -> bool {
-    fold(condition, &mut |cond| is_combat_event_leaf_condition(cond, options))
+    fold(condition, &mut |cond| {
+        is_combat_event_leaf_condition(cond, options)
+    })
+}
+
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ActiveUseSkillConditionContext {
+    pub has_skill_use: bool,
+    pub skill_id: i32,
+    pub action_order_index: i32,
+}
+
+pub(crate) fn eval_active_use_skill_condition(
+    condition: &ConditionType,
+    context: ActiveUseSkillConditionContext,
+) -> Option<bool> {
+    match condition {
+        ConditionType::ActiveUseSkill => Some(context.has_skill_use),
+        ConditionType::ActiveUseSkillId { skill_ids } => {
+            Some(context.has_skill_use && skill_ids.contains(&context.skill_id))
+        }
+        ConditionType::ActOrder { order_index } => Some(
+            context.has_skill_use
+                && context.action_order_index > 0
+                && context.action_order_index == *order_index,
+        ),
+        ConditionType::UseSkillEffectTag { effect_tag } => Some(
+            context.has_skill_use
+                && active_skill_effect_tag(context.skill_id)
+                    .map(|tag| tag == *effect_tag)
+                    .unwrap_or(false),
+        ),
+        ConditionType::UseSpecificSkill { skill_id } => {
+            Some(context.has_skill_use && skill_matches_specific(context.skill_id, *skill_id))
+        }
+        ConditionType::UseHurtSkill => {
+            Some(context.has_skill_use && skill_is_hurt(context.skill_id))
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn is_combat_event_leaf_condition(
@@ -222,6 +266,103 @@ pub(crate) fn is_combat_event_leaf_condition(
         ConditionType::LostExPoint { .. } => options.include_lost_ex_point,
         _ => false,
     }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ReactivePassiveConditionOptions {
+    pub include_be_attacked: bool,
+    pub include_teammate_injury_count: bool,
+}
+
+pub(crate) fn is_reactive_passive_condition(
+    condition: &ConditionType,
+    options: ReactivePassiveConditionOptions,
+) -> bool {
+    fold(condition, &mut |cond| {
+        is_reactive_passive_leaf_condition(cond, options)
+    })
+}
+
+pub(crate) fn is_reactive_passive_leaf_condition(
+    condition: &ConditionType,
+    options: ReactivePassiveConditionOptions,
+) -> bool {
+    match condition {
+        ConditionType::BeAttacked => options.include_be_attacked,
+        ConditionType::TeammateInjuryCount { .. }
+        | ConditionType::TeammateInjuryCountNotReset { .. } => {
+            options.include_teammate_injury_count
+        }
+        _ => false,
+    }
+}
+
+pub(crate) fn active_use_skill_context_for_trigger_state(
+    event: &TriggerState,
+) -> ActiveUseSkillConditionContext {
+    ActiveUseSkillConditionContext {
+        has_skill_use: event.active_use_skill,
+        skill_id: event.skill_id,
+        action_order_index: event.action_order_index,
+    }
+}
+
+fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
+    if skill_id <= 0 {
+        return None;
+    }
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    cfg.skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.effect_tag)
+}
+
+fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
+    if skill_id <= 0 || wanted <= 0 {
+        return false;
+    }
+    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
+        return true;
+    }
+
+    let cfg = config::configs::get();
+    let Some(skill) = cfg.skill.get(skill_id) else {
+        return false;
+    };
+
+    if wanted <= 3 && skill.skill_rank == wanted {
+        return true;
+    }
+
+    wanted == 4
+}
+
+fn skill_is_hurt(skill_id: i32) -> bool {
+    if skill_id <= 0 {
+        return false;
+    }
+
+    let cfg = config::configs::get();
+    let effect_id = resolve_skill_effect_id(skill_id);
+    if cfg
+        .skill_effect
+        .iter()
+        .find(|row| row.id == effect_id)
+        .map(|row| row.damage_rate > 0)
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    SKILL_CACHE
+        .get(&effect_id)
+        .map(|rows| {
+            rows.iter()
+                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
+        })
+        .unwrap_or(false)
 }
 
 /// Compatibility shim for condition walkers that still pass the full context piecemeal.

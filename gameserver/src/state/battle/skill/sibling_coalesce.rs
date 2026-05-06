@@ -51,4 +51,3 @@ pub fn parent_skill_fans_out_into_mergeable_siblings(parent_skill_id: i32) -> bo
     sorted.sort_unstable();
     sorted.windows(2).any(|pair| pair[0] == pair[1])
 }
-

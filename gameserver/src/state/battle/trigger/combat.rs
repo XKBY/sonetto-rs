@@ -1,7 +1,6 @@
 use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
 use std::collections::HashSet;
 
-use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::{
     ConditionType,
     buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
@@ -12,7 +11,7 @@ use crate::state::battle::{
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
-    skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
+    skill::cache::resolve_skill_effect_id,
     skill::classification::{
         CombatPassiveScanMode, has_combat_reactive_condition, has_injury_reactive_condition,
     },
@@ -1157,7 +1156,10 @@ fn skill_has_use_ex_owner_condition(skill_id: i32) -> bool {
         }
         let (condition, _) = parse_condition(&condition_str);
         if crate::state::battle::skill::condition::fold(&condition, &mut |c| {
-            matches!(c, ConditionType::UseExSkill | ConditionType::PerDecrExPoint { .. })
+            matches!(
+                c,
+                ConditionType::UseExSkill | ConditionType::PerDecrExPoint { .. }
+            )
         }) {
             return true;
         }
@@ -1346,6 +1348,20 @@ fn condition_fires_for(
     teammate_injury_not_reset: i32,
 ) -> Option<bool> {
     let teammate_used_ex = event.teammate_used_ex_skill(uid);
+    let active_use = event.skill_used_for_passive_owner(uid);
+    let active_use_context =
+        crate::state::battle::skill::condition::ActiveUseSkillConditionContext {
+            has_skill_use: active_use.is_some(),
+            skill_id: active_use.map(|(_, sid, _, _)| sid).unwrap_or(0),
+            action_order_index: event.action_order_index,
+        };
+
+    if let Some(pass) = crate::state::battle::skill::condition::eval_active_use_skill_condition(
+        condition,
+        active_use_context,
+    ) {
+        return Some(pass);
+    }
 
     match condition {
         ConditionType::BeAttacked => {
@@ -1360,40 +1376,6 @@ fn condition_fires_for(
             }
             Some(true)
         }
-        ConditionType::ActiveUseSkill => Some(event.skill_used_for_passive_owner(uid).is_some()),
-        ConditionType::ActiveUseSkillId { skill_ids } => Some(
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, sid, _, _)| skill_ids.contains(&sid))
-                .unwrap_or(false),
-        ),
-        ConditionType::ActOrder { order_index } => Some(
-            event.skill_used_for_passive_owner(uid).is_some()
-                && event.action_order_index > 0
-                && event.action_order_index == *order_index,
-        ),
-        ConditionType::UseSkillEffectTag { effect_tag } => Some(
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, sid, _, _)| {
-                    active_skill_effect_tag(sid)
-                        .map(|tag| tag == *effect_tag)
-                        .unwrap_or(false)
-                })
-                .unwrap_or(false),
-        ),
-        ConditionType::UseSpecificSkill { skill_id } => Some(
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, sid, _, _)| skill_matches_specific(sid, *skill_id))
-                .unwrap_or(false),
-        ),
-        ConditionType::UseHurtSkill => Some(
-            event
-                .skill_used_for_passive_owner(uid)
-                .map(|(_, sid, _, _)| skill_is_hurt(sid))
-                .unwrap_or(false),
-        ),
         ConditionType::CombatNone => {
             // `CombatNone` ("after taking an action") is owner-scoped:
             // only the passive holder's own skill-use event should satisfy
@@ -1436,7 +1418,8 @@ fn condition_fires_for(
                 .unwrap_or(false);
             Some(
                 owner_used_ex
-                    && !(event.used_card(uid) && event_already_emitted_owner_skill(event, uid, skill_id)),
+                    && !(event.used_card(uid)
+                        && event_already_emitted_owner_skill(event, uid, skill_id)),
             )
         }
         // "PerDecrExPoint" should only become a trigger candidate for the
@@ -1545,64 +1528,6 @@ fn skill_logic_target(skill_id: i32) -> i32 {
         .find(|s| s.id == effect_id)
         .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
         .unwrap_or(0)
-}
-
-fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
-    if skill_id <= 0 {
-        return None;
-    }
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    cfg.skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.effect_tag)
-}
-
-fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
-    if skill_id <= 0 || wanted <= 0 {
-        return false;
-    }
-    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
-        return true;
-    }
-
-    let cfg = config::configs::get();
-    let Some(skill) = cfg.skill.get(skill_id) else {
-        return false;
-    };
-
-    if wanted <= 3 && skill.skill_rank == wanted {
-        return true;
-    }
-
-    wanted == 4
-}
-
-fn skill_is_hurt(skill_id: i32) -> bool {
-    if skill_id <= 0 {
-        return false;
-    }
-
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    if cfg
-        .skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.damage_rate > 0)
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    SKILL_CACHE
-        .get(&effect_id)
-        .map(|rows| {
-            rows.iter()
-                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
-        })
-        .unwrap_or(false)
 }
 
 fn collect_deleted_buff_ids(effects: &[ActEffect], out: &mut Vec<i32>) {

@@ -358,29 +358,13 @@ impl SkillExecutor {
             }
 
             let cond_pass = if let PhaseFilter::Combat(event) = phase {
+                let active_use_skill_raw = condition::eval_active_use_skill_condition(
+                    &b.condition,
+                    condition::active_use_skill_context_for_trigger_state(event),
+                );
                 let combat_raw = match &b.condition {
+                    _ if active_use_skill_raw.is_some() => active_use_skill_raw,
                     ConditionType::None | ConditionType::CombatNone => Some(true),
-                    ConditionType::ActiveUseSkill => Some(event.active_use_skill),
-                    ConditionType::ActiveUseSkillId { skill_ids } => {
-                        Some(event.active_use_skill && skill_ids.contains(&event.skill_id))
-                    }
-                    ConditionType::ActOrder { order_index } => Some(
-                        event.active_use_skill
-                            && event.action_order_index > 0
-                            && event.action_order_index == *order_index,
-                    ),
-                    ConditionType::UseSkillEffectTag { effect_tag } => Some(
-                        event.active_use_skill
-                            && active_skill_effect_tag(event.skill_id)
-                                .map(|tag| tag == *effect_tag)
-                                .unwrap_or(false),
-                    ),
-                    ConditionType::UseSpecificSkill { skill_id } => Some(
-                        event.active_use_skill && skill_matches_specific(event.skill_id, *skill_id),
-                    ),
-                    ConditionType::UseHurtSkill => {
-                        Some(event.active_use_skill && skill_is_hurt(event.skill_id))
-                    }
                     ConditionType::UseExSkill => {
                         Some(event.active_use_skill && event.used_ex_skill)
                     }
@@ -1220,7 +1204,10 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
     // missing emissions. Battle1 r1 step[30] (Pickles' `30630141` end-of-round
     // "Clarified Topic" with `NoActRound`) regressed when this list omitted
     // `NoActRound`/`TriggerBullet` — fixed by adding them here.
-    condition::is_combat_event_condition(condition, condition::CombatEventConditionOptions::default())
+    condition::is_combat_event_condition(
+        condition,
+        condition::CombatEventConditionOptions::default(),
+    )
 }
 
 fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
@@ -1236,64 +1223,6 @@ fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
         }
         _ => false,
     }
-}
-
-fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
-    if skill_id <= 0 {
-        return None;
-    }
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    cfg.skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.effect_tag)
-}
-
-fn skill_matches_specific(skill_id: i32, wanted: i32) -> bool {
-    if skill_id <= 0 || wanted <= 0 {
-        return false;
-    }
-    if skill_id == wanted || resolve_skill_effect_id(skill_id) == wanted {
-        return true;
-    }
-
-    let cfg = config::configs::get();
-    let Some(skill) = cfg.skill.get(skill_id) else {
-        return false;
-    };
-
-    if wanted <= 3 && skill.skill_rank == wanted {
-        return true;
-    }
-
-    wanted == 4
-}
-
-fn skill_is_hurt(skill_id: i32) -> bool {
-    if skill_id <= 0 {
-        return false;
-    }
-
-    let cfg = config::configs::get();
-    let effect_id = resolve_skill_effect_id(skill_id);
-    if cfg
-        .skill_effect
-        .iter()
-        .find(|row| row.id == effect_id)
-        .map(|row| row.damage_rate > 0)
-        .unwrap_or(false)
-    {
-        return true;
-    }
-
-    SKILL_CACHE
-        .get(&effect_id)
-        .map(|rows| {
-            rows.iter()
-                .any(|row| matches!(row.behavior, BehaviorType::Damage { .. }))
-        })
-        .unwrap_or(false)
 }
 
 fn apply_no_act_seed_hint(

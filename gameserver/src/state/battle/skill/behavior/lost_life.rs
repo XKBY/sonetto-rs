@@ -28,7 +28,9 @@ use super::action::{ActionCtx, BehaviorAction};
 use super::bloodtithe;
 use super::buff;
 use crate::state::battle::buff_actions::{EffectContext, lost_life as lost_life_handler};
-use crate::state::battle::event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps};
+use crate::state::battle::event_queue::{
+    BattleEvent, EventContext, EventQueue, drain_to_fight_steps,
+};
 use crate::state::battle::manager::buff_mgr::BuffMgr as EventBuffMgr;
 use crate::state::battle::mechanics::bloodtithe::BloodtitheState;
 use crate::state::battle::types::behavior::BehaviorType;
@@ -69,10 +71,8 @@ impl BehaviorAction for LostLife {
                     floor_permille,
                 );
                 let mut queue_routed_damage = 0;
-                if let Some((index, amount, target_id, hurt_info)) = effects
-                    .iter()
-                    .enumerate()
-                    .find_map(|(index, effect)| {
+                if let Some((index, amount, target_id, hurt_info)) =
+                    effects.iter().enumerate().find_map(|(index, effect)| {
                         (effect.effect_type == Some(EffectType::Damage as i32)
                             && effect.effect_num.unwrap_or(0) > 0
                             && effect.target_id.is_some()
@@ -128,7 +128,9 @@ impl BehaviorAction for LostLife {
                     .unwrap_or(0);
                 tracing::warn!("LostLife: target={} damage={}", ctx.target, damage);
                 if queue_routed_damage > 0 {
-                    ctx.mechanics.shadow_cloak.add(ctx.target, queue_routed_damage);
+                    ctx.mechanics
+                        .shadow_cloak
+                        .add(ctx.target, queue_routed_damage);
                 } else if damage > 0 {
                     ctx.managers.ex_point_mgr.apply_damage(ctx.target, damage);
                     ctx.mechanics.shadow_cloak.add(ctx.target, damage);

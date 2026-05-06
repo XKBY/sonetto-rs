@@ -15,9 +15,7 @@ use super::super::{
         BattleEvent, EventContext, EventQueue, HostEventAccumulator, SkillEmitKind,
         drain_to_fight_steps,
     },
-    fight_step::{
-        FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step,
-    },
+    fight_step::{FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step},
     manager::{
         buff_mgr::next_buff_uid_for_target,
         card_mgr::FightCardMgr,
@@ -40,9 +38,7 @@ use super::super::{
         euphoria::resolve_with_euphoria,
     },
     step_walker,
-    trigger::{
-        combat::expand_trigger_chain_from_root_step,
-    },
+    trigger::combat::expand_trigger_chain_from_root_step,
     types::effects::EffectType,
 };
 
@@ -471,7 +467,9 @@ impl FightRoundMgr {
                 drain_to_fight_steps(queue.drain(), &mut event_ctx)
                     .into_iter()
                     .next()
-                    .expect("event-triggered be_attacked graft should serialize to a single ActEffect")
+                    .expect(
+                        "event-triggered be_attacked graft should serialize to a single ActEffect",
+                    )
             })
             .collect();
 

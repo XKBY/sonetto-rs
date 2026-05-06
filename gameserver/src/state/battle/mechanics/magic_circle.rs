@@ -17,7 +17,9 @@ use crate::state::battle::{
     },
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
-    event_queue::{BattleEvent, EventContext, EventQueue, HostEventAccumulator, drain_to_fight_steps},
+    event_queue::{
+        BattleEvent, EventContext, EventQueue, HostEventAccumulator, drain_to_fight_steps,
+    },
     fight_step::ActEffectBuilder,
     hero::HeroId,
     heroes::{semmelweis, tuesday},
@@ -445,8 +447,7 @@ pub(crate) fn apply_magic_circle_self_skill_embeds(
     host_step: &mut FightStep,
 ) {
     let mut accumulator = HostEventAccumulator::new();
-    let _ =
-        apply_magic_circle_self_skill_embeds_with_accumulator(ctx, host_step, &mut accumulator);
+    let _ = apply_magic_circle_self_skill_embeds_with_accumulator(ctx, host_step, &mut accumulator);
 }
 
 pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(

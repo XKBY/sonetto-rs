@@ -12,14 +12,13 @@ use std::collections::HashSet;
 
 use crate::state::battle::{
     context::FightContext,
-    event_queue::{
-        BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps,
-    },
+    event_queue::{BattleEvent, EventContext, EventQueue, SkillEmitKind, drain_to_fight_steps},
     fight_step::wrap_step,
-    passives::{collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill},
+    passives::{
+        collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
+    },
     skill::{
-        PhaseFilter, TriggerState,
-        classification::has_be_attacked_reactive_condition,
+        PhaseFilter, TriggerState, classification::has_be_attacked_reactive_condition,
         euphoria::resolve_with_euphoria,
     },
     trigger::combat::skill_should_fire,
@@ -66,29 +65,33 @@ fn extend_with_buff_granted_passives(
     skill_ids: &mut Vec<i32>,
 ) {
     for instance in ctx.managers.buff_mgr.get(owner_uid) {
-        crate::state::battle::utils::for_each_buff_feature_chain(instance.buff_id, |act_type, parts| {
-            let value_parts: Vec<&str> = match act_type {
-                "AddPassiveSkills" => parts.iter().skip(1).copied().collect(),
-                "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => {
-                    parts.iter().skip(2).copied().collect()
-                }
-                _ => Vec::new(),
-            };
-            for raw in value_parts {
-                for piece in raw.split(',') {
-                    let Ok(skill_id) = piece.trim().parse::<i32>() else {
-                        continue;
-                    };
-                    if skill_id <= 0 {
-                        continue;
+        crate::state::battle::utils::for_each_buff_feature_chain(
+            instance.buff_id,
+            |act_type, parts| {
+                let value_parts: Vec<&str> = match act_type {
+                    "AddPassiveSkills" => parts.iter().skip(1).copied().collect(),
+                    "AddToTarget" | "AddToTargetNoLimit" | "UseDamageSkillAddToTarget" => {
+                        parts.iter().skip(2).copied().collect()
                     }
-                    let resolved_skill_id = resolve_with_euphoria(ctx.fight, owner_uid, skill_id);
-                    if !skill_ids.contains(&resolved_skill_id) {
-                        skill_ids.push(resolved_skill_id);
+                    _ => Vec::new(),
+                };
+                for raw in value_parts {
+                    for piece in raw.split(',') {
+                        let Ok(skill_id) = piece.trim().parse::<i32>() else {
+                            continue;
+                        };
+                        if skill_id <= 0 {
+                            continue;
+                        }
+                        let resolved_skill_id =
+                            resolve_with_euphoria(ctx.fight, owner_uid, skill_id);
+                        if !skill_ids.contains(&resolved_skill_id) {
+                            skill_ids.push(resolved_skill_id);
+                        }
                     }
                 }
-            }
-        });
+            },
+        );
     }
 }
 

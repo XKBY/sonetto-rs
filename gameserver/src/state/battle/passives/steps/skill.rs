@@ -140,7 +140,10 @@ fn should_inline_use_ex_replace_buff2(
         || step.act_type != Some(fight_step::ActType::Skill as i32)
         || step.act_id != Some(skill_id)
         || step.act_effect.is_empty()
-        || step.act_effect.iter().any(|effect| effect.fight_step.is_some())
+        || step
+            .act_effect
+            .iter()
+            .any(|effect| effect.fight_step.is_some())
         || !step.act_effect.iter().all(|effect| {
             matches!(
                 effect.effect_type,
