@@ -775,6 +775,27 @@ mod tests {
         BuffInstance, DEFENDER_BUFF_UID_START, RefreshPolicy, current_buff_uid, next_buff_uid,
         next_slave_buff_uid_for_target, reset_buff_uid, reset_buff_uid_to, with_buff_uid_test_lock,
     };
+    use std::{path::PathBuf, sync::Once};
+
+    static TEST_CONFIG_INIT: Once = Once::new();
+
+    fn ensure_game_data_initialized() {
+        TEST_CONFIG_INIT.call_once(|| {
+            if config::configs::try_get().is_some() {
+                return;
+            }
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let excel_dir = root.join("data").join("excel2json");
+            if excel_dir.exists()
+                && let Some(path) = excel_dir.to_str()
+            {
+                let _ = config::configs::init(path);
+            }
+        });
+    }
 
     #[test]
     fn buff_uid_policy_normal_adds_increment_by_two() {
@@ -835,6 +856,7 @@ mod tests {
 
     #[test]
     fn buff_instance_build_defaults_refresh_policy_to_update_in_place() {
+        ensure_game_data_initialized();
         with_buff_uid_test_lock(|| {
             reset_buff_uid();
             let instance = BuffInstance::build(30091111, 42);
