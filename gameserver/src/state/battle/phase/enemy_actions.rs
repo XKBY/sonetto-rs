@@ -21,7 +21,7 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    event_queue::{self, BattleEvent, HostEventAccumulator, HostLane},
+    event_queue::{self, BattleEvent, HostEventAccumulator, HostLane, HostSide},
     manager::{card_mgr::FightCardMgr, round_mgr::FightRoundMgr},
     mechanics::magic_circle,
     passives::collector::CollectedPassives,
@@ -162,6 +162,12 @@ pub(crate) async fn run(
                 }
             }
         }
+        event_queue::register_round_host(
+            host_step.from_id.unwrap_or(0),
+            host_step.act_id.unwrap_or(0),
+            HostSide::Enemy,
+            steps.len(),
+        );
         steps.push(host_step);
     }
     Ok(())

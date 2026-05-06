@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Mutex, OnceLock},
+};
 
 use sonettobuf::{
     ActEffect, BuffInfo, Fight, FightEntityInfo, FightHurtInfo as HurtInfo, FightStep,
@@ -146,6 +149,98 @@ pub enum HostLane {
     Trigger,
     BeAttacked,
     Injury,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostSide {
+    Player,
+    Enemy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostAnchor {
+    pub act_order: usize,
+    pub caster_uid: i64,
+    pub skill_id: i32,
+    pub side: HostSide,
+    pub host_step_idx: usize,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct RoundHostIndex {
+    hosts: Vec<HostAnchor>,
+}
+
+impl RoundHostIndex {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn reset(&mut self) {
+        self.hosts.clear();
+    }
+
+    pub fn register_host(
+        &mut self,
+        caster_uid: i64,
+        skill_id: i32,
+        side: HostSide,
+        host_step_idx: usize,
+    ) {
+        let act_order = self.hosts.len();
+        self.hosts.push(HostAnchor {
+            act_order,
+            caster_uid,
+            skill_id,
+            side,
+            host_step_idx,
+        });
+    }
+
+    pub fn most_recent_host_for_caster(&self, uid: i64) -> Option<&HostAnchor> {
+        self.hosts
+            .iter()
+            .rev()
+            .find(|anchor| anchor.caster_uid == uid)
+    }
+
+    pub fn anchors_in_round(&self) -> &[HostAnchor] {
+        &self.hosts
+    }
+}
+
+fn round_host_index_cell() -> &'static Mutex<RoundHostIndex> {
+    static ROUND_HOST_INDEX: OnceLock<Mutex<RoundHostIndex>> = OnceLock::new();
+    ROUND_HOST_INDEX.get_or_init(|| Mutex::new(RoundHostIndex::new()))
+}
+
+pub fn reset_round_host_index() {
+    let mut index = round_host_index_cell()
+        .lock()
+        .expect("round host index mutex poisoned");
+    index.reset();
+}
+
+pub fn register_round_host(caster_uid: i64, skill_id: i32, side: HostSide, host_step_idx: usize) {
+    let mut index = round_host_index_cell()
+        .lock()
+        .expect("round host index mutex poisoned");
+    index.register_host(caster_uid, skill_id, side, host_step_idx);
+}
+
+pub fn round_host_index_snapshot() -> RoundHostIndex {
+    round_host_index_cell()
+        .lock()
+        .expect("round host index mutex poisoned")
+        .clone()
+}
+
+pub fn most_recent_round_host_for_caster(uid: i64) -> Option<HostAnchor> {
+    round_host_index_cell()
+        .lock()
+        .expect("round host index mutex poisoned")
+        .most_recent_host_for_caster(uid)
+        .cloned()
 }
 
 impl HostEventAccumulator {

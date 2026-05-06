@@ -12,10 +12,13 @@
 //! payload struct alongside shrinks the round_mgr god-class without
 //! threading state through the call.
 
+use std::sync::Once;
+
 use sonettobuf::{BeginRoundOper, CardInfo, FightStep};
 
 use crate::state::battle::{
     context::RoundContext,
+    event_queue::reset_round_host_index,
     manager::{
         buff_mgr::{
             DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint, defender_buff_uid_checkpoint,
@@ -32,6 +35,18 @@ use crate::state::battle::{
     passives::collector::{CollectedPassives, collect},
     round::{RoundState, steps::refresh::build_refresh_step},
 };
+
+fn ensure_battle_tracing() {
+    static TRACE_INIT: Once = Once::new();
+
+    if std::env::var_os("RUST_LOG").is_none() {
+        return;
+    }
+
+    TRACE_INIT.call_once(|| {
+        let _ = std::panic::catch_unwind(common::init_tracing);
+    });
+}
 
 /// Output payload of the round-open phase. Carries the seeded
 /// `RoundState`, the initial step list (currently a single
@@ -64,11 +79,13 @@ pub(crate) fn run(
     replay_selected_cards: Option<&[CardInfo]>,
     replay_silent_ops: Option<&[bool]>,
 ) -> RoundOpenPhaseData {
+    ensure_battle_tracing();
     round_ctx.sync();
     tracing::warn!("process_round round_index={}", round_ctx.round_index);
     let ctx = &mut *round_ctx.fight_ctx;
     ctx.clear_round_active_card_casts();
     ctx.mechanics.emission_timeline.reset(round_ctx.round_index);
+    reset_round_host_index();
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
     injury_counter::sync_round_injury_index(battle_id, 1, round_ctx.round_index);
     injury_counter::sync_round_injury_index(battle_id, 2, round_ctx.round_index);

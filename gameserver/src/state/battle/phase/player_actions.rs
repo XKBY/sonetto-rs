@@ -25,7 +25,10 @@ use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    event_queue::{BattleEvent, HostEventAccumulator, HostLane, check_host_lane_membership},
+    event_queue::{
+        BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
+        register_round_host,
+    },
     manager::{
         card_mgr::FightCardMgr,
         round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
@@ -272,6 +275,12 @@ pub(crate) async fn run(
                 }
             }
         }
+        register_round_host(
+            host_step.from_id.unwrap_or(0),
+            host_step.act_id.unwrap_or(0),
+            HostSide::Player,
+            steps.len(),
+        );
         steps.push(host_step);
         state.is_finish = mgr.check_battle_end(ctx.fight);
         if state.is_finish {

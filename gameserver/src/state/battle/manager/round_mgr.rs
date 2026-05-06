@@ -13,7 +13,7 @@ use super::super::{
     context::{FightContext, RoundContext},
     event_queue::{
         BattleEvent, EventContext, EventQueue, HostEventAccumulator, SkillEmitKind,
-        drain_to_fight_steps,
+        drain_to_fight_steps, most_recent_round_host_for_caster,
     },
     fight_step::{FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step},
     manager::{
@@ -888,6 +888,30 @@ impl FightRoundMgr {
                             None,
                             None,
                         );
+                        let matching_anchor = most_recent_round_host_for_caster(uid);
+                        let attachment_viable = matching_anchor.is_some();
+                        if let Some(anchor) = matching_anchor.as_ref() {
+                            tracing::debug!(
+                                target: "session2_attach_diagnostics",
+                                "sweep_caster_uid={} sweep_skill_id={} sweep_phase={} anchor_found=true anchor_host_step_idx={} anchor_skill_id={} anchor_act_order={} attachment_viable={}",
+                                uid,
+                                skill_id,
+                                timeline_phase.as_str(),
+                                anchor.host_step_idx,
+                                anchor.skill_id,
+                                anchor.act_order,
+                                attachment_viable,
+                            );
+                        } else {
+                            tracing::debug!(
+                                target: "session2_attach_diagnostics",
+                                "sweep_caster_uid={} sweep_skill_id={} sweep_phase={} anchor_found=false anchor_host_step_idx=none anchor_skill_id=none anchor_act_order=none attachment_viable={}",
+                                uid,
+                                skill_id,
+                                timeline_phase.as_str(),
+                                attachment_viable,
+                            );
+                        }
                         if let Ok(effects) =
                             execute_passive_skill(ctx, uid, uid, skill_id, &passive_phase)
                             && !effects.is_empty()
