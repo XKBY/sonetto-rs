@@ -1,4 +1,4 @@
-use sonettobuf::{ActEffect, FightStep};
+use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::fight_step::{FightStepBuilder, wrap_step};
 fn preserve_round_start_wrapper(step: &FightStep) -> bool {
@@ -23,6 +23,52 @@ fn is_round_start_wrapper_container(effect: &ActEffect) -> bool {
 
 pub fn build_effect_step(effects: Vec<ActEffect>) -> FightStep {
     FightStepBuilder::effect().with_many(effects).build()
+}
+
+fn needs_inline_passive_double_layer(skill_id: i32) -> bool {
+    matches!(
+        skill_id,
+        1143002
+            | 1144007
+            | 432811
+            | 30090146
+            | 30091111
+            | 30091122
+            | 30091123
+            | 30630141
+            | 30800121
+            | 30800161
+            | 30980144
+            | 30980151
+            | 31040141
+    )
+}
+
+pub fn wrap_passive_emission_with_double_layer(effect: ActEffect) -> ActEffect {
+    let should_wrap = effect.effect_type == Some(162)
+        && effect
+            .fight_step
+            .as_ref()
+            .map(|step| {
+                step.act_type == Some(fight_step::ActType::Skill as i32)
+                    && needs_inline_passive_double_layer(step.act_id.unwrap_or(0))
+            })
+            .unwrap_or(false);
+
+    if should_wrap {
+        return wrap_step(build_effect_step(vec![effect]));
+    }
+
+    effect
+}
+
+pub fn double_wrap_inline_passive_emissions(mut step: FightStep) -> FightStep {
+    step.act_effect = step
+        .act_effect
+        .into_iter()
+        .map(wrap_passive_emission_with_double_layer)
+        .collect();
+    step
 }
 
 /// Split a passive-phase result into:

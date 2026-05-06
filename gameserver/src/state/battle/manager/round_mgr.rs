@@ -30,7 +30,9 @@ use super::super::{
     phase,
     round::{
         PassivePhaseConfig, PhaseDepth, PhaseScope, PhaseSkillSet, PhaseStepShape, RoundState,
-        step_shape::{build_effect_step, split_updates_and_wrap_rest},
+        step_shape::{
+            build_effect_step, double_wrap_inline_passive_emissions, split_updates_and_wrap_rest,
+        },
     },
     round_end_emission,
     skill::{
@@ -1158,6 +1160,13 @@ impl FightRoundMgr {
 
         if matches!(config.step_shape, PhaseStepShape::FlatIfAllUpdate) {
             steps = split_updates_and_wrap_rest(steps);
+        }
+
+        if matches!(config.skill_set, PhaseSkillSet::ExcludeBattleRule) {
+            steps = steps
+                .into_iter()
+                .map(double_wrap_inline_passive_emissions)
+                .collect();
         }
 
         steps
