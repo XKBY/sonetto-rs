@@ -850,10 +850,14 @@ pub fn purify(fight: &Fight, managers: &mut Managers, target: i64) -> Vec<ActEff
                     .iter()
                     .find(|b| b.id == instance.buff_id)
                     .map(|b| {
-                        if b.is_good_buff != 0 {
+                        if b.is_good_buff == 1 {
                             false
                         } else {
-                            BAD_BUFF_TYPES.contains(&b.type_id)
+                            cfg.skill_bufftype
+                                .iter()
+                                .find(|t| t.id == b.type_id)
+                                .map(|t| BAD_BUFF_TYPES.contains(&t.r#type))
+                                .unwrap_or(false)
                         }
                     })
                     .unwrap_or(false);
