@@ -101,29 +101,14 @@ pub fn is_combat_event_condition(
     include_per_decr_ex_point: bool,
     include_career_check: bool,
 ) -> bool {
-    condition::fold(condition, &mut |cond| match cond {
-        ConditionType::ActiveUseSkill
-        | ConditionType::ActiveUseSkillId { .. }
-        | ConditionType::ActOrder { .. }
-        | ConditionType::UseSkillEffectTag { .. }
-        | ConditionType::UseSpecificSkill { .. }
-        | ConditionType::UseHurtSkill
-        | ConditionType::CombatNone
-        | ConditionType::UseExSkill
-        | ConditionType::TeammateUseExSkill
-        | ConditionType::BeAttacked
-        | ConditionType::HurtNotRestraint
-        | ConditionType::HurtRestraint
-        | ConditionType::TeammateInjuryCount { .. }
-        | ConditionType::TeammateInjuryCountNotReset { .. }
-        | ConditionType::TeamInjuryCountRound
-        | ConditionType::NoActRound
-        | ConditionType::BuffIdDel { .. }
-        | ConditionType::TriggerBullet => true,
-        ConditionType::CareerCheck { .. } => include_career_check,
-        ConditionType::PerDecrExPoint { .. } => include_per_decr_ex_point,
-        _ => false,
-    })
+    condition::is_combat_event_condition(
+        condition,
+        condition::CombatEventConditionOptions {
+            include_per_decr_ex_point,
+            include_career_check,
+            ..Default::default()
+        },
+    )
 }
 
 fn collect_skill_condition_strings(skill_id: i32, stop_on_first_empty: bool) -> Vec<String> {

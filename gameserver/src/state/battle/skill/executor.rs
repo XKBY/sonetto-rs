@@ -1220,29 +1220,7 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
     // missing emissions. Battle1 r1 step[30] (Pickles' `30630141` end-of-round
     // "Clarified Topic" with `NoActRound`) regressed when this list omitted
     // `NoActRound`/`TriggerBullet` — fixed by adding them here.
-    condition::fold(condition, &mut |cond| {
-        matches!(
-            cond,
-            ConditionType::ActiveUseSkill
-                | ConditionType::ActiveUseSkillId { .. }
-                | ConditionType::ActOrder { .. }
-                | ConditionType::UseSkillEffectTag { .. }
-                | ConditionType::UseSpecificSkill { .. }
-                | ConditionType::UseHurtSkill
-                | ConditionType::UseExSkill
-                | ConditionType::TeammateUseExSkill
-                | ConditionType::BeAttacked
-                | ConditionType::HurtNotRestraint
-                | ConditionType::HurtRestraint
-                | ConditionType::TeammateInjuryCount { .. }
-                | ConditionType::TeammateInjuryCountNotReset { .. }
-                | ConditionType::TeamInjuryCountRound
-                | ConditionType::BuffIdDel { .. }
-                | ConditionType::CombatNone
-                | ConditionType::NoActRound
-                | ConditionType::TriggerBullet
-        )
-    })
+    condition::is_combat_event_condition(condition, condition::CombatEventConditionOptions::default())
 }
 
 fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {

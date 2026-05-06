@@ -178,6 +178,52 @@ where
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct CombatEventConditionOptions {
+    pub include_per_decr_ex_point: bool,
+    pub include_career_check: bool,
+    pub include_hurt_magic: bool,
+    pub include_lost_ex_point: bool,
+}
+
+pub(crate) fn is_combat_event_condition(
+    condition: &ConditionType,
+    options: CombatEventConditionOptions,
+) -> bool {
+    fold(condition, &mut |cond| is_combat_event_leaf_condition(cond, options))
+}
+
+pub(crate) fn is_combat_event_leaf_condition(
+    condition: &ConditionType,
+    options: CombatEventConditionOptions,
+) -> bool {
+    match condition {
+        ConditionType::ActiveUseSkill
+        | ConditionType::ActiveUseSkillId { .. }
+        | ConditionType::ActOrder { .. }
+        | ConditionType::UseSkillEffectTag { .. }
+        | ConditionType::UseSpecificSkill { .. }
+        | ConditionType::UseHurtSkill
+        | ConditionType::CombatNone
+        | ConditionType::UseExSkill
+        | ConditionType::TeammateUseExSkill
+        | ConditionType::BeAttacked
+        | ConditionType::HurtNotRestraint
+        | ConditionType::HurtRestraint
+        | ConditionType::TeammateInjuryCount { .. }
+        | ConditionType::TeammateInjuryCountNotReset { .. }
+        | ConditionType::TeamInjuryCountRound
+        | ConditionType::NoActRound
+        | ConditionType::BuffIdDel { .. }
+        | ConditionType::TriggerBullet => true,
+        ConditionType::PerDecrExPoint { .. } => options.include_per_decr_ex_point,
+        ConditionType::CareerCheck { .. } => options.include_career_check,
+        ConditionType::HurtMagic => options.include_hurt_magic,
+        ConditionType::LostExPoint { .. } => options.include_lost_ex_point,
+        _ => false,
+    }
+}
+
 /// Compatibility shim for condition walkers that still pass the full context piecemeal.
 #[allow(clippy::too_many_arguments)]
 pub fn check_condition(
@@ -197,28 +243,13 @@ pub fn check_condition(
 }
 
 fn is_grouped_combat_event_condition(condition: &ConditionType) -> bool {
-    matches!(
+    is_combat_event_leaf_condition(
         condition,
-        ConditionType::CombatNone
-            | ConditionType::ActiveUseSkill
-            | ConditionType::ActiveUseSkillId { .. }
-            | ConditionType::ActOrder { .. }
-            | ConditionType::UseSkillEffectTag { .. }
-            | ConditionType::UseSpecificSkill { .. }
-            | ConditionType::UseHurtSkill
-            | ConditionType::UseExSkill
-            | ConditionType::TeammateUseExSkill
-            | ConditionType::TriggerBullet
-            | ConditionType::BeAttacked
-            | ConditionType::HurtMagic
-            | ConditionType::LostExPoint { .. }
-            | ConditionType::HurtNotRestraint
-            | ConditionType::HurtRestraint
-            | ConditionType::TeammateInjuryCount { .. }
-            | ConditionType::TeammateInjuryCountNotReset { .. }
-            | ConditionType::TeamInjuryCountRound
-            | ConditionType::BuffIdDel { .. }
-            | ConditionType::NoActRound
+        CombatEventConditionOptions {
+            include_hurt_magic: true,
+            include_lost_ex_point: true,
+            ..Default::default()
+        },
     )
 }
 
