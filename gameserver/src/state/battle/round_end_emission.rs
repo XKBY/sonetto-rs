@@ -18,11 +18,12 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use sonettobuf::{ActEffect, CardInfo, FightStep, fight_step};
+use sonettobuf::{ActEffect, CardInfo, FightStep, effect_type_enum::EffectType, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
-    fight_step::{FightStepBuilder, wrap_step},
+    fight_step::{ActEffectBuilder, FightStepBuilder, wrap_step},
+    heroes::rubuska,
     manager::{
         buff_mgr::next_buff_uid_for_target,
         round_mgr::{FightRoundMgr, skill_has_no_act_round_condition},
@@ -411,6 +412,44 @@ pub(crate) fn repair_boss_state_cycle_second_wave(
     true
 }
 
+/// LIVE battle2 r1 surfaces Rubuska's round-end `31250144` heal
+/// pulse as four standalone top-level Heal markers immediately after
+/// the `31250151` Shadow Friend bundle and before the consolidated HP
+/// snapshot. Our flat-sweep path applies the passive to state but the
+/// visible markers do not survive the later round-end cleanup chain,
+/// so restore just the four bare `et=4` packets here.
+pub(crate) fn repair_rubuska_round_end_heal_markers(
+    ctx: &FightContext<'_>,
+    steps: &mut Vec<FightStep>,
+) -> bool {
+    let rubuska_uid = ctx.mechanics.shadow_cloak.rubuska_uid;
+    if !rubuska::has_round_end_heal_pulse(&ctx.managers.buff_mgr, rubuska_uid)
+        && !steps.iter().any(step_contains_rubuska_heal_pulse_context)
+    {
+        return false;
+    }
+
+    let Some((bundle_idx, targets)) = find_round_end_shadow_friend_targets(steps, rubuska_uid)
+    else {
+        return false;
+    };
+    if targets.is_empty() || heal_marker_block_matches(steps, bundle_idx + 1, &targets) {
+        return false;
+    }
+
+    for target_uid in targets.into_iter().rev() {
+        steps.insert(
+            bundle_idx + 1,
+            build_effect_step(vec![
+                ActEffectBuilder::new(EffectType::Heal as i32, target_uid)
+                    .effect_num(0)
+                    .build(),
+            ]),
+        );
+    }
+    true
+}
+
 fn step_contains_boss_state_cycle_second_wave(step: &FightStep) -> bool {
     step.act_effect.iter().any(|effect| {
         let Some(skill) = step_walker::wrapped_skill_from_effect(effect) else {
@@ -487,4 +526,96 @@ fn skill_matches_boss_state_cycle_second_wave(skill: &FightStep, uid: i64) -> bo
             .get(1)
             .map(|effect| effect.effect_type == Some(26) && effect.target_id == Some(uid))
             .unwrap_or(false)
+}
+
+fn find_round_end_shadow_friend_targets(
+    steps: &[FightStep],
+    rubuska_uid: i64,
+) -> Option<(usize, Vec<i64>)> {
+    steps.iter().enumerate().rev().find_map(|(idx, step)| {
+        shadow_friend_bundle_targets(step, rubuska_uid).map(|targets| (idx, targets))
+    })
+}
+
+fn shadow_friend_bundle_targets(step: &FightStep, rubuska_uid: i64) -> Option<Vec<i64>> {
+    if step.act_type != Some(fight_step::ActType::Effect as i32)
+        || step.act_id != Some(0)
+        || step.from_id != Some(0)
+        || step.to_id != Some(0)
+        || step.act_effect.is_empty()
+    {
+        return None;
+    }
+
+    let mut targets = Vec::with_capacity(step.act_effect.len());
+    for effect in &step.act_effect {
+        if effect.effect_type != Some(EffectType::Fightstep as i32) {
+            return None;
+        }
+        let Some(inner) = effect.fight_step.as_ref() else {
+            return None;
+        };
+        if inner.act_type != Some(fight_step::ActType::Effect as i32)
+            || inner.act_id != Some(rubuska::SHADOW_CLOAK_ACCUMULATOR_BUFF_ID)
+            || inner.from_id != Some(rubuska_uid)
+        {
+            return None;
+        }
+        let target_uid = inner.to_id.unwrap_or(0);
+        if target_uid <= 0 || targets.contains(&target_uid) {
+            return None;
+        }
+        targets.push(target_uid);
+    }
+
+    Some(targets)
+}
+
+fn heal_marker_block_matches(steps: &[FightStep], start_idx: usize, targets: &[i64]) -> bool {
+    targets.iter().enumerate().all(|(offset, target_uid)| {
+        steps
+            .get(start_idx + offset)
+            .is_some_and(|step| is_standalone_heal_marker(step, *target_uid))
+    })
+}
+
+fn is_standalone_heal_marker(step: &FightStep, target_uid: i64) -> bool {
+    step.act_type == Some(fight_step::ActType::Effect as i32)
+        && step.act_id == Some(0)
+        && step.from_id == Some(0)
+        && step.to_id == Some(0)
+        && step.act_effect.len() == 1
+        && step
+            .act_effect
+            .first()
+            .map(|effect| {
+                effect.fight_step.is_none()
+                    && effect.effect_type == Some(EffectType::Heal as i32)
+                    && effect.target_id == Some(target_uid)
+            })
+            .unwrap_or(false)
+}
+
+fn step_contains_rubuska_heal_pulse_context(step: &FightStep) -> bool {
+    if step.act_id == Some(31250144) {
+        return true;
+    }
+
+    step.act_effect
+        .iter()
+        .any(effect_contains_rubuska_heal_pulse_context)
+}
+
+fn effect_contains_rubuska_heal_pulse_context(effect: &ActEffect) -> bool {
+    if effect.buff.as_ref().and_then(|buff| buff.buff_id)
+        == Some(rubuska::SHADOW_CLOAK_HEAL_PULSE_TYPE_ID)
+    {
+        return true;
+    }
+
+    effect
+        .fight_step
+        .as_ref()
+        .map(step_contains_rubuska_heal_pulse_context)
+        .unwrap_or(false)
 }

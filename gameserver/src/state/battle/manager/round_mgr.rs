@@ -560,6 +560,9 @@ impl FightRoundMgr {
         ) {
             ctx.sync();
         }
+        if round_end_emission::repair_rubuska_round_end_heal_markers(ctx, &mut open.steps) {
+            ctx.sync();
+        }
 
         if crate::state::battle::emission_timeline::EmissionTimeline::dump_enabled() {
             eprint!("{}", ctx.mechanics.emission_timeline.dump());

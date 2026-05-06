@@ -13,6 +13,7 @@ use crate::state::battle::{
     buff_actions::{find_feature_parts, raspberry::buff_get_raspberry_params},
     context::FightContext,
     hero::HeroId,
+    manager::buff_mgr::BuffMgr,
     manager::round_mgr::lookup_entry_max_hp,
     mechanics::shadowcloak::ShadowCloakState,
     round::step_shape::build_effect_step,
@@ -22,6 +23,7 @@ use crate::state::battle::{
 
 pub const SHADOW_CLOAK_ACCUMULATOR_BUFF_ID: i32 = 31250151;
 pub const SHADOW_CLOAK_OVERFLOW_TRACKER_BUFF_ID: i32 = 31250161;
+pub const SHADOW_CLOAK_HEAL_PULSE_TYPE_ID: i32 = 31250191;
 
 /// Tunings for Rubuska's Shadow Cloak. Both values are read from the
 /// accumulator buff's Raspberry feature parts (`1042#?#?#share#cap#…`)
@@ -110,6 +112,10 @@ pub fn buff_is_shadow_cloak_accumulator(buff_id: i32) -> bool {
 
 pub fn uses_shadow_cloak_overflow_tracker(model_id: Option<i32>, buff_id: i32) -> bool {
     is_rubuska(model_id) && buff_id == SHADOW_CLOAK_OVERFLOW_TRACKER_BUFF_ID
+}
+
+pub fn has_round_end_heal_pulse(buff_mgr: &BuffMgr, rubuska_uid: i64) -> bool {
+    rubuska_uid > 0 && buff_mgr.has_type(rubuska_uid, SHADOW_CLOAK_HEAL_PULSE_TYPE_ID)
 }
 
 pub fn build_shadow_cloak_full_cap_step(
