@@ -10,6 +10,23 @@ use std::{
 };
 
 #[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RefreshPolicy {
+    /// Re-applying this buff removes an active sibling selected through
+    /// bufftype.exclude_types, then emits a fresh add.
+    ReplaceOnExcludedOverlap,
+
+    /// Re-applying this buff removes the same buff_id, then emits a fresh
+    /// add.
+    ReplaceOnSelfRefresh,
+
+    /// Re-applying this buff keeps the existing uid and emits update
+    /// semantics.
+    #[default]
+    UpdateInPlace,
+}
+
+#[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
 pub struct BuffInstance {
     pub uid: i64,
@@ -20,6 +37,7 @@ pub struct BuffInstance {
     pub stacks: i32,   // maps to buff.count in packets
     pub layer: i32,    // maps to buff.layer in packets
     pub act_common_params: String,
+    pub refresh_policy: RefreshPolicy,
 }
 
 impl BuffInstance {
@@ -35,6 +53,7 @@ impl BuffInstance {
             stacks: cfg.map(|b| b.effect_count).unwrap_or(0),
             layer: 0,
             act_common_params: String::new(),
+            refresh_policy: RefreshPolicy::UpdateInPlace,
         }
     }
 }
@@ -452,6 +471,7 @@ impl BuffMgr {
             },
             layer,
             act_common_params: String::new(),
+            refresh_policy: RefreshPolicy::UpdateInPlace,
         };
 
         if let Some(existing) = entry.iter_mut().find(|b| b.uid == buff_uid) {
@@ -752,8 +772,8 @@ pub fn sync_from_fight_preserve_runtime(fight: &Fight, mgr: &mut BuffMgr) {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFENDER_BUFF_UID_START, current_buff_uid, next_buff_uid, next_slave_buff_uid_for_target,
-        reset_buff_uid, reset_buff_uid_to, with_buff_uid_test_lock,
+        BuffInstance, DEFENDER_BUFF_UID_START, RefreshPolicy, current_buff_uid, next_buff_uid,
+        next_slave_buff_uid_for_target, reset_buff_uid, reset_buff_uid_to, with_buff_uid_test_lock,
     };
 
     #[test]
@@ -810,6 +830,15 @@ mod tests {
 
             reset_buff_uid_to(checkpoint);
             assert_eq!(next_buff_uid(), checkpoint + 2);
+        });
+    }
+
+    #[test]
+    fn buff_instance_build_defaults_refresh_policy_to_update_in_place() {
+        with_buff_uid_test_lock(|| {
+            reset_buff_uid();
+            let instance = BuffInstance::build(30091111, 42);
+            assert_eq!(instance.refresh_policy, RefreshPolicy::UpdateInPlace);
         });
     }
 }

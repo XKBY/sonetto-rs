@@ -757,13 +757,129 @@ def has_event_driven_condition(parsed_conditions):
 # ------------------------------------------------------------------ main fn
 
 
+def walk_buff(buff_id, ctx):
+    """Lightweight buff-walker for IDs that aren't in `skill_effect` but ARE
+    in `skill_buff`. Surfaces what we know: name/desc text, the resolved
+    bufftype config, fixture activity, owner hero, decoded features, and the
+    set of skills that grant this buff via 865 AddPassiveSkills (or similar).
+    Designed to make `python scripts/skill_walk.py 30091111` produce useful
+    output for buff IDs instead of an error."""
+    buff = next(
+        (r for r in ctx["buff_rows"] if isinstance(r, dict) and r.get("id") == buff_id),
+        None,
+    )
+    if buff is None:
+        return {"skill_id": buff_id, "error": "not in skill_effect or skill_buff"}
+
+    bt_id = buff.get("typeId")
+    bt = next(
+        (r for r in ctx["bufftype_rows"] if isinstance(r, dict) and r.get("id") == bt_id),
+        None,
+    ) if bt_id else None
+
+    owner_label, _, _ = find_owner(buff_id, ctx["heroes"], ctx["character"])
+
+    name = ctx["lang"].get(buff.get("name", ""), "") or ""
+    desc = ctx["lang"].get(buff.get("desc", ""), "") or ""
+
+    # Find skills that grant this buff via 865 AddPassiveSkills features
+    granters = []
+    for r in ctx["skill_effect"]:
+        if not isinstance(r, dict): continue
+        # Check every behavior slot for `1#<this_buff_id>` (AddBuff target)
+        for i in range(1, 21):
+            beh = (r.get(f"behavior{i}") or "").strip()
+            if not beh:
+                continue
+            parts = beh.split("#")
+            if len(parts) >= 2 and str(buff_id) in parts[1:]:
+                granters.append({
+                    "skill_id": r.get("id"),
+                    "behavior_slot": i,
+                    "raw": beh,
+                })
+                break  # one entry per skill
+
+    decoded_features = decode_features(
+        buff.get("features", "") or "",
+        ctx["act_rows"],
+        ctx["buff_rows"],
+        ctx["lang"],
+    )
+
+    activity = fixture_activity(buff_id)
+
+    return {
+        "buff_id": buff_id,
+        "kind": "buff",
+        "name": name,
+        "desc": desc,
+        "owner": owner_label,
+        "type_id": bt_id,
+        "is_good_buff": buff.get("isGoodBuff"),
+        "during_time": buff.get("duringTime"),
+        "effect_count": buff.get("effectCount"),
+        "include_types": (bt or {}).get("includeTypes", ""),
+        "exclude_types": (bt or {}).get("excludeTypes", ""),
+        "bufftype_type": (bt or {}).get("type"),
+        "bufftype_group": (bt or {}).get("group"),
+        "take_stage": (bt or {}).get("takeStage"),
+        "raw_features": buff.get("features", ""),
+        "decoded_features": decoded_features,
+        "granted_by_skills": granters,
+        "fixture_activity": activity,
+    }
+
+
+def render_buff_text(result):
+    out = []
+    bid = result["buff_id"]
+    out.append(f"=== buff {bid} {('— ' + result['name']) if result['name'] else ''} ===")
+    out.append(f"  owner: {result['owner']}")
+    if result.get("desc"):
+        out.append("  description:")
+        for line in result["desc"].splitlines():
+            line = line.strip()
+            if line:
+                out.append(f"    > {line}")
+    out.append(f"  typeId: {result.get('type_id')}  bufftype.type: {result.get('bufftype_type')}  group: {result.get('bufftype_group')}")
+    out.append(
+        f"  isGoodBuff: {result.get('is_good_buff')} (1=good 0=bad 2=neutral)  "
+        f"duringTime: {result.get('during_time')}  effectCount: {result.get('effect_count')}"
+    )
+    out.append(f"  includeTypes: {result.get('include_types')!r}  excludeTypes: {result.get('exclude_types')!r}")
+    if result.get("decoded_features"):
+        out.append("  features:")
+        for d in result["decoded_features"]:
+            out.append(f"    • {d['decoded_str']}")
+    elif result.get("raw_features"):
+        out.append(f"  raw features: {result['raw_features']!r}")
+    if result.get("granted_by_skills"):
+        out.append("  granted by skill_effect rows (1#<this_id> in some behavior slot):")
+        for g in result["granted_by_skills"][:10]:
+            out.append(f"    skill_effect {g['skill_id']} slot{g['behavior_slot']}: {g['raw']!r}")
+        if len(result["granted_by_skills"]) > 10:
+            out.append(f"    ... and {len(result['granted_by_skills']) - 10} more")
+    activity = result.get("fixture_activity") or []
+    if activity:
+        out.append("  fixture activity (per-battle LIVE / OURS / Δ):")
+        for battle, l, o, d in activity:
+            tag = "✓" if d == 0 else ("⚠" if abs(d) <= 1 else "✗")
+            out.append(f"    {tag} {battle}: LIVE={l} OURS={o} Δ={d:+d}")
+    else:
+        out.append("  fixture activity: NONE (buff never appears in any test fixture by actId)")
+    return "\n".join(out)
+
+
 def walk_skill(skill_id, ctx):
     skill = next(
         (r for r in ctx["skill_effect"] if isinstance(r, dict) and r.get("id") == skill_id),
         None,
     )
     if skill is None:
-        return {"skill_id": skill_id, "error": "not in skill_effect"}
+        # Fall through to buff lookup — many "skill" IDs in the codebase
+        # are actually buff IDs (30091111, 30800111, 31040005, etc.).
+        return walk_buff(skill_id, ctx)
     name = ctx["lang"].get(skill.get("name", ""), "") or ""
     desc_self = ctx["lang"].get(skill.get("desc", ""), "") or ""
 
@@ -1029,6 +1145,7 @@ def main():
 
     skill_effect = load_table("skill_effect")
     buff_rows = load_table("skill_buff")
+    bufftype_rows = load_table("skill_bufftype")
     condition_rows = load_table("skill_behavior_condition")
     behavior_rows = load_table("skill_behavior")
     act_rows = load_table("buff_act")
@@ -1041,6 +1158,7 @@ def main():
     ctx = {
         "skill_effect": skill_effect,
         "buff_rows": buff_rows,
+        "bufftype_rows": bufftype_rows,
         "condition_rows": condition_rows,
         "behavior_rows": behavior_rows,
         "act_rows": act_rows,
@@ -1067,7 +1185,10 @@ def main():
         print(json.dumps(results, indent=2, ensure_ascii=False))
     else:
         for r in results:
-            print(render_text(r))
+            if r.get("kind") == "buff":
+                print(render_buff_text(r))
+            else:
+                print(render_text(r))
             print()
 
 
