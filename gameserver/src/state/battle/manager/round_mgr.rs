@@ -12,8 +12,9 @@ use super::super::{
     card::CardOpType,
     context::{FightContext, RoundContext},
     event_queue::{
-        BattleEvent, EventContext, EventQueue, HostEventAccumulator, SkillEmitKind,
-        drain_to_fight_steps, most_recent_round_host_for_caster,
+        AttachmentResolver, BattleEvent, EventContext, EventQueue, HostEventAccumulator,
+        SkillEmitKind, drain_to_fight_steps, find_attachment_candidates,
+        most_recent_round_host_for_caster,
     },
     fight_step::{FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step},
     manager::{
@@ -538,6 +539,16 @@ impl FightRoundMgr {
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
         mechanics::nautika::strip_redundant_post_round_emissions(ctx.fight, &mut open.steps);
+
+        // Phase 6 Session 3.2: psychube retro-attach. After all
+        // existing cleanups have stabilized step shape, find any
+        // standalone top-level psychube wrappers whose carrier has
+        // a host anchor this round, and divert them into the host.
+        // The 6-clause predicate excludes already-nested cases
+        // (battle2's 435611) and shapes that don't match the exact
+        // standalone-Effect-with-single-162-Skill pattern.
+        let attachment_candidates = find_attachment_candidates(&open.steps);
+        AttachmentResolver::apply(&mut open.steps, attachment_candidates);
 
         if crate::state::battle::emission_timeline::EmissionTimeline::dump_enabled() {
             eprint!("{}", ctx.mechanics.emission_timeline.dump());

@@ -243,6 +243,185 @@ pub fn most_recent_round_host_for_caster(uid: i64) -> Option<HostAnchor> {
         .cloned()
 }
 
+/// One candidate for psychube retro-attachment: a top-level Effect
+/// step containing a single 162-wrapped Skill whose act_id classifies
+/// as a psychube and whose caster has a host anchor this round.
+#[derive(Debug, Clone)]
+pub struct AttachmentCandidate {
+    pub top_level_idx: usize,
+    pub target_host_idx: usize,
+    pub psychube_act_id: i32,
+    pub caster_uid: i64,
+    pub wrapper: ActEffect,
+}
+
+/// Find top-level steps that match the standalone psychube shape and
+/// have a viable host anchor. The 6-clause predicate is documented
+/// inline; clause 5 (not-already-nested anywhere) is the killshot
+/// that excludes battle2's already-nested 435611 case.
+pub fn find_attachment_candidates(steps: &[FightStep]) -> Vec<AttachmentCandidate> {
+    use crate::state::battle::skill::source_kind::{self, SkillSource};
+
+    let mut candidates = Vec::new();
+
+    for (idx, step) in steps.iter().enumerate() {
+        // Clause 1: Effect step with act_id == 0
+        if step.act_type != Some(fight_step::ActType::Effect as i32) {
+            continue;
+        }
+        if step.act_id.unwrap_or(0) != 0 {
+            continue;
+        }
+        // Clause 2: exactly one act_effect entry
+        if step.act_effect.len() != 1 {
+            continue;
+        }
+        let effect = &step.act_effect[0];
+        // Clause 3: that entry is a 162-wrapped Skill fightStep
+        if effect.effect_type != Some(EffectType::Fightstep as i32) {
+            continue;
+        }
+        let Some(inner) = effect.fight_step.as_ref() else {
+            continue;
+        };
+        if inner.act_type != Some(fight_step::ActType::Skill as i32) {
+            continue;
+        }
+        let inner_act_id = inner.act_id.unwrap_or(0);
+        let inner_from_id = inner.from_id.unwrap_or(0);
+        if inner_act_id == 0 || inner_from_id == 0 {
+            continue;
+        }
+        // Clause 4: psychube classifier
+        if !matches!(
+            source_kind::classify(inner_act_id),
+            SkillSource::PsychubeSkill { .. }
+        ) {
+            continue;
+        }
+        // Clause 5: not already nested anywhere else
+        if step_contains_nested_skill_anywhere(steps, idx, inner_act_id, inner_from_id) {
+            tracing::debug!(
+                target: "session2_attach_diagnostics",
+                "candidate_rejected reason=clause_5_already_nested skill_id={} caster_uid={}",
+                inner_act_id, inner_from_id
+            );
+            continue;
+        }
+        // Clause 6: caster has a host anchor this round
+        let Some(anchor) = most_recent_round_host_for_caster(inner_from_id) else {
+            tracing::debug!(
+                target: "session2_attach_diagnostics",
+                "candidate_rejected reason=clause_6_no_anchor skill_id={} caster_uid={}",
+                inner_act_id, inner_from_id
+            );
+            continue;
+        };
+        // Sanity: anchor's host_step_idx must be valid in current `steps`
+        if anchor.host_step_idx >= steps.len() {
+            continue;
+        }
+        candidates.push(AttachmentCandidate {
+            top_level_idx: idx,
+            target_host_idx: anchor.host_step_idx,
+            psychube_act_id: inner_act_id,
+            caster_uid: inner_from_id,
+            wrapper: effect.clone(),
+        });
+    }
+
+    candidates
+}
+
+/// Recursive walker: does any step in `steps` (excluding `skip_idx`)
+/// contain a Skill fightStep with the given (act_id, from_id) anywhere
+/// in its act_effect tree, up to MAX_DEPTH levels deep?
+fn step_contains_nested_skill_anywhere(
+    steps: &[FightStep],
+    skip_idx: usize,
+    target_act_id: i32,
+    target_from_id: i64,
+) -> bool {
+    const MAX_DEPTH: u32 = 4;
+    for (idx, step) in steps.iter().enumerate() {
+        if idx == skip_idx {
+            continue;
+        }
+        if act_effect_tree_contains(&step.act_effect, target_act_id, target_from_id, MAX_DEPTH) {
+            return true;
+        }
+    }
+    false
+}
+
+fn act_effect_tree_contains(
+    effects: &[ActEffect],
+    target_act_id: i32,
+    target_from_id: i64,
+    depth: u32,
+) -> bool {
+    if depth == 0 {
+        return false;
+    }
+    for effect in effects {
+        if let Some(inner) = effect.fight_step.as_ref() {
+            if inner.act_type == Some(fight_step::ActType::Skill as i32)
+                && inner.act_id == Some(target_act_id)
+                && inner.from_id == Some(target_from_id)
+            {
+                return true;
+            }
+            if act_effect_tree_contains(&inner.act_effect, target_act_id, target_from_id, depth - 1)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Resolve a list of attachment candidates by inserting their
+/// wrappers into the target host's act_effect[] and removing the
+/// source top-level steps. Index-stable: all inserts happen before
+/// any removes, and removes proceed in reverse index order.
+pub struct AttachmentResolver;
+
+impl AttachmentResolver {
+    pub fn apply(steps: &mut Vec<FightStep>, candidates: Vec<AttachmentCandidate>) {
+        if candidates.is_empty() {
+            return;
+        }
+
+        tracing::debug!(
+            target: "session2_attach_diagnostics",
+            "resolver_candidate_count={}",
+            candidates.len(),
+        );
+
+        // Phase 1: insert wrappers into targets (index-stable on `steps`).
+        for cand in &candidates {
+            tracing::debug!(
+                target: "session2_attach_diagnostics",
+                "resolved skill_id={} caster_uid={} top_level_idx={} target_host_idx={}",
+                cand.psychube_act_id, cand.caster_uid, cand.top_level_idx, cand.target_host_idx,
+            );
+            if let Some(target) = steps.get_mut(cand.target_host_idx) {
+                target.act_effect.push(cand.wrapper.clone());
+            }
+        }
+
+        // Phase 2: remove source top-level steps in reverse index order.
+        let mut to_remove: Vec<usize> = candidates.iter().map(|c| c.top_level_idx).collect();
+        to_remove.sort_unstable();
+        to_remove.dedup();
+        for idx in to_remove.into_iter().rev() {
+            if idx < steps.len() {
+                steps.remove(idx);
+            }
+        }
+    }
+}
+
 impl HostEventAccumulator {
     pub fn new() -> Self {
         Self::default()
