@@ -1,6 +1,6 @@
 use super::super::manager::buff_mgr::BuffMgr;
 use super::super::{BehaviorType, ConditionType};
-use super::condition::{self, buff::deleted_matches};
+use super::condition;
 use std::collections::HashSet;
 
 /// Which conditions are active for this trigger event.
@@ -233,18 +233,22 @@ impl PhaseFilter {
         event: &TriggerState,
         owner_uid: i64,
     ) -> bool {
-        if let Some(pass) = condition::eval_active_use_skill_condition(
+        if let Some(pass) = condition::eval_trigger_state_condition(
             condition,
-            condition::active_use_skill_context_for_trigger_state(event),
+            condition::TriggerStateConditionContext { event, owner_uid },
+            condition::TriggerStateConditionOptions {
+                include_none: true,
+                include_combat_none: true,
+                include_hurt_magic: true,
+                include_lost_ex_point: true,
+            },
         ) {
             return pass;
         }
 
         match condition {
             // Non-event conditions always pass in combat
-            ConditionType::None
-            | ConditionType::CombatNone
-            | ConditionType::HasBuffId { .. }
+            ConditionType::HasBuffId { .. }
             | ConditionType::NoBuffId { .. }
             | ConditionType::HasBuffGroup { .. }
             | ConditionType::NoBuffGroup { .. }
@@ -281,27 +285,6 @@ impl PhaseFilter {
                 .bloodpool_max_attacker
                 .map(|pool_max| pool_max >= *min && pool_max <= *max)
                 .unwrap_or(true),
-
-            // Event-driven conditions — only fire for matching event
-            ConditionType::UseExSkill => event.active_use_skill && event.used_ex_skill,
-            ConditionType::TeammateUseExSkill => event.teammate_use_ex_skill,
-            ConditionType::BeAttacked => event.be_attacked,
-            ConditionType::HurtMagic => event.hurt_magic,
-            ConditionType::LostExPoint { .. } => event.lost_ex_point,
-            ConditionType::HurtNotRestraint => event.hurt_not_restraint,
-            ConditionType::HurtRestraint => event.hurt_restraint,
-            ConditionType::TeammateInjuryCount { threshold } => {
-                event.teammate_injury_count >= *threshold
-            }
-            ConditionType::TeammateInjuryCountNotReset { threshold } => {
-                event.teammate_injury_count_not_reset >= *threshold
-            }
-            ConditionType::TeamInjuryCountRound => event.team_injury_count_round,
-            ConditionType::BuffIdDel { buff_ids } => {
-                deleted_matches(&event.deleted_buff_ids, buff_ids)
-            }
-            ConditionType::TriggerBullet => event.trigger_bullet,
-            ConditionType::NoActRound => event.no_act_round_for(owner_uid),
 
             // Not yet implemented in combat
             _ => false,

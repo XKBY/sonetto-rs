@@ -307,6 +307,65 @@ pub(crate) fn active_use_skill_context_for_trigger_state(
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct TriggerStateConditionOptions {
+    pub include_none: bool,
+    pub include_combat_none: bool,
+    pub include_hurt_magic: bool,
+    pub include_lost_ex_point: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct TriggerStateConditionContext<'a> {
+    pub event: &'a TriggerState,
+    pub owner_uid: i64,
+}
+
+pub(crate) fn eval_trigger_state_condition(
+    condition: &ConditionType,
+    context: TriggerStateConditionContext<'_>,
+    options: TriggerStateConditionOptions,
+) -> Option<bool> {
+    if let Some(pass) = eval_active_use_skill_condition(
+        condition,
+        active_use_skill_context_for_trigger_state(context.event),
+    ) {
+        return Some(pass);
+    }
+
+    match condition {
+        ConditionType::None => options.include_none.then_some(true),
+        ConditionType::CombatNone => options.include_combat_none.then_some(true),
+        ConditionType::UseExSkill => {
+            Some(context.event.active_use_skill && context.event.used_ex_skill)
+        }
+        ConditionType::TeammateUseExSkill => Some(context.event.teammate_use_ex_skill),
+        ConditionType::BeAttacked => Some(context.event.be_attacked),
+        ConditionType::HurtMagic => options
+            .include_hurt_magic
+            .then_some(context.event.hurt_magic),
+        ConditionType::LostExPoint { .. } => options
+            .include_lost_ex_point
+            .then_some(context.event.lost_ex_point),
+        ConditionType::HurtNotRestraint => Some(context.event.hurt_not_restraint),
+        ConditionType::HurtRestraint => Some(context.event.hurt_restraint),
+        ConditionType::TeammateInjuryCount { threshold } => {
+            Some(context.event.teammate_injury_count >= *threshold)
+        }
+        ConditionType::TeammateInjuryCountNotReset { threshold } => {
+            Some(context.event.teammate_injury_count_not_reset >= *threshold)
+        }
+        ConditionType::TeamInjuryCountRound => Some(context.event.team_injury_count_round),
+        ConditionType::BuffIdDel { buff_ids } => Some(buff::deleted_matches(
+            &context.event.deleted_buff_ids,
+            buff_ids,
+        )),
+        ConditionType::TriggerBullet => Some(context.event.trigger_bullet),
+        ConditionType::NoActRound => Some(context.event.no_act_round_for(context.owner_uid)),
+        _ => None,
+    }
+}
+
 fn active_skill_effect_tag(skill_id: i32) -> Option<i32> {
     if skill_id <= 0 {
         return None;

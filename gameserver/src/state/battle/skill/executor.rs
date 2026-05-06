@@ -26,7 +26,7 @@ use super::super::{
 use super::{
     behavior::execute_behavior,
     cache::{SKILL_CACHE, resolve_skill_effect_id},
-    condition::{self, ConditionEval, buff::deleted_matches},
+    condition::{self, ConditionEval},
     damage::{calculate_damage, should_crit_hit},
     euphoria,
     phase::{PhaseFilter, TriggerState},
@@ -358,36 +358,18 @@ impl SkillExecutor {
             }
 
             let cond_pass = if let PhaseFilter::Combat(event) = phase {
-                let active_use_skill_raw = condition::eval_active_use_skill_condition(
+                let combat_raw = condition::eval_trigger_state_condition(
                     &b.condition,
-                    condition::active_use_skill_context_for_trigger_state(event),
+                    condition::TriggerStateConditionContext {
+                        event,
+                        owner_uid: caster_uid,
+                    },
+                    condition::TriggerStateConditionOptions {
+                        include_none: true,
+                        include_combat_none: true,
+                        ..Default::default()
+                    },
                 );
-                let combat_raw = match &b.condition {
-                    _ if active_use_skill_raw.is_some() => active_use_skill_raw,
-                    ConditionType::None | ConditionType::CombatNone => Some(true),
-                    ConditionType::UseExSkill => {
-                        Some(event.active_use_skill && event.used_ex_skill)
-                    }
-                    ConditionType::TeammateUseExSkill => Some(event.teammate_use_ex_skill),
-                    ConditionType::BeAttacked => Some(event.be_attacked),
-                    ConditionType::HurtNotRestraint => Some(event.hurt_not_restraint),
-                    ConditionType::HurtRestraint => Some(event.hurt_restraint),
-                    ConditionType::TeammateInjuryCount { threshold } => {
-                        Some(event.teammate_injury_count >= *threshold)
-                    }
-                    ConditionType::TeammateInjuryCountNotReset { threshold } => {
-                        Some(event.teammate_injury_count_not_reset >= *threshold)
-                    }
-                    ConditionType::TeamInjuryCountRound => Some(event.team_injury_count_round),
-                    ConditionType::BuffIdDel { buff_ids } => {
-                        Some(deleted_matches(&event.deleted_buff_ids, buff_ids))
-                    }
-                    ConditionType::TriggerBullet => Some(event.trigger_bullet),
-                    ConditionType::NoActRound => Some(event.no_act_round_for(caster_uid)),
-                    // All stateful/static conditions (HasBuffId/NoBuffId/TargetCareer/CareerCheck/etc.)
-                    // must be evaluated against live fight state in check_condition.
-                    _ => None,
-                };
                 if let Some(raw) = combat_raw {
                     if b.negated { !raw } else { raw }
                 } else {
