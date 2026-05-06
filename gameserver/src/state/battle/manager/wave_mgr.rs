@@ -75,6 +75,93 @@ impl WaveMgr {
         ctx: &mut FightContext<'_>,
         executor: &mut SkillExecutor,
     ) -> Result<Vec<FightStep>> {
+        self.advance_wave_state(ctx)?;
+
+        let fight = ctx.fight.clone();
+        let mut steps = vec![
+            FightStepBuilder::effect()
+                .with(ActEffect {
+                    effect_type: Some(EffectType::NewChangeWave as i32),
+                    effect_num: Some(0),
+                    fight: Some(fight.clone()),
+                    ..Default::default()
+                })
+                .build(),
+        ];
+
+        if let Some(step) = build_active_circle_enemy_buff_step(&fight, ctx, executor) {
+            steps.push(step);
+        }
+
+        Ok(steps)
+    }
+
+    /// Real-state replay alignment: advance waves without serializing
+    /// preview-only wave steps or applying the magic-circle enemy-buff
+    /// follow-up that belongs to the preview execution path.
+    pub fn fast_forward_state_to_wave(
+        &mut self,
+        ctx: &mut FightContext<'_>,
+        target_wave: i32,
+    ) -> Result<()> {
+        loop {
+            let current = ctx.fight.cur_wave.unwrap_or(1);
+            if current >= target_wave {
+                break;
+            }
+            let old_defender_uids: Vec<i64> = ctx
+                .fight
+                .defender
+                .as_ref()
+                .into_iter()
+                .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+                .filter_map(|entity| entity.uid)
+                .collect();
+            self.advance_wave_state(ctx)?;
+            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            for uid in old_defender_uids {
+                ctx.managers.buff_mgr.clear(uid);
+            }
+            seed_entry_max_hp_from_fight(ctx.fight);
+            ctx.sync();
+        }
+        Ok(())
+    }
+
+    /// Replay-mode fast-forward: advance waves until current_wave >= target.
+    /// Concatenates wave-spawn steps from each advance.
+    pub fn fast_forward_to_wave(
+        &mut self,
+        ctx: &mut FightContext<'_>,
+        executor: &mut SkillExecutor,
+        target_wave: i32,
+    ) -> Result<Vec<FightStep>> {
+        let mut steps = Vec::new();
+        loop {
+            let current = ctx.fight.cur_wave.unwrap_or(1);
+            if current >= target_wave {
+                break;
+            }
+            let old_defender_uids: Vec<i64> = ctx
+                .fight
+                .defender
+                .as_ref()
+                .into_iter()
+                .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
+                .filter_map(|entity| entity.uid)
+                .collect();
+            steps.extend(self.advance_wave(ctx, executor)?);
+            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            for uid in old_defender_uids {
+                ctx.managers.buff_mgr.clear(uid);
+            }
+            seed_entry_max_hp_from_fight(ctx.fight);
+            ctx.sync();
+        }
+        Ok(steps)
+    }
+
+    fn advance_wave_state(&mut self, ctx: &mut FightContext<'_>) -> Result<()> {
         let current_wave = ctx.fight.cur_wave.unwrap_or(1);
         let new_wave = current_wave + 1;
         let battle_id = ctx.fight.battle_id.unwrap_or(0);
@@ -119,56 +206,7 @@ impl WaveMgr {
             )?;
         }
 
-        let fight = ctx.fight.clone();
-        let mut steps = vec![
-            FightStepBuilder::effect()
-                .with(ActEffect {
-                    effect_type: Some(EffectType::NewChangeWave as i32),
-                    effect_num: Some(0),
-                    fight: Some(fight.clone()),
-                    ..Default::default()
-                })
-                .build(),
-        ];
-
-        if let Some(step) = build_active_circle_enemy_buff_step(&fight, ctx, executor) {
-            steps.push(step);
-        }
-
-        Ok(steps)
-    }
-
-    /// Replay-mode fast-forward: advance waves until current_wave >= target.
-    /// Concatenates wave-spawn steps from each advance.
-    pub fn fast_forward_to_wave(
-        &mut self,
-        ctx: &mut FightContext<'_>,
-        executor: &mut SkillExecutor,
-        target_wave: i32,
-    ) -> Result<Vec<FightStep>> {
-        let mut steps = Vec::new();
-        loop {
-            let current = ctx.fight.cur_wave.unwrap_or(1);
-            if current >= target_wave {
-                break;
-            }
-            let old_defender_uids: Vec<i64> = ctx
-                .fight
-                .defender
-                .as_ref()
-                .into_iter()
-                .flat_map(|defender| defender.entitys.iter().chain(defender.sub_entitys.iter()))
-                .filter_map(|entity| entity.uid)
-                .collect();
-            steps.extend(self.advance_wave(ctx, executor)?);
-            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
-            for uid in old_defender_uids {
-                ctx.managers.buff_mgr.clear(uid);
-            }
-            seed_entry_max_hp_from_fight(ctx.fight);
-            ctx.sync();
-        }
-        Ok(steps)
+        Ok(())
     }
 }
 

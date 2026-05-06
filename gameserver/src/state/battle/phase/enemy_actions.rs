@@ -22,7 +22,7 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 use crate::state::battle::{
     context::FightContext,
     event_queue::{self, BattleEvent, HostEventAccumulator, HostLane, HostSide},
-    manager::{card_mgr::FightCardMgr, round_mgr::FightRoundMgr},
+    manager::{card_mgr::FightCardMgr, round_mgr::FightRoundMgr, wave_mgr::WaveMgr},
     mechanics::magic_circle,
     passives::collector::CollectedPassives,
     round::RoundState,
@@ -47,17 +47,27 @@ pub(crate) async fn run(
     let ai_steps = card_mgr.execute_ai_turn(rng, ctx, state).await?;
     let mut previous_negative_skill_host: Option<(i64, i32)> = None;
     for step in ai_steps {
-        let current_negative_skill_host = if step.act_type == Some(fight_step::ActType::Skill as i32)
+        let current_negative_skill_host =
+            if step.act_type == Some(fight_step::ActType::Skill as i32) {
+                step.from_id
+                    .filter(|uid| *uid < 0)
+                    .map(|uid| (uid, step.act_id.unwrap_or(0)))
+            } else {
+                None
+            };
+        if let Some((caster_uid, _)) = current_negative_skill_host
+            && let Some(target_wave) = WaveMgr::expected_wave_for_uid(caster_uid)
         {
-            step.from_id
-                .filter(|uid| *uid < 0)
-                .map(|uid| (uid, step.act_id.unwrap_or(0)))
-        } else {
-            None
-        };
+            let current_wave = ctx.fight.cur_wave.unwrap_or(1);
+            let max_wave = WaveMgr::max_wave_for_fight(ctx.fight);
+            if target_wave > current_wave && target_wave <= max_wave {
+                let mut wave_mgr = std::mem::take(&mut ctx.managers.wave_mgr);
+                wave_mgr.fast_forward_state_to_wave(ctx, target_wave)?;
+                ctx.managers.wave_mgr = wave_mgr;
+            }
+        }
         let pre_skill_ex_step = if let Some((caster_uid, act_id)) = current_negative_skill_host
-            && (previous_negative_skill_host != current_negative_skill_host
-                || act_id != 114300811)
+            && (previous_negative_skill_host != current_negative_skill_host || act_id != 114300811)
         {
             state.enemy_skill_actors.insert(caster_uid);
             ex_gain::standard_action_ex_gain_for_uid(mgr, ctx, caster_uid)

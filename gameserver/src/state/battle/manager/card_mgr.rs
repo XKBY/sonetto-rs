@@ -415,14 +415,13 @@ impl FightCardMgr {
                             &mut preview_mechanics,
                         );
                         let mut wave_mgr = std::mem::take(&mut wave_ctx.managers.wave_mgr);
-                        let wave_steps = wave_mgr.fast_forward_to_wave(
+                        wave_mgr.fast_forward_to_wave(
                             &mut wave_ctx,
                             &mut wave_executor,
                             target_wave,
                         )?;
                         wave_ctx.managers.wave_mgr = wave_mgr;
                         drop(wave_ctx);
-                        steps.extend(wave_steps);
                     }
                 }
                 // Use preview state for the alive check — replay simulates
