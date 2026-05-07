@@ -11,7 +11,7 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, CardInfo, FightStep};
+use sonettobuf::{ActEffect, BuffInfo, CardInfo, FightStep};
 
 use crate::state::battle::{
     buff_actions::round_end as round_end_handler,
@@ -19,7 +19,7 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     heroes::rubuska,
     manager::{
-        buff_mgr::reset_buff_uid_to,
+        buff_mgr::{LifecycleEventKind, reset_buff_uid_to},
         card_mgr::FightCardMgr,
         ex_point_mgr::sync_from_fight,
         round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
@@ -37,7 +37,7 @@ use crate::state::battle::{
     step_walker,
     steps::{broadcast, ex_gain, step_normalize},
     types::effects::EffectType,
-    utils::buff_del,
+    utils::{buff_del, buff_get_act_common_params},
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -454,6 +454,10 @@ fn run_post_change_round_tail(
         steps.push(step);
     }
 
+    if let Some(step) = build_round_end_takestage_103_lifecycle_step(ctx) {
+        steps.push(step);
+    }
+
     // Next-round deck snapshot marker.
     steps.push(
         FightStepBuilder::effect()
@@ -467,6 +471,65 @@ fn run_post_change_round_tail(
     );
 
     Ok(())
+}
+
+fn build_round_end_takestage_103_lifecycle_step(ctx: &FightContext<'_>) -> Option<FightStep> {
+    let mut events_by_target: std::collections::HashMap<i64, Vec<_>> = ctx
+        .managers
+        .buff_mgr
+        .preview_round_end_lifecycle_takestage_103()
+        .into_iter()
+        .filter(|event| event.target_uid > 0)
+        .fold(std::collections::HashMap::new(), |mut acc, event| {
+            acc.entry(event.target_uid).or_default().push(event);
+            acc
+        })
+        ;
+    let Some(attacker) = ctx.fight.attacker.as_ref() else {
+        return None;
+    };
+    let mut effects = Vec::new();
+    for entity in attacker.entitys.iter().chain(attacker.sub_entitys.iter()) {
+        if entity.position.unwrap_or(-1) <= 0 || entity.current_hp.unwrap_or(0) <= 0 {
+            continue;
+        }
+        let Some(target_uid) = entity.uid else { continue };
+        let Some(events) = events_by_target.remove(&target_uid) else {
+            continue;
+        };
+        for event in events {
+            let duration = match event.kind {
+                LifecycleEventKind::Expiring => 0,
+                LifecycleEventKind::Ticking => event.instance.duration - 1,
+            };
+            effects.push(ActEffect {
+                effect_type: Some(match event.kind {
+                    LifecycleEventKind::Expiring => EffectType::BuffDel as i32,
+                    LifecycleEventKind::Ticking => EffectType::BuffUpdate as i32,
+                }),
+                target_id: Some(event.target_uid),
+                effect_num: Some(0),
+                buff: Some(BuffInfo {
+                    buff_id: Some(event.instance.buff_id),
+                    duration: Some(duration),
+                    uid: Some(event.instance.uid),
+                    ex_info: Some(0),
+                    from_uid: Some(event.instance.from_uid),
+                    count: Some(event.instance.stacks),
+                    act_common_params: Some(buff_get_act_common_params(event.instance.buff_id)),
+                    layer: Some(event.instance.layer),
+                    r#type: Some(0),
+                    act_info: vec![],
+                }),
+                ..Default::default()
+            });
+        }
+    }
+    if effects.is_empty() {
+        None
+    } else {
+        Some(build_effect_step(effects))
+    }
 }
 
 fn suppress_terminal_shadow_friend_packets(steps: &mut Vec<FightStep>, start_idx: usize) {

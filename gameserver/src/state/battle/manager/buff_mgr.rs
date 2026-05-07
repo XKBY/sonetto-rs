@@ -100,6 +100,19 @@ pub enum StackConsumeResult {
     Removed(BuffInstance),
 }
 
+#[derive(Debug, Clone)]
+pub struct BuffLifecycleEvent {
+    pub instance: BuffInstance,
+    pub target_uid: i64,
+    pub kind: LifecycleEventKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LifecycleEventKind {
+    Expiring,
+    Ticking,
+}
+
 impl BuffMgr {
     pub fn new() -> Self {
         Self::default()
@@ -214,6 +227,36 @@ impl BuffMgr {
         self.active
             .get(&target_uid)
             .and_then(|buffs| buffs.iter().find(|buff| buff.buff_id == buff_id))
+    }
+
+    pub fn preview_round_end_lifecycle_takestage_103(&self) -> Vec<BuffLifecycleEvent> {
+        let cfg = config::configs::get();
+        let mut events = Vec::new();
+        for (target_uid, instances) in &self.active {
+            for inst in instances {
+                let take_stage = cfg
+                    .skill_bufftype
+                    .iter()
+                    .find(|buff_type| buff_type.id == inst.type_id)
+                    .map(|buff_type| buff_type.take_stage)
+                    .unwrap_or(0);
+                if take_stage != 103 || inst.duration <= 0 {
+                    continue;
+                }
+
+                let kind = if inst.duration == 1 {
+                    LifecycleEventKind::Expiring
+                } else {
+                    LifecycleEventKind::Ticking
+                };
+                events.push(BuffLifecycleEvent {
+                    instance: inst.clone(),
+                    target_uid: *target_uid,
+                    kind,
+                });
+            }
+        }
+        events
     }
 
     /// Find a buff instance on `target_uid` by its `type_id` (the `bufftype.id`
