@@ -19,6 +19,7 @@ pub(super) struct AddBuffBothParams {
     pub skill_id: i32,
     pub has_bloodpool: bool,
     pub inner_effects: Vec<sonettobuf::ActEffect>,
+    pub emit_empty_wrapper_on_noop: bool,
 }
 
 pub(super) struct AddBuffBothHandler;
@@ -51,11 +52,16 @@ impl BuffActionHandler for AddBuffBothHandler {
                 .unwrap_or(0),
             has_bloodpool: ctx.has_bloodpool,
             inner_effects: Vec::new(),
+            emit_empty_wrapper_on_noop: false,
         }
     }
 
     fn execute(&self, params: &mut Self::Params, ctx: &mut BuffActCtx<'_, '_>) {
         if params.buff_a <= 0 && params.buff_b <= 0 {
+            return;
+        }
+        if should_skip_add_buff_both_update(params, ctx) {
+            params.emit_empty_wrapper_on_noop = true;
             return;
         }
 
@@ -85,6 +91,14 @@ impl BuffActionHandler for AddBuffBothHandler {
 
     fn steps(&self, params: Self::Params, ctx: &BuffActCtx<'_, '_>) -> ActionResult {
         if params.inner_effects.is_empty() {
+            if params.emit_empty_wrapper_on_noop {
+                return ActionResult::single(wrap_step(effect_container_step(
+                    params.caster_uid,
+                    params.original_target,
+                    ctx.buff_id,
+                    Vec::new(),
+                )));
+            }
             return ActionResult::empty();
         }
         ActionResult::single(wrap_step(effect_container_step(
@@ -94,6 +108,47 @@ impl BuffActionHandler for AddBuffBothHandler {
             params.inner_effects,
         )))
     }
+}
+
+fn should_skip_add_buff_both_update(
+    params: &AddBuffBothParams,
+    ctx: &BuffActCtx<'_, '_>,
+) -> bool {
+    if params.buff_b <= 0 {
+        return false;
+    }
+
+    let holder_layer = ctx
+        .effect_ctx
+        .managers
+        .buff_mgr
+        .get(params.original_target)
+        .iter()
+        .filter(|instance| instance.buff_id == ctx.buff_id && instance.from_uid == params.caster_uid)
+        .max_by_key(|instance| instance.uid)
+        .map(|instance| instance.layer)
+        .unwrap_or(0);
+    if holder_layer != 3 {
+        return false;
+    }
+
+    let buff_b_targets = add_buff_both_targets(
+        ctx.executor,
+        ctx.effect_ctx.fight,
+        &ctx.effect_ctx.managers.buff_mgr,
+        params.caster_uid,
+        params.original_target,
+        params.buff_b,
+    );
+    !buff_b_targets.is_empty()
+        && buff_b_targets.iter().all(|target_uid| {
+            ctx.effect_ctx
+                .managers
+                .buff_mgr
+                .get(*target_uid)
+                .iter()
+                .any(|instance| instance.buff_id == params.buff_b && instance.from_uid == params.caster_uid)
+        })
 }
 
 fn apply_child_buff(

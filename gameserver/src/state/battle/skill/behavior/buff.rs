@@ -66,22 +66,16 @@ fn is_poison_family(buff_id: i32) -> bool {
 }
 
 fn should_rerun_post_add_features_on_update(buff_id: i32) -> bool {
-    let cfg = config::configs::get();
-    let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+    let Some(buff_cfg) = config::configs::get().skill_buff.iter().find(|b| b.id == buff_id) else {
         return false;
     };
 
     buff_cfg.features.split('|').any(|entry| {
-        let act_id = entry
+        entry
             .split('#')
             .next()
             .and_then(|v| v.trim().parse::<i32>().ok())
-            .unwrap_or(0);
-        cfg.buff_act
-            .iter()
-            .find(|row| row.id == act_id)
-            .map(|row| row.r#type == "AddBuffBoth")
-            .unwrap_or(false)
+            .is_some_and(|act_id| act_id == 850)
     })
 }
 
