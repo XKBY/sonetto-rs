@@ -40,10 +40,29 @@ pub struct BuffInstance {
     pub refresh_policy: RefreshPolicy,
 }
 
+fn derive_refresh_policy(bt: Option<&config::skill_bufftype::SkillBufftype>) -> RefreshPolicy {
+    let Some(bt) = bt else {
+        return RefreshPolicy::UpdateInPlace;
+    };
+    let has_include_type_10 = bt
+        .include_types
+        .split('#')
+        .next()
+        .map(|s| s == "10")
+        .unwrap_or(false);
+    let has_exclude_types = !bt.exclude_types.is_empty();
+    if has_include_type_10 && has_exclude_types {
+        RefreshPolicy::ReplaceOnExcludedOverlap
+    } else {
+        RefreshPolicy::UpdateInPlace
+    }
+}
+
 impl BuffInstance {
     pub fn build(buff_id: i32, from_uid: i64) -> Self {
         let configs = config::configs::get();
         let cfg = configs.skill_buff.iter().find(|b| b.id == buff_id);
+        let buff_type = cfg.and_then(|b| configs.skill_bufftype.iter().find(|t| t.id == b.type_id));
         Self {
             uid: next_buff_uid(),
             buff_id,
@@ -53,7 +72,7 @@ impl BuffInstance {
             stacks: cfg.map(|b| b.effect_count).unwrap_or(0),
             layer: 0,
             act_common_params: String::new(),
-            refresh_policy: RefreshPolicy::UpdateInPlace,
+            refresh_policy: derive_refresh_policy(buff_type),
         }
     }
 }
@@ -458,6 +477,8 @@ impl BuffMgr {
         let entry = self.active.entry(target_uid).or_default();
         let cfg = config::configs::get();
         let cfg_buff = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+        let buff_type =
+            cfg_buff.and_then(|b| cfg.skill_bufftype.iter().find(|t| t.id == b.type_id));
         let instance = BuffInstance {
             uid: buff_uid, // use the uid from the emitted effect
             buff_id,
@@ -471,7 +492,7 @@ impl BuffMgr {
             },
             layer,
             act_common_params: String::new(),
-            refresh_policy: RefreshPolicy::UpdateInPlace,
+            refresh_policy: derive_refresh_policy(buff_type),
         };
 
         if let Some(existing) = entry.iter_mut().find(|b| b.uid == buff_uid) {
@@ -481,6 +502,7 @@ impl BuffMgr {
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
             existing.layer = instance.layer;
+            existing.refresh_policy = instance.refresh_policy;
             return;
         }
 
@@ -499,6 +521,7 @@ impl BuffMgr {
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
             existing.layer = instance.layer;
+            existing.refresh_policy = instance.refresh_policy;
         } else {
             entry.push(instance);
         }

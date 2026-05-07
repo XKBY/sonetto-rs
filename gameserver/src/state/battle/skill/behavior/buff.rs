@@ -8,7 +8,10 @@ use super::super::super::{
     buff::{apply_buff_effects, pre_buff_effects},
     context::buff_context::BuffContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
-    manager::{buff_mgr::next_buff_uid_for_target, fight_data_mgr::Managers},
+    manager::{
+        buff_mgr::{RefreshPolicy, next_buff_uid_for_target},
+        fight_data_mgr::Managers,
+    },
     mechanics::{Mechanics, bloodtithe::BloodtitheState},
     types::behavior::BehaviorType,
     types::buff::{BAD_BUFF_TYPES, GOOD_BUFF_TYPES, stack_type::is_stackable},
@@ -305,111 +308,327 @@ pub fn apply(
 
     // If the buff already exists on target, prefer BUFFUPDATE regardless of count/effect_count.
     // This matches live behavior for stacking/re-applying passives like 30630171 -> 30631.
-    let existing_uid = with_buff_ctx(fight, managers, |buff_ctx| {
+    let existing_same = with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx
             .buffs(spec.target)
             .iter()
             .find(|b| b.buff_id == spec.buff_id)
-            .map(|b| b.uid)
+            .cloned()
     });
 
-    if let Some(existing_uid) = existing_uid {
-        let rerun_post_add_features = should_rerun_post_add_features_on_update(spec.buff_id);
-        let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
-        let include_types = cfg
-            .skill_bufftype
-            .iter()
-            .find(|t| t.id == cfg_type_id)
-            .map(|t| t.include_types.clone())
-            .unwrap_or_default();
-        let cfg_effect_count = buff_cfg.map(|b| b.effect_count).unwrap_or(0);
-        let add_count = if count > 0 {
-            count
-        } else if cfg_effect_count > 0 {
-            cfg_effect_count
+    let excluded_active = if existing_same.is_some() {
+        let excluded_ids = excluded_buff_or_type_ids(spec.buff_id);
+        if excluded_ids.is_empty() {
+            None
         } else {
-            1
-        };
-        let existing_stacks = with_buff_ctx(fight, managers, |buff_ctx| {
-            buff_ctx
-                .buffs(spec.target)
-                .iter()
-                .find(|b| b.buff_id == spec.buff_id)
-                .map(|b| b.stacks)
-                .unwrap_or(0)
-        });
-        let has_include_type_2 = has_include_type(&include_types, "2");
-        let has_include_type_10 = has_include_type(&include_types, "10");
-        let has_exclude_types = cfg
-            .skill_bufftype
-            .iter()
-            .find(|t| t.id == cfg_type_id)
-            .map(|t| !t.exclude_types.is_empty())
-            .unwrap_or(false);
-        let has_excluded_active = if has_exclude_types {
-            let excluded_ids = excluded_buff_or_type_ids(spec.buff_id);
             with_buff_ctx(fight, managers, |buff_ctx| {
                 buff_ctx
                     .buffs(spec.target)
                     .iter()
-                    .any(|b| excluded_ids.contains(&b.buff_id) || excluded_ids.contains(&b.type_id))
+                    .find(|b| {
+                        excluded_ids.contains(&b.buff_id) || excluded_ids.contains(&b.type_id)
+                    })
+                    .cloned()
             })
-        } else {
-            false
-        };
-        let is_layer_stackable = is_stackable(&include_types);
-        let is_stackable_buff = count > 0
-            || cfg
+        }
+    } else {
+        None
+    };
+
+    match (existing_same, excluded_active) {
+        (Some(existing_same), excluded_active) => {
+            let rerun_post_add_features = should_rerun_post_add_features_on_update(spec.buff_id);
+            let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
+            let include_types = cfg
+                .skill_bufftype
+                .iter()
+                .find(|t| t.id == cfg_type_id)
+                .map(|t| t.include_types.clone())
+                .unwrap_or_default();
+            let cfg_effect_count = buff_cfg.map(|b| b.effect_count).unwrap_or(0);
+            let add_count = if count > 0 {
+                count
+            } else if cfg_effect_count > 0 {
+                cfg_effect_count
+            } else {
+                1
+            };
+            let existing_stacks = with_buff_ctx(fight, managers, |buff_ctx| {
+                buff_ctx
+                    .buffs(spec.target)
+                    .iter()
+                    .find(|b| b.buff_id == spec.buff_id)
+                    .map(|b| b.stacks)
+                    .unwrap_or(0)
+            });
+            let existing_uid = existing_same.uid;
+            let has_include_type_2 = has_include_type(&include_types, "2");
+            let is_layer_stackable = is_stackable(&include_types);
+            let is_stackable_buff = count > 0
+                || cfg
+                    .skill_bufftype
+                    .iter()
+                    .find(|t| t.id == cfg_type_id)
+                    .map(|t| is_stackable(&t.include_types))
+                    .unwrap_or(false);
+
+            match (existing_same.refresh_policy, excluded_active) {
+                // Replace-on-self-refresh is reserved for a later discriminator.
+                // Preserve today's behavior by falling through to the update path.
+                (RefreshPolicy::ReplaceOnExcludedOverlap, Some(_)) => {
+                    let mut queue = EventQueue::new();
+                    queue.push(BattleEvent::BuffRemove {
+                        target: spec.target,
+                        buff_uid: existing_uid,
+                    });
+                    let mut local_fight = Fight::default();
+                    let mut local_bloodtithe = BloodtitheState::new();
+                    let mut event_ctx = EventContext {
+                        fight: &mut local_fight,
+                        buff_mgr: &mut managers.buff_mgr,
+                        ex_point_mgr: &mut managers.ex_point_mgr,
+                        bloodtithe: &mut local_bloodtithe,
+                    };
+                    effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+
+                    let add_layer = if count > 0 {
+                        count
+                    } else if cfg_effect_count > 0 {
+                        cfg_effect_count
+                    } else if is_layer_stackable {
+                        1
+                    } else {
+                        0
+                    };
+                    let use_slave_uid = with_buff_ctx(fight, managers, |buff_ctx| {
+                        uses_slave_uid(
+                            spec.buff_id,
+                            &include_types,
+                            count,
+                            buff_ctx.store,
+                            spec.target,
+                        )
+                    });
+                    let buff_add_effect = if use_slave_uid {
+                        buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
+                    } else if has_features {
+                        buff_add_with_count(
+                            spec.target,
+                            spec.caster_uid,
+                            spec.buff_id,
+                            add_layer,
+                            cfg_effect_count,
+                        )
+                    } else {
+                        buff_add_with_count(
+                            spec.target,
+                            spec.caster_uid,
+                            spec.buff_id,
+                            add_layer,
+                            if is_no_show { 0 } else { cfg_effect_count },
+                        )
+                    };
+                    let buff_uid = buff_add_effect
+                        .buff
+                        .as_ref()
+                        .and_then(|b| b.uid)
+                        .unwrap_or(0);
+                    let effect_buff = buff_add_effect.buff.as_ref();
+                    let initial_stacks = effect_buff.and_then(|b| b.count).unwrap_or(0);
+                    let initial_layer = effect_buff.and_then(|b| b.layer).unwrap_or(0);
+                    effects.push(buff_add_effect);
+                    effects.extend(apply_buff_effects(
+                        executor,
+                        fight,
+                        managers,
+                        mechanics,
+                        spec.caster_uid,
+                        spec.target,
+                        spec.buff_id,
+                        spec.has_bloodpool,
+                    ));
+                    let mut queue = EventQueue::new();
+                    queue.push(BattleEvent::BuffSyncAddWithUid {
+                        target: spec.target,
+                        buff_id: spec.buff_id,
+                        from: spec.caster_uid,
+                        count: initial_stacks,
+                        layer: initial_layer,
+                        buff_uid,
+                    });
+                    let mut local_fight = Fight::default();
+                    let mut local_bloodtithe = BloodtitheState::new();
+                    let mut event_ctx = EventContext {
+                        fight: &mut local_fight,
+                        buff_mgr: &mut managers.buff_mgr,
+                        ex_point_mgr: &mut managers.ex_point_mgr,
+                        bloodtithe: &mut local_bloodtithe,
+                    };
+                    effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+                    return effects;
+                }
+                (RefreshPolicy::UpdateInPlace, _)
+                | (RefreshPolicy::ReplaceOnExcludedOverlap, None)
+                | (RefreshPolicy::ReplaceOnSelfRefresh, _) => {
+                    let new_count = if count == 0 && has_include_type_2 {
+                        // includeType=2 buffs (e.g. 30631) should accumulate on re-apply
+                        // even though they don't use stack layer visuals.
+                        existing_stacks + add_count
+                    } else if is_stackable_buff {
+                        existing_stacks + add_count
+                    } else {
+                        add_count
+                    };
+
+                    if is_layer_stackable || is_poison_family {
+                        let existing_layer = with_buff_ctx(fight, managers, |buff_ctx| {
+                            buff_ctx
+                                .buffs(spec.target)
+                                .iter()
+                                .find(|b| b.buff_id == spec.buff_id)
+                                .map(|b| b.layer)
+                                .unwrap_or(0)
+                        });
+                        let add_layer = if count > 0 {
+                            count
+                        } else if cfg_effect_count > 0 {
+                            cfg_effect_count
+                        } else {
+                            1
+                        };
+                        let base_layer = if existing_layer > 0 {
+                            existing_layer
+                        } else {
+                            1
+                        };
+                        let new_layer = base_layer + add_layer;
+                        let update_count = if existing_stacks > 0 {
+                            existing_stacks
+                        } else {
+                            cfg_effect_count.max(0)
+                        };
+                        let mut queue = EventQueue::new();
+                        if is_no_show {
+                            queue.push(BattleEvent::BuffUpdate {
+                                target: spec.target,
+                                buff_uid: existing_uid,
+                                new_count: update_count,
+                                new_layer,
+                            });
+                        } else if new_layer > existing_layer.max(1) {
+                            for layer in (existing_layer.max(1) + 1)..=new_layer {
+                                queue.push(BattleEvent::BuffUpdate {
+                                    target: spec.target,
+                                    buff_uid: existing_uid,
+                                    new_count: update_count,
+                                    new_layer: layer,
+                                });
+                            }
+                        } else {
+                            queue.push(BattleEvent::BuffUpdate {
+                                target: spec.target,
+                                buff_uid: existing_uid,
+                                new_count: update_count,
+                                new_layer,
+                            });
+                        }
+                        let mut local_fight = Fight::default();
+                        let mut local_bloodtithe = BloodtitheState::new();
+                        let mut event_ctx = EventContext {
+                            fight: &mut local_fight,
+                            buff_mgr: &mut managers.buff_mgr,
+                            ex_point_mgr: &mut managers.ex_point_mgr,
+                            bloodtithe: &mut local_bloodtithe,
+                        };
+                        effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+                    } else {
+                        // Live-style update progression:
+                        // when stacks increase on an existing buff, emit intermediate BUFFUPDATE
+                        // frames (e.g. 1 -> 5 emits 2,3,4,5) instead of a single jump.
+                        if new_count > existing_stacks {
+                            for stack in (existing_stacks + 1)..=new_count {
+                                effects.push(buff_update(
+                                    spec.target,
+                                    spec.caster_uid,
+                                    spec.buff_id,
+                                    existing_uid,
+                                    stack,
+                                    0,
+                                ));
+                            }
+                        } else {
+                            effects.push(buff_update(
+                                spec.target,
+                                spec.caster_uid,
+                                spec.buff_id,
+                                existing_uid,
+                                new_count,
+                                0,
+                            ));
+                        }
+                        with_buff_ctx(fight, managers, |buff_ctx| {
+                            buff_ctx.add_with_uid(
+                                spec.target,
+                                spec.buff_id,
+                                spec.caster_uid,
+                                new_count,
+                                0,
+                                existing_uid,
+                            );
+                        });
+                    }
+
+                    if rerun_post_add_features {
+                        effects.extend(apply_buff_effects(
+                            executor,
+                            fight,
+                            managers,
+                            mechanics,
+                            spec.caster_uid,
+                            spec.target,
+                            spec.buff_id,
+                            spec.has_bloodpool,
+                        ));
+                    }
+                }
+            }
+        }
+        (None, _) => {
+            let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
+            let is_stackable_type = cfg
                 .skill_bufftype
                 .iter()
                 .find(|t| t.id == cfg_type_id)
                 .map(|t| is_stackable(&t.include_types))
                 .unwrap_or(false);
-
-        // IncludeType=10 families re-apply as replacement in live:
-        // BUFFDEL + BUFFADD (+ apply-buff side effects like ATTR).
-        if has_include_type_10 && has_exclude_types && has_excluded_active {
-            let old = with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx
-                    .buffs(spec.target)
-                    .iter()
-                    .find(|b| b.uid == existing_uid)
-                    .cloned()
-            });
-            if let Some(old) = old {
-                let mut queue = EventQueue::new();
-                queue.push(BattleEvent::BuffRemove {
-                    target: spec.target,
-                    buff_uid: old.uid,
-                });
-                let mut local_fight = Fight::default();
-                let mut local_bloodtithe = BloodtitheState::new();
-                let mut event_ctx = EventContext {
-                    fight: &mut local_fight,
-                    buff_mgr: &mut managers.buff_mgr,
-                    ex_point_mgr: &mut managers.ex_point_mgr,
-                    bloodtithe: &mut local_bloodtithe,
-                };
-                effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
-            }
+            // Layer should reflect visual stack state only for stackable buff types.
+            // Non-stackable buffs should keep layer=0 even if behavior count > 0.
             let add_layer = if count > 0 {
                 count
-            } else if cfg_effect_count > 0 {
-                cfg_effect_count
-            } else if is_layer_stackable {
+            } else if effect_count > 0 {
+                effect_count
+            } else if is_stackable_type {
                 1
             } else {
                 0
             };
+
+            let include_types_for_uid = cfg
+                .skill_bufftype
+                .iter()
+                .find(|t| t.id == cfg_type_id)
+                .map(|t| t.include_types.clone())
+                .unwrap_or_default();
             let use_slave_uid = with_buff_ctx(fight, managers, |buff_ctx| {
                 uses_slave_uid(
                     spec.buff_id,
-                    &include_types,
+                    &include_types_for_uid,
                     count,
                     buff_ctx.store,
                     spec.target,
                 )
             });
+
             let buff_add_effect = if use_slave_uid {
                 buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
             } else if has_features {
@@ -418,7 +637,7 @@ pub fn apply(
                     spec.caster_uid,
                     spec.buff_id,
                     add_layer,
-                    cfg_effect_count,
+                    effect_count,
                 )
             } else {
                 buff_add_with_count(
@@ -426,9 +645,10 @@ pub fn apply(
                     spec.caster_uid,
                     spec.buff_id,
                     add_layer,
-                    if is_no_show { 0 } else { cfg_effect_count },
+                    if is_no_show { 0 } else { effect_count },
                 )
             };
+
             let buff_uid = buff_add_effect
                 .buff
                 .as_ref()
@@ -438,6 +658,7 @@ pub fn apply(
             let initial_stacks = effect_buff.and_then(|b| b.count).unwrap_or(0);
             let initial_layer = effect_buff.and_then(|b| b.layer).unwrap_or(0);
             effects.push(buff_add_effect);
+
             effects.extend(apply_buff_effects(
                 executor,
                 fight,
@@ -448,265 +669,47 @@ pub fn apply(
                 spec.buff_id,
                 spec.has_bloodpool,
             ));
-            let mut queue = EventQueue::new();
-            queue.push(BattleEvent::BuffSyncAddWithUid {
-                target: spec.target,
-                buff_id: spec.buff_id,
-                from: spec.caster_uid,
-                count: initial_stacks,
-                layer: initial_layer,
-                buff_uid,
-            });
-            let mut local_fight = Fight::default();
-            let mut local_bloodtithe = BloodtitheState::new();
-            let mut event_ctx = EventContext {
-                fight: &mut local_fight,
-                buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
-                bloodtithe: &mut local_bloodtithe,
-            };
-            effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
-            return effects;
-        }
 
-        // IncludeType=10 families (non-stack accumulators) re-apply as replace:
-        // BUFFDEL + BUFFADD (+ feature effects), matching live semantics.
-        let new_count = if count == 0 && has_include_type_2 {
-            // includeType=2 buffs (e.g. 30631) should accumulate on re-apply
-            // even though they don't use stack layer visuals.
-            existing_stacks + add_count
-        } else if is_stackable_buff {
-            existing_stacks + add_count
-        } else {
-            add_count
-        };
-
-        if is_layer_stackable || is_poison_family {
-            let existing_layer = with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx
-                    .buffs(spec.target)
-                    .iter()
-                    .find(|b| b.buff_id == spec.buff_id)
-                    .map(|b| b.layer)
-                    .unwrap_or(0)
-            });
-            let add_layer = if count > 0 {
-                count
-            } else if cfg_effect_count > 0 {
-                cfg_effect_count
-            } else {
-                1
-            };
-            let base_layer = if existing_layer > 0 {
-                existing_layer
-            } else {
-                1
-            };
-            let new_layer = base_layer + add_layer;
-            let update_count = if existing_stacks > 0 {
-                existing_stacks
-            } else {
-                cfg_effect_count.max(0)
-            };
             let mut queue = EventQueue::new();
-            if is_no_show {
-                queue.push(BattleEvent::BuffUpdate {
-                    target: spec.target,
-                    buff_uid: existing_uid,
-                    new_count: update_count,
-                    new_layer,
-                });
-            } else if new_layer > existing_layer.max(1) {
-                for layer in (existing_layer.max(1) + 1)..=new_layer {
-                    queue.push(BattleEvent::BuffUpdate {
-                        target: spec.target,
-                        buff_uid: existing_uid,
-                        new_count: update_count,
-                        new_layer: layer,
-                    });
-                }
-            } else {
-                queue.push(BattleEvent::BuffUpdate {
-                    target: spec.target,
-                    buff_uid: existing_uid,
-                    new_count: update_count,
-                    new_layer,
-                });
-            }
-            let mut local_fight = Fight::default();
-            let mut local_bloodtithe = BloodtitheState::new();
-            let mut event_ctx = EventContext {
-                fight: &mut local_fight,
-                buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
-                bloodtithe: &mut local_bloodtithe,
-            };
-            effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
-        } else {
-            // Live-style update progression:
-            // when stacks increase on an existing buff, emit intermediate BUFFUPDATE
-            // frames (e.g. 1 -> 5 emits 2,3,4,5) instead of a single jump.
-            if new_count > existing_stacks {
-                for stack in (existing_stacks + 1)..=new_count {
+            if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
+                for stack in (initial_stacks + 1)..=count {
                     effects.push(buff_update(
                         spec.target,
                         spec.caster_uid,
                         spec.buff_id,
-                        existing_uid,
+                        buff_uid,
                         stack,
-                        0,
+                        initial_layer,
                     ));
                 }
-            } else {
-                effects.push(buff_update(
-                    spec.target,
-                    spec.caster_uid,
-                    spec.buff_id,
-                    existing_uid,
-                    new_count,
-                    0,
-                ));
-            }
-            with_buff_ctx(fight, managers, |buff_ctx| {
-                buff_ctx.add_with_uid(
-                    spec.target,
-                    spec.buff_id,
-                    spec.caster_uid,
-                    new_count,
-                    0,
-                    existing_uid,
-                );
-            });
-        }
-
-        if rerun_post_add_features {
-            effects.extend(apply_buff_effects(
-                executor,
-                fight,
-                managers,
-                mechanics,
-                spec.caster_uid,
-                spec.target,
-                spec.buff_id,
-                spec.has_bloodpool,
-            ));
-        }
-    } else {
-        let cfg_type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
-        let is_stackable_type = cfg
-            .skill_bufftype
-            .iter()
-            .find(|t| t.id == cfg_type_id)
-            .map(|t| is_stackable(&t.include_types))
-            .unwrap_or(false);
-        // Layer should reflect visual stack state only for stackable buff types.
-        // Non-stackable buffs should keep layer=0 even if behavior count > 0.
-        let add_layer = if count > 0 {
-            count
-        } else if effect_count > 0 {
-            effect_count
-        } else if is_stackable_type {
-            1
-        } else {
-            0
-        };
-
-        let include_types_for_uid = cfg
-            .skill_bufftype
-            .iter()
-            .find(|t| t.id == cfg_type_id)
-            .map(|t| t.include_types.clone())
-            .unwrap_or_default();
-        let use_slave_uid = with_buff_ctx(fight, managers, |buff_ctx| {
-            uses_slave_uid(
-                spec.buff_id,
-                &include_types_for_uid,
-                count,
-                buff_ctx.store,
-                spec.target,
-            )
-        });
-
-        let buff_add_effect = if use_slave_uid {
-            buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
-        } else if has_features {
-            buff_add_with_count(
-                spec.target,
-                spec.caster_uid,
-                spec.buff_id,
-                add_layer,
-                effect_count,
-            )
-        } else {
-            buff_add_with_count(
-                spec.target,
-                spec.caster_uid,
-                spec.buff_id,
-                add_layer,
-                if is_no_show { 0 } else { effect_count },
-            )
-        };
-
-        let buff_uid = buff_add_effect
-            .buff
-            .as_ref()
-            .and_then(|b| b.uid)
-            .unwrap_or(0);
-        let effect_buff = buff_add_effect.buff.as_ref();
-        let initial_stacks = effect_buff.and_then(|b| b.count).unwrap_or(0);
-        let initial_layer = effect_buff.and_then(|b| b.layer).unwrap_or(0);
-        effects.push(buff_add_effect);
-
-        effects.extend(apply_buff_effects(
-            executor,
-            fight,
-            managers,
-            mechanics,
-            spec.caster_uid,
-            spec.target,
-            spec.buff_id,
-            spec.has_bloodpool,
-        ));
-
-        let mut queue = EventQueue::new();
-        if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
-            for stack in (initial_stacks + 1)..=count {
-                effects.push(buff_update(
-                    spec.target,
-                    spec.caster_uid,
-                    spec.buff_id,
+                queue.push(BattleEvent::BuffSyncAddWithUid {
+                    target: spec.target,
+                    buff_id: spec.buff_id,
+                    from: spec.caster_uid,
+                    count,
+                    layer: initial_layer,
                     buff_uid,
-                    stack,
-                    initial_layer,
-                ));
-            }
-            queue.push(BattleEvent::BuffSyncAddWithUid {
-                target: spec.target,
-                buff_id: spec.buff_id,
-                from: spec.caster_uid,
-                count,
-                layer: initial_layer,
-                buff_uid,
-            });
-        } else {
-            queue.push(BattleEvent::BuffSyncAddWithUid {
-                target: spec.target,
-                buff_id: spec.buff_id,
-                from: spec.caster_uid,
-                count: initial_stacks,
-                layer: initial_layer,
-                buff_uid,
-            });
-        };
-        let mut local_fight = Fight::default();
-        let mut local_bloodtithe = BloodtitheState::new();
-        let mut event_ctx = EventContext {
-            fight: &mut local_fight,
-            buff_mgr: &mut managers.buff_mgr,
-            ex_point_mgr: &mut managers.ex_point_mgr,
-            bloodtithe: &mut local_bloodtithe,
-        };
-        effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+                });
+            } else {
+                queue.push(BattleEvent::BuffSyncAddWithUid {
+                    target: spec.target,
+                    buff_id: spec.buff_id,
+                    from: spec.caster_uid,
+                    count: initial_stacks,
+                    layer: initial_layer,
+                    buff_uid,
+                });
+            };
+            let mut local_fight = Fight::default();
+            let mut local_bloodtithe = BloodtitheState::new();
+            let mut event_ctx = EventContext {
+                fight: &mut local_fight,
+                buff_mgr: &mut managers.buff_mgr,
+                ex_point_mgr: &mut managers.ex_point_mgr,
+                bloodtithe: &mut local_bloodtithe,
+            };
+            effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
+        }
     }
 
     effects
