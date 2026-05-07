@@ -74,6 +74,8 @@
 //! fixture battle exercises these today, so this is defensive
 //! infrastructure for the eventual round-end gate.
 
+use crate::state::battle::skill::cache::resolve_skill_effect_id;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConditionScope {
     /// Fires whenever the skill is evaluated. Default for unmapped
@@ -122,6 +124,54 @@ pub fn is_round_start_only(condition_id: i32) -> bool {
 /// classification.
 pub fn is_round_end_only(condition_id: i32) -> bool {
     matches!(condition_scope(condition_id), ConditionScope::RoundEnd)
+}
+
+/// Extract the leading numeric id from a raw condition string like
+/// `"100"` or `"203&201"`.
+pub(crate) fn first_condition_id(raw: &str) -> Option<i32> {
+    let s = raw.trim_start_matches('!').trim_start_matches('！');
+    let head_end = s
+        .find(|c: char| c == '#' || c == '&' || c == '|' || c == '!' || c == '！')
+        .unwrap_or(s.len());
+    s[..head_end].trim().parse::<i32>().ok()
+}
+
+/// True when the resolved skill effect is a single-slot pure `c100`
+/// passive: `condition1` is exactly raw `100`, and all later
+/// condition slots are empty.
+pub(crate) fn is_single_slot_pure_c100_passive(skill_id: i32) -> bool {
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let Some(skill) = config::configs::get().skill_effect.get(effect_id) else {
+        return false;
+    };
+
+    if first_condition_id(&skill.condition1) != Some(100) || skill.condition1.trim() != "100" {
+        return false;
+    }
+
+    [
+        skill.condition2.as_str(),
+        skill.condition3.as_str(),
+        skill.condition4.as_str(),
+        skill.condition5.as_str(),
+        skill.condition6.as_str(),
+        skill.condition7.as_str(),
+        skill.condition8.as_str(),
+        skill.condition9.as_str(),
+        skill.condition10.as_str(),
+        skill.condition11.as_str(),
+        skill.condition12.as_str(),
+        skill.condition13.as_str(),
+        skill.condition14.as_str(),
+        skill.condition15.as_str(),
+        skill.condition16.as_str(),
+        skill.condition17.as_str(),
+        skill.condition18.as_str(),
+        skill.condition19.as_str(),
+        skill.condition20.as_str(),
+    ]
+    .into_iter()
+    .all(|raw| raw.trim().is_empty())
 }
 
 #[cfg(test)]

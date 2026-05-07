@@ -548,6 +548,23 @@ impl FightRoundMgr {
         );
         let ctx = &mut *round_ctx.fight_ctx;
 
+        self.apply_filtered_passive_phase(
+            ctx,
+            &open.collected,
+            PassivePhaseConfig {
+                scope: PhaseScope::Attackers,
+                depth: PhaseDepth::FirstMatch,
+                skill_set: PhaseSkillSet::ExcludeBattleRule,
+                step_shape: PhaseStepShape::Raw,
+            },
+            true,
+            &mut open.steps,
+            |is_attacker_uid, skill_id| {
+                is_attacker_uid
+                    && crate::state::battle::skill::condition::scope::is_single_slot_pure_c100_passive(skill_id)
+            },
+        )?;
+
         phase::player_actions::run(
             self,
             rng,
@@ -789,7 +806,22 @@ impl FightRoundMgr {
         sync_snapshot: bool,
         steps: &mut Vec<FightStep>,
     ) -> Result<()> {
-        for step in self.run_passive_phase(ctx, collected, config) {
+        self.apply_filtered_passive_phase(ctx, collected, config, sync_snapshot, steps, |_, _| true)
+    }
+
+    pub(crate) fn apply_filtered_passive_phase<F>(
+        &self,
+        ctx: &mut FightContext<'_>,
+        collected: &CollectedPassives,
+        config: PassivePhaseConfig,
+        sync_snapshot: bool,
+        steps: &mut Vec<FightStep>,
+        skill_filter: F,
+    ) -> Result<()>
+    where
+        F: FnMut(bool, i32) -> bool,
+    {
+        for step in self.run_filtered_passive_phase(ctx, collected, config, skill_filter) {
             self.apply_step_and_maybe_sync(ctx, &step, sync_snapshot)?;
             steps.push(step);
         }
@@ -895,12 +927,16 @@ impl FightRoundMgr {
         out
     }
 
-    fn run_passive_phase(
+    fn run_filtered_passive_phase<F>(
         &self,
         ctx: &mut FightContext<'_>,
         collected: &CollectedPassives,
         config: PassivePhaseConfig,
-    ) -> Vec<FightStep> {
+        mut skill_filter: F,
+    ) -> Vec<FightStep>
+    where
+        F: FnMut(bool, i32) -> bool,
+    {
         let scope_uids = match &config.scope {
             PhaseScope::Attackers => collected.attacker_uids(),
             PhaseScope::Defenders => collected.defender_uids(),
@@ -931,6 +967,9 @@ impl FightRoundMgr {
                         }
                     }
                     for skill_id in skill_ids {
+                        if !skill_filter(is_attacker_uid, skill_id) {
+                            continue;
+                        }
                         if matches!(config.skill_set, PhaseSkillSet::CombatReactive)
                             && skill_id != 30630171
                             && !has_combat_reactive_condition(

@@ -75,7 +75,7 @@ pub(crate) async fn run(
             })
             .build(),
     );
-    mgr.apply_passive_phase(
+    mgr.apply_filtered_passive_phase(
         ctx,
         collected,
         PassivePhaseConfig {
@@ -86,6 +86,12 @@ pub(crate) async fn run(
         },
         true,
         steps,
+        |is_attacker_uid, skill_id| {
+            !is_attacker_uid
+                || !crate::state::battle::skill::condition::scope::is_single_slot_pure_c100_passive(
+                    skill_id,
+                )
+        },
     )?;
     steps.extend(build_pre_enemy_transition_steps(deck_num));
     let defender_bootstrap_start = steps.len();
