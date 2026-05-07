@@ -377,6 +377,8 @@ fn run_post_change_round_tail(
     deck_num: i32,
     injected_channel_buffs: bool,
 ) -> Result<()> {
+    let tail_start = steps.len();
+
     // Battle2 bloodtithe parity: live re-runs the same blood-pool pipeline
     // here that battle start uses before the next-round attacker sweep.
     for step in bloodtithe::build_round_transition_bloodtithe_steps(mgr, ctx, collected) {
@@ -454,7 +456,16 @@ fn run_post_change_round_tail(
         steps.push(step);
     }
 
-    if let Some(step) = build_round_end_takestage_103_lifecycle_step(ctx) {
+    // LIVE only emits the takeStage=103 lifecycle batch as a flat
+    // top-level step when the post-212 tail already has a hero-owned
+    // anchor wrapper. Battle2 instead folds those lifecycle entries
+    // into the compound CardDeck delivery step, so preserving the
+    // pre-4.31 baseline means suppressing the flat batch unless the
+    // assembled tail already carries either Pickles' round-end wrapper
+    // or an AdvancedCure wrapper.
+    if tail_has_round_end_lifecycle_anchor(&steps[tail_start..])
+        && let Some(step) = build_round_end_takestage_103_lifecycle_step(ctx)
+    {
         steps.push(step);
     }
 
@@ -530,6 +541,58 @@ fn build_round_end_takestage_103_lifecycle_step(ctx: &FightContext<'_>) -> Optio
     } else {
         Some(build_effect_step(effects))
     }
+}
+
+const PICKLES_ROUND_END_SKILL_IDS: [i32; 2] = [30630151, 30630171];
+const ADVANCED_CURE_BUFF_ACT_ID: i32 = 849;
+
+fn tail_has_round_end_lifecycle_anchor(tail_steps: &[FightStep]) -> bool {
+    tail_steps
+        .iter()
+        .any(|step| step_contains_pickles_round_end_anchor(step) || step_contains_advanced_cure_anchor(step))
+}
+
+fn step_contains_pickles_round_end_anchor(step: &FightStep) -> bool {
+    PICKLES_ROUND_END_SKILL_IDS
+        .iter()
+        .any(|act_id| step_walker::step_contains_act_id(step, *act_id))
+}
+
+fn step_contains_advanced_cure_anchor(step: &FightStep) -> bool {
+    step.act_effect
+        .iter()
+        .any(effect_contains_advanced_cure_anchor)
+}
+
+fn effect_contains_advanced_cure_anchor(effect: &ActEffect) -> bool {
+    if let Some(skill) = step_walker::wrapped_skill_from_effect(effect)
+        && (skill
+            .act_effect
+            .iter()
+            .any(|inner| inner.buff_act_id == Some(ADVANCED_CURE_BUFF_ACT_ID))
+            || wrapped_skill_matches_advanced_cure_step_shape(skill))
+    {
+        return true;
+    }
+
+    effect
+        .fight_step
+        .as_ref()
+        .map(step_contains_advanced_cure_anchor)
+        .unwrap_or(false)
+}
+
+fn wrapped_skill_matches_advanced_cure_step_shape(skill: &FightStep) -> bool {
+    if skill.act_effect.len() != 2 {
+        return false;
+    }
+    let marker = &skill.act_effect[0];
+    let heal = &skill.act_effect[1];
+    marker.effect_type == Some(EffectType::None as i32)
+        && heal.effect_type == Some(EffectType::Heal as i32)
+        && marker.effect_num == skill.act_id
+        && marker.target_id == skill.to_id
+        && heal.target_id == skill.to_id
 }
 
 fn suppress_terminal_shadow_friend_packets(steps: &mut Vec<FightStep>, start_idx: usize) {
