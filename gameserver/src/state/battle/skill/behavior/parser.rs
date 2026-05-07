@@ -161,9 +161,13 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         .unwrap_or("");
 
     match behavior_type {
-        "Damage" | "Damage2" | "Detonate" | "Detonate2" | "OriginDamage" | "OriginDamage2" => {
+        "Damage" | "Damage2" | "Detonate" | "OriginDamage" | "OriginDamage2" => {
             BehaviorType::Damage { rate: p1 }
         }
+        "Detonate2" => BehaviorType::Detonate2 {
+            rate: p1,
+            granted_buff_id: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
         // Kakania's Empathy Genesis bonus family. Both Subconscious's
         // basic (`60038#multiplier`) and the Insight III heal-trigger
         // reactive (skill 30800161/2/3 with `60052#multiplier`) share

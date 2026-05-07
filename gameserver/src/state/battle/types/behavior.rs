@@ -4,6 +4,10 @@ pub enum BehaviorType {
     Damage {
         rate: i32,
     },
+    Detonate2 {
+        rate: i32,
+        granted_buff_id: i32,
+    },
     Heal {
         rate: i32,
     },
