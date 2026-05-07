@@ -161,6 +161,8 @@ pub fn repair_round_end_hedonism_emission(
                     == Some(CLARIFIED_TOPIC_BUFF_ID)
             {
                 desired_self_update = Some(effect.clone());
+                step.act_effect.remove(effect_idx);
+                continue;
             }
             effect_idx += 1;
         }
