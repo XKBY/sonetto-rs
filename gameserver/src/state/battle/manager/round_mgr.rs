@@ -570,10 +570,17 @@ impl FightRoundMgr {
         // the round-start fight snapshot — fires only when an array
         // already existed at the boundary, so the round-of-creation
         // sees no settle but every subsequent round settles before
-        // any defender Purify can dispel the locked Poison.
-        open.steps.extend(
-            mechanics::dot_settle_round_start::build_round_start_dot_settle_steps(ctx),
-        );
+        // any defender Purify can dispel the locked Poison. Mirrors
+        // the round-end DOT apply path at
+        // `phase/non_terminal_round.rs:267-271` — apply each emitted
+        // step to BuffMgr/HP before pushing, so subsequent
+        // player_actions and enemy_actions read post-settle state
+        // (carrier may have died, Poison stacks consumed, etc.).
+        for step in mechanics::dot_settle_round_start::build_round_start_dot_settle_steps(ctx)
+        {
+            self.apply_step_and_maybe_sync(ctx, &step, true)?;
+            open.steps.push(step);
+        }
 
         phase::player_actions::run(
             self,
