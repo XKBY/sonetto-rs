@@ -65,6 +65,7 @@ impl BehaviorAction for Misc {
             | BehaviorType::ShellAssign { .. }
             | BehaviorType::BeAttackedAssassinate { .. }
             | BehaviorType::CrystalAddCard
+            | BehaviorType::HealCantCrit { .. }
             | BehaviorType::IgnoreSkillConfigDamageRate => Some(Ok(vec![])),
             BehaviorType::Unknown { raw } => {
                 tracing::warn!("Skipping unknown behavior: {}", raw);

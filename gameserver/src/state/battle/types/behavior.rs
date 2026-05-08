@@ -11,6 +11,19 @@ pub enum BehaviorType {
     Heal {
         rate: i32,
     },
+    /// `HealCantCrit` (skill_behavior ids 20012/20016/20018) — encodes
+    /// as `act_id#?#attr_id#permille`. The intended formula is
+    /// `caster.attr[attr_id] × permille / 1000`, sibling-emitted at
+    /// the parent step level (LIVE shape). For now this variant is a
+    /// no-op so the executor stops leaking a wrong-target `et=4 heal
+    /// num=1` inside its host wrapper (battle3 r2/r5/r7/r9 `430811`
+    /// over-fired this leak before this variant existed). The proper
+    /// sibling-emission path is a separate change — needs target-code
+    /// `107` (lowest-HP ally) routing and a parent-level emitter.
+    HealCantCrit {
+        attr_id: i32,
+        permille: i32,
+    },
     HealByTwoAttr {
         missing_percent: i32,
         caster_hp_percent: i32,

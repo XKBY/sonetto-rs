@@ -182,7 +182,17 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         "OriginDamageFromInjuryBankBuff" => BehaviorType::OriginDamageFromInjuryBank {
             multiplier_permille: p1,
         },
-        "Heal" | "HealCantCrit" => BehaviorType::Heal { rate: p1 },
+        "Heal" => BehaviorType::Heal { rate: p1 },
+        // `HealCantCrit` (ids 20012 / 20016 / 20018) encodes as
+        // `act_id#?#attr_id#permille` and is sibling-emitted at the
+        // parent step in LIVE — see the variant doc on
+        // `BehaviorType::HealCantCrit`. Routed to a no-op here so the
+        // host-wrapper executor stops emitting a wrong-target `et=4
+        // num=1` leak; correct sibling-emission lives in future work.
+        "HealCantCrit" => BehaviorType::HealCantCrit {
+            attr_id: p2,
+            permille: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
+        },
         "HealByTwoAttr" => BehaviorType::HealByTwoAttr {
             missing_percent: parts.get(3).and_then(|v| v.parse().ok()).unwrap_or(0),
             caster_hp_percent: parts.get(6).and_then(|v| v.parse().ok()).unwrap_or(0),
