@@ -44,6 +44,9 @@ const BOSS_STATE_ACTIVE_BUFF_ID: i32 = 530000111;
 const BOSS_STATE_INACTIVE_BUFF_ID: i32 = 530000112;
 const ROUND_END_STATE_MARKER_SKILL_ID: i32 = 4150001;
 const SMALL_ROUND_END_EFFECT_TYPE: i32 = 211;
+const CHANGE_ROUND_BUNDLE_MARKER: i32 = 212;
+const SOTHEBY_LATE_GRANT_SKILL_ID: i32 = 30090146;
+const WILLOW_LATE_FRAGMENT_SKILL_ID: i32 = 31040141;
 
 #[derive(Clone)]
 struct BossStateSnapshot {
@@ -319,6 +322,130 @@ pub(crate) fn merge_post_turn_reactives_into_host(steps: &mut Vec<FightStep>) {
     }
 }
 
+/// LIVE keeps Sotheby's `30090146` and Willow's standalone
+/// `31040141` late-tail passive overflow under one post-`212`
+/// compound wrapper instead of surfacing them as separate top-level
+/// steps after the round-end `276` marker. Re-host the surviving raw
+/// wrappers after the full round has been assembled so the fix stays
+/// phase-local and does not disturb runtime passive execution order.
+pub(crate) fn coalesce_late_tail_exclude_battle_rule_passives(steps: &mut Vec<FightStep>) -> bool {
+    let Some(round_end_idx) = steps
+        .iter()
+        .position(|step| step_walker::is_standalone_effect_marker(step, 276))
+    else {
+        return false;
+    };
+    let Some(post_212_idx) = steps[round_end_idx + 1..]
+        .iter()
+        .position(|step| step_walker::is_standalone_effect_marker(step, CHANGE_ROUND_BUNDLE_MARKER))
+        .map(|off| round_end_idx + 1 + off)
+    else {
+        return false;
+    };
+
+    let mut sotheby_wrappers: Vec<ActEffect> = Vec::new();
+    let mut willow_sources: Vec<(usize, ActEffect, Vec<ActEffect>)> = Vec::new();
+    let mut remove_idxs: Vec<usize> = Vec::new();
+
+    let target_idx = steps[post_212_idx + 1..]
+        .iter()
+        .position(|step| standalone_overflow_skill_id(step) == Some(WILLOW_LATE_FRAGMENT_SKILL_ID))
+        .map(|off| post_212_idx + 1 + off);
+
+    for (idx, step) in steps.iter().enumerate().skip(round_end_idx + 1) {
+        let Some(skill_id) = standalone_overflow_skill_id(step) else {
+            continue;
+        };
+        if target_idx == Some(idx) {
+            continue;
+        }
+        match skill_id {
+            SOTHEBY_LATE_GRANT_SKILL_ID => {
+                if let Some(wrapper) = step.act_effect.first().cloned() {
+                    sotheby_wrappers.push(wrapper);
+                    remove_idxs.push(idx);
+                }
+            }
+            WILLOW_LATE_FRAGMENT_SKILL_ID => {
+                let Some(wrapper) = step.act_effect.first().cloned() else {
+                    continue;
+                };
+                let payload = step
+                    .act_effect
+                    .first()
+                    .and_then(step_walker::wrapped_skill_from_effect)
+                    .map(|skill| skill.act_effect.clone())
+                    .unwrap_or_default();
+                willow_sources.push((idx, wrapper, payload));
+                remove_idxs.push(idx);
+            }
+            _ => {}
+        }
+    }
+
+    if sotheby_wrappers.is_empty() && willow_sources.is_empty() {
+        return false;
+    }
+
+    let target_idx = match target_idx {
+        Some(idx) => idx,
+        None => {
+            let Some((_, base_wrapper, _)) = willow_sources.pop() else {
+                return false;
+            };
+            let insert_idx = steps[post_212_idx + 1..]
+                .iter()
+                .position(|step| {
+                    step_walker::is_standalone_effect_marker(step, 310)
+                        || step_walker::step_contains_act_id(step, 30091111)
+                        || step_walker::step_contains_act_id(step, 30091122)
+                        || step_walker::step_contains_act_id(step, 30091123)
+                })
+                .map(|off| post_212_idx + 1 + off)
+                .unwrap_or(steps.len());
+            steps.insert(insert_idx, build_effect_step(vec![base_wrapper]));
+            insert_idx
+        }
+    };
+
+    let Some(target_step) = steps.get_mut(target_idx) else {
+        return false;
+    };
+    let Some(willow_effect_idx) = target_step.act_effect.iter().position(|effect| {
+        step_walker::wrapped_skill_from_effect(effect).map(|skill| skill.act_id)
+            == Some(Some(WILLOW_LATE_FRAGMENT_SKILL_ID))
+    }) else {
+        return false;
+    };
+
+    if let Some(willow_skill) =
+        step_walker::wrapped_skill_from_effect_mut(&mut target_step.act_effect[willow_effect_idx])
+    {
+        for (_, _, payload) in willow_sources {
+            willow_skill.act_effect.extend(payload);
+        }
+    }
+
+    if !sotheby_wrappers.is_empty()
+        && !target_step.act_effect.iter().any(|effect| {
+            step_walker::wrapped_skill_from_effect(effect).map(|skill| skill.act_id)
+                == Some(Some(SOTHEBY_LATE_GRANT_SKILL_ID))
+        })
+    {
+        for wrapper in sotheby_wrappers.into_iter().rev() {
+            target_step.act_effect.insert(willow_effect_idx, wrapper);
+        }
+    }
+
+    remove_idxs.sort_unstable();
+    remove_idxs.dedup();
+    for source_idx in remove_idxs.into_iter().rev() {
+        steps.remove(source_idx);
+    }
+
+    true
+}
+
 /// LIVE battle1 r1 re-broadcasts the current boss-state snapshot
 /// immediately after the round-end `4150001` wrapper and before the
 /// `SmallRoundEnd(211)` marker. The packet is not a fresh generic
@@ -460,6 +587,14 @@ fn step_contains_boss_state_cycle_second_wave(step: &FightStep) -> bool {
         };
         uid < 0 && skill_matches_boss_state_cycle_second_wave(skill, uid)
     })
+}
+
+fn standalone_overflow_skill_id(step: &FightStep) -> Option<i32> {
+    (step.act_type == Some(fight_step::ActType::Effect as i32) && step.act_effect.len() == 1)
+        .then(|| step.act_effect.first())
+        .flatten()
+        .and_then(step_walker::wrapped_skill_from_effect)
+        .and_then(|skill| skill.act_id)
 }
 
 fn boss_state_snapshot_for_uid(

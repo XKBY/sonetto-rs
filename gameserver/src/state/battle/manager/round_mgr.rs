@@ -38,7 +38,9 @@ use super::super::{
     skill::{
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
-        condition::{misc::HriEvalGuard, parser::parse_condition, scope::skill_is_round_start_only},
+        condition::{
+            misc::HriEvalGuard, parser::parse_condition, scope::skill_is_round_start_only,
+        },
         euphoria::resolve_with_euphoria,
     },
     step_walker,
@@ -601,8 +603,7 @@ impl FightRoundMgr {
         // step to BuffMgr/HP before pushing, so subsequent
         // player_actions and enemy_actions read post-settle state
         // (carrier may have died, Poison stacks consumed, etc.).
-        for step in mechanics::dot_settle_round_start::build_round_start_dot_settle_steps(ctx)
-        {
+        for step in mechanics::dot_settle_round_start::build_round_start_dot_settle_steps(ctx) {
             self.apply_step_and_maybe_sync(ctx, &step, true)?;
             open.steps.push(step);
         }
@@ -636,6 +637,7 @@ impl FightRoundMgr {
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
         mechanics::nautika::strip_redundant_post_round_emissions(ctx.fight, &mut open.steps);
+        round_end_emission::coalesce_late_tail_exclude_battle_rule_passives(&mut open.steps);
         if round_end_emission::repair_boss_state_cycle_second_wave(self, ctx, &mut open.steps) {
             ctx.sync();
         }
