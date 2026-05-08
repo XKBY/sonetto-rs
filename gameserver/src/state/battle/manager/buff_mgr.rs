@@ -114,6 +114,10 @@ pub enum LifecycleEventKind {
 }
 
 impl BuffMgr {
+    fn uses_single_uid_layer_refresh(buff_id: i32) -> bool {
+        buff_id == 30091120
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -201,7 +205,16 @@ impl BuffMgr {
         instance.stacks = if count > 0 { count } else { instance.stacks };
         instance.layer = layer;
 
-        if Self::is_stacked_include_type(buff_id) {
+        if Self::uses_single_uid_layer_refresh(buff_id) {
+            if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
+                existing.duration = existing.duration.max(instance.duration);
+                existing.stacks = instance.stacks;
+                existing.layer = instance.layer;
+                existing.refresh_policy = instance.refresh_policy;
+            } else {
+                entry.push(instance);
+            }
+        } else if Self::is_stacked_include_type(buff_id) {
             entry.push(instance);
         } else if Self::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
@@ -549,7 +562,17 @@ impl BuffMgr {
             return;
         }
 
-        if Self::is_stacked_include_type(buff_id) {
+        if Self::uses_single_uid_layer_refresh(buff_id) {
+            if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
+                existing.from_uid = instance.from_uid;
+                existing.duration = existing.duration.max(instance.duration);
+                existing.stacks = instance.stacks;
+                existing.layer = instance.layer;
+                existing.refresh_policy = instance.refresh_policy;
+            } else {
+                entry.push(instance);
+            }
+        } else if Self::is_stacked_include_type(buff_id) {
             entry.push(instance);
         } else if Self::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
@@ -927,6 +950,23 @@ mod tests {
             reset_buff_uid();
             let instance = BuffInstance::build(30091111, 42);
             assert_eq!(instance.refresh_policy, RefreshPolicy::UpdateInPlace);
+        });
+    }
+
+    #[test]
+    fn duality_potion_regrants_refresh_one_runtime_holder() {
+        ensure_game_data_initialized();
+        with_buff_uid_test_lock(|| {
+            reset_buff_uid();
+            let mut mgr = super::BuffMgr::new();
+
+            mgr.add(30137385, 30091120, 30137385, 1, 1);
+            mgr.add(30137385, 30091120, 30137385, 1, 2);
+
+            let active = mgr.get(30137385);
+            assert_eq!(active.len(), 1);
+            assert_eq!(active[0].buff_id, 30091120);
+            assert_eq!(active[0].layer, 2);
         });
     }
 }
