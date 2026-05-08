@@ -6,7 +6,7 @@ use crate::state::battle::round_state::set_simulated_round;
 use anyhow::Result;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
-use sonettobuf::{BeginRoundOper, CardInfo, FightRound, FightStep};
+use sonettobuf::{BeginRoundOper, CardInfo, Fight, FightRound, FightStep};
 
 pub struct BattleSimulator {
     rng: StdRng,
@@ -58,6 +58,7 @@ impl BattleSimulator {
             ai_override_steps,
             None,
             None,
+            None,
         )
         .await
     }
@@ -70,6 +71,7 @@ impl BattleSimulator {
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
+        replay_wave_snapshots: Option<Vec<Fight>>,
     ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
@@ -88,6 +90,7 @@ impl BattleSimulator {
                 ai_override_steps,
                 replay_selected_cards,
                 replay_silent_ops,
+                replay_wave_snapshots.as_deref(),
             )
             .await?;
         Ok(round)

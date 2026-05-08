@@ -536,7 +536,20 @@ impl FightRoundMgr {
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
+        replay_wave_snapshots: Option<&[Fight]>,
     ) -> Result<FightRound> {
+        let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
+        let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
+        let replay_wave_snapshot_target_wave = replay_wave_snapshots
+            .iter()
+            .filter_map(|snapshot| snapshot.cur_wave)
+            .last();
+        let ctx = &mut *round_ctx.fight_ctx;
+        if replay_wave_snapshot_applied {
+            for snapshot in replay_wave_snapshots {
+                sync_new_change_wave_snapshot(ctx, snapshot);
+            }
+        }
         let mut open = phase::round_open::run(
             round_ctx,
             &current_deck,
@@ -546,7 +559,23 @@ impl FightRoundMgr {
             replay_selected_cards.as_deref(),
             replay_silent_ops.as_deref(),
         );
+        open.state.replay_wave_snapshot_applied = replay_wave_snapshot_applied;
+        open.state.replay_wave_snapshot_target_wave = replay_wave_snapshot_target_wave;
         let ctx = &mut *round_ctx.fight_ctx;
+        if replay_wave_snapshot_applied {
+            for snapshot in replay_wave_snapshots {
+                open.steps.push(
+                    FightStepBuilder::effect()
+                        .with(ActEffect {
+                            effect_type: Some(EffectType::NewChangeWave as i32),
+                            effect_num: Some(0),
+                            fight: Some(snapshot.clone()),
+                            ..Default::default()
+                        })
+                        .build(),
+                );
+            }
+        }
 
         // Pre-player attacker c100 passive sweep removed in Phase 6
         // Session 4.47: LIVE bundles round-start passives (pure-c100

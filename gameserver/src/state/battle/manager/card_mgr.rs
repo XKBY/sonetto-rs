@@ -408,7 +408,12 @@ impl FightCardMgr {
                 if let Some(target_wave) = WaveMgr::expected_wave_for_uid(caster_uid) {
                     let current_wave = preview_fight.cur_wave.unwrap_or(1);
                     let max_wave = WaveMgr::max_wave_for_fight(&preview_fight);
-                    if target_wave > current_wave && target_wave <= max_wave {
+                    let replay_snapshot_covers_wave = state.replay_wave_snapshot_applied
+                        && state.replay_wave_snapshot_target_wave.unwrap_or(0) >= target_wave;
+                    if !replay_snapshot_covers_wave
+                        && target_wave > current_wave
+                        && target_wave <= max_wave
+                    {
                         let mut wave_executor = SkillExecutor::new();
                         let mut wave_ctx = FightContext::new(
                             &mut preview_fight,

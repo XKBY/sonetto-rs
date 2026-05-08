@@ -60,7 +60,10 @@ pub(crate) async fn run(
         {
             let current_wave = ctx.fight.cur_wave.unwrap_or(1);
             let max_wave = WaveMgr::max_wave_for_fight(ctx.fight);
-            if target_wave > current_wave && target_wave <= max_wave {
+            let replay_snapshot_covers_wave = state.replay_wave_snapshot_applied
+                && state.replay_wave_snapshot_target_wave.unwrap_or(0) >= target_wave;
+            if !replay_snapshot_covers_wave && target_wave > current_wave && target_wave <= max_wave
+            {
                 let mut wave_mgr = std::mem::take(&mut ctx.managers.wave_mgr);
                 wave_mgr.fast_forward_state_to_wave(ctx, target_wave)?;
                 ctx.managers.wave_mgr = wave_mgr;

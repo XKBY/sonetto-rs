@@ -23,6 +23,8 @@ pub struct RoundState {
     /// LIVE's behavior for ops that consume cards via mechanics that don't emit
     /// top-level SKILL.
     pub replay_silent_ops: Option<Vec<bool>>,
+    pub replay_wave_snapshot_applied: bool,
+    pub replay_wave_snapshot_target_wave: Option<i32>,
 }
 
 impl RoundState {

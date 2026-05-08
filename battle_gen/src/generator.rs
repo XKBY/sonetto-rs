@@ -38,6 +38,7 @@ pub async fn generate_begin_round_sequence(
         Vec<FightStep>,
         Vec<CardInfo>,
         Vec<bool>,
+        Vec<Fight>,
     )>,
 ) -> Result<Vec<(String, Value)>> {
     let mut mgr = FightDataMgr::new(fight_input);
@@ -74,7 +75,17 @@ pub async fn generate_begin_round_sequence(
     let mut simulator = BattleSimulator::new(mgr);
 
     let mut out_rounds: Vec<(String, Value)> = Vec::new();
-    for (name, deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) in rounds {
+    for (
+        name,
+        deck,
+        ai_deck,
+        opers,
+        ai_steps,
+        replay_selected_cards,
+        replay_silent_ops,
+        replay_wave_snapshots,
+    ) in rounds
+    {
         let ai_override_steps = if should_replay_enemy_steps(&ai_deck, &ai_steps) {
             Some(ai_steps)
         } else {
@@ -88,6 +99,7 @@ pub async fn generate_begin_round_sequence(
                 ai_override_steps,
                 Some(replay_selected_cards),
                 Some(replay_silent_ops),
+                Some(replay_wave_snapshots),
             )
             .await
             .with_context(|| format!("failed simulating {}", name))?;

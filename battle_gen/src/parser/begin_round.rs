@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 use serde_json::Value;
 use sonettobuf::card_info::{CardStatus, CardType};
-use sonettobuf::{BeginRoundOper, CardInfo, FightStep, fight_step::ActType};
+use sonettobuf::{BeginRoundOper, CardInfo, Fight, FightStep, fight_step::ActType};
 
 fn read_json(path: &Path) -> Result<String> {
     fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))
@@ -80,6 +80,7 @@ pub fn extract_begin_round_inputs(
     Vec<FightStep>,
     Vec<CardInfo>,
     Vec<bool>,
+    Vec<Fight>,
 )> {
     let round = capture.get("round").unwrap_or(capture);
     let steps = round
@@ -87,6 +88,7 @@ pub fn extract_begin_round_inputs(
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let replay_wave_snapshots = extract_replay_wave_snapshots(&steps)?;
 
     let mut selected_cards_v = Value::Array(vec![]);
     let mut remaining_cards_v = Value::Array(vec![]);
@@ -257,7 +259,31 @@ pub fn extract_begin_round_inputs(
         enemy_steps,
         selected_cards,
         replay_silent_ops,
+        replay_wave_snapshots,
     ))
+}
+
+fn extract_replay_wave_snapshots(steps: &[Value]) -> Result<Vec<Fight>> {
+    let mut snapshots = Vec::new();
+    for step in steps {
+        let Some(effects) = step.get("actEffect").and_then(Value::as_array) else {
+            continue;
+        };
+        for effect in effects {
+            let effect_type = effect.get("effectType").and_then(Value::as_i64).unwrap_or(0);
+            if effect_type != 337 {
+                continue;
+            }
+            let Some(snapshot) = effect.get("fight").cloned() else {
+                continue;
+            };
+            snapshots.push(
+                serde_json::from_value(snapshot)
+                    .context("failed to parse effect 337 fight snapshot")?,
+            );
+        }
+    }
+    Ok(snapshots)
 }
 
 fn act_type_is_skill(step: &Value) -> bool {
@@ -396,4 +422,48 @@ fn rebuild_pre_pick_deck(
     }
 
     Some(deck)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_begin_round_inputs_collects_wave_snapshots_in_order() -> Result<()> {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        let captures = [
+            (
+                root.join("tests").join("battle3").join("begin_round_4.json"),
+                vec![3],
+            ),
+            (
+                root.join("tests").join("battle3").join("begin_round_5.json"),
+                vec![4],
+            ),
+        ];
+
+        for (path, expected_waves) in captures {
+            let raw = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            let capture: Value = serde_json::from_str(&raw)
+                .with_context(|| format!("failed to parse {}", path.display()))?;
+            let (_, _, _, _, _, _, replay_wave_snapshots) =
+                extract_begin_round_inputs(&capture, None)?;
+
+            let observed_waves: Vec<i32> = replay_wave_snapshots
+                .iter()
+                .map(|fight| fight.cur_wave.unwrap_or_default())
+                .collect();
+            assert_eq!(
+                observed_waves, expected_waves,
+                "unexpected replay wave snapshots for {}",
+                path.display()
+            );
+        }
+
+        Ok(())
+    }
 }

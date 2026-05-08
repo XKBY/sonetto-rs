@@ -164,7 +164,15 @@ fn generate_scenario_entries(
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
+        let (
+            deck,
+            ai_deck,
+            opers,
+            ai_steps,
+            replay_selected_cards,
+            replay_silent_ops,
+            replay_wave_snapshots,
+        ) =
             extract_begin_round_inputs(&v, request_v.as_ref())
                 .with_context(|| format!("failed extracting operations from {}", path.display()))?;
         rounds.push((
@@ -175,6 +183,7 @@ fn generate_scenario_entries(
             ai_steps,
             replay_selected_cards,
             replay_silent_ops,
+            replay_wave_snapshots,
         ));
     }
 
@@ -337,7 +346,15 @@ mod tests {
             if name != "begin_round_1.json" {
                 continue;
             }
-            let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
+            let (
+                deck,
+                ai_deck,
+                opers,
+                ai_steps,
+                replay_selected_cards,
+                replay_silent_ops,
+                replay_wave_snapshots,
+            ) =
                 extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
                     format!("failed extracting operations from {}", path.display())
                 })?;
@@ -349,6 +366,7 @@ mod tests {
                 ai_steps,
                 replay_selected_cards,
                 replay_silent_ops,
+                replay_wave_snapshots,
             ));
         }
         anyhow::ensure!(
@@ -447,7 +465,15 @@ mod tests {
             if name != "begin_round_1.json" && name != "begin_round_2.json" {
                 continue;
             }
-            let (deck, ai_deck, opers, ai_steps, replay_selected_cards, replay_silent_ops) =
+            let (
+                deck,
+                ai_deck,
+                opers,
+                ai_steps,
+                replay_selected_cards,
+                replay_silent_ops,
+                replay_wave_snapshots,
+            ) =
                 extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
                     format!("failed extracting operations from {}", path.display())
                 })?;
@@ -459,6 +485,7 @@ mod tests {
                 ai_steps,
                 replay_selected_cards,
                 replay_silent_ops,
+                replay_wave_snapshots,
             ));
         }
         anyhow::ensure!(
