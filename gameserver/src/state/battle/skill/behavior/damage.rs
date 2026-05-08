@@ -22,7 +22,8 @@ use crate::state::battle::skill::condition::buff::target_count_buffs_in_group;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::types::effects::EffectType;
-use crate::state::battle::utils::{apply_real_hurt_fix, buff_add, buff_del, effect_none};
+use crate::state::battle::utils::{apply_real_hurt_fix, buff_add, buff_del, buff_update, effect_none};
+use std::collections::HashMap;
 
 /// Damage action — the single struct routed to from
 /// `BehaviorType::Damage` in the dispatcher.
@@ -106,8 +107,8 @@ impl BehaviorAction for Damage {
 }
 
 const SOTHEBY_DETONATE2_SKILL_ID: i32 = 300901321;
-const DUALITY_POTION_BUFF_ID: i32 = 30091120;
-const CURE_TYPE_ID: i32 = 30091111;
+pub(crate) const DUALITY_POTION_BUFF_ID: i32 = 30091120;
+pub(crate) const CURE_TYPE_ID: i32 = 30091111;
 const POISON_INSTANCE_BUFF_ID: i32 = 300901412;
 const SOTHEBY_DETONATE2_RATE_NUMERATOR: i32 = 2;
 const SOTHEBY_DETONATE2_RATE_DENOMINATOR: i32 = 3;
@@ -222,8 +223,26 @@ pub(crate) fn build_sotheby_holder_consume_steps(
         return Vec::new();
     }
 
+    // Per `_30091120_design.md` §3 (verified directly from LIVE
+    // battle3 r5 fanout):
+    // - Poison: each consumed stack = fresh `BuffAdd 300901412` per
+    //   hostile target. LIVE uses Add for every stack with a fresh uid.
+    // - Cure: first consumed stack = `BuffAdd 30091111` per ally with
+    //   a fresh uid; subsequent stacks = `BuffUpdate(7)` on the SAME
+    //   uid with layer climbing 1→N. The Cure instance is shared
+    //   across stacks within one cast, layered up.
+    //
+    // Reading back the allocated uid from the BuffAdd ActEffect lets
+    // the BuffUpdate packets reference the same uid without exposing
+    // any new builder. The replay path at
+    // `manager/calculate_mgr.rs::play_effect_add_buff` honors the
+    // explicit uid via `buff_mgr.add_with_uid`, and
+    // `play_effect_update_buff` finds and updates that instance — so
+    // runtime BuffMgr ends with one Cure instance per ally at
+    // layer=stack_count, matching LIVE r5.
     let mut add_effects = Vec::new();
-    for _ in 0..stack_count {
+    let mut cure_uid_by_ally: HashMap<i64, i64> = HashMap::new();
+    for stack_idx in 0..stack_count {
         for &target_uid in target_uids {
             add_effects.push(buff_add(target_uid, caster_uid, POISON_INSTANCE_BUFF_ID, 0));
             add_effects.push(
@@ -234,8 +253,30 @@ pub(crate) fn build_sotheby_holder_consume_steps(
         }
         if !suppress_cure {
             for ally_uid in get_ally_uids(fight, caster_uid) {
-                add_effects.push(buff_add(ally_uid, caster_uid, granted_buff_id, 1));
-                add_effects.push(effect_none(ally_uid));
+                if stack_idx == 0 {
+                    let cure_add = buff_add(ally_uid, caster_uid, granted_buff_id, 1);
+                    let cure_uid = cure_add
+                        .buff
+                        .as_ref()
+                        .and_then(|b| b.uid)
+                        .unwrap_or(0);
+                    if cure_uid != 0 {
+                        cure_uid_by_ally.insert(ally_uid, cure_uid);
+                    }
+                    add_effects.push(cure_add);
+                    add_effects.push(effect_none(ally_uid));
+                } else if let Some(&cure_uid) = cure_uid_by_ally.get(&ally_uid) {
+                    let new_layer = stack_idx + 1;
+                    add_effects.push(buff_update(
+                        ally_uid,
+                        caster_uid,
+                        granted_buff_id,
+                        cure_uid,
+                        0,
+                        new_layer,
+                    ));
+                    add_effects.push(effect_none(ally_uid));
+                }
             }
         }
     }

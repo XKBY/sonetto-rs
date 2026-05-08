@@ -728,6 +728,61 @@ impl SkillExecutor {
             all_effects.extend(consume_steps);
         }
 
+        // Sotheby Duality Potion (`30091120`) holder-consume for the
+        // basic (`30090111`) and upgraded-basic (`30090112`) lanes.
+        // Detonate (`300901321`) keeps its existing inline consume
+        // in `damage.rs::execute_sotheby_detonate2`. Per
+        // `_30091120_design.md`: 1 fanout wrapper containing all
+        // stack sequences flattened + 1 sibling delete wrapper. The
+        // shared helper `build_sotheby_holder_consume_steps` produces
+        // both and emits Cure as `Add (uid X) + Update (uid X, layer
+        // climb)` so runtime BuffMgr ends with one Cure instance per
+        // ally at layer=stack_count, matching LIVE r5. Eligibility
+        // intentionally narrow — only basic + upgraded-basic skill
+        // ids — to avoid the wide-eligibility regression documented
+        // in `_30091120_findings.md` attempts 1+2.
+        if matches!(skill_id, 30090111 | 30090112)
+            && all_effects
+                .iter()
+                .any(|e| e.effect_type.map(is_damage_effect_type).unwrap_or(false))
+            && let Some(holder) = managers
+                .buff_mgr
+                .find_instance_by_buff_id(
+                    caster_uid,
+                    crate::state::battle::skill::behavior::damage::DUALITY_POTION_BUFF_ID,
+                )
+                .cloned()
+        {
+            let mut hostile_targets: Vec<i64> = Vec::new();
+            for effect in &all_effects {
+                let et = effect.effect_type.unwrap_or(0);
+                if !is_damage_effect_type(et) {
+                    continue;
+                }
+                if let Some(ti) = effect.target_id
+                    && ti.signum() != caster_uid.signum()
+                    && !hostile_targets.contains(&ti)
+                {
+                    hostile_targets.push(ti);
+                }
+            }
+            if !hostile_targets.is_empty() {
+                let stack_count = holder.layer.max(1);
+                let consume_steps =
+                    crate::state::battle::skill::behavior::damage::build_sotheby_holder_consume_steps(
+                        &sim_fight,
+                        caster_uid,
+                        &hostile_targets,
+                        crate::state::battle::skill::behavior::damage::CURE_TYPE_ID,
+                        &holder,
+                        stack_count,
+                        false,
+                    );
+                all_effects.extend(consume_steps);
+                managers.buff_mgr.remove_by_uid(caster_uid, holder.uid);
+            }
+        }
+
         // Prevent self-nested skill emission: if behavior output already includes a
         // same-act_id FightStep carrying damage, lift its payload into this skill step.
         let mut normalized_effects = Vec::with_capacity(all_effects.len());

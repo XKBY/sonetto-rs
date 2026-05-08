@@ -11,6 +11,11 @@ use crate::state::battle::{
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
 
+/// Sotheby's `30091120` Duality Potion holder. Its `850 AddBuffBoth`
+/// feature is the consume-after-attack hook, not an on-add hook —
+/// see the skip in `AddBuffBothHandler::execute`.
+const DUALITY_POTION_HOLDER_BUFF_ID: i32 = 30091120;
+
 pub(super) struct AddBuffBothParams {
     pub buff_a: i32,
     pub buff_b: i32,
@@ -58,6 +63,19 @@ impl BuffActionHandler for AddBuffBothHandler {
 
     fn execute(&self, params: &mut Self::Params, ctx: &mut BuffActCtx<'_, '_>) {
         if params.buff_a <= 0 && params.buff_b <= 0 {
+            return;
+        }
+        // Sotheby's `30091120` Duality Potion holder uses `850 AddBuffBoth`
+        // as its consume-after-attack feature, not as an on-add hook.
+        // LIVE never fans out the Poison/Cure children when the holder
+        // is granted by the round-start passive (`30090146`); only when
+        // the holder is consumed by a Sotheby attack. The on-add fanout
+        // is therefore skipped for this carrier; the attack-consume
+        // path lives in `skill/behavior/damage.rs::build_sotheby_holder_consume_steps`,
+        // wired for detonate (`300901321`) inline and for basic /
+        // upgraded-basic via the executor-side appender at
+        // `skill/executor.rs` post-damage.
+        if ctx.buff_id == DUALITY_POTION_HOLDER_BUFF_ID {
             return;
         }
         if should_skip_add_buff_both_update(params, ctx) {

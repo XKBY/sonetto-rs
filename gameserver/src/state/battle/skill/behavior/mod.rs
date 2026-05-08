@@ -5,7 +5,7 @@ mod bloodtithe;
 pub(crate) mod buff;
 mod buff_helper;
 mod catapult;
-mod damage;
+pub(crate) mod damage;
 mod direct_skill;
 mod disperse;
 mod dot_settle;
