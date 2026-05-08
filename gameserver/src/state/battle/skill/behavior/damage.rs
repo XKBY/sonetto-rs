@@ -15,6 +15,7 @@ use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::buff_actions::{EffectContext, lost_life};
 use crate::state::battle::event_queue::{BattleEvent, serialize_leaf_event};
 use crate::state::battle::fight_step::ActEffectBuilder;
+use crate::state::battle::manager::buff_mgr::BuffInstance;
 use crate::state::battle::mechanics::Mechanics;
 use crate::state::battle::mechanics::dot::parse_dot_features;
 use crate::state::battle::skill::condition::buff::target_count_buffs_in_group;
@@ -122,9 +123,8 @@ fn execute_sotheby_detonate2(
 ) -> Vec<ActEffect> {
     let mut effects = Vec::new();
 
-    let scaled_rate = rate
-        .saturating_mul(SOTHEBY_DETONATE2_RATE_NUMERATOR)
-        / SOTHEBY_DETONATE2_RATE_DENOMINATOR;
+    let scaled_rate =
+        rate.saturating_mul(SOTHEBY_DETONATE2_RATE_NUMERATOR) / SOTHEBY_DETONATE2_RATE_DENOMINATOR;
     let mut effect_ctx = EffectContext::new(
         ctx.behavior_ctx.fight,
         ctx.managers,
@@ -161,45 +161,15 @@ fn execute_sotheby_detonate2(
         .find_instance_by_buff_id(ctx.caster_uid, DUALITY_POTION_BUFF_ID)
         .cloned();
     if let Some(duality) = duality.as_ref() {
-        let mut add_effects = vec![
-            buff_add(ctx.target, ctx.caster_uid, POISON_INSTANCE_BUFF_ID, 0),
-            ActEffectBuilder::new(EffectType::Poison as i32, ctx.target)
-                .effect_num(0)
-                .build(),
-        ];
-        if !target_died {
-            for ally_uid in get_ally_uids(ctx.behavior_ctx.fight, ctx.caster_uid) {
-                add_effects.push(buff_add(ally_uid, ctx.caster_uid, granted_buff_id, 1));
-                add_effects.push(effect_none(ally_uid));
-            }
-        }
-        effects.push(
-            ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-                .effect_num(0)
-                .fight_step(crate::state::battle::fight_step::effect_container_step(
-                    ctx.caster_uid,
-                    ctx.caster_uid,
-                    DUALITY_POTION_BUFF_ID,
-                    add_effects,
-                ))
-                .build(),
-        );
-        effects.push(
-            ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-                .effect_num(0)
-                .fight_step(crate::state::battle::fight_step::effect_container_step(
-                    ctx.caster_uid,
-                    ctx.caster_uid,
-                    DUALITY_POTION_BUFF_ID,
-                    vec![buff_del(
-                        ctx.caster_uid,
-                        duality.uid,
-                        duality.buff_id,
-                        duality.from_uid,
-                    )],
-                ))
-                .build(),
-        );
+        effects.extend(build_sotheby_holder_consume_steps(
+            ctx.behavior_ctx.fight,
+            ctx.caster_uid,
+            &[ctx.target],
+            granted_buff_id,
+            duality,
+            1,
+            target_died,
+        ));
     }
 
     for ally_uid in get_ally_uids(ctx.behavior_ctx.fight, ctx.caster_uid) {
@@ -214,7 +184,11 @@ fn execute_sotheby_detonate2(
             let Some(caster) = get_entity(ctx.behavior_ctx.fight, ctx.caster_uid) else {
                 continue;
             };
-            let attack = caster.attr.as_ref().and_then(|attr| attr.attack).unwrap_or(0);
+            let attack = caster
+                .attr
+                .as_ref()
+                .and_then(|attr| attr.attack)
+                .unwrap_or(0);
             let heal = attack.saturating_mul(permille) / 1000;
             if heal > 0 {
                 effects.push(serialize_leaf_event(BattleEvent::Heal {
@@ -233,6 +207,64 @@ fn execute_sotheby_detonate2(
     }
 
     effects
+}
+
+pub(crate) fn build_sotheby_holder_consume_steps(
+    fight: &Fight,
+    caster_uid: i64,
+    target_uids: &[i64],
+    granted_buff_id: i32,
+    duality: &BuffInstance,
+    stack_count: i32,
+    suppress_cure: bool,
+) -> Vec<ActEffect> {
+    if stack_count <= 0 || target_uids.is_empty() {
+        return Vec::new();
+    }
+
+    let mut add_effects = Vec::new();
+    for _ in 0..stack_count {
+        for &target_uid in target_uids {
+            add_effects.push(buff_add(target_uid, caster_uid, POISON_INSTANCE_BUFF_ID, 0));
+            add_effects.push(
+                ActEffectBuilder::new(EffectType::Poison as i32, target_uid)
+                    .effect_num(0)
+                    .build(),
+            );
+        }
+        if !suppress_cure {
+            for ally_uid in get_ally_uids(fight, caster_uid) {
+                add_effects.push(buff_add(ally_uid, caster_uid, granted_buff_id, 1));
+                add_effects.push(effect_none(ally_uid));
+            }
+        }
+    }
+
+    vec![
+        ActEffectBuilder::new(EffectType::FightStep as i32, 0)
+            .effect_num(0)
+            .fight_step(crate::state::battle::fight_step::effect_container_step(
+                caster_uid,
+                caster_uid,
+                DUALITY_POTION_BUFF_ID,
+                add_effects,
+            ))
+            .build(),
+        ActEffectBuilder::new(EffectType::FightStep as i32, 0)
+            .effect_num(0)
+            .fight_step(crate::state::battle::fight_step::effect_container_step(
+                caster_uid,
+                caster_uid,
+                DUALITY_POTION_BUFF_ID,
+                vec![buff_del(
+                    caster_uid,
+                    duality.uid,
+                    duality.buff_id,
+                    duality.from_uid,
+                )],
+            ))
+            .build(),
+    ]
 }
 
 fn target_would_die(fight: &Fight, target_uid: i64, effects: &[ActEffect]) -> bool {
@@ -289,7 +321,11 @@ fn detonate_target_poison_damage(ctx: &ActionCtx<'_, '_>) -> Option<i32> {
         let Some(source) = get_entity(ctx.behavior_ctx.fight, instance.from_uid) else {
             continue;
         };
-        let source_attack = source.attr.as_ref().and_then(|attr| attr.attack).unwrap_or(0);
+        let source_attack = source
+            .attr
+            .as_ref()
+            .and_then(|attr| attr.attack)
+            .unwrap_or(0);
         if source_attack <= 0 {
             continue;
         }
@@ -304,11 +340,7 @@ fn detonate_target_poison_damage(ctx: &ActionCtx<'_, '_>) -> Option<i32> {
             continue;
         }
         let crit_damage = base_damage.saturating_mul(1390) / 1000;
-        total = total.saturating_add(
-            crit_damage
-                .saturating_mul(stacks)
-                .saturating_mul(rounds),
-        );
+        total = total.saturating_add(crit_damage.saturating_mul(stacks).saturating_mul(rounds));
     }
 
     (total > 0).then_some(total)
