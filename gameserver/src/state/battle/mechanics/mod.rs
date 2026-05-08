@@ -2,6 +2,7 @@ pub mod advanced_cure;
 pub mod bloodtithe;
 pub mod channel;
 pub mod dot;
+pub mod dot_settle_round_start;
 pub mod empathy;
 pub mod injury_counter;
 pub mod magic_circle;

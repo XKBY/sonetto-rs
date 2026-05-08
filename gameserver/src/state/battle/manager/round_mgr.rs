@@ -38,7 +38,7 @@ use super::super::{
     skill::{
         cache::resolve_skill_effect_id,
         classification::{CombatPassiveScanMode, has_combat_reactive_condition},
-        condition::{misc::HriEvalGuard, parser::parse_condition},
+        condition::{misc::HriEvalGuard, parser::parse_condition, scope::skill_is_round_start_only},
         euphoria::resolve_with_euphoria,
     },
     step_walker,
@@ -564,6 +564,16 @@ impl FightRoundMgr {
                     && crate::state::battle::skill::condition::scope::is_single_slot_pure_c100_passive(skill_id)
             },
         )?;
+
+        // Round-start defender Poison settle for active arrays
+        // (Tuesday's `22100003` advertises `30980151` here). Reads
+        // the round-start fight snapshot — fires only when an array
+        // already existed at the boundary, so the round-of-creation
+        // sees no settle but every subsequent round settles before
+        // any defender Purify can dispel the locked Poison.
+        open.steps.extend(
+            mechanics::dot_settle_round_start::build_round_start_dot_settle_steps(ctx),
+        );
 
         phase::player_actions::run(
             self,
@@ -1253,19 +1263,18 @@ impl FightRoundMgr {
         steps
     }
 
-    /// Magic-circle `enemy_skills` round-start delivery. When a circle is
+    /// Magic-circle `enemy_skills` late-sweep delivery. When a circle is
     /// active and `uid` sits on the opposite side from the circle owner,
-    /// every id in the circle config's `enemy_skills` field becomes a
-    /// passive on `uid` for this sweep.
+    /// every NON-round-start id in the circle config's `enemy_skills`
+    /// field becomes a passive on `uid` for this sweep.
     ///
-    /// Tuesday's `magic_circle 22100003` is the fixture caller — its
-    /// `enemy_skills="30980151"` advertises the round-start Poison
-    /// settle to each enemy of the circle owner. LIVE always emits
-    /// `30980151` with `fromId == toId == defender_uid` (`-5` in r5,
-    /// `-7` in r6/r8/r9), confirming the carrier is each enemy, not
-    /// the array owner. The skill itself has `cond=101 beh=60073#1`,
-    /// so the round-start scope gate (`scope::is_round_start_only`)
-    /// already blocks any combat-event path from re-firing it.
+    /// Round-start-only ids (Tuesday's `30980151` Poison settle, etc.)
+    /// are intentionally filtered out here: the
+    /// `mechanics/dot_settle_round_start.rs` Pass owns those, fired
+    /// before `phase::player_actions::run` so the round-start snapshot
+    /// reads the array state at true round-start. Without this filter
+    /// the same skill would emit twice (once from the Pass, once from
+    /// this late sweep) per Poison-bearing carrier.
     fn extend_with_magic_circle_enemy_skills(
         &self,
         ctx: &FightContext<'_>,
@@ -1302,6 +1311,9 @@ impl FightRoundMgr {
                 continue;
             }
             let resolved = resolve_with_euphoria(ctx.fight, uid, skill_id);
+            if skill_is_round_start_only(resolved) {
+                continue;
+            }
             if !skill_ids.contains(&resolved) {
                 skill_ids.push(resolved);
             }

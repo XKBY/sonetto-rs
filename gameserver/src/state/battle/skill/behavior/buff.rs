@@ -836,12 +836,32 @@ pub fn disperse_force(
 
 pub fn purify(fight: &Fight, managers: &mut Managers, target: i64) -> Vec<ActEffect> {
     let cfg = config::configs::get();
+    let array_active = fight
+        .magic_circle
+        .as_ref()
+        .and_then(|c| c.magic_circle_id)
+        .is_some()
+        && fight
+            .magic_circle
+            .as_ref()
+            .and_then(|c| c.round)
+            .unwrap_or(0)
+            != 0;
     with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx
             .buffs(target)
             .to_vec()
             .into_iter()
             .filter_map(|instance| {
+                // Lock-Poison-flagged buffs (carrying `buff_act` id 810
+                // `LockPoison`) are cleanse-immune while a magic-circle
+                // array is active. The array's lock pins the Poison's
+                // duration and protects it from generic Purify-class
+                // skills. Once the array expires, normal cleanse rules
+                // resume.
+                if array_active && buff_carries_lock_poison_feature(instance.buff_id) {
+                    return None;
+                }
                 let is_bad = cfg
                     .skill_buff
                     .iter()
@@ -868,6 +888,32 @@ pub fn purify(fight: &Fight, managers: &mut Managers, target: i64) -> Vec<ActEff
             })
             .collect()
     })
+}
+
+/// True when `buff_id` carries the `LockPoison` (`buff_act` id 810)
+/// feature in any of its feature entries. Buffs that flag themselves
+/// as locked include Tuesday's `30980131` (bare `810`) and her
+/// Poison-tick `30980111` (`810` plus a `803#…` Poison entry).
+fn buff_carries_lock_poison_feature(buff_id: i32) -> bool {
+    const LOCK_POISON_ACT_ID: i32 = 810;
+    let cfg = config::configs::get();
+    let Some(buff) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
+        return false;
+    };
+    if buff.features.is_empty() {
+        return false;
+    }
+    for entry in buff.features.split('|') {
+        let Some(head) = entry.split('#').next() else {
+            continue;
+        };
+        if let Ok(act_id) = head.trim().parse::<i32>()
+            && act_id == LOCK_POISON_ACT_ID
+        {
+            return true;
+        }
+    }
+    false
 }
 
 pub fn consume_by_type(

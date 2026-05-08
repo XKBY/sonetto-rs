@@ -136,6 +136,61 @@ pub(crate) fn first_condition_id(raw: &str) -> Option<i32> {
     s[..head_end].trim().parse::<i32>().ok()
 }
 
+/// True when every non-empty condition slot on `skill_id` is a
+/// round-start-scoped condition (c100/101/102/104). The
+/// `mechanics/dot_settle_round_start.rs` Pass uses this to gate
+/// magic-circle `enemy_skills` advertisements: only round-start-only
+/// skills participate in the round-start Poison settle.
+///
+/// Returns `false` for skills with no non-empty conditions (those
+/// have always-fire semantics, not round-start-only) or for skills
+/// that mix round-start with combat / non-round-start conditions.
+pub fn skill_is_round_start_only(skill_id: i32) -> bool {
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let Some(skill) = config::configs::get().skill_effect.get(effect_id) else {
+        return false;
+    };
+
+    let slots = [
+        &skill.condition1,
+        &skill.condition2,
+        &skill.condition3,
+        &skill.condition4,
+        &skill.condition5,
+        &skill.condition6,
+        &skill.condition7,
+        &skill.condition8,
+        &skill.condition9,
+        &skill.condition10,
+        &skill.condition11,
+        &skill.condition12,
+        &skill.condition13,
+        &skill.condition14,
+        &skill.condition15,
+        &skill.condition16,
+        &skill.condition17,
+        &skill.condition18,
+        &skill.condition19,
+        &skill.condition20,
+    ];
+
+    let mut saw_any = false;
+    for raw in slots {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        saw_any = true;
+        let Some(cond_id) = first_condition_id(trimmed) else {
+            return false;
+        };
+        if !is_round_start_only(cond_id) {
+            return false;
+        }
+    }
+    saw_any
+}
+
 /// True when the resolved skill effect is a single-slot pure `c100`
 /// passive: `condition1` is exactly raw `100`, and all later
 /// condition slots are empty.
