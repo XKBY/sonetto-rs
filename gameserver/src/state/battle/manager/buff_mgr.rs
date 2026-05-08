@@ -118,6 +118,10 @@ impl BuffMgr {
         buff_id == 30091120
     }
 
+    pub(crate) fn uses_distinct_dot_carrier_instances(buff_id: i32) -> bool {
+        matches!(buff_id, 30980111 | 30980132)
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -205,7 +209,9 @@ impl BuffMgr {
         instance.stacks = if count > 0 { count } else { instance.stacks };
         instance.layer = layer;
 
-        if Self::uses_single_uid_layer_refresh(buff_id) {
+        if Self::uses_distinct_dot_carrier_instances(buff_id) {
+            entry.push(instance);
+        } else if Self::uses_single_uid_layer_refresh(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.duration = existing.duration.max(instance.duration);
                 existing.stacks = instance.stacks;
@@ -562,7 +568,9 @@ impl BuffMgr {
             return;
         }
 
-        if Self::uses_single_uid_layer_refresh(buff_id) {
+        if Self::uses_distinct_dot_carrier_instances(buff_id) {
+            entry.push(instance);
+        } else if Self::uses_single_uid_layer_refresh(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.from_uid = instance.from_uid;
                 existing.duration = existing.duration.max(instance.duration);
@@ -896,6 +904,26 @@ mod tests {
             assert_eq!(a, 2);
             assert_eq!(b, 4);
             assert_eq!(c, 6);
+        });
+    }
+
+    #[test]
+    fn tuesday_dot_family_add_with_uid_keeps_distinct_instances() {
+        ensure_game_data_initialized();
+        with_buff_uid_test_lock(|| {
+            let mut mgr = super::BuffMgr::new();
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100002);
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100004);
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100006);
+
+            let buffs = mgr.get(-1);
+            assert_eq!(buffs.len(), 3);
+            assert_eq!(buffs.iter().filter(|b| b.buff_id == 30980111).count(), 3);
+            assert_eq!(
+                buffs.iter().map(|b| b.uid).collect::<Vec<_>>(),
+                vec![100002, 100004, 100006]
+            );
+            assert!(buffs.iter().all(|b| b.layer == 1));
         });
     }
 

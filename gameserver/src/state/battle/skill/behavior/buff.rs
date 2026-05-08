@@ -9,7 +9,7 @@ use super::super::super::{
     context::buff_context::BuffContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     manager::{
-        buff_mgr::{RefreshPolicy, next_buff_uid_for_target},
+        buff_mgr::{BuffMgr, RefreshPolicy, next_buff_uid_for_target},
         fight_data_mgr::Managers,
     },
     mechanics::{Mechanics, bloodtithe::BloodtitheState},
@@ -66,7 +66,11 @@ fn is_poison_family(buff_id: i32) -> bool {
 }
 
 fn should_rerun_post_add_features_on_update(buff_id: i32) -> bool {
-    let Some(buff_cfg) = config::configs::get().skill_buff.iter().find(|b| b.id == buff_id) else {
+    let Some(buff_cfg) = config::configs::get()
+        .skill_buff
+        .iter()
+        .find(|b| b.id == buff_id)
+    else {
         return false;
     };
 
@@ -302,13 +306,17 @@ pub fn apply(
 
     // If the buff already exists on target, prefer BUFFUPDATE regardless of count/effect_count.
     // This matches live behavior for stacking/re-applying passives like 30630171 -> 30631.
-    let existing_same = with_buff_ctx(fight, managers, |buff_ctx| {
-        buff_ctx
-            .buffs(spec.target)
-            .iter()
-            .find(|b| b.buff_id == spec.buff_id)
-            .cloned()
-    });
+    let existing_same = if BuffMgr::uses_distinct_dot_carrier_instances(spec.buff_id) {
+        None
+    } else {
+        with_buff_ctx(fight, managers, |buff_ctx| {
+            buff_ctx
+                .buffs(spec.target)
+                .iter()
+                .find(|b| b.buff_id == spec.buff_id)
+                .cloned()
+        })
+    };
 
     let excluded_active = if existing_same.is_some() {
         let excluded_ids = excluded_buff_or_type_ids(spec.buff_id);
