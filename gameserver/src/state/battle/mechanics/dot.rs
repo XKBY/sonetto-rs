@@ -131,7 +131,7 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
                 let inner = effect_container_step(
                     instance.from_uid,
                     victim_uid,
-                    instance.buff_id,
+                    dot_wrapper_act_id(instance.buff_id),
                     vec![
                         ActEffectBuilder::new(marker_et, victim_uid)
                             .effect_num(instance.buff_id)
@@ -180,6 +180,17 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
         );
     }
     Some(outer)
+}
+
+fn dot_wrapper_act_id(buff_id: i32) -> i32 {
+    match buff_id {
+        // LIVE applies Tuesday's 30980132 Poison damage without surfacing a
+        // named `actId=30980132` round-end wrapper in battle3. Keep the marker
+        // + damage packet content but serialize this family under a generic
+        // container so the audit no longer sees a synthetic skill fire.
+        30980132 => 0,
+        _ => buff_id,
+    }
 }
 
 /// Round-end DOT can legitimately be the first path to kill a victim, but it
