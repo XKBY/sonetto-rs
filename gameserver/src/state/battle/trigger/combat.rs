@@ -27,6 +27,14 @@ use crate::state::battle::{
 };
 
 /// Context passed to each trigger check describing what just happened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SyntheticEmissionKind {
+    #[default]
+    None,
+    SothebyHolderConsume,
+}
+
+/// Context passed to each trigger check describing what just happened.
 #[derive(Debug, Clone)]
 pub struct TriggerEvent {
     /// Entity that played the card / cast the skill (attacker side).
@@ -81,6 +89,9 @@ pub struct TriggerEvent {
     pub bloodpool_gain_by_skill_team: Vec<(i32, i32, i32)>,
     /// Positive bloodpool gain packet count emitted during this step, keyed by team_type.
     pub bloodpool_gain_packets_by_team: Vec<(i32, i32)>,
+    /// Marks synthetic child-emission lanes that should be visible to combat
+    /// consumers but must not recursively behave like a fresh reactive skill-use event.
+    pub synthetic_emission: SyntheticEmissionKind,
 }
 
 impl TriggerEvent {
@@ -225,6 +236,24 @@ pub fn event_from_step(
     skill_id: i32,
     effects: &[ActEffect],
 ) -> TriggerEvent {
+    event_from_step_with_synthetic_emission(
+        fight,
+        caster_uid,
+        primary_target_uid,
+        skill_id,
+        effects,
+        SyntheticEmissionKind::None,
+    )
+}
+
+pub fn event_from_step_with_synthetic_emission(
+    fight: &sonettobuf::Fight,
+    caster_uid: i64,
+    primary_target_uid: i64,
+    skill_id: i32,
+    effects: &[ActEffect],
+    synthetic_emission: SyntheticEmissionKind,
+) -> TriggerEvent {
     let mut damaged_uids = Vec::new();
     let mut cross_side_damaged_uids = Vec::new();
     let mut mental_damaged_uids = Vec::new();
@@ -326,6 +355,7 @@ pub fn event_from_step(
         bloodpool_gain_by_team,
         bloodpool_gain_by_skill_team,
         bloodpool_gain_packets_by_team,
+        synthetic_emission,
     }
 }
 

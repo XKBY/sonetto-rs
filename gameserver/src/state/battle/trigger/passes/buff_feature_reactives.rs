@@ -8,7 +8,7 @@ use crate::state::battle::{
     passives::collector::CollectedPassives,
     round::step_shape::build_effect_step,
     skill::{SkillExecutor, buff, cache::resolve_skill_effect_id},
-    trigger::combat::TriggerEvent,
+    trigger::combat::{SyntheticEmissionKind, TriggerEvent},
     types::behavior::BehaviorType,
 };
 
@@ -31,7 +31,10 @@ fn run_probability_add_buff_reactives(
     ctx: &mut FightContext<'_>,
     event: &TriggerEvent,
 ) -> Vec<FightStep> {
-    if event.caster_uid == 0 || !skill_is_hurt(event.skill_id) {
+    if event.caster_uid == 0
+        || event.synthetic_emission == SyntheticEmissionKind::SothebyHolderConsume
+        || !skill_is_hurt(event.skill_id)
+    {
         return Vec::new();
     }
 

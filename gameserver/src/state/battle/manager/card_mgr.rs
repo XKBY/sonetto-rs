@@ -318,6 +318,7 @@ impl FightCardMgr {
             bloodpool_gain_by_team: vec![],
             bloodpool_gain_by_skill_team: vec![],
             bloodpool_gain_packets_by_team: vec![],
+            synthetic_emission: crate::state::battle::trigger::combat::SyntheticEmissionKind::None,
         };
         if !is_temp_card {
             for passive_skill_id in collected.merged_for(exec_caster_uid) {
