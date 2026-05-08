@@ -548,23 +548,19 @@ impl FightRoundMgr {
         );
         let ctx = &mut *round_ctx.fight_ctx;
 
-        self.apply_filtered_passive_phase(
-            ctx,
-            &open.collected,
-            PassivePhaseConfig {
-                scope: PhaseScope::Attackers,
-                depth: PhaseDepth::FirstMatch,
-                skill_set: PhaseSkillSet::ExcludeBattleRule,
-                step_shape: PhaseStepShape::Raw,
-            },
-            true,
-            &mut open.steps,
-            |is_attacker_uid, skill_id| {
-                is_attacker_uid
-                    && crate::state::battle::skill::condition::scope::is_single_slot_pure_c100_passive(skill_id)
-            },
-        )?;
-
+        // Pre-player attacker c100 passive sweep removed in Phase 6
+        // Session 4.47: LIVE bundles round-start passives (pure-c100
+        // single-slot like `30090146` AND mixed-condition like
+        // `31040141`) into ONE late-round wrapper at depth 2 (battle3
+        // r2 root[24], r3 root[21]) — AFTER player actions. Firing
+        // pure-c100 passives early here meant Sotheby's `30090146`
+        // grant ran before her own attack, so the holder layer was
+        // off-by-one vs LIVE for the attack-time consume. The late
+        // sweep at `phase/non_terminal_round.rs:78` already runs
+        // attacker passives post-player-actions; widening its
+        // filter to include pure-c100 is what restores LIVE shape.
+        // See `project_sotheby_holder_consume_design.md` for the
+        // full diagnosis chain.
         // Round-start defender Poison settle for active arrays
         // (Tuesday's `22100003` advertises `30980151` here). Reads
         // the round-start fight snapshot — fires only when an array

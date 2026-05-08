@@ -75,7 +75,17 @@ pub(crate) async fn run(
             })
             .build(),
     );
-    mgr.apply_filtered_passive_phase(
+    // Late-round attacker passive sweep — runs every attacker c100/c101/c102/c104
+    // round-start passive AFTER player actions, matching LIVE's bundling at
+    // depth-2 wrappers like battle3 r2 root[24] / r3 root[21] (which carry
+    // both `30090146` Sotheby grant and `31040141` Willow Poison-apply
+    // together). The earlier `is_single_slot_pure_c100_passive` filter
+    // excluded pure-c100 here because they used to fire pre-player at
+    // `round_mgr.rs:551`; that sweep was removed in Phase 6 Session 4.47
+    // so pure-c100 (e.g. Sotheby's `30090146` Duality Potion grant) now
+    // fires here too, restoring LIVE's holder-layer-vs-attack-time
+    // ordering.
+    mgr.apply_passive_phase(
         ctx,
         collected,
         PassivePhaseConfig {
@@ -86,12 +96,6 @@ pub(crate) async fn run(
         },
         true,
         steps,
-        |is_attacker_uid, skill_id| {
-            !is_attacker_uid
-                || !crate::state::battle::skill::condition::scope::is_single_slot_pure_c100_passive(
-                    skill_id,
-                )
-        },
     )?;
     steps.extend(build_pre_enemy_transition_steps(deck_num));
     let defender_bootstrap_start = steps.len();
