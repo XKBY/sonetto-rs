@@ -876,6 +876,36 @@ def walk_skill(skill_id, ctx):
         (r for r in ctx["skill_effect"] if isinstance(r, dict) and r.get("id") == skill_id),
         None,
     )
+
+    # Indirection: many boss skills (114300811, 114300831, etc.) live in
+    # `skill.json` with a `skillEffect` field that points to a different
+    # row id in `skill_effect.json`. Resolve via skill.json before falling
+    # through to buff lookup.
+    indirect_via = None
+    if skill is None:
+        skill_meta = next(
+            (
+                r
+                for r in ctx.get("skill_rows", [])
+                if isinstance(r, dict) and r.get("id") == skill_id
+            ),
+            None,
+        )
+        if skill_meta:
+            target_eff = skill_meta.get("skillEffect")
+            if target_eff and target_eff != skill_id:
+                resolved = next(
+                    (
+                        r
+                        for r in ctx["skill_effect"]
+                        if isinstance(r, dict) and r.get("id") == target_eff
+                    ),
+                    None,
+                )
+                if resolved is not None:
+                    skill = resolved
+                    indirect_via = (skill_id, target_eff)
+
     if skill is None:
         # Fall through to buff lookup — many "skill" IDs in the codebase
         # are actually buff IDs (30091111, 30800111, 31040005, etc.).
@@ -993,6 +1023,7 @@ def walk_skill(skill_id, ctx):
 
     return {
         "skill_id": skill_id,
+        "indirect_via": indirect_via,
         "name": name,
         "owner": owner_label,
         "incantation": (source_record or {}).get("incantation"),
@@ -1020,6 +1051,9 @@ def render_text(result):
         return "\n".join(out)
     sid = result["skill_id"]
     out.append(f"=== skill {sid} {('— ' + result['name']) if result['name'] else ''} ===")
+    if result.get("indirect_via"):
+        from_id, to_id = result["indirect_via"]
+        out.append(f"  resolved via skill.json: skill {from_id} → skillEffect {to_id}")
     out.append(f"  owner: {result['owner']}")
     if result.get("incantation"):
         out.append(
@@ -1144,6 +1178,7 @@ def main():
     args = ap.parse_args()
 
     skill_effect = load_table("skill_effect")
+    skill_rows = load_table("skill")
     buff_rows = load_table("skill_buff")
     bufftype_rows = load_table("skill_bufftype")
     condition_rows = load_table("skill_behavior_condition")
@@ -1157,6 +1192,7 @@ def main():
 
     ctx = {
         "skill_effect": skill_effect,
+        "skill_rows": skill_rows,
         "buff_rows": buff_rows,
         "bufftype_rows": bufftype_rows,
         "condition_rows": condition_rows,

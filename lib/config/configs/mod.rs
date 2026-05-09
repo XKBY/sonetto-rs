@@ -52,6 +52,7 @@ pub mod skill;
 pub mod skill_behavior;
 pub mod skill_behavior_condition;
 pub mod skill_buff;
+pub mod skill_buff_self_refresh;
 pub mod skill_bufftype;
 pub mod skill_effect;
 pub mod skill_ex_level;
@@ -122,6 +123,7 @@ pub struct GameDB {
     pub skill_behavior: skill_behavior::SkillBehaviorTable,
     pub skill_behavior_condition: skill_behavior_condition::SkillBehaviorConditionTable,
     pub skill_buff: skill_buff::SkillBuffTable,
+    pub skill_buff_self_refresh: skill_buff_self_refresh::SkillBuffSelfRefreshTable,
     pub skill_bufftype: skill_bufftype::SkillBufftypeTable,
     pub skill_effect: skill_effect::SkillEffectTable,
     pub skill_ex_level: skill_ex_level::SkillExLevelTable,
@@ -296,6 +298,9 @@ impl GameDB {
         let skill_buff = skill_buff::SkillBuffTable::load(
             &format!("{}/skill_buff.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_buff.json: {}", e))?;
+        let skill_buff_self_refresh = skill_buff_self_refresh::SkillBuffSelfRefreshTable::load(
+            &format!("{}/skill_buff_self_refresh.json", data_dir)
+        ).map_err(|e| anyhow::anyhow!("Failed to load skill_buff_self_refresh.json: {}", e))?;
         let skill_bufftype = skill_bufftype::SkillBufftypeTable::load(
             &format!("{}/skill_bufftype.json", data_dir)
         ).map_err(|e| anyhow::anyhow!("Failed to load skill_bufftype.json: {}", e))?;
@@ -392,6 +397,7 @@ impl GameDB {
             skill_behavior,
             skill_behavior_condition,
             skill_buff,
+            skill_buff_self_refresh,
             skill_bufftype,
             skill_effect,
             skill_ex_level,

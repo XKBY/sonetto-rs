@@ -44,6 +44,7 @@ pub const FILTER_TABLES: &[&str] = &[
     "equip_break_cost",
     "equip_strengthen_cost",
     "skill_buff",
+    "skill_buff_self_refresh",
     "activity174_role",
     "activity191_role",
     "character_destiny_facets",
