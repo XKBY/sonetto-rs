@@ -25,8 +25,10 @@ CLAUDE.md
 !/scripts/rule_provenance.py
 !/scripts/primitive_coverage.py
 !/scripts/primitive_audit.py
-# Local findings / scratch markdown produced during investigations.
-/_*_findings.md
+# Local research / scratch markdown files at repo root — working
+# notes, briefs, investigation logs. Kept out of git so the repo
+# stays focused on the Rust engine.
+/_*.md
 !/scripts/condition_scope_discovery.py
 # Skill walker — pairs prydwen description with parsed conditions/
 # behaviors + wiring status. Lets us read "what should this skill do?"
