@@ -33,7 +33,9 @@ impl BehaviorAction for ExPoint {
     ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
             BehaviorType::AddExPoint { amount } | BehaviorType::AddExPointWithMax { amount } => {
-                Some(Ok(vec![ActEffectBuilder::moxie_change(ctx.target, *amount)]))
+                Some(Ok(vec![ActEffectBuilder::moxie_change(
+                    ctx.target, *amount,
+                )]))
             }
             BehaviorType::ConsumeExPointAddAttr {
                 min_consume,

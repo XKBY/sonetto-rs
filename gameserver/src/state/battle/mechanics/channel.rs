@@ -803,7 +803,7 @@ fn build_display_only_consume_channel_embeds(
             skill_id: emit_effect_id,
             children: child_effects
                 .into_iter()
-                .map(|effect| BattleEvent::SerializedActEffect{ effect })
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
                 .collect(),
         });
         let mut event_ctx = EventContext {
@@ -844,7 +844,7 @@ fn build_display_only_consume_channel_embeds(
             skill_id: emit_effect_id,
             children: child_effects
                 .into_iter()
-                .map(|effect| BattleEvent::SerializedActEffect{ effect })
+                .map(|effect| BattleEvent::SerializedActEffect { effect })
                 .collect(),
         });
         let mut event_ctx = EventContext {

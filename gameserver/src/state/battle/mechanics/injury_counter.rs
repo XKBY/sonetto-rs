@@ -430,7 +430,7 @@ pub(crate) fn inject_card_host_injury_markers(
     for (idx, effect) in host_step.act_effect.iter().enumerate() {
         if let Some(injured_uid) = flat_host_injury_marker_uid(fight, effect, caster_team_type) {
             let marker = build_card_host_injury_marker(injured_uid, holder_uid, injury_count);
-            accumulator.push_injury(BattleEvent::SerializedActEffect{
+            accumulator.push_injury(BattleEvent::SerializedActEffect {
                 effect: marker.clone(),
             });
             markers.push((idx, marker));
@@ -442,7 +442,7 @@ pub(crate) fn inject_card_host_injury_markers(
             .and_then(|step| nested_host_injury_marker_uid(fight, step, caster_team_type));
         if let Some(injured_uid) = nested_marker_uid {
             let marker = build_card_host_injury_marker(injured_uid, holder_uid, injury_count);
-            accumulator.push_injury(BattleEvent::SerializedActEffect{
+            accumulator.push_injury(BattleEvent::SerializedActEffect {
                 effect: marker.clone(),
             });
             markers.push((idx + 1, marker));
@@ -563,7 +563,7 @@ fn build_card_host_injury_marker(
     injured_uid: i64,
     holder_uid: i64,
     injury_count: i32,
-) -> ActEffect{
+) -> ActEffect {
     wrap_step(effect_container_step(
         injured_uid,
         injured_uid,

@@ -22,7 +22,7 @@ pub(crate) fn normalize_defender_round_end_wrapper(
     ctx: &FightContext<'_>,
     mut wrapper: ActEffect,
     broadcast_anchor_uid: Option<i64>,
-) -> ActEffect{
+) -> ActEffect {
     if !is_preferred_defender_round_end_wrapper(ctx.fight, &wrapper) {
         return wrapper;
     }

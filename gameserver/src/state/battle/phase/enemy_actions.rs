@@ -100,7 +100,7 @@ pub(crate) async fn run(
         step_walker::inline_magic_circle_root_wrapper(&mut host_step);
         let mut accumulator = HostEventAccumulator::new();
         for effect in host_step.act_effect.clone() {
-            accumulator.push_direct(BattleEvent::SerializedActEffect{ effect });
+            accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
         }
         let mc_kind = magic_circle::apply_magic_circle_self_skill_embeds_with_accumulator(
             ctx,
@@ -118,7 +118,7 @@ pub(crate) async fn run(
         let trigger_offset = accumulator.lane_iter(HostLane::Trigger).count();
         for trigger_step in expanded_steps.into_iter().skip(1) {
             let embedded = trigger_embed::trigger_step_to_embedded_effect(trigger_step);
-            accumulator.push_trigger_lane(BattleEvent::SerializedActEffect{ effect: embedded });
+            accumulator.push_trigger_lane(BattleEvent::SerializedActEffect { effect: embedded });
         }
         accumulator.splice_lane_drain_into_host(
             HostLane::Trigger,

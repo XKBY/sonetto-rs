@@ -4,9 +4,7 @@
 
 use sonettobuf::{ActEffect, BuffActInfo};
 
-use crate::state::battle::{
-    fight_step::ActEffectBuilder, heroes::rubuska, skill::SkillExecutor,
-};
+use crate::state::battle::{fight_step::ActEffectBuilder, heroes::rubuska, skill::SkillExecutor};
 
 use super::{EffectContext, monitor_continue::queue_monitor_triggers};
 

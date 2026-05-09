@@ -8,6 +8,8 @@ pub mod blood_pool_ex;
 pub mod blood_value_use_skill;
 mod bootstrap;
 pub mod bullet;
+mod dispatcher;
+pub mod dot;
 pub mod ex_point_overflow_bank;
 pub mod halo;
 pub mod heal;
@@ -24,12 +26,14 @@ pub mod raspberry;
 pub mod round_end;
 pub mod shield;
 
-use self::action::{BUFF_ACTION_REGISTRY, BUFF_HANDLER_REGISTRY, BuffActCtx, BuffStage};
+use self::action::{BuffActCtx, run_registered_handler};
 
 pub mod result;
 pub mod use_skill_to_enemy;
 
 pub use crate::state::battle::context::effect_context::EffectContext;
+pub use action::{BuffStage, DispatchCtx};
+pub use dispatcher::{dedupe_dead_effects_against_prior_steps, dispatch_stage};
 pub use heal::heal;
 pub use result::ActionResult;
 
@@ -177,21 +181,16 @@ fn run_before_add_feature(
         effect_ctx: ctx,
         executor,
         buff_id: 0,
+        owner_uid: 0,
+        carrier: None,
         condition_id,
         has_bloodpool: false,
+        is_synthetic: false,
     };
-    for handler in BUFF_HANDLER_REGISTRY {
-        if let Some(result) = handler.run(act_type, BuffStage::BeforeBuffAdd, parts, &mut buff_ctx)
-        {
-            return result;
-        }
-    }
-    for cluster in BUFF_ACTION_REGISTRY {
-        if let Some(result) =
-            cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::BeforeBuffAdd)
-        {
-            return result;
-        }
+    if let Some(result) =
+        run_registered_handler(act_type, BuffStage::BeforeBuffAdd, parts, &mut buff_ctx)
+    {
+        return result;
     }
     ActionResult::empty()
 }
@@ -239,23 +238,19 @@ pub fn dispatch_feature(
         effect_ctx: ctx,
         executor,
         buff_id,
+        owner_uid: target,
+        carrier: None,
         condition_id: 0,
         has_bloodpool: _has_bloodpool,
+        is_synthetic: false,
     };
     // Walk the per-handler registry first (parse → execute → steps
     // pattern). Falls through to the legacy cluster registry for
     // unmigrated act_types.
-    for handler in BUFF_HANDLER_REGISTRY {
-        if let Some(result) = handler.run(act_type, BuffStage::AfterBuffAdd, parts, &mut buff_ctx) {
-            return result;
-        }
-    }
-    for cluster in BUFF_ACTION_REGISTRY {
-        if let Some(result) =
-            cluster.execute(act_type, parts, &mut buff_ctx, BuffStage::AfterBuffAdd)
-        {
-            return result;
-        }
+    if let Some(result) =
+        run_registered_handler(act_type, BuffStage::AfterBuffAdd, parts, &mut buff_ctx)
+    {
+        return result;
     }
     // No cluster or handler claimed this act_type — emit the legacy
     // None(0) placeholder so the dispatcher's feature loop accounts

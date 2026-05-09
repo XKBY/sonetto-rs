@@ -1,12 +1,6 @@
-use super::{
-    manager::buff_mgr::BuffMgr,
-    skill::get_entity,
-    types::career::CareerType,
-};
+use super::{manager::buff_mgr::BuffMgr, skill::get_entity, types::career::CareerType};
 
-use sonettobuf::{
-    ActEffect, Fight, FightEntityInfo,
-};
+use sonettobuf::{ActEffect, Fight, FightEntityInfo};
 
 //skill_behaviour table
 pub enum VfxConfig {

@@ -258,7 +258,7 @@ impl EmpathyState {
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
-    ) -> ActEffect{
+    ) -> ActEffect {
         ActEffectBuilder::storage_injury(
             target_uid,
             amount.max(0),
@@ -278,7 +278,7 @@ impl EmpathyState {
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
-    ) -> ActEffect{
+    ) -> ActEffect {
         ActEffectBuilder::buff_update_with_snapshot(
             target_uid,
             from_uid,

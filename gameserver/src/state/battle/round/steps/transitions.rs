@@ -25,7 +25,9 @@ pub fn build_pre_enemy_transition_steps(deck_num: i32) -> Vec<FightStep> {
             ActEffectBuilder::small_round_end(Some(0), 0),
             ActEffectBuilder::deal_card2(0, 0),
         ]),
-        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(0, deck_num)]),
+        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(
+            0, deck_num,
+        )]),
     ]
 }
 
@@ -41,6 +43,8 @@ pub fn build_post_enemy_transition_steps(deck_num: i32) -> Vec<FightStep> {
             None,
         )]),
         effect_step(vec![ActEffectBuilder::change_round(Some(0), Some(0))]),
-        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(0, deck_num)]),
+        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(
+            0, deck_num,
+        )]),
     ]
 }

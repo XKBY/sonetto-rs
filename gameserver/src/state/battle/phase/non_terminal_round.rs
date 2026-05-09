@@ -14,7 +14,7 @@ use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, CardInfo, FightStep};
 
 use crate::state::battle::{
-    buff_actions::round_end as round_end_handler,
+    buff_actions::{self, BuffStage, round_end as round_end_handler},
     context::FightContext,
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     heroes::rubuska,
@@ -25,7 +25,7 @@ use crate::state::battle::{
         round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
         traits::Manager,
     },
-    mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics, dot},
+    mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics},
     passives::{self, collector::CollectedPassives},
     phase,
     round::{
@@ -261,12 +261,17 @@ pub(crate) async fn run(
         steps.push(step);
     }
 
-    // Round-end DOT settlement — emits Poison/DeadlyPoison ticks for
-    // every poison-family stack on every alive entity. See
-    // `mechanics/dot.rs` for the emission shape (one 162 wrapper per
-    // stack with `Poison(213)` marker + `OriginDamage(130)` damage).
-    if let Some(mut step) = dot::build_round_end_dot_step(ctx) {
-        dot::dedupe_dead_effects_against_prior_steps(&mut step, steps);
+    let dot_effects = {
+        let mut dot_executor = SkillExecutor::new();
+        let mut dot_effect_ctx =
+            buff_actions::EffectContext::new(ctx.fight, ctx.managers, ctx.mechanics, 0, 0);
+        let mut dispatch_ctx =
+            buff_actions::DispatchCtx::new(&mut dot_effect_ctx, &mut dot_executor);
+        buff_actions::dispatch_stage(BuffStage::RoundEndDot, &mut dispatch_ctx)
+    };
+    if !dot_effects.is_empty() {
+        let mut step = build_effect_step(dot_effects);
+        buff_actions::dedupe_dead_effects_against_prior_steps(&mut step, steps);
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
         steps.push(step);
     }

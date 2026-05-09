@@ -498,7 +498,7 @@ impl FightRoundMgr {
                     skill_id: BE_ATTACKED_REACTIVE_ACT_ID,
                     from: reactive_caster_uid,
                     to: target_uid,
-                    children: vec![BattleEvent::SerializedActEffect{ effect }],
+                    children: vec![BattleEvent::SerializedActEffect { effect }],
                     kind: SkillEmitKind::EventTriggered,
                 });
                 let mut event_ctx = EventContext {
@@ -523,7 +523,7 @@ impl FightRoundMgr {
             .map(|idx| idx + 1)
             .unwrap_or_else(|| step_walker::host_trigger_insert_index(host_step));
         for effect in wrappers {
-            accumulator.push_be_attacked(BattleEvent::SerializedActEffect{ effect });
+            accumulator.push_be_attacked(BattleEvent::SerializedActEffect { effect });
         }
         Some(insert_at)
     }

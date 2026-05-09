@@ -7,8 +7,7 @@
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
-    fight_step::ActEffectBuilder,
-    manager::buff_mgr::observe_explicit_buff_uid_for_target,
+    fight_step::ActEffectBuilder, manager::buff_mgr::observe_explicit_buff_uid_for_target,
 };
 
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
@@ -85,7 +84,8 @@ impl BuffActionHandler for MasterHaloHandler {
                 );
             }
             params.slave_effects.push(buff_effect);
-            params.slave_effects
+            params
+                .slave_effects
                 .push(ActEffectBuilder::slave_halo(ally_uid));
 
             let after = apply_after_buff_add_features(

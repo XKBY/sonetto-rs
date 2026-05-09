@@ -7,14 +7,66 @@ use super::super::skill::SkillExecutor;
 use super::EffectContext;
 use super::result::ActionResult;
 use super::{
-    add_buff_both, attr, bootstrap, halo, heal, hp, markers, no_op, probability_add_buff, shield,
+    add_buff_both, attr, bootstrap, dot, halo, heal, hp, markers, no_op, probability_add_buff,
+    shield,
 };
+use crate::state::battle::manager::buff_mgr::BuffInstance;
 
 /// When a buff feature runs relative to the BuffAdd emission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuffStage {
     BeforeBuffAdd,
     AfterBuffAdd,
+    OnDeath,
+    RoundStartCure,
+    RoundStartCard,
+    BeAttackedDefensive,
+    OnCast,
+    BeAttackedReactive,
+    PostSkill,
+    RoundEndDot,
+    OverflowHandler,
+    RoundEndInjuryBank,
+}
+
+impl BuffStage {
+    /// Canonical `effectTime` value for staged dispatch.
+    pub fn effect_time(self) -> Option<i32> {
+        match self {
+            Self::BeforeBuffAdd | Self::AfterBuffAdd => Some(0),
+            Self::OnDeath => Some(12),
+            Self::RoundStartCure => Some(102),
+            Self::RoundStartCard => Some(105),
+            Self::BeAttackedDefensive => Some(207),
+            Self::OnCast => Some(208),
+            Self::BeAttackedReactive => Some(209),
+            Self::PostSkill => Some(212),
+            Self::RoundEndDot => Some(302),
+            Self::OverflowHandler => Some(305),
+            Self::RoundEndInjuryBank => Some(307),
+        }
+    }
+}
+
+/// Shared mutable context for stage dispatch entry points.
+pub struct DispatchCtx<'a, 'ctx> {
+    pub effect_ctx: &'a mut EffectContext<'ctx>,
+    pub executor: &'a mut SkillExecutor,
+    pub condition_id: i32,
+    pub has_bloodpool: bool,
+    pub is_synthetic: bool,
+}
+
+impl<'a, 'ctx> DispatchCtx<'a, 'ctx> {
+    pub fn new(effect_ctx: &'a mut EffectContext<'ctx>, executor: &'a mut SkillExecutor) -> Self {
+        Self {
+            effect_ctx,
+            executor,
+            condition_id: 0,
+            has_bloodpool: false,
+            is_synthetic: false,
+        }
+    }
 }
 
 /// Mutable handles + per-feature invocation data threaded into every
@@ -25,8 +77,11 @@ pub(super) struct BuffActCtx<'a, 'ctx> {
     pub effect_ctx: &'a mut EffectContext<'ctx>,
     pub executor: &'a mut SkillExecutor,
     pub buff_id: i32,
+    pub owner_uid: i64,
+    pub carrier: Option<BuffInstance>,
     pub condition_id: i32,
     pub has_bloodpool: bool,
+    pub is_synthetic: bool,
 }
 
 /// Legacy cluster contract — one impl per cluster claims many
@@ -113,4 +168,26 @@ pub(super) const BUFF_HANDLER_REGISTRY: &[&dyn BuffActionRunner] = &[
     &attr::AttrFromEntityHandler,
     &attr::AttrOnlyCalDamageHandler,
     &add_buff_both::AddBuffBothHandler,
+    &dot::PoisonHandler,
+    &dot::DeadlyPoisonHandler,
+    &dot::BurnHandler,
 ];
+
+pub(super) fn run_registered_handler(
+    act_type: &str,
+    stage: BuffStage,
+    parts: &[&str],
+    ctx: &mut BuffActCtx<'_, '_>,
+) -> Option<ActionResult> {
+    for handler in BUFF_HANDLER_REGISTRY {
+        if let Some(result) = handler.run(act_type, stage, parts, ctx) {
+            return Some(result);
+        }
+    }
+    for cluster in BUFF_ACTION_REGISTRY {
+        if let Some(result) = cluster.execute(act_type, parts, ctx, stage) {
+            return Some(result);
+        }
+    }
+    None
+}

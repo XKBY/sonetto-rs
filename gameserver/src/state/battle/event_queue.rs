@@ -98,7 +98,7 @@ pub enum BattleEvent {
     },
     /// Bridge for migrations that already execute and sync state through
     /// legacy ActEffect builders but need queue-controlled shaping.
-    SerializedActEffect{
+    SerializedActEffect {
         effect: ActEffect,
     },
     SkillEmit {
@@ -465,7 +465,7 @@ impl HostEventAccumulator {
             .chain(self.be_attacked.iter())
             .chain(self.injury.iter())
             .filter_map(|event| match event {
-                BattleEvent::SerializedActEffect{ effect } => Some(effect),
+                BattleEvent::SerializedActEffect { effect } => Some(effect),
                 _ => None,
             })
     }
@@ -479,7 +479,7 @@ impl HostEventAccumulator {
             HostLane::Injury => &self.injury,
         };
         slice.iter().filter_map(|event| match event {
-            BattleEvent::SerializedActEffect{ effect } => Some(effect),
+            BattleEvent::SerializedActEffect { effect } => Some(effect),
             _ => None,
         })
     }
@@ -886,7 +886,7 @@ pub fn drain_to_fight_steps(
                 _ctx.bloodtithe.set_max(team_type, max);
                 out.push(ActEffectBuilder::bloodpool_max_change(team_type, max));
             }
-            BattleEvent::SerializedActEffect{ effect } => out.push(effect),
+            BattleEvent::SerializedActEffect { effect } => out.push(effect),
             BattleEvent::SkillEmit {
                 skill_id,
                 from,
@@ -968,7 +968,7 @@ pub fn skill_step_to_event_triggered(step: FightStep) -> BattleEvent {
     let children = step
         .act_effect
         .into_iter()
-        .map(|effect| BattleEvent::SerializedActEffect{ effect })
+        .map(|effect| BattleEvent::SerializedActEffect { effect })
         .collect();
     BattleEvent::SkillEmit {
         skill_id,
@@ -983,13 +983,13 @@ pub fn fight_step_to_event(step: FightStep) -> BattleEvent {
     if step.act_type == Some(fight_step::ActType::Skill as i32) {
         skill_step_to_event_triggered(step)
     } else {
-        BattleEvent::SerializedActEffect{
+        BattleEvent::SerializedActEffect {
             effect: wrap_step(step),
         }
     }
 }
 
-pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect{
+pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
     let mut queue = EventQueue::new();
     queue.push(event);
 
@@ -1057,11 +1057,11 @@ mod tests {
         }
     }
 
-    fn synthetic_effect(effect_type: i32, effect_num: i32) -> ActEffect{
+    fn synthetic_effect(effect_type: i32, effect_num: i32) -> ActEffect {
         ActEffectBuilder::marker(effect_type, 42, effect_num)
     }
 
-    fn synthetic_skill_wrapper(skill_id: i32, child: ActEffect) -> ActEffect{
+    fn synthetic_skill_wrapper(skill_id: i32, child: ActEffect) -> ActEffect {
         wrap_step(make_skill_step(1001, 2002, skill_id, 0, vec![child]))
     }
 
@@ -1149,7 +1149,7 @@ mod tests {
         let mut ctx = test_ctx();
 
         let out = drain_to_fight_steps(
-            vec![BattleEvent::SerializedActEffect{
+            vec![BattleEvent::SerializedActEffect {
                 effect: effect.clone(),
             }],
             &mut ctx,
@@ -1386,7 +1386,7 @@ mod tests {
             skill_id: 30630122,
             from: 1001,
             to: 2002,
-            children: vec![BattleEvent::SerializedActEffect{
+            children: vec![BattleEvent::SerializedActEffect {
                 effect: child.clone(),
             }],
             kind: SkillEmitKind::EventTriggered,
@@ -1418,14 +1418,14 @@ mod tests {
             from: 1001,
             to: 2002,
             children: vec![
-                BattleEvent::SerializedActEffect{
+                BattleEvent::SerializedActEffect {
                     effect: direct.clone(),
                 },
                 BattleEvent::SkillEmit {
                     skill_id: 30630122,
                     from: 7777,
                     to: 8888,
-                    children: vec![BattleEvent::SerializedActEffect{
+                    children: vec![BattleEvent::SerializedActEffect {
                         effect: reactive_direct.clone(),
                     }],
                     kind: SkillEmitKind::EventTriggered,
@@ -1475,7 +1475,7 @@ mod tests {
             skill_id: 530000411,
             from: -1,
             to: -2,
-            children: vec![BattleEvent::SerializedActEffect{
+            children: vec![BattleEvent::SerializedActEffect {
                 effect: child.clone(),
             }],
             kind: SkillEmitKind::AutomaticPhase,
@@ -1545,14 +1545,14 @@ mod tests {
             from: 1111,
             to: 2222,
             children: vec![
-                BattleEvent::SerializedActEffect{
+                BattleEvent::SerializedActEffect {
                     effect: direct.clone(),
                 },
                 BattleEvent::SkillEmit {
                     skill_id: 30630122,
                     from: 3333,
                     to: 4444,
-                    children: vec![BattleEvent::SerializedActEffect{
+                    children: vec![BattleEvent::SerializedActEffect {
                         effect: reactive_direct.clone(),
                     }],
                     kind: SkillEmitKind::EventTriggered,

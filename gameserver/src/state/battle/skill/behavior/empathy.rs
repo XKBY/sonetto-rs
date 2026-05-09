@@ -168,7 +168,7 @@ impl Empathy {
         empathy_buff_id: i32,
         buff_uid: i64,
         cap: i32,
-    ) -> ActEffect{
+    ) -> ActEffect {
         ActEffectBuilder::storage_injury(
             caster_uid,
             0,

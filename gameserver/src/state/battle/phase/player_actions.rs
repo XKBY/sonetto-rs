@@ -51,7 +51,7 @@ fn push_host_accumulator_lane(
     lane: HostAccumulatorLane,
     effect: ActEffect,
 ) {
-    let event = BattleEvent::SerializedActEffect{ effect };
+    let event = BattleEvent::SerializedActEffect { effect };
     match lane {
         HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
     }
@@ -116,7 +116,7 @@ pub(crate) async fn run(
         step_walker::inline_magic_circle_root_wrapper(&mut host_step);
         let mut accumulator = HostEventAccumulator::new();
         for effect in host_step.act_effect.clone() {
-            accumulator.push_direct(BattleEvent::SerializedActEffect{ effect });
+            accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
         }
         let mc_kind = magic_circle::apply_magic_circle_self_skill_embeds_with_accumulator(
             ctx,

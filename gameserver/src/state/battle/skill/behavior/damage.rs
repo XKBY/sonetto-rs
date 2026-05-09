@@ -250,9 +250,7 @@ pub(crate) fn build_sotheby_holder_consume_steps(
                     0,
                 ),
             );
-            add_effects.push(
-                ActEffectBuilder::poison(target_uid),
-            );
+            add_effects.push(ActEffectBuilder::poison(target_uid));
         }
         if !suppress_cure {
             for ally_uid in get_ally_uids(fight, caster_uid) {

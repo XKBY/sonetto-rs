@@ -1,10 +1,10 @@
+use crate::state::battle::types::effects::EffectType as BattleEffectType;
 use crate::state::battle::{
     event_queue::{BattleEvent, serialize_leaf_event},
     manager::buff_mgr::{next_buff_uid_for_target, next_slave_buff_uid_for_target},
     types::buff::BuffLayerType,
     utils::buff_get_act_common_params,
 };
-use crate::state::battle::types::effects::EffectType as BattleEffectType;
 use sonettobuf::{
     ActEffect, BuffActInfo, BuffInfo, CardInfo, Fight, FightHurtInfo, FightStep, MagicCircleInfo,
     effect_type_enum::EffectType, fight_hurt_info::DamageFromType, fight_step,
@@ -1200,7 +1200,9 @@ impl ActEffectBuilder {
             target,
             effect_num
         );
-        Self::new(effect_type, target).effect_num(effect_num).build()
+        Self::new(effect_type, target)
+            .effect_num(effect_num)
+            .build()
     }
 
     pub fn effect_none_with_buff_act(target: i64, effect_num: i32, buff_act_id: i32) -> ActEffect {

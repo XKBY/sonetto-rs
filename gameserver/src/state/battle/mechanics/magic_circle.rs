@@ -483,7 +483,7 @@ pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(
         );
         if !embeds.is_empty() {
             for effect in embeds.iter().cloned() {
-                accumulator.push_direct(BattleEvent::SerializedActEffect{ effect });
+                accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
             }
             let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
             host_step.act_effect.splice(insert_at..insert_at, embeds);
@@ -497,7 +497,7 @@ pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(
         return MagicCircleApplyKind::None;
     }
     for effect in embeds.iter().cloned() {
-        accumulator.push_direct(BattleEvent::SerializedActEffect{ effect });
+        accumulator.push_direct(BattleEvent::SerializedActEffect { effect });
     }
     let insert_at = trigger_embed::find_trigger_insert_index(&host_step.act_effect);
     host_step.act_effect.splice(insert_at..insert_at, embeds);

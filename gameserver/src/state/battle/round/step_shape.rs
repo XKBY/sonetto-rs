@@ -44,7 +44,7 @@ fn needs_inline_passive_double_layer(skill_id: i32) -> bool {
     )
 }
 
-pub fn wrap_passive_emission_with_double_layer(effect: ActEffect) -> ActEffect{
+pub fn wrap_passive_emission_with_double_layer(effect: ActEffect) -> ActEffect {
     let should_wrap = effect.effect_type == Some(162)
         && effect
             .fight_step

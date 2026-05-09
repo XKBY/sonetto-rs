@@ -334,7 +334,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     out
 }
 
-pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect{
+pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
     serialize_leaf_event(BattleEvent::BloodpoolValueChange {
         team_type: 1,
         target: target_uid,
@@ -346,14 +346,14 @@ pub fn set_gain(value: i32) {
     *GAINED.lock().unwrap() = value;
 }
 
-pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect{
+pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect {
     serialize_leaf_event(BattleEvent::BloodpoolMaxChange {
         team_type: change_type,
         max: amount,
     })
 }
 
-pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect{
+pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect {
     serialize_leaf_event(BattleEvent::BloodpoolValueChange {
         team_type: change_type,
         target: target_uid,

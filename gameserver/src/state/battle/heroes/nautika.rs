@@ -33,13 +33,13 @@ pub fn is_nautika(model_id: Option<i32>) -> bool {
 /// Faith +1 emission targeting Nautika directly. Used by the
 /// bloodtithe consume paths where Nautika herself takes the HP loss
 /// — a fixed +1 alongside the bloodpool delta.
-pub fn faith_gain_one(target: i64) -> ActEffect{
+pub fn faith_gain_one(target: i64) -> ActEffect {
     ActEffectBuilder::ex_point_change(target, 1)
 }
 
 /// Faith gain by the bloodtithe-gain amount. Used when any ally loses
 /// HP and Nautika banks Faith equal to the resulting bloodpool delta.
-pub fn faith_gain_amount(nautika_uid: i64, gained: i32) -> ActEffect{
+pub fn faith_gain_amount(nautika_uid: i64, gained: i32) -> ActEffect {
     ActEffectBuilder::ex_point_change(nautika_uid, gained)
 }
 

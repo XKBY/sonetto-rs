@@ -116,9 +116,7 @@ pub fn expand_blood_domain_self_buff_aura(
                 caster_uid, ally_uid, buff_id, 1,
             ),
         );
-        out.push(
-            ActEffectBuilder::cure_up_by_lost_hp(ally_uid),
-        );
+        out.push(ActEffectBuilder::cure_up_by_lost_hp(ally_uid));
     }
     out
 }

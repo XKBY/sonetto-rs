@@ -238,7 +238,7 @@ pub fn inject_into_enemy_skill_step<F>(
                 children: skill_effects
                     .clone()
                     .into_iter()
-                    .map(|effect| BattleEvent::SerializedActEffect{ effect })
+                    .map(|effect| BattleEvent::SerializedActEffect { effect })
                     .collect(),
                 kind: SkillEmitKind::EventTriggered,
             });
@@ -331,7 +331,7 @@ pub fn inject_into_enemy_skill_step<F>(
                     children: skill_effects
                         .clone()
                         .into_iter()
-                        .map(|effect| BattleEvent::SerializedActEffect{ effect })
+                        .map(|effect| BattleEvent::SerializedActEffect { effect })
                         .collect(),
                     kind: SkillEmitKind::EventTriggered,
                 });
