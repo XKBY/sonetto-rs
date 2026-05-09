@@ -171,7 +171,7 @@ fn maybe_seed_excluded_runtime_buff(
             continue;
         };
         with_buff_ctx(fight, managers, |buff_ctx| {
-            buff_ctx.add(target_uid, seed_buff_id, target_uid, 0, seed_layer);
+            buff_ctx.add(target_uid, seed_buff_id, target_uid, 0, 0, seed_layer);
         });
     }
 }
@@ -242,6 +242,7 @@ pub fn apply(
     managers: &mut Managers,
     mechanics: &mut Mechanics,
 ) -> Vec<ActEffect> {
+    let from_skill_id = resolve_skill_effect_id(spec.skill_id);
     let mut effects = Vec::new();
     let mut existing_uid_pre = with_buff_ctx(fight, managers, |buff_ctx| {
         buff_ctx
@@ -459,6 +460,7 @@ pub fn apply(
                         target: spec.target,
                         buff_id: spec.buff_id,
                         from: spec.caster_uid,
+                        from_skill_id,
                         count: initial_stacks,
                         layer: initial_layer,
                         buff_uid,
@@ -582,6 +584,7 @@ pub fn apply(
                                 spec.target,
                                 spec.buff_id,
                                 spec.caster_uid,
+                                from_skill_id,
                                 new_count,
                                 0,
                                 existing_uid,
@@ -704,6 +707,7 @@ pub fn apply(
                     target: spec.target,
                     buff_id: spec.buff_id,
                     from: spec.caster_uid,
+                    from_skill_id,
                     count,
                     layer: initial_layer,
                     buff_uid,
@@ -713,6 +717,7 @@ pub fn apply(
                     target: spec.target,
                     buff_id: spec.buff_id,
                     from: spec.caster_uid,
+                    from_skill_id,
                     count: initial_stacks,
                     layer: initial_layer,
                     buff_uid,
@@ -787,6 +792,7 @@ pub fn replace_buff2(
         target,
         buff_id: replacement_buff_id,
         from: caster_uid,
+        from_skill_id: 0,
         sync_count: duration,
         sync_layer: 0,
         buff_uid,
@@ -980,7 +986,7 @@ pub fn consume_by_type(
             super::infer_enter_fight_seed_layer(skill_id, type_id).filter(|v| *v > 0)
     {
         with_buff_ctx(fight, managers, |buff_ctx| {
-            buff_ctx.add(target, type_id, target, 0, seed_layer);
+            buff_ctx.add(target, type_id, target, 0, 0, seed_layer);
         });
     }
 
@@ -1143,7 +1149,7 @@ mod tests {
 
         managers
             .buff_mgr
-            .add_with_uid(uid, buff_id, from_uid, 1, 3, 1_000_001);
+            .add_with_uid(uid, buff_id, from_uid, 0, 1, 3, 1_000_001);
 
         let effects = consume_by_type(&fight, &mut managers, uid, buff_id, 0, 2);
         assert_eq!(effects.len(), 2);
@@ -1187,10 +1193,10 @@ mod tests {
 
         managers
             .buff_mgr
-            .add_with_uid(uid, bad_buff, uid, 1, 0, 2_000_001);
+            .add_with_uid(uid, bad_buff, uid, 0, 1, 0, 2_000_001);
         managers
             .buff_mgr
-            .add_with_uid(uid, good_buff, uid, 1, 0, 2_000_002);
+            .add_with_uid(uid, good_buff, uid, 0, 1, 0, 2_000_002);
 
         let purify_effects = purify(&fight, &mut managers, uid);
         assert!(

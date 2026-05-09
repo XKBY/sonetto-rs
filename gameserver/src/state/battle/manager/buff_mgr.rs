@@ -33,6 +33,7 @@ pub struct BuffInstance {
     pub buff_id: i32,
     pub type_id: i32,
     pub from_uid: i64,
+    pub from_skill_id: i32,
     pub duration: i32, // 0 = permanent
     pub stacks: i32,   // maps to buff.count in packets
     pub layer: i32,    // maps to buff.layer in packets
@@ -59,7 +60,7 @@ fn derive_refresh_policy(bt: Option<&config::skill_bufftype::SkillBufftype>) -> 
 }
 
 impl BuffInstance {
-    pub fn build(buff_id: i32, from_uid: i64) -> Self {
+    pub fn build(buff_id: i32, from_uid: i64, from_skill_id: i32) -> Self {
         let configs = config::configs::get();
         let cfg = configs.skill_buff.iter().find(|b| b.id == buff_id);
         let buff_type = cfg.and_then(|b| configs.skill_bufftype.iter().find(|t| t.id == b.type_id));
@@ -68,6 +69,7 @@ impl BuffInstance {
             buff_id,
             type_id: cfg.map(|b| b.type_id).unwrap_or(0),
             from_uid,
+            from_skill_id,
             duration: cfg.map(|b| b.during_time).unwrap_or(0),
             stacks: cfg.map(|b| b.effect_count).unwrap_or(0),
             layer: 0,
@@ -114,6 +116,12 @@ pub enum LifecycleEventKind {
 }
 
 impl BuffMgr {
+    fn merge_from_skill_id(existing: &mut BuffInstance, from_skill_id: i32) {
+        if from_skill_id != 0 || existing.from_skill_id == 0 {
+            existing.from_skill_id = from_skill_id;
+        }
+    }
+
     fn uses_single_uid_layer_refresh(buff_id: i32) -> bool {
         buff_id == 30091120
     }
@@ -201,10 +209,18 @@ impl BuffMgr {
         false
     }
 
-    pub fn add(&mut self, target_uid: i64, buff_id: i32, from_uid: i64, count: i32, layer: i32) {
+    pub fn add(
+        &mut self,
+        target_uid: i64,
+        buff_id: i32,
+        from_uid: i64,
+        from_skill_id: i32,
+        count: i32,
+        layer: i32,
+    ) {
         let entry = self.active.entry(target_uid).or_default();
 
-        let mut instance = BuffInstance::build(buff_id, from_uid);
+        let mut instance = BuffInstance::build(buff_id, from_uid, from_skill_id);
 
         instance.stacks = if count > 0 { count } else { instance.stacks };
         instance.layer = layer;
@@ -217,6 +233,7 @@ impl BuffMgr {
                 existing.stacks = instance.stacks;
                 existing.layer = instance.layer;
                 existing.refresh_policy = instance.refresh_policy;
+                Self::merge_from_skill_id(existing, from_skill_id);
             } else {
                 entry.push(instance);
             }
@@ -226,6 +243,7 @@ impl BuffMgr {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.duration = existing.duration.max(instance.duration);
                 existing.layer = existing.layer.max(1).saturating_add(instance.layer.max(1));
+                Self::merge_from_skill_id(existing, from_skill_id);
             } else {
                 entry.push(instance);
             }
@@ -233,6 +251,7 @@ impl BuffMgr {
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
             existing.layer = instance.layer;
+            Self::merge_from_skill_id(existing, from_skill_id);
         } else {
             entry.push(instance);
         }
@@ -532,6 +551,7 @@ impl BuffMgr {
         target_uid: i64,
         buff_id: i32,
         from_uid: i64,
+        from_skill_id: i32,
         count: i32,
         layer: i32,
         buff_uid: i64,
@@ -546,6 +566,7 @@ impl BuffMgr {
             buff_id,
             type_id: cfg_buff.map(|b| b.type_id).unwrap_or(0),
             from_uid,
+            from_skill_id,
             duration: cfg_buff.map(|b| b.during_time).unwrap_or(0),
             stacks: if count > 0 {
                 count
@@ -561,6 +582,7 @@ impl BuffMgr {
             existing.buff_id = instance.buff_id;
             existing.type_id = instance.type_id;
             existing.from_uid = instance.from_uid;
+            Self::merge_from_skill_id(existing, from_skill_id);
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
             existing.layer = instance.layer;
@@ -573,6 +595,7 @@ impl BuffMgr {
         } else if Self::uses_single_uid_layer_refresh(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.from_uid = instance.from_uid;
+                Self::merge_from_skill_id(existing, from_skill_id);
                 existing.duration = existing.duration.max(instance.duration);
                 existing.stacks = instance.stacks;
                 existing.layer = instance.layer;
@@ -585,6 +608,7 @@ impl BuffMgr {
         } else if Self::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.uid = buff_uid;
+                Self::merge_from_skill_id(existing, from_skill_id);
                 existing.duration = existing.duration.max(instance.duration);
                 existing.layer = existing.layer.max(1).saturating_add(instance.layer.max(1));
             } else {
@@ -592,6 +616,7 @@ impl BuffMgr {
             }
         } else if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
             existing.uid = buff_uid;
+            Self::merge_from_skill_id(existing, from_skill_id);
             existing.duration = existing.duration.max(instance.duration);
             existing.stacks = instance.stacks;
             existing.layer = instance.layer;
@@ -828,7 +853,7 @@ pub fn sync_from_fight(fight: &Fight, mgr: &mut BuffMgr) {
                     continue;
                 }
                 observe_explicit_buff_uid_for_target(target_uid, buff_uid);
-                mgr.add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+                mgr.add_with_uid(target_uid, buff_id, from_uid, 0, count, layer, buff_uid);
                 let _ = mgr.set_instance_act_common_params(
                     target_uid,
                     buff_uid,
@@ -912,9 +937,9 @@ mod tests {
         ensure_game_data_initialized();
         with_buff_uid_test_lock(|| {
             let mut mgr = super::BuffMgr::new();
-            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100002);
-            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100004);
-            mgr.add_with_uid(-1, 30980111, 230646524, 0, 1, 100006);
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 0, 1, 100002);
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 0, 1, 100004);
+            mgr.add_with_uid(-1, 30980111, 230646524, 0, 0, 1, 100006);
 
             let buffs = mgr.get(-1);
             assert_eq!(buffs.len(), 3);
@@ -976,7 +1001,7 @@ mod tests {
         ensure_game_data_initialized();
         with_buff_uid_test_lock(|| {
             reset_buff_uid();
-            let instance = BuffInstance::build(30091111, 42);
+            let instance = BuffInstance::build(30091111, 42, 0);
             assert_eq!(instance.refresh_policy, RefreshPolicy::UpdateInPlace);
         });
     }
@@ -988,8 +1013,8 @@ mod tests {
             reset_buff_uid();
             let mut mgr = super::BuffMgr::new();
 
-            mgr.add(30137385, 30091120, 30137385, 1, 1);
-            mgr.add(30137385, 30091120, 30137385, 1, 2);
+            mgr.add(30137385, 30091120, 30137385, 0, 1, 1);
+            mgr.add(30137385, 30091120, 30137385, 0, 1, 2);
 
             let active = mgr.get(30137385);
             assert_eq!(active.len(), 1);

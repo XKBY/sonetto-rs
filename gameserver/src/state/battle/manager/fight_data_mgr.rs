@@ -328,7 +328,7 @@ impl FightDataMgr {
             observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             self.managers
                 .buff_mgr
-                .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+                .add_with_uid(target_uid, buff_id, from_uid, 0, count, layer, buff_uid);
             let _ = self
                 .managers
                 .buff_mgr

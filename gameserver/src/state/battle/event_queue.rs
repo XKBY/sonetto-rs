@@ -32,6 +32,7 @@ pub enum BattleEvent {
         count: i32,
         layer: i32,
         from: i64,
+        from_skill_id: i32,
         config_effect: Option<i32>,
     },
     BuffUpdate {
@@ -48,6 +49,7 @@ pub enum BattleEvent {
         target: i64,
         buff_id: i32,
         from: i64,
+        from_skill_id: i32,
         count: i32,
         layer: i32,
         buff_uid: i64,
@@ -56,6 +58,7 @@ pub enum BattleEvent {
         target: i64,
         buff_id: i32,
         from: i64,
+        from_skill_id: i32,
         sync_count: i32,
         sync_layer: i32,
         buff_uid: i64,
@@ -669,6 +672,7 @@ pub fn drain_to_fight_steps(
                 count,
                 layer,
                 from,
+                from_skill_id,
                 config_effect,
             } => {
                 let buff_uid = next_buff_uid_for_target(target);
@@ -680,8 +684,15 @@ pub fn drain_to_fight_steps(
                     .unwrap_or(0);
                 let act_common_params = buff_get_act_common_params(buff_id);
 
-                _ctx.buff_mgr
-                    .add_with_uid(target, buff_id, from, count, layer, buff_uid);
+                _ctx.buff_mgr.add_with_uid(
+                    target,
+                    buff_id,
+                    from,
+                    from_skill_id,
+                    count,
+                    layer,
+                    buff_uid,
+                );
                 out.push(ActEffectBuilder::buff_add_with_snapshot(
                     target,
                     from,
@@ -750,25 +761,41 @@ pub fn drain_to_fight_steps(
                 target,
                 buff_id,
                 from,
+                from_skill_id,
                 count,
                 layer,
                 buff_uid,
             } => {
-                _ctx.buff_mgr
-                    .add_with_uid(target, buff_id, from, count, layer, buff_uid);
+                _ctx.buff_mgr.add_with_uid(
+                    target,
+                    buff_id,
+                    from,
+                    from_skill_id,
+                    count,
+                    layer,
+                    buff_uid,
+                );
             }
             BattleEvent::BuffSyncAddWithUidAndEmitUpdate {
                 target,
                 buff_id,
                 from,
+                from_skill_id,
                 sync_count,
                 sync_layer,
                 buff_uid,
                 emit_count,
                 emit_layer,
             } => {
-                _ctx.buff_mgr
-                    .add_with_uid(target, buff_id, from, sync_count, sync_layer, buff_uid);
+                _ctx.buff_mgr.add_with_uid(
+                    target,
+                    buff_id,
+                    from,
+                    from_skill_id,
+                    sync_count,
+                    sync_layer,
+                    buff_uid,
+                );
                 out.push(
                     crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                         target, from, buff_id, buff_uid, emit_count, emit_layer,
@@ -1653,7 +1680,7 @@ mod tests {
         let buff_id = 30091122_i32;
         let from_uid = 77_i64;
         ctx.buff_mgr
-            .add_with_uid(target, buff_id, from_uid, 1, 0, buff_uid);
+            .add_with_uid(target, buff_id, from_uid, 0, 1, 0, buff_uid);
 
         let out =
             drain_to_fight_steps(vec![BattleEvent::BuffRemove { target, buff_uid }], &mut ctx);
@@ -1697,6 +1724,7 @@ mod tests {
                 count,
                 layer,
                 from: from_uid,
+                from_skill_id: 0,
                 config_effect: Some(30003),
             }],
             &mut ctx,
@@ -1748,7 +1776,7 @@ mod tests {
         let buff_id = 30091122_i32;
         let from_uid = 55_i64;
         ctx.buff_mgr
-            .add_with_uid(target, buff_id, from_uid, 4, 3, buff_uid);
+            .add_with_uid(target, buff_id, from_uid, 0, 4, 3, buff_uid);
 
         let out = drain_to_fight_steps(
             vec![BattleEvent::BuffUpdate {

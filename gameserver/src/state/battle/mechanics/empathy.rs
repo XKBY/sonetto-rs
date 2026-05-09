@@ -345,7 +345,7 @@ pub(crate) fn ensure_empathy_buff(buff_mgr: &mut BuffMgr, target_uid: i64) -> (i
     }
 
     let default_buff = empathy_default_buff_id();
-    buff_mgr.add(target_uid, default_buff, target_uid, 0, 0);
+    buff_mgr.add(target_uid, default_buff, target_uid, 0, 0, 0);
     buff_mgr
         .find_instance_by_type_id(target_uid, type_id)
         .map(|buff| (buff.buff_id, buff.uid))

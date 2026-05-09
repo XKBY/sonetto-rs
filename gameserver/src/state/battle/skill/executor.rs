@@ -613,11 +613,19 @@ impl SkillExecutor {
                 );
             }
             apply_preview_effects_to_sim_fight(&mut sim_fight, &behavior_effects);
-            apply_preview_effects_to_sim_buffs(&mut sim_buff_mgr, &behavior_effects);
+            apply_preview_effects_to_sim_buffs(
+                &mut sim_buff_mgr,
+                &behavior_effects,
+                skill_effect_id,
+            );
             // Nested DirectUseSkill execution reads managers.buff_mgr directly.
             // Keep managers in lockstep with previewed buff deltas so recursive
             // behavior slots see the same buff state as this skill chain.
-            apply_preview_effects_to_sim_buffs(&mut managers.buff_mgr, &behavior_effects);
+            apply_preview_effects_to_sim_buffs(
+                &mut managers.buff_mgr,
+                &behavior_effects,
+                skill_effect_id,
+            );
             all_effects.extend(behavior_effects);
         }
         let behaviors_done = Instant::now();
@@ -1540,7 +1548,11 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
         .collect()
 }
 
-fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffect]) {
+fn apply_preview_effects_to_sim_buffs(
+    buff_mgr: &mut BuffMgr,
+    effects: &[ActEffect],
+    from_skill_id: i32,
+) {
     for effect in effects {
         match effect.effect_type.unwrap_or(0) {
             x if x == EffectType::BuffAdd as i32 => {
@@ -1555,6 +1567,7 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                         target_uid,
                         buff_id,
                         buff.from_uid.unwrap_or(0),
+                        from_skill_id,
                         buff.count.unwrap_or(0),
                         buff.layer.unwrap_or(0),
                         buff.uid.unwrap_or(0),
@@ -1584,6 +1597,7 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
                         target_uid,
                         buff_id,
                         buff.from_uid.unwrap_or(0),
+                        from_skill_id,
                         buff.count.unwrap_or(0),
                         buff.layer.unwrap_or(0),
                         buff.uid.unwrap_or(0),
@@ -1597,7 +1611,17 @@ fn apply_preview_effects_to_sim_buffs(buff_mgr: &mut BuffMgr, effects: &[ActEffe
             }
             x if x == EffectType::FightStep as i32 => {
                 if let Some(step) = &effect.fight_step {
-                    apply_preview_effects_to_sim_buffs(buff_mgr, &step.act_effect);
+                    let nested_from_skill_id =
+                        if step.act_type == Some(fight_step::ActType::Skill as i32) {
+                            step.act_id.map(resolve_skill_effect_id).unwrap_or(from_skill_id)
+                        } else {
+                            from_skill_id
+                        };
+                    apply_preview_effects_to_sim_buffs(
+                        buff_mgr,
+                        &step.act_effect,
+                        nested_from_skill_id,
+                    );
                 }
             }
             _ => {}

@@ -198,7 +198,7 @@ fn sync_buff_state(ctx: &mut FightContext<'_>, uid: i64, effects: &[ActEffect]) 
             observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             ctx.managers
                 .buff_mgr
-                .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+                .add_with_uid(target_uid, buff_id, from_uid, 0, count, layer, buff_uid);
 
             if !ctx.mechanics.bloodtithe.initialized && buff_has_bloodpool(buff_id) {
                 ctx.mechanics.bloodtithe.initialized = true;
@@ -217,7 +217,7 @@ fn sync_buff_state(ctx: &mut FightContext<'_>, uid: i64, effects: &[ActEffect]) 
                 observe_explicit_buff_uid_for_target(target_uid, buff_uid);
                 ctx.managers
                     .buff_mgr
-                    .add_with_uid(target_uid, buff_id, from_uid, count, layer, buff_uid);
+                    .add_with_uid(target_uid, buff_id, from_uid, 0, count, layer, buff_uid);
             }
         }
     });

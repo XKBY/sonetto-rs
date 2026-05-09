@@ -251,7 +251,7 @@ fn build_active_circle_enemy_buff_step(
             observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             effect_ctx
                 .buff_mgr_mut()
-                .add_with_uid(target_uid, buff_id, caster_uid, 0, 1, buff_uid);
+                .add_with_uid(target_uid, buff_id, caster_uid, 0, 0, 1, buff_uid);
         }
         effects.push(effect);
         effects.extend(apply_after_buff_add_features(

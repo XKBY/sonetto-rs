@@ -355,7 +355,7 @@ impl FightCalculateDataMgr {
 
         if buff_uid != 0 {
             observe_explicit_buff_uid_for_target(target_id, buff_uid);
-            buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+            buff_mgr.add_with_uid(target_id, buff_id, from_uid, 0, count, layer, buff_uid);
             let _ = buff_mgr.set_instance_act_common_params(
                 target_id,
                 buff_uid,
@@ -366,7 +366,7 @@ impl FightCalculateDataMgr {
                     .unwrap_or_default(),
             );
         } else {
-            buff_mgr.add(target_id, buff_id, from_uid, count, layer);
+            buff_mgr.add(target_id, buff_id, from_uid, 0, count, layer);
         }
         Ok(())
     }
@@ -393,7 +393,7 @@ impl FightCalculateDataMgr {
         let layer = buff.layer.unwrap_or(0);
 
         observe_explicit_buff_uid_for_target(target_id, buff_uid);
-        buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+        buff_mgr.add_with_uid(target_id, buff_id, from_uid, 0, count, layer, buff_uid);
         let _ = buff_mgr.set_instance_act_common_params(
             target_id,
             buff_uid,
@@ -424,7 +424,7 @@ impl FightCalculateDataMgr {
         let layer = buff.layer.unwrap_or(0);
 
         observe_explicit_buff_uid_for_target(target_id, buff_uid);
-        buff_mgr.add_with_uid(target_id, buff_id, from_uid, count, layer, buff_uid);
+        buff_mgr.add_with_uid(target_id, buff_id, from_uid, 0, count, layer, buff_uid);
         let _ = buff_mgr.set_instance_act_common_params(
             target_id,
             buff_uid,

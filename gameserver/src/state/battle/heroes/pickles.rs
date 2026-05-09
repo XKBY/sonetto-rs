@@ -226,7 +226,7 @@ pub fn repair_round_end_hedonism_emission(
         if let Some(buff) = add.buff.as_ref()
             && let Some(buff_uid) = buff.uid
         {
-            buff_mgr.add_with_uid(target_uid, buff_id, pickles_uid, 0, 0, buff_uid);
+            buff_mgr.add_with_uid(target_uid, buff_id, pickles_uid, 0, 0, 0, buff_uid);
         }
         hedonism_effects.push(add);
         hedonism_effects.push(ActEffectBuilder::attr_with_num(target_uid, 0));

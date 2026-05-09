@@ -268,6 +268,7 @@ fn consume_monitor_continue_layer(
         holder_uid,
         buff.buff_id,
         buff.from_uid,
+        buff.from_skill_id,
         new_stacks,
         new_layer,
         buff.uid,

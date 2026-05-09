@@ -104,6 +104,7 @@ pub fn add_magic_circle(
                     count: 0,
                     layer: 1,
                     from: caster_uid,
+                    from_skill_id: 0,
                     config_effect: None,
                 });
                 let mut synthetic_fight = Fight::default();

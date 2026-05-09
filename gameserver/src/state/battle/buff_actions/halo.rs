@@ -79,6 +79,7 @@ impl BuffActionHandler for MasterHaloHandler {
                     params.slave_buff_id,
                     params.caster_uid,
                     0,
+                    0,
                     1,
                     buff_uid,
                 );
