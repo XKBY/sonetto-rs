@@ -1,4 +1,4 @@
-//! Non-terminal round phase: orchestrates the post-player-turn
+﻿//! Non-terminal round phase: orchestrates the post-player-turn
 //! sequence — round-end transition marker, attacker/defender passive
 //! sweeps, enemy actions, channel followups, defender round-end
 //! tick broadcast, DOT/HoT settlement, wave advancement, and
@@ -37,7 +37,7 @@ use crate::state::battle::{
     step_walker,
     steps::{broadcast, ex_gain, step_normalize},
     types::effects::EffectType,
-    utils::{buff_del, buff_get_act_common_params},
+    utils::buff_get_act_common_params,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -708,7 +708,7 @@ fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<Fight
                 .buff_mgr
                 .find_instance_by_buff_id(*enemy_uid, buff_id)
             {
-                inner_effects.push(buff_del(
+                inner_effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
                     *enemy_uid,
                     instance.uid,
                     buff_id,
@@ -743,3 +743,6 @@ fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<Fight
 
     Some(build_effect_step(wrappers))
 }
+
+
+

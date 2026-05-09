@@ -1,4 +1,4 @@
-use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
+﻿use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::super::executor::SkillExecutor;
 use super::buff_helper::{has_include_type, uses_slave_uid};
 use crate::state::battle::buff_actions::ban_lost_life::buff_get_ban_lost_life_floor;
@@ -16,7 +16,7 @@ use super::super::super::{
     types::behavior::BehaviorType,
     types::buff::{BAD_BUFF_TYPES, GOOD_BUFF_TYPES, stack_type::is_stackable},
     types::condition::ConditionType,
-    utils::{buff_add_slave, buff_add_with_count, buff_del, buff_update, get_exclude_buff_effects},
+    utils::get_exclude_buff_effects,
 };
 
 fn with_buff_ctx<R>(
@@ -412,9 +412,9 @@ pub fn apply(
                         )
                     });
                     let buff_add_effect = if use_slave_uid {
-                        buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
                     } else if has_features {
-                        buff_add_with_count(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_add_with_count(
                             spec.target,
                             spec.caster_uid,
                             spec.buff_id,
@@ -422,7 +422,7 @@ pub fn apply(
                             cfg_effect_count,
                         )
                     } else {
-                        buff_add_with_count(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_add_with_count(
                             spec.target,
                             spec.caster_uid,
                             spec.buff_id,
@@ -549,7 +549,7 @@ pub fn apply(
                         // frames (e.g. 1 -> 5 emits 2,3,4,5) instead of a single jump.
                         if new_count > existing_stacks {
                             for stack in (existing_stacks + 1)..=new_count {
-                                effects.push(buff_update(
+                                effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                                     spec.target,
                                     spec.caster_uid,
                                     spec.buff_id,
@@ -559,7 +559,7 @@ pub fn apply(
                                 ));
                             }
                         } else {
-                            effects.push(buff_update(
+                            effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                                 spec.target,
                                 spec.caster_uid,
                                 spec.buff_id,
@@ -632,9 +632,9 @@ pub fn apply(
             });
 
             let buff_add_effect = if use_slave_uid {
-                buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
+                crate::state::battle::fight_step::ActEffectBuilder::buff_add_slave(spec.target, spec.caster_uid, spec.buff_id, add_layer)
             } else if has_features {
-                buff_add_with_count(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_add_with_count(
                     spec.target,
                     spec.caster_uid,
                     spec.buff_id,
@@ -642,7 +642,7 @@ pub fn apply(
                     effect_count,
                 )
             } else {
-                buff_add_with_count(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_add_with_count(
                     spec.target,
                     spec.caster_uid,
                     spec.buff_id,
@@ -675,7 +675,7 @@ pub fn apply(
             let mut queue = EventQueue::new();
             if spec.target > 0 && !is_stackable_type && count > 1 && initial_stacks > 0 {
                 for stack in (initial_stacks + 1)..=count {
-                    effects.push(buff_update(
+                    effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                         spec.target,
                         spec.caster_uid,
                         spec.buff_id,
@@ -810,7 +810,7 @@ pub fn disperse(fight: &Fight, managers: &mut Managers, target: i64) -> Vec<ActE
                     })
                     .unwrap_or(false);
                 if is_good {
-                    let mut e = buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
+                    let mut e = crate::state::battle::fight_step::ActEffectBuilder::buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
                     e.config_effect = Some(30003);
                     Some(e)
                 } else {
@@ -834,7 +834,7 @@ pub fn disperse_force(
             .into_iter()
             .filter(|instance| instance.buff_id == buff_id)
             .map(|instance| {
-                let mut e = buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
+                let mut e = crate::state::battle::fight_step::ActEffectBuilder::buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
                 e.config_effect = Some(30003);
                 e
             })
@@ -887,7 +887,7 @@ pub fn purify(fight: &Fight, managers: &mut Managers, target: i64) -> Vec<ActEff
                     })
                     .unwrap_or(false);
                 if is_bad {
-                    let mut e = buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
+                    let mut e = crate::state::battle::fight_step::ActEffectBuilder::buff_del(target, instance.uid, instance.buff_id, instance.from_uid);
                     e.config_effect = Some(30003);
                     Some(e)
                 } else {
@@ -1191,3 +1191,6 @@ mod tests {
         );
     }
 }
+
+
+

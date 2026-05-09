@@ -239,10 +239,11 @@ pub fn build_insight_iii_bounce(
     let bounce_effects = alive_enemies(fight, holder_uid)
         .into_iter()
         .map(|enemy_uid| {
-            ActEffectBuilder::new(EffectType::OriginDamage as i32, enemy_uid)
-                .effect_num(apply_real_hurt_fix(buff_mgr, enemy_uid, bonus))
-                .config_effect(config_effect)
-                .build()
+            ActEffectBuilder::origin_damage(
+                enemy_uid,
+                apply_real_hurt_fix(buff_mgr, enemy_uid, bonus),
+                Some(config_effect),
+            )
         })
         .collect::<Vec<_>>();
     if bounce_effects.is_empty() {

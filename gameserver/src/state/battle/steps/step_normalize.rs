@@ -1,6 +1,6 @@
-use sonettobuf::{ActEffect, Fight};
+﻿use sonettobuf::{ActEffect, Fight};
 
-use crate::state::battle::{context::FightContext, utils::buff_update};
+use crate::state::battle::context::FightContext;
 
 pub(crate) fn is_preferred_defender_round_end_wrapper(fight: &Fight, effect: &ActEffect) -> bool {
     if effect.effect_type
@@ -58,7 +58,7 @@ pub(crate) fn normalize_defender_round_end_wrapper(
         .filter(|b| b.buff_id == buff_id)
         .max_by_key(|b| b.uid)
     {
-        let mut update = buff_update(
+        let mut update = crate::state::battle::fight_step::ActEffectBuilder::buff_update(
             target_uid,
             instance.from_uid,
             instance.buff_id,
@@ -84,7 +84,7 @@ pub(crate) fn normalize_defender_round_end_wrapper(
         .find(|b| b.id == buff_id)
         .map(|b| b.effect_count)
         .unwrap_or(0);
-    let mut update = buff_update(
+    let mut update = crate::state::battle::fight_step::ActEffectBuilder::buff_update(
         target_uid,
         fs.from_id.unwrap_or(0),
         buff_id,
@@ -98,3 +98,5 @@ pub(crate) fn normalize_defender_round_end_wrapper(
     fs.act_effect = vec![update];
     wrapper
 }
+
+

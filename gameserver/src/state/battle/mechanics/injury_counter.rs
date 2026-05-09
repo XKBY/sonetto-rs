@@ -387,9 +387,7 @@ pub(crate) fn collect_dead_effects_after_damage(
     killed_in_order
         .into_iter()
         .map(|target_id| {
-            ActEffectBuilder::new(EffectType::Dead as i32, target_id)
-                .effect_num(0)
-                .build()
+            ActEffectBuilder::dead(target_id)
         })
         .collect()
 }

@@ -1,4 +1,4 @@
-//! Magic-circle mechanic — config lookup helpers and runtime embeds.
+﻿//! Magic-circle mechanic — config lookup helpers and runtime embeds.
 //!
 //! A magic circle is summoned by an ex skill (`skill_effect.isBigSkill == 1`)
 //! that carries a `BehaviorType::AddMagicCircle { circle_id }` behavior slot.
@@ -29,7 +29,7 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
-    utils::{buff_add, find_uid_by_hero_id, for_each_buff_feature_chain},
+    utils::{find_uid_by_hero_id, for_each_buff_feature_chain},
 };
 
 /// Summon a magic circle: emit the `MagicCircleAdd` ActEffect with the
@@ -73,7 +73,7 @@ pub fn add_magic_circle(
                 fight, caster_uid, buff_id,
             ));
         } else {
-            out.push(buff_add(caster_uid, caster_uid, buff_id, 1));
+            out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_add(caster_uid, caster_uid, buff_id, 1));
         }
     }
     if let Some(buff_id) = circle
@@ -501,3 +501,6 @@ pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(
     host_step.act_effect.splice(insert_at..insert_at, embeds);
     MagicCircleApplyKind::TopLevel
 }
+
+
+

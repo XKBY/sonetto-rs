@@ -1,6 +1,6 @@
-use sonettobuf::ActEffect;
+﻿use sonettobuf::ActEffect;
 
-use crate::state::battle::{context::FightContext, utils::buff_update};
+use crate::state::battle::context::FightContext;
 
 /// Collects BuffUpdate (effectType 7) ActEffects for every alive frontline
 /// entity's buffs whose remaining duration is exactly 1 tick — i.e. the
@@ -31,7 +31,7 @@ pub(crate) fn collect_buff_tick_broadcast(
             if buff.duration != 1 {
                 continue;
             }
-            let mut effect = buff_update(
+            let mut effect = crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                 uid,
                 buff.from_uid,
                 buff.buff_id,
@@ -128,3 +128,5 @@ pub(crate) fn adjust_attacker_round1_broadcast_uids(broadcast: &mut [ActEffect])
         buff.uid = Some(uid + delta);
     }
 }
+
+

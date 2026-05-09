@@ -41,6 +41,8 @@ fn main() -> Result<()> {
 }
 
 fn run() -> Result<()> {
+    init_tracing();
+
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(Path::to_path_buf)
@@ -83,6 +85,33 @@ fn run() -> Result<()> {
         .with_context(|| format!("failed to write {}", output_path.display()))?;
     println!("wrote {}", output_path.display());
     Ok(())
+}
+
+fn init_tracing() {
+    let level = std::env::var("RUST_LOG")
+        .ok()
+        .as_deref()
+        .map(parse_log_level)
+        .unwrap_or(tracing::Level::WARN);
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_target(true)
+        .try_init();
+}
+
+fn parse_log_level(raw: &str) -> tracing::Level {
+    let lower = raw.to_ascii_lowercase();
+    if lower.contains("trace") {
+        tracing::Level::TRACE
+    } else if lower.contains("debug") {
+        tracing::Level::DEBUG
+    } else if lower.contains("info") {
+        tracing::Level::INFO
+    } else if lower.contains("error") {
+        tracing::Level::ERROR
+    } else {
+        tracing::Level::WARN
+    }
 }
 
 #[derive(Debug, Clone)]

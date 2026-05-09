@@ -1,6 +1,4 @@
-use sonettobuf::ActEffect;
-
-use crate::state::battle::utils::effect_none;
+﻿use sonettobuf::ActEffect;
 
 /// What a buff_action handler can produce.
 /// Most handlers only need `effects`. The others are opt-in.
@@ -15,7 +13,7 @@ pub struct ActionResult {
 impl ActionResult {
     pub fn none(target: i64) -> Self {
         Self {
-            effects: vec![effect_none(target)],
+            effects: vec![crate::state::battle::fight_step::ActEffectBuilder::effect_none(target)],
             ..Default::default()
         }
     }
@@ -38,3 +36,5 @@ impl ActionResult {
         }
     }
 }
+
+

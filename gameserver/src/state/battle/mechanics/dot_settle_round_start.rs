@@ -64,7 +64,6 @@ use crate::state::battle::{
         cache::resolve_skill_effect_id, condition::scope::skill_is_round_start_only,
         targets::get_entity,
     },
-    types::effects::EffectType,
     utils::apply_real_hurt_fix,
 };
 
@@ -136,16 +135,15 @@ pub fn build_round_start_dot_settle_steps(ctx: &FightContext<'_>) -> Vec<FightSt
         }
         for &settle_skill_id in &settle_skill_ids {
             let mut effects = vec![
-                ActEffectBuilder::new(EffectType::OriginCrit as i32, carrier_uid)
-                    .effect_num(total_damage)
-                    .config_effect(SETTLE_CONFIG_EFFECT)
-                    .build(),
+                ActEffectBuilder::origin_crit(
+                    carrier_uid,
+                    total_damage,
+                    Some(SETTLE_CONFIG_EFFECT),
+                ),
             ];
             if entity_will_die_from(ctx, carrier_uid, total_damage) {
                 effects.push(
-                    ActEffectBuilder::new(EffectType::Dead as i32, carrier_uid)
-                        .effect_num(0)
-                        .build(),
+                    ActEffectBuilder::dead(carrier_uid),
                 );
             }
             let inner = make_skill_step(carrier_uid, carrier_uid, settle_skill_id, 0, effects);

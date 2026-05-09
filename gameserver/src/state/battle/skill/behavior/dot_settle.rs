@@ -41,7 +41,6 @@ use crate::state::battle::mechanics::dot::parse_dot_features;
 use crate::state::battle::skill::get_entity;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
-use crate::state::battle::types::effects::EffectType;
 use crate::state::battle::utils::apply_real_hurt_fix;
 
 /// configEffect marker for 60073 emissions. Lets downstream observers
@@ -112,10 +111,7 @@ impl BehaviorAction for DotSettle {
         }
 
         let mut effects = vec![
-            ActEffectBuilder::new(EffectType::OriginCrit as i32, carrier)
-                .effect_num(total_damage)
-                .config_effect(SETTLE_CONFIG_EFFECT)
-                .build(),
+            ActEffectBuilder::origin_crit(carrier, total_damage, Some(SETTLE_CONFIG_EFFECT)),
         ];
 
         // Append `et=9 Dead` if the consolidated damage drops the carrier
@@ -127,9 +123,7 @@ impl BehaviorAction for DotSettle {
             let after_shield = total_damage.saturating_sub(shield);
             if after_shield > 0 && hp - after_shield <= 0 {
                 effects.push(
-                    ActEffectBuilder::new(EffectType::Dead as i32, carrier)
-                        .effect_num(0)
-                        .build(),
+                    ActEffectBuilder::dead(carrier),
                 );
             }
         }

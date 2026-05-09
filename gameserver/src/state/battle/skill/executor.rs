@@ -1,6 +1,6 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use rand::{SeedableRng, rngs::StdRng};
-use sonettobuf::{ActEffect, BuffInfo, Fight, FightStep, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -20,7 +20,7 @@ use super::super::{
     },
     mechanics::{Mechanics, empathy::has_empathy_buff},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
-    utils::buff_del,
+
 };
 
 use super::{
@@ -898,23 +898,17 @@ impl SkillExecutor {
                             .find(|b| b.buff_id == del_buff_id)
                             .map(|b| b.uid)
                             .unwrap_or(0);
-                        self.side_effects.push(ActEffect {
-                            effect_type: Some(EffectType::BuffDel as i32),
-                            target_id: Some(del_target),
-                            buff: Some(BuffInfo {
-                                buff_id: Some(del_buff_id),
-                                uid: Some(uid),
-                                from_uid: Some(del_target),
-                                duration: Some(0),
-                                count: Some(0),
-                                ex_info: Some(0),
-                                layer: Some(0),
-                                r#type: Some(0),
-                                act_common_params: Some(String::new()),
-                                act_info: vec![],
-                            }),
-                            ..Default::default()
-                        });
+                        self.side_effects.push(ActEffectBuilder::buff_del_with_snapshot(
+                            del_target,
+                            uid,
+                            del_buff_id,
+                            del_target,
+                            0,
+                            0,
+                            String::new(),
+                            0,
+                            0,
+                        ));
                     }
                 }
                 Err(e) => tracing::warn!(
@@ -1008,7 +1002,7 @@ impl SkillExecutor {
                 from_id: Some(from_uid),
                 to_id: Some(caster_uid),
                 act_id: Some(buff_id),
-                act_effect: vec![buff_del(caster_uid, buff_uid, buff_id, from_uid)],
+                act_effect: vec![crate::state::battle::fight_step::ActEffectBuilder::buff_del(caster_uid, buff_uid, buff_id, from_uid)],
                 card_index: Some(0),
                 support_hero_id: Some(0),
                 fake_timeline: Some(false),
@@ -1549,9 +1543,7 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
     killed_in_order
         .into_iter()
         .map(|target_id| {
-            ActEffectBuilder::new(EffectType::Dead as i32, target_id)
-                .effect_num(0)
-                .build()
+            ActEffectBuilder::dead(target_id)
         })
         .collect()
 }
@@ -1811,3 +1803,6 @@ fn spawn_summoned_entity(fight: &mut Fight, summon: PendingSummon) -> Result<i64
     defender.sub_entitys.push(entity);
     Ok(new_uid)
 }
+
+
+

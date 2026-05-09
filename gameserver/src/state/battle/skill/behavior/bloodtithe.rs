@@ -9,6 +9,7 @@ use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::{
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
+    fight_step::ActEffectBuilder,
     manager::{buff_mgr::BuffMgr as EventBuffMgr, ex_point_mgr::ExPointMgr as EventExPointMgr},
 };
 
@@ -185,13 +186,13 @@ pub fn lost_life(
             ..Default::default()
         });
 
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::OriginDamage as i32),
-            target_id: Some(target),
-            effect_num: Some(apply_real_hurt_fix(buff_mgr, target, actual_loss)),
-            buff_act_id: (act_id > 0).then_some(act_id),
-            hurt_info: Some(FightHurtInfo {
-                damage: Some(apply_real_hurt_fix(buff_mgr, target, actual_loss)),
+        let damage = apply_real_hurt_fix(buff_mgr, target, actual_loss);
+        effects.push(ActEffectBuilder::origin_damage_with_hurt(
+            target,
+            damage,
+            (act_id > 0).then_some(act_id),
+            FightHurtInfo {
+                damage: Some(damage),
                 reduce_hp: Some(0),
                 reduce_shield: Some(0),
                 career_restraint: Some(false),
@@ -205,9 +206,8 @@ pub fn lost_life(
                 effect_id: Some(0),
                 skill_id: Some(0),
                 from_uid: Some(caster_uid),
-            }),
-            ..Default::default()
-        });
+            },
+        ));
     } else {
         let mut queue = EventQueue::new();
         queue.push(BattleEvent::Damage {

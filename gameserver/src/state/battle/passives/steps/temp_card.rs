@@ -1,6 +1,6 @@
-use sonettobuf::{ActEffect, FightStep, fight_step};
+﻿use sonettobuf::{ActEffect, FightStep, fight_step};
 
-use crate::state::battle::{context::FightContext, utils::buff_del};
+use crate::state::battle::context::FightContext;
 
 pub fn build_temp_card_step(ctx: &mut FightContext<'_>, uids: &[i64]) -> Option<FightStep> {
     let cfg = config::configs::get();
@@ -112,7 +112,7 @@ pub fn build_temp_card_cleanup_step(ctx: &mut FightContext<'_>, uids: &[i64]) ->
             .collect();
 
         for (buff_uid, buff_id, from_uid) in to_remove {
-            effects.push(buff_del(uid, buff_uid, buff_id, from_uid));
+            effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(uid, buff_uid, buff_id, from_uid));
             // intentionally NOT removing from buff_mgr - buff persists for ReplaceBuff2
         }
     }
@@ -127,3 +127,5 @@ pub fn build_temp_card_cleanup_step(ctx: &mut FightContext<'_>, uids: &[i64]) ->
         )
     }
 }
+
+

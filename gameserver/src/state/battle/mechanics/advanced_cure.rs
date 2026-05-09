@@ -40,7 +40,6 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, wrap_step},
     round::step_shape::build_effect_step,
     skill::get_entity,
-    types::effects::EffectType,
 };
 
 /// Build the round-end AdvancedCure HoT settlement step (one outer
@@ -83,9 +82,7 @@ pub fn build_round_end_advanced_cure_step(ctx: &FightContext<'_>) -> Option<Figh
                 to_id: Some(target_uid),
                 act_id: Some(instance.buff_id),
                 act_effect: vec![
-                    ActEffectBuilder::new(EffectType::None as i32, target_uid)
-                        .effect_num(instance.buff_id)
-                        .build(),
+                    ActEffectBuilder::effect_none_with_num(target_uid, instance.buff_id),
                     serialize_leaf_event(BattleEvent::Heal {
                         target: target_uid,
                         amount: heal,

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+﻿#![allow(dead_code)]
 
 use std::{
     collections::HashMap,
@@ -19,7 +19,7 @@ use crate::state::battle::{
     },
     mechanics::bloodtithe::BloodtitheState,
     types::buff::BuffLayerType,
-    utils::{buff_del, buff_get_act_common_params, buff_update},
+    utils::buff_get_act_common_params,
 };
 
 /// A typed event recording a state mutation or visual emission
@@ -720,7 +720,7 @@ pub fn drain_to_fight_steps(
                         .buff_mgr
                         .set_instance_count_layer(target, buff_uid, new_count, new_layer);
                     if updated {
-                        out.push(buff_update(
+                        out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                             target,
                             instance.from_uid,
                             instance.buff_id,
@@ -741,7 +741,7 @@ pub fn drain_to_fight_steps(
                 _ctx.buff_mgr.remove_by_uid(target, buff_uid);
 
                 if let Some(instance) = removed {
-                    out.push(buff_del(
+                    out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
                         target,
                         buff_uid,
                         instance.buff_id,
@@ -772,7 +772,7 @@ pub fn drain_to_fight_steps(
             } => {
                 _ctx.buff_mgr
                     .add_with_uid(target, buff_id, from, sync_count, sync_layer, buff_uid);
-                out.push(buff_update(
+                out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                     target, from, buff_id, buff_uid, emit_count, emit_layer,
                 ));
             }
@@ -812,13 +812,20 @@ pub fn drain_to_fight_steps(
                     hurt_info.hurt_effect = Some(effect_type);
                 }
 
-                out.push(ActEffect {
-                    effect_type: Some(effect_type),
-                    target_id: Some(target),
-                    effect_num: Some(damage),
-                    config_effect: hurt_info.config_effect,
-                    hurt_info: Some(hurt_info),
-                    ..Default::default()
+                out.push(if is_crit {
+                    ActEffectBuilder::crit_with_hurt(
+                        target,
+                        damage,
+                        hurt_info.config_effect,
+                        hurt_info,
+                    )
+                } else {
+                    ActEffectBuilder::damage_with_hurt(
+                        target,
+                        damage,
+                        hurt_info.config_effect,
+                        hurt_info,
+                    )
                 });
             }
             BattleEvent::Heal {
@@ -838,12 +845,7 @@ pub fn drain_to_fight_steps(
                     _ctx.ex_point_mgr.set_hp(target, new_hp);
                 }
 
-                out.push(ActEffect {
-                    effect_type: Some(EffectType::Heal as i32),
-                    target_id: Some(target),
-                    effect_num: Some(amount),
-                    ..Default::default()
-                });
+                out.push(ActEffectBuilder::heal(target, amount, None));
             }
             BattleEvent::HealCrit {
                 target,
@@ -1814,3 +1816,6 @@ mod tests {
         assert_eq!(out, vec![wrap_step(original)]);
     }
 }
+
+
+

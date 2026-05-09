@@ -1,11 +1,11 @@
-//! `LostHpCountAddBuff` — emits HP-broadcast pairs pre-stage and a
+﻿//! `LostHpCountAddBuff` — emits HP-broadcast pairs pre-stage and a
 //! None marker post-stage. Migrated to the `BuffActionHandler` trait
 //! (one handler per stage). Child buffs whose primary `Attr` targets
 //! 203 or 211 skip the broadcast pairs.
 
 use sonettobuf::ActEffect;
 
-use crate::state::battle::{types::effects::EffectType, utils::effect_none};
+use crate::state::battle::types::effects::EffectType;
 
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
@@ -121,6 +121,8 @@ impl BuffActionHandler for LostHpCountAddBuffAfter {
     }
 
     fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
-        ActionResult::single(effect_none(params.target_uid))
+        ActionResult::single(crate::state::battle::fight_step::ActEffectBuilder::effect_none(params.target_uid))
     }
 }
+
+

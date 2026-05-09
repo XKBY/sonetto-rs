@@ -1,5 +1,10 @@
+use crate::state::battle::{
+    manager::buff_mgr::{next_buff_uid_for_target, next_slave_buff_uid_for_target},
+    types::buff::BuffLayerType,
+    utils::buff_get_act_common_params,
+};
 use sonettobuf::{
-    ActEffect, BuffActInfo, FightHurtInfo, FightStep, MagicCircleInfo,
+    ActEffect, BuffActInfo, BuffInfo, FightHurtInfo, FightStep, MagicCircleInfo,
     effect_type_enum::EffectType, fight_step,
 };
 
@@ -20,12 +25,20 @@ impl ActEffectBuilder {
     }
 
     pub fn ex_point_change(target: i64, delta: i32) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "ex_point_change", target, delta);
         Self::new(EffectType::Expointchange as i32, target)
             .effect_num(delta)
             .build()
     }
 
     pub fn bloodpool_value_change(target: i64, team: i32, delta: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "bloodpool_value_change",
+            target,
+            team,
+            delta
+        );
         Self::new(EffectType::Bloodpoolvaluechange as i32, target)
             .effect_num(team)
             .effect_num1(delta)
@@ -33,9 +46,416 @@ impl ActEffectBuilder {
     }
 
     pub fn bloodpool_max_change(team: i32, amount: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "bloodpool_max_change",
+            team,
+            amount
+        );
         Self::new(EffectType::Bloodpoolmaxchange as i32, 0)
             .effect_num(team)
             .effect_num1(amount)
+            .build()
+    }
+
+    pub fn effect_none(target: i64) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "effect_none", target);
+        Self::new(EffectType::None as i32, target).build()
+    }
+
+    pub fn effect_none_with_num(target: i64, effect_num: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "effect_none_with_num",
+            target,
+            effect_num
+        );
+        Self::new(EffectType::None as i32, target)
+            .effect_num(effect_num)
+            .build()
+    }
+
+    pub fn buff_add(target_uid: i64, from_uid: i64, buff_id: i32, layer: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_add",
+            target_uid,
+            from_uid,
+            buff_id,
+            layer
+        );
+        Self::build_buff_add(target_uid, from_uid, buff_id, layer, 0, false)
+    }
+
+    pub fn buff_add_with_count(
+        target_uid: i64,
+        from_uid: i64,
+        buff_id: i32,
+        layer: i32,
+        count: i32,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_add_with_count",
+            target_uid,
+            from_uid,
+            buff_id,
+            layer,
+            count
+        );
+        Self::build_buff_add(target_uid, from_uid, buff_id, layer, count, false)
+    }
+
+    pub fn buff_add_slave(target_uid: i64, from_uid: i64, buff_id: i32, layer: i32) -> ActEffect {
+        let cfg = config::configs::get();
+        let initial_count = if layer > 1 {
+            1
+        } else {
+            cfg.skill_buff
+                .iter()
+                .find(|b| b.id == buff_id)
+                .map(|b| b.effect_count)
+                .unwrap_or(0)
+        };
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_add_slave",
+            target_uid,
+            from_uid,
+            buff_id,
+            layer,
+            initial_count
+        );
+        Self::build_buff_add(target_uid, from_uid, buff_id, layer, initial_count, true)
+    }
+
+    pub fn buff_update(
+        target_uid: i64,
+        from_uid: i64,
+        buff_id: i32,
+        buff_uid: i64,
+        count: i32,
+        layer: i32,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_update",
+            target_uid,
+            from_uid,
+            buff_id,
+            buff_uid,
+            count,
+            layer
+        );
+        Self::buff_update_with_snapshot(
+            target_uid,
+            from_uid,
+            buff_id,
+            buff_uid,
+            0,
+            count,
+            buff_get_act_common_params(buff_id),
+            layer,
+            BuffLayerType::Normal as i32,
+        )
+    }
+
+    pub fn buff_update_with_snapshot(
+        target_uid: i64,
+        from_uid: i64,
+        buff_id: i32,
+        buff_uid: i64,
+        duration: i32,
+        count: i32,
+        act_common_params: String,
+        layer: i32,
+        buff_type: i32,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_update_with_snapshot",
+            target_uid,
+            from_uid,
+            buff_id,
+            buff_uid,
+            duration,
+            count,
+            layer,
+            buff_type,
+            act_common_params = act_common_params.as_str()
+        );
+        Self::new(EffectType::Buffupdate as i32, target_uid)
+            .effect_num(0)
+            .buff(BuffInfo {
+                buff_id: Some(buff_id),
+                duration: Some(duration),
+                uid: Some(buff_uid),
+                ex_info: Some(0),
+                from_uid: Some(from_uid),
+                count: Some(count),
+                act_common_params: Some(act_common_params),
+                layer: Some(layer),
+                r#type: Some(buff_type),
+                act_info: vec![],
+            })
+            .build()
+    }
+
+    pub fn buff_del(target: i64, buff_uid: i64, buff_id: i32, from_uid: i64) -> ActEffect {
+        let cfg = config::configs::get();
+        let layer = cfg
+            .skill_buff
+            .iter()
+            .find(|b| b.id == buff_id)
+            .map(|b| if b.features.is_empty() { 0 } else { 1 })
+            .unwrap_or(0);
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_del",
+            target,
+            buff_uid,
+            buff_id,
+            from_uid,
+            layer
+        );
+        Self::new(EffectType::Buffdel as i32, target)
+            .buff(BuffInfo {
+                uid: Some(buff_uid),
+                buff_id: Some(buff_id),
+                from_uid: Some(from_uid),
+                layer: Some(layer),
+                ..Default::default()
+            })
+            .build()
+    }
+
+    pub fn buff_del_with_snapshot(
+        target: i64,
+        buff_uid: i64,
+        buff_id: i32,
+        from_uid: i64,
+        duration: i32,
+        count: i32,
+        act_common_params: String,
+        layer: i32,
+        buff_type: i32,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "buff_del_with_snapshot",
+            target,
+            buff_uid,
+            buff_id,
+            from_uid,
+            duration,
+            count,
+            layer,
+            buff_type,
+            act_common_params = act_common_params.as_str()
+        );
+        Self::new(EffectType::Buffdel as i32, target)
+            .buff(BuffInfo {
+                buff_id: Some(buff_id),
+                duration: Some(duration),
+                uid: Some(buff_uid),
+                ex_info: Some(0),
+                from_uid: Some(from_uid),
+                count: Some(count),
+                act_common_params: Some(act_common_params),
+                layer: Some(layer),
+                r#type: Some(buff_type),
+                act_info: vec![],
+            })
+            .build()
+    }
+
+    pub fn damage(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "damage",
+            target,
+            amount,
+            ?config_effect
+        );
+        Self::build_numeric_effect(EffectType::Damage as i32, target, amount, config_effect, None, None)
+    }
+
+    pub fn damage_with_buff_act(target: i64, amount: i32, buff_act_id: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "damage_with_buff_act",
+            target,
+            amount,
+            buff_act_id
+        );
+        Self::build_numeric_effect(
+            EffectType::Damage as i32,
+            target,
+            amount,
+            None,
+            Some(buff_act_id),
+            None,
+        )
+    }
+
+    pub fn damage_with_hurt(
+        target: i64,
+        amount: i32,
+        config_effect: Option<i32>,
+        hurt_info: FightHurtInfo,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "damage_with_hurt",
+            target,
+            amount,
+            ?config_effect,
+            ?hurt_info
+        );
+        Self::build_numeric_effect(
+            EffectType::Damage as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            Some(hurt_info),
+        )
+    }
+
+    pub fn damage_with_buff_hurt(
+        target: i64,
+        amount: i32,
+        buff_act_id: i32,
+        hurt_info: FightHurtInfo,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "damage_with_buff_hurt",
+            target,
+            amount,
+            buff_act_id,
+            ?hurt_info
+        );
+        Self::build_numeric_effect(
+            EffectType::Damage as i32,
+            target,
+            amount,
+            None,
+            Some(buff_act_id),
+            Some(hurt_info),
+        )
+    }
+
+    pub fn crit(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "crit",
+            target,
+            amount,
+            ?config_effect
+        );
+        Self::build_numeric_effect(EffectType::Crit as i32, target, amount, config_effect, None, None)
+    }
+
+    pub fn crit_with_hurt(
+        target: i64,
+        amount: i32,
+        config_effect: Option<i32>,
+        hurt_info: FightHurtInfo,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "crit_with_hurt",
+            target,
+            amount,
+            ?config_effect,
+            ?hurt_info
+        );
+        Self::build_numeric_effect(
+            EffectType::Crit as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            Some(hurt_info),
+        )
+    }
+
+    pub fn heal(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "heal",
+            target,
+            amount,
+            ?config_effect
+        );
+        Self::build_numeric_effect(EffectType::Heal as i32, target, amount, config_effect, None, None)
+    }
+
+    pub fn origin_damage(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "origin_damage",
+            target,
+            amount,
+            ?config_effect
+        );
+        Self::build_numeric_effect(
+            EffectType::Origindamage as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            None,
+        )
+    }
+
+    pub fn origin_damage_with_hurt(
+        target: i64,
+        amount: i32,
+        buff_act_id: Option<i32>,
+        hurt_info: FightHurtInfo,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "origin_damage_with_hurt",
+            target,
+            amount,
+            ?buff_act_id,
+            ?hurt_info
+        );
+        Self::build_numeric_effect(
+            EffectType::Origindamage as i32,
+            target,
+            amount,
+            None,
+            buff_act_id,
+            Some(hurt_info),
+        )
+    }
+
+    pub fn origin_crit(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "origin_crit",
+            target,
+            amount,
+            ?config_effect
+        );
+        Self::build_numeric_effect(
+            EffectType::Origincrit as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            None,
+        )
+    }
+
+    pub fn dead(target: i64) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "dead", target);
+        Self::new(EffectType::Dead as i32, target)
+            .effect_num(0)
             .build()
     }
 
@@ -46,6 +466,11 @@ impl ActEffectBuilder {
 
     pub fn effect_num1(mut self, value: i32) -> Self {
         self.effect.effect_num1 = Some(value);
+        self
+    }
+
+    pub fn buff(mut self, value: BuffInfo) -> Self {
+        self.effect.buff = Some(value);
         self
     }
 
@@ -96,6 +521,75 @@ impl ActEffectBuilder {
 
     pub fn build(self) -> ActEffect {
         self.effect
+    }
+
+    fn build_buff_add(
+        target_uid: i64,
+        from_uid: i64,
+        buff_id: i32,
+        layer: i32,
+        count: i32,
+        slave: bool,
+    ) -> ActEffect {
+        let params = buff_get_act_common_params(buff_id);
+        Self::new(EffectType::Buffadd as i32, target_uid)
+            .effect_num(buff_id)
+            .buff(Self::create_buff(
+                target_uid, buff_id, from_uid, count, layer, &params, slave,
+            ))
+            .build()
+    }
+
+    fn create_buff(
+        target_uid: i64,
+        buff_id: i32,
+        from_uid: i64,
+        count: i32,
+        layer: i32,
+        params: &str,
+        slave: bool,
+    ) -> BuffInfo {
+        let cfg = config::configs::get();
+        let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+        let duration = buff_cfg.map(|b| b.during_time).unwrap_or(0);
+        let uid = if slave {
+            next_slave_buff_uid_for_target(target_uid)
+        } else {
+            next_buff_uid_for_target(target_uid)
+        };
+        BuffInfo {
+            buff_id: Some(buff_id),
+            duration: Some(duration),
+            uid: Some(uid),
+            ex_info: Some(0),
+            from_uid: Some(from_uid),
+            count: Some(count),
+            act_common_params: Some(params.to_string()),
+            layer: Some(layer),
+            r#type: Some(BuffLayerType::Normal as i32),
+            act_info: vec![],
+        }
+    }
+
+    fn build_numeric_effect(
+        effect_type: i32,
+        target: i64,
+        amount: i32,
+        config_effect: Option<i32>,
+        buff_act_id: Option<i32>,
+        hurt_info: Option<FightHurtInfo>,
+    ) -> ActEffect {
+        let mut builder = Self::new(effect_type, target).effect_num(amount);
+        if let Some(config_effect) = config_effect {
+            builder = builder.config_effect(config_effect);
+        }
+        if let Some(buff_act_id) = buff_act_id {
+            builder = builder.buff_act_id(buff_act_id);
+        }
+        if let Some(hurt_info) = hurt_info {
+            builder = builder.hurt_info(hurt_info);
+        }
+        builder.build()
     }
 }
 

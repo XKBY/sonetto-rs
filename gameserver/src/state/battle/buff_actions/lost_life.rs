@@ -1,12 +1,12 @@
-use sonettobuf::{ActEffect, fight_hurt_info::DamageFromType};
+﻿use sonettobuf::{ActEffect, fight_hurt_info::DamageFromType};
 use std::collections::HashMap;
 
 use crate::state::battle::{
     manager::buff_mgr::StackConsumeResult,
     types::attr::AttrId,
     utils::{
-        buff_del, buff_update, career_damage_multiplier, check_career_restraint, damage,
-        get_attr_replace_damage, get_exclude_buff_effects, hurt_detail,
+        career_damage_multiplier, check_career_restraint, damage, get_attr_replace_damage,
+        get_exclude_buff_effects, hurt_detail,
     },
 };
 
@@ -43,7 +43,7 @@ pub fn apply(
     {
         match result {
             StackConsumeResult::Updated(buff) => {
-                effects.push(buff_update(
+                effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                     target_uid,
                     buff.from_uid,
                     buff.buff_id,
@@ -53,7 +53,7 @@ pub fn apply(
                 ));
             }
             StackConsumeResult::Removed(buff) => {
-                effects.push(buff_del(target_uid, buff.uid, buff.buff_id, buff.from_uid));
+                effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(target_uid, buff.uid, buff.buff_id, buff.from_uid));
             }
         }
     }
@@ -183,3 +183,5 @@ pub fn damage_real_lost_life(
     ));
     effects
 }
+
+

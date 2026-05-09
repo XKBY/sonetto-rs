@@ -1,4 +1,4 @@
-//! Pickles — `The Dog Thinks` Insight passive plus the destiny
+﻿//! Pickles — `The Dog Thinks` Insight passive plus the destiny
 //! orphan passives (`30630151` / `30630161` / `30630171`) the data
 //! tables don't list directly. The orphan ladder threads through
 //! `crate::state::battle::destiny`; the inner-wrapper coalescer for
@@ -22,7 +22,7 @@ use crate::state::battle::{
     manager::buff_mgr::BuffMgr,
     round::step_shape::build_effect_step,
     step_walker,
-    utils::{buff_add_with_count, buff_update},
+
 };
 
 const HEDONISM_IMPLEMENT_SKILL_ID: i32 = 30630151;
@@ -198,7 +198,7 @@ pub fn repair_round_end_hedonism_emission(
         let _ =
             buff_mgr.set_instance_count_layer(pickles_uid, buff_uid, desired_count, desired_layer);
         if desired_self_update.is_none() {
-            desired_self_update = Some(buff_update(
+            desired_self_update = Some(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                 pickles_uid,
                 pickles_uid,
                 CLARIFIED_TOPIC_BUFF_ID,
@@ -215,7 +215,7 @@ pub fn repair_round_end_hedonism_emission(
 
     let mut hedonism_effects = Vec::with_capacity(4);
     for buff_id in HEDONISM_BUFF_IDS {
-        let add = buff_add_with_count(target_uid, pickles_uid, buff_id, 0, 0);
+        let add = crate::state::battle::fight_step::ActEffectBuilder::buff_add_with_count(target_uid, pickles_uid, buff_id, 0, 0);
         if let Some(buff) = add.buff.as_ref()
             && let Some(buff_uid) = buff.uid
         {
@@ -274,3 +274,6 @@ fn step_contains_act_id(step: &FightStep, act_id: i32) -> bool {
                 .unwrap_or(false)
         })
 }
+
+
+

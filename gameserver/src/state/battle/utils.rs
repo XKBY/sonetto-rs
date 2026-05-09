@@ -1,12 +1,13 @@
-use super::{
+﻿use super::{
     event_queue::{BattleEvent, serialize_leaf_event},
-    manager::buff_mgr::{BuffMgr, next_buff_uid_for_target, next_slave_buff_uid_for_target},
+    fight_step::ActEffectBuilder,
+    manager::buff_mgr::BuffMgr,
     skill::get_entity,
-    types::{buff::BuffLayerType, career::CareerType},
+    types::career::CareerType,
 };
 
 use sonettobuf::{
-    ActEffect, BuffInfo, Fight, FightEntityInfo, FightHurtInfo, effect_type_enum::EffectType,
+    ActEffect, Fight, FightEntityInfo, FightHurtInfo, effect_type_enum::EffectType,
     fight_hurt_info::DamageFromType,
 };
 
@@ -34,109 +35,14 @@ pub enum DamageType {
     Mental = 2,
 }
 
-#[allow(dead_code)]
-pub fn buff_add(target_uid: i64, from_uid: i64, buff_id: i32, layer: i32) -> ActEffect {
-    buff_add_with_count(target_uid, from_uid, buff_id, layer, 0)
-}
-
-pub fn buff_add_with_count(
-    target_uid: i64,
-    from_uid: i64,
-    buff_id: i32,
-    layer: i32,
-    count: i32,
-) -> ActEffect {
-    let params = buff_get_act_common_params(buff_id);
-    ActEffect {
-        effect_type: Some(EffectType::Buffadd as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(buff_id),
-        buff: Some(create_buff(
-            target_uid, buff_id, from_uid, count, layer, &params, false,
-        )),
-        ..Default::default()
-    }
-}
-
-pub fn buff_update(
-    target_uid: i64,
-    from_uid: i64,
-    buff_id: i32,
-    buff_uid: i64,
-    count: i32,
-    layer: i32,
-) -> ActEffect {
-    let params = buff_get_act_common_params(buff_id);
-    ActEffect {
-        effect_type: Some(EffectType::Buffupdate as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(0),
-        buff: Some(BuffInfo {
-            buff_id: Some(buff_id),
-            duration: Some(0),
-            uid: Some(buff_uid),
-            ex_info: Some(0),
-            from_uid: Some(from_uid),
-            count: Some(count),
-            act_common_params: Some(params.to_string()),
-            layer: Some(layer),
-            r#type: Some(BuffLayerType::Normal as i32),
-            act_info: vec![],
-        }),
-        ..Default::default()
-    }
-}
-
-pub fn buff_add_slave(target_uid: i64, from_uid: i64, buff_id: i32, layer: i32) -> ActEffect {
-    let cfg = config::configs::get();
-    let params = buff_get_act_common_params(buff_id);
-    // For stackable buffs (layer > 1), initial count is 1; otherwise use effect_count from config
-    let initial_count = if layer > 1 {
-        1
-    } else {
-        cfg.skill_buff
-            .iter()
-            .find(|b| b.id == buff_id)
-            .map(|b| b.effect_count)
-            .unwrap_or(0)
-    };
-    ActEffect {
-        effect_type: Some(EffectType::Buffadd as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(buff_id),
-        buff: Some(create_buff(
-            target_uid,
-            buff_id,
-            from_uid,
-            initial_count,
-            layer,
-            &params,
-            true,
-        )),
-        ..Default::default()
-    }
-}
-
 /// Damage with visual effect
 pub fn damage(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Damage as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        config_effect: Some(VfxConfig::Damage as i32),
-        ..Default::default()
-    }
+    ActEffectBuilder::damage(target_uid, amount, Some(VfxConfig::Damage as i32))
 }
 
 #[allow(dead_code)]
 pub fn damage_buff(target_uid: i64, amount: i32, buff_id: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Damage as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        buff_act_id: Some(buff_id),
-        ..Default::default()
-    }
+    ActEffectBuilder::damage_with_buff_act(target_uid, amount, buff_id)
 }
 
 pub fn damage_with_hurt(
@@ -146,7 +52,7 @@ pub fn damage_with_hurt(
     skill_id: i32,
     from_uid: i64,
 ) -> ActEffect {
-    serialize_leaf_event(BattleEvent::Damage {
+    let effect = serialize_leaf_event(BattleEvent::Damage {
         target: target_uid,
         amount,
         is_crit: false,
@@ -163,7 +69,8 @@ pub fn damage_with_hurt(
         },
         from: from_uid,
         skill_id: Some(skill_id),
-    })
+    });
+    ActEffectBuilder::damage_with_hurt(target_uid, amount, Some(config_effect), effect.hurt_info.unwrap_or_default())
 }
 
 /// Damage details
@@ -270,14 +177,6 @@ pub fn attr_update(target_uid: i64) -> ActEffect {
     }
 }
 
-pub fn effect_none(target_uid: i64) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::None as i32),
-        target_id: Some(target_uid),
-        ..Default::default()
-    }
-}
-
 pub fn master_halo(target: i64) -> ActEffect {
     ActEffect {
         effect_type: Some(EffectType::Masterhalo as i32),
@@ -291,38 +190,6 @@ pub fn slave_halo(target: i64) -> ActEffect {
         effect_type: Some(EffectType::Slavehalo as i32),
         target_id: Some(target),
         ..Default::default()
-    }
-}
-
-fn create_buff(
-    target_uid: i64,
-    buff_id: i32,
-    from_uid: i64,
-    count: i32,
-    layer: i32,
-    params: &str,
-    slave: bool,
-) -> BuffInfo {
-    let cfg = config::configs::get();
-    let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
-    let duration = buff_cfg.map(|b| b.during_time).unwrap_or(0);
-
-    let uid_val = if slave {
-        next_slave_buff_uid_for_target(target_uid)
-    } else {
-        next_buff_uid_for_target(target_uid)
-    };
-    BuffInfo {
-        buff_id: Some(buff_id),
-        duration: Some(duration),
-        uid: Some(uid_val),
-        ex_info: Some(0),
-        from_uid: Some(from_uid),
-        count: Some(count),
-        act_common_params: Some(params.to_string()),
-        layer: Some(layer),
-        r#type: Some(BuffLayerType::Normal as i32),
-        act_info: vec![],
     }
 }
 
@@ -432,28 +299,6 @@ pub fn for_each_buff_feature_chain(buff_id: i32, mut f: impl FnMut(&str, &[&str]
     }
 }
 
-pub fn buff_del(target: i64, buff_uid: i64, buff_id: i32, from_uid: i64) -> ActEffect {
-    let cfg = config::configs::get();
-    let layer = cfg
-        .skill_buff
-        .iter()
-        .find(|b| b.id == buff_id)
-        .map(|b| if b.features.is_empty() { 0 } else { 1 })
-        .unwrap_or(0);
-    ActEffect {
-        effect_type: Some(EffectType::Buffdel as i32),
-        target_id: Some(target),
-        buff: Some(sonettobuf::BuffInfo {
-            uid: Some(buff_uid),
-            buff_id: Some(buff_id),
-            from_uid: Some(from_uid),
-            layer: Some(layer),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
-}
-
 pub fn damage_with_buff_act(
     target: i64,
     amount: i32,
@@ -461,12 +306,11 @@ pub fn damage_with_buff_act(
     from_uid: i64,
     buff_uid: i64,
 ) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Damage as i32),
-        target_id: Some(target),
-        effect_num: Some(amount),
-        buff_act_id: Some(buff_act_id),
-        hurt_info: Some(sonettobuf::FightHurtInfo {
+    ActEffectBuilder::damage_with_buff_hurt(
+        target,
+        amount,
+        buff_act_id,
+        sonettobuf::FightHurtInfo {
             damage: Some(amount),
             hurt_effect: Some(EffectType::Damage as i32),
             damage_from_type: Some(EffectTag::Buff as i32),
@@ -474,9 +318,8 @@ pub fn damage_with_buff_act(
             from_uid: Some(from_uid),
             buff_uid: Some(buff_uid as i32),
             ..Default::default()
-        }),
-        ..Default::default()
-    }
+        },
+    )
 }
 
 pub fn buff_get_act_common_params(buff_id: i32) -> String {
@@ -752,7 +595,7 @@ pub fn get_exclude_buff_effects(buff_mgr: &BuffMgr, target: i64, buff_id: i32) -
 
     for instance in buff_mgr.get(target) {
         if excluded_type_ids.contains(&instance.type_id) {
-            effects.push(buff_del(
+            effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
                 target,
                 instance.uid,
                 instance.buff_id,
@@ -852,3 +695,5 @@ pub fn modify_hero_attr(entity: &mut FightEntityInfo, attr_id: i32, amount_permi
         _ => tracing::warn!("modify_hero_attr: unhandled attr_id={}", attr_id),
     }
 }
+
+

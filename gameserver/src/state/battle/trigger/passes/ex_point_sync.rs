@@ -1,4 +1,4 @@
-use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
+﻿use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
@@ -7,7 +7,7 @@ use crate::state::battle::{
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
-    utils::{buff_update, moxie_change},
+    utils::moxie_change,
 };
 
 use super::TriggerPass;
@@ -75,7 +75,7 @@ impl TriggerPass for ExPointSyncPass {
                         new_layer,
                         buff.uid,
                     );
-                    act_effect.push(buff_update(
+                    act_effect.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                         *target_uid,
                         buff.from_uid,
                         buff.buff_id,
@@ -94,7 +94,7 @@ impl TriggerPass for ExPointSyncPass {
                         buff.layer,
                         buff.uid,
                     );
-                    act_effect.push(buff_update(
+                    act_effect.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                         *target_uid,
                         buff.from_uid,
                         buff.buff_id,
@@ -159,3 +159,6 @@ impl TriggerPass for ExPointSyncPass {
         out
     }
 }
+
+
+

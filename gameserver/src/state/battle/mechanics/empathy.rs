@@ -5,6 +5,7 @@ use sonettobuf::{ActEffect, BuffInfo, Fight};
 
 use crate::state::battle::{
     buff_actions::injury_bank::{InjuryBankParams, buff_get_injury_bank_params},
+    fight_step::ActEffectBuilder,
     manager::buff_mgr::BuffMgr,
     types::{buff::BuffLayerType, effects::EffectType},
 };
@@ -287,24 +288,17 @@ impl EmpathyState {
         from_uid: i64,
         cap: i32,
     ) -> ActEffect {
-        ActEffect {
-            effect_type: Some(EffectType::BuffUpdate as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(0),
-            buff: Some(BuffInfo {
-                buff_id: Some(buff_id),
-                duration: Some(0),
-                uid: Some(buff_uid),
-                ex_info: Some(0),
-                from_uid: Some(from_uid),
-                count: Some(0),
-                act_common_params: Some(build_empathy_params(amount.max(0), cap)),
-                layer: Some(0),
-                r#type: Some(BuffLayerType::Normal as i32),
-                act_info: vec![],
-            }),
-            ..Default::default()
-        }
+        ActEffectBuilder::buff_update_with_snapshot(
+            target_uid,
+            from_uid,
+            buff_id,
+            buff_uid,
+            0,
+            0,
+            build_empathy_params(amount.max(0), cap),
+            0,
+            BuffLayerType::Normal as i32,
+        )
     }
 
     pub fn storage_threshold(buff_mgr: &BuffMgr, holder_uid: i64, max_hp: i32) -> Option<i32> {

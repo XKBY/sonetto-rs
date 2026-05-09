@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+﻿use std::collections::HashSet;
 
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
@@ -15,7 +15,7 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
-    utils::buff_update,
+
 };
 
 /// Tracks entities that have MonitorContinueChannel passives.
@@ -343,7 +343,7 @@ pub(crate) fn build_monitor_continue_channel_embeds(
                 caster_uid,
                 caster_uid,
                 emit_effect_id,
-                vec![buff_update(
+                vec![crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                     caster_uid,
                     existing.from_uid,
                     emit_effect_id,
@@ -825,7 +825,7 @@ fn build_display_only_consume_channel_embeds(
         .iter()
         .find(|buff| buff.buff_id == emit_effect_id)
     {
-        let child_effects = vec![buff_update(
+        let child_effects = vec![crate::state::battle::fight_step::ActEffectBuilder::buff_update(
             caster_uid,
             existing.from_uid,
             emit_effect_id,
@@ -874,3 +874,6 @@ fn explode_trigger_step_embeds(trigger_step: FightStep) -> Vec<ActEffect> {
     }
     vec![trigger_embed::trigger_step_to_embedded_effect(trigger_step)]
 }
+
+
+

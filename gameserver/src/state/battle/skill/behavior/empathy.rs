@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
@@ -7,7 +7,7 @@ use crate::state::battle::{
     fight_step::ActEffectBuilder,
     mechanics::empathy::{EmpathyState, empathy_default_buff_id, empathy_type_id},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
-    utils::{apply_real_hurt_fix, effect_none},
+    utils::apply_real_hurt_fix,
 };
 
 // Solace ranks 1/2/3 = skill_effect 30800121/22/23. The self-loss
@@ -79,14 +79,11 @@ impl Empathy {
         // executor's `has_damage_effect` gate still fires the primary
         // `damageRate` damage path.
         vec![
-            ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
-                .effect_num(apply_real_hurt_fix(
-                    &ctx.managers.buff_mgr,
-                    ctx.target,
-                    bonus,
-                ))
-                .config_effect(SUBCONSCIOUS_BONUS_CONFIG_EFFECT)
-                .build(),
+            ActEffectBuilder::origin_damage(
+                ctx.target,
+                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
+                Some(SUBCONSCIOUS_BONUS_CONFIG_EFFECT),
+            ),
         ]
     }
 
@@ -148,14 +145,11 @@ impl Empathy {
             cap,
         ));
         effects.push(
-            ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.target)
-                .effect_num(apply_real_hurt_fix(
-                    &ctx.managers.buff_mgr,
-                    ctx.target,
-                    bonus,
-                ))
-                .config_effect(EX_CONSUME_CONFIG_EFFECT)
-                .build(),
+            ActEffectBuilder::origin_damage(
+                ctx.target,
+                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
+                Some(EX_CONSUME_CONFIG_EFFECT),
+            ),
         );
 
         // Reset the mechanic state AFTER computing the bonus and the
@@ -281,14 +275,11 @@ impl Empathy {
             ),
         );
         effects.push(
-            ActEffectBuilder::new(EffectType::OriginDamage as i32, ctx.caster_uid)
-                .effect_num(apply_real_hurt_fix(
-                    &ctx.managers.buff_mgr,
-                    ctx.caster_uid,
-                    self_damage,
-                ))
-                .config_effect(SOLACE_CONFIG_EFFECT)
-                .build(),
+            ActEffectBuilder::origin_damage(
+                ctx.caster_uid,
+                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.caster_uid, self_damage),
+                Some(SOLACE_CONFIG_EFFECT),
+            ),
         );
         effects.extend(buff::apply(
             buff::BuffApplySpec::new(*buff_id)
@@ -302,8 +293,11 @@ impl Empathy {
             ctx.managers,
             ctx.mechanics,
         ));
-        effects.push(effect_none(ctx.target));
+        effects.push(crate::state::battle::fight_step::ActEffectBuilder::effect_none(ctx.target));
 
         Some(Ok(effects))
     }
 }
+
+
+

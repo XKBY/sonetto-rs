@@ -1,4 +1,4 @@
-use anyhow::Result;
+﻿use anyhow::Result;
 use once_cell::sync::Lazy;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, Fight, FightRound, FightStep, fight_step};
@@ -483,7 +483,7 @@ impl FightRoundMgr {
                 // record corresponds to one synthesized output effect.
                 mechanics.emission_timeline.mark_produced(inject_record_idx);
                 let buff_uid = next_buff_uid_for_target(target_uid);
-                let effect = crate::state::battle::utils::buff_update(
+                let effect = crate::state::battle::fight_step::ActEffectBuilder::buff_update(
                     target_uid,
                     reactive_caster_uid,
                     BE_ATTACKED_REACTIVE_ACT_ID,
@@ -1468,3 +1468,6 @@ impl FightRoundMgr {
             && skill.behavior1.trim().starts_with("1#")
     }
 }
+
+
+
