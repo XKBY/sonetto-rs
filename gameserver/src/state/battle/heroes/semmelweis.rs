@@ -1,4 +1,4 @@
-﻿//! Semmelweis — `And So It Rises Again` (Tier IV swap to
+//! Semmelweis — `And So It Rises Again` (Tier IV swap to
 //! `The Red from a Thousand Moons`) and the Moxie-from-bloodpool
 //! Insight chain. The orphan passives the data tables don't list
 //! (`308801911`, `308801921`, `308802111`) flow through `destiny.rs`;
@@ -19,7 +19,6 @@ use crate::state::battle::{
     round::round_end_bundling::{RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts},
     skill::targets::alive_allies,
     types::effects::EffectType,
-
 };
 
 /// Insight-Lv.1 base id of `And So It Rises Again`. The Lv.0 base
@@ -113,7 +112,11 @@ pub fn expand_blood_domain_self_buff_aura(
 ) -> Vec<ActEffect> {
     let mut out = Vec::with_capacity(alive_allies(fight, caster_uid).len() * 2);
     for ally_uid in alive_allies(fight, caster_uid) {
-        out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_add(caster_uid, ally_uid, buff_id, 1));
+        out.push(
+            crate::state::battle::fight_step::ActEffectBuilder::buff_add(
+                caster_uid, ally_uid, buff_id, 1,
+            ),
+        );
         out.push(
             ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
                 .effect_num(0)
@@ -122,6 +125,3 @@ pub fn expand_blood_domain_self_buff_aura(
     }
     out
 }
-
-
-

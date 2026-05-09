@@ -110,9 +110,11 @@ impl BehaviorAction for DotSettle {
             return Some(Ok(Vec::new()));
         }
 
-        let mut effects = vec![
-            ActEffectBuilder::origin_crit(carrier, total_damage, Some(SETTLE_CONFIG_EFFECT)),
-        ];
+        let mut effects = vec![ActEffectBuilder::origin_crit(
+            carrier,
+            total_damage,
+            Some(SETTLE_CONFIG_EFFECT),
+        )];
 
         // Append `et=9 Dead` if the consolidated damage drops the carrier
         // below 0 HP — matches LIVE r5 step where enemy `-5` dies from a
@@ -122,9 +124,7 @@ impl BehaviorAction for DotSettle {
             let shield = victim.shield_value.unwrap_or(0);
             let after_shield = total_damage.saturating_sub(shield);
             if after_shield > 0 && hp - after_shield <= 0 {
-                effects.push(
-                    ActEffectBuilder::dead(carrier),
-                );
+                effects.push(ActEffectBuilder::dead(carrier));
             }
         }
 

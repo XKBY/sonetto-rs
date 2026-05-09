@@ -173,9 +173,7 @@ pub fn build_round_end_dot_step(ctx: &FightContext<'_>) -> Option<FightStep> {
 
     let mut outer = build_effect_step(wrappers);
     for victim_uid in killed_in_order {
-        outer.act_effect.push(
-            ActEffectBuilder::dead(victim_uid),
-        );
+        outer.act_effect.push(ActEffectBuilder::dead(victim_uid));
     }
     Some(outer)
 }

@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use std::{
@@ -20,7 +20,6 @@ use super::super::{
     },
     mechanics::{Mechanics, empathy::has_empathy_buff},
     types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
-
 };
 
 use super::{
@@ -867,10 +866,7 @@ impl SkillExecutor {
             real_skin_id: Some(0),
         };
 
-        let mut skill_act_effect = ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-            .effect_num(0)
-            .fight_step(skill_step)
-            .build();
+        let mut skill_act_effect = ActEffectBuilder::skill_wrapper(skill_step);
 
         let mut result = Vec::new();
 
@@ -898,17 +894,18 @@ impl SkillExecutor {
                             .find(|b| b.buff_id == del_buff_id)
                             .map(|b| b.uid)
                             .unwrap_or(0);
-                        self.side_effects.push(ActEffectBuilder::buff_del_with_snapshot(
-                            del_target,
-                            uid,
-                            del_buff_id,
-                            del_target,
-                            0,
-                            0,
-                            String::new(),
-                            0,
-                            0,
-                        ));
+                        self.side_effects
+                            .push(ActEffectBuilder::buff_del_with_snapshot(
+                                del_target,
+                                uid,
+                                del_buff_id,
+                                del_target,
+                                0,
+                                0,
+                                String::new(),
+                                0,
+                                0,
+                            ));
                     }
                 }
                 Err(e) => tracing::warn!(
@@ -1002,19 +999,18 @@ impl SkillExecutor {
                 from_id: Some(from_uid),
                 to_id: Some(caster_uid),
                 act_id: Some(buff_id),
-                act_effect: vec![crate::state::battle::fight_step::ActEffectBuilder::buff_del(caster_uid, buff_uid, buff_id, from_uid)],
+                act_effect: vec![
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                        caster_uid, buff_uid, buff_id, from_uid,
+                    ),
+                ],
                 card_index: Some(0),
                 support_hero_id: Some(0),
                 fake_timeline: Some(false),
                 real_skill_type: Some(0),
                 real_skin_id: Some(0),
             };
-            out.push(
-                ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-                    .effect_num(0)
-                    .fight_step(inner)
-                    .build(),
-            );
+            out.push(ActEffectBuilder::skill_wrapper(inner));
         }
 
         out
@@ -1066,20 +1062,18 @@ impl SkillExecutor {
         let buff_dels = inner_executor.pending_buff_dels.drain(..).collect();
 
         let mut act_effect = if results.is_empty() {
-            ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-                .fight_step(FightStep {
-                    act_type: Some(fight_step::ActType::Skill.into()),
-                    from_id: Some(caster_uid),
-                    to_id: Some(caster_uid),
-                    act_id: Some(skill_id),
-                    act_effect: vec![],
-                    card_index: Some(0),
-                    support_hero_id: Some(0),
-                    fake_timeline: Some(false),
-                    real_skill_type: Some(0),
-                    real_skin_id: Some(0),
-                })
-                .build()
+            ActEffectBuilder::skill_wrapper_without_num(FightStep {
+                act_type: Some(fight_step::ActType::Skill.into()),
+                from_id: Some(caster_uid),
+                to_id: Some(caster_uid),
+                act_id: Some(skill_id),
+                act_effect: vec![],
+                card_index: Some(0),
+                support_hero_id: Some(0),
+                fake_timeline: Some(false),
+                real_skill_type: Some(0),
+                real_skin_id: Some(0),
+            })
         } else {
             let has_step_damage = |step: &FightStep| {
                 step.act_effect
@@ -1542,9 +1536,7 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
 
     killed_in_order
         .into_iter()
-        .map(|target_id| {
-            ActEffectBuilder::dead(target_id)
-        })
+        .map(|target_id| ActEffectBuilder::dead(target_id))
         .collect()
 }
 
@@ -1803,6 +1795,3 @@ fn spawn_summoned_entity(fight: &mut Fight, summon: PendingSummon) -> Result<i64
     defender.sub_entitys.push(entity);
     Ok(new_uid)
 }
-
-
-

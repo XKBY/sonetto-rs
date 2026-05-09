@@ -128,10 +128,7 @@ impl BuffActionHandler for AddBuffBothHandler {
     }
 }
 
-fn should_skip_add_buff_both_update(
-    params: &AddBuffBothParams,
-    ctx: &BuffActCtx<'_, '_>,
-) -> bool {
+fn should_skip_add_buff_both_update(params: &AddBuffBothParams, ctx: &BuffActCtx<'_, '_>) -> bool {
     if params.buff_b <= 0 {
         return false;
     }
@@ -142,7 +139,9 @@ fn should_skip_add_buff_both_update(
         .buff_mgr
         .get(params.original_target)
         .iter()
-        .filter(|instance| instance.buff_id == ctx.buff_id && instance.from_uid == params.caster_uid)
+        .filter(|instance| {
+            instance.buff_id == ctx.buff_id && instance.from_uid == params.caster_uid
+        })
         .max_by_key(|instance| instance.uid)
         .map(|instance| instance.layer)
         .unwrap_or(0);
@@ -165,7 +164,9 @@ fn should_skip_add_buff_both_update(
                 .buff_mgr
                 .get(*target_uid)
                 .iter()
-                .any(|instance| instance.buff_id == params.buff_b && instance.from_uid == params.caster_uid)
+                .any(|instance| {
+                    instance.buff_id == params.buff_b && instance.from_uid == params.caster_uid
+                })
         })
 }
 

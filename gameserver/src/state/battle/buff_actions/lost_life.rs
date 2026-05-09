@@ -1,4 +1,4 @@
-﻿use sonettobuf::{ActEffect, fight_hurt_info::DamageFromType};
+use sonettobuf::{ActEffect, fight_hurt_info::DamageFromType};
 use std::collections::HashMap;
 
 use crate::state::battle::{
@@ -43,17 +43,26 @@ pub fn apply(
     {
         match result {
             StackConsumeResult::Updated(buff) => {
-                effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                    target_uid,
-                    buff.from_uid,
-                    buff.buff_id,
-                    buff.uid,
-                    buff.stacks,
-                    buff.layer,
-                ));
+                effects.push(
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                        target_uid,
+                        buff.from_uid,
+                        buff.buff_id,
+                        buff.uid,
+                        buff.stacks,
+                        buff.layer,
+                    ),
+                );
             }
             StackConsumeResult::Removed(buff) => {
-                effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(target_uid, buff.uid, buff.buff_id, buff.from_uid));
+                effects.push(
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                        target_uid,
+                        buff.uid,
+                        buff.buff_id,
+                        buff.from_uid,
+                    ),
+                );
             }
         }
     }
@@ -183,5 +192,3 @@ pub fn damage_real_lost_life(
     ));
     effects
 }
-
-

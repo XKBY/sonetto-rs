@@ -30,6 +30,7 @@ use super::action::{ActionCtx, BehaviorAction};
 use super::damage;
 use super::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::random;
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::PhaseFilter;
 use crate::state::battle::skill::phase::TriggerState;
 use crate::state::battle::skill::targets::{alive_enemies, get_entity, get_team_type};
@@ -221,12 +222,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         // Don't mutate ex_point_mgr directly — the ExPointChange effect
         // below is applied by calculate_mgr::play_effect_add_ex_point
         // during play_step_data. Direct mutation + replay = double-apply.
-        out.push(ActEffect {
-            effect_type: Some(EffectType::Expointchange as i32),
-            target_id: Some(ctx.caster_uid),
-            effect_num: Some(-consume),
-            ..Default::default()
-        });
+        out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, -consume));
         out.push(ActEffect {
             effect_type: Some(327),
             target_id: Some(ctx.caster_uid),
@@ -325,12 +321,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     if refund > 0 {
         // Don't mutate ex_point_mgr directly — calculate_mgr replays
         // the ExPointChange below. See note above on consume.
-        out.push(ActEffect {
-            effect_type: Some(EffectType::Expointchange as i32),
-            target_id: Some(ctx.caster_uid),
-            effect_num: Some(refund),
-            ..Default::default()
-        });
+        out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, refund));
     }
     ctx.managers
         .ex_point_mgr
@@ -411,24 +402,18 @@ fn execute_direct_use_group_and_star_skill(
         ),
     )?;
     if derived_effects.is_empty() {
-        let synthetic = ActEffect {
-            effect_type: Some(EffectType::Fightstep as i32),
-            target_id: Some(0),
-            effect_num: Some(0),
-            fight_step: Some(FightStep {
-                act_type: Some(fight_step::ActType::Skill as i32),
-                from_id: Some(ctx.caster_uid),
-                to_id: Some(ctx.target),
-                act_id: Some(chosen_skill_id),
-                act_effect: vec![],
-                card_index: Some(0),
-                support_hero_id: Some(0),
-                fake_timeline: Some(false),
-                real_skill_type: Some(0),
-                real_skin_id: Some(0),
-            }),
-            ..Default::default()
-        };
+        let synthetic = ActEffectBuilder::skill_wrapper(FightStep {
+            act_type: Some(fight_step::ActType::Skill as i32),
+            from_id: Some(ctx.caster_uid),
+            to_id: Some(ctx.target),
+            act_id: Some(chosen_skill_id),
+            act_effect: vec![],
+            card_index: Some(0),
+            support_hero_id: Some(0),
+            fake_timeline: Some(false),
+            real_skill_type: Some(0),
+            real_skin_id: Some(0),
+        });
         derived_effects.push(synthetic);
     }
     out.extend(derived_effects);

@@ -1,4 +1,4 @@
-﻿#![allow(dead_code)]
+#![allow(dead_code)]
 
 use std::{
     collections::HashMap,
@@ -720,14 +720,16 @@ pub fn drain_to_fight_steps(
                         .buff_mgr
                         .set_instance_count_layer(target, buff_uid, new_count, new_layer);
                     if updated {
-                        out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                            target,
-                            instance.from_uid,
-                            instance.buff_id,
-                            buff_uid,
-                            new_count,
-                            new_layer,
-                        ));
+                        out.push(
+                            crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                                target,
+                                instance.from_uid,
+                                instance.buff_id,
+                                buff_uid,
+                                new_count,
+                                new_layer,
+                            ),
+                        );
                     }
                 }
             }
@@ -741,12 +743,14 @@ pub fn drain_to_fight_steps(
                 _ctx.buff_mgr.remove_by_uid(target, buff_uid);
 
                 if let Some(instance) = removed {
-                    out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
-                        target,
-                        buff_uid,
-                        instance.buff_id,
-                        instance.from_uid,
-                    ));
+                    out.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                            target,
+                            buff_uid,
+                            instance.buff_id,
+                            instance.from_uid,
+                        ),
+                    );
                 }
             }
             BattleEvent::BuffSyncAddWithUid {
@@ -772,9 +776,11 @@ pub fn drain_to_fight_steps(
             } => {
                 _ctx.buff_mgr
                     .add_with_uid(target, buff_id, from, sync_count, sync_layer, buff_uid);
-                out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                    target, from, buff_id, buff_uid, emit_count, emit_layer,
-                ));
+                out.push(
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                        target, from, buff_id, buff_uid, emit_count, emit_layer,
+                    ),
+                );
             }
             BattleEvent::Damage {
                 target,
@@ -873,12 +879,7 @@ pub fn drain_to_fight_steps(
             }
             BattleEvent::ExPointChange { target, delta } => {
                 _ctx.ex_point_mgr.add_ex_point(target, delta);
-                out.push(ActEffect {
-                    effect_type: Some(EffectType::Expointchange as i32),
-                    effect_num: Some(delta),
-                    target_id: Some(target),
-                    ..Default::default()
-                });
+                out.push(ActEffectBuilder::ex_point_change(target, delta));
             }
             BattleEvent::PowerChange { delta } => out.push(ActEffect {
                 effect_type: Some(EffectType::Powerchange as i32),
@@ -1816,6 +1817,3 @@ mod tests {
         assert_eq!(out, vec![wrap_step(original)]);
     }
 }
-
-
-

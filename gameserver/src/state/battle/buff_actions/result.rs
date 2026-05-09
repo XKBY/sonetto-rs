@@ -1,4 +1,4 @@
-﻿use sonettobuf::ActEffect;
+use sonettobuf::ActEffect;
 
 /// What a buff_action handler can produce.
 /// Most handlers only need `effects`. The others are opt-in.
@@ -36,5 +36,3 @@ impl ActionResult {
         }
     }
 }
-
-

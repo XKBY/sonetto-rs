@@ -1,6 +1,4 @@
-use sonettobuf::ActEffect;
-
-use crate::state::battle::{types::effects::EffectType, utils::attr_update};
+use crate::state::battle::utils::attr_update;
 
 use super::EffectContext;
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
@@ -180,18 +178,16 @@ fn attr_before_apply(ctx: &BuffActCtx<'_, '_>, parts: &[&str]) -> ActionResult {
     let target_uid = ctx.effect_ctx.target_uid();
     let mut effects = Vec::new();
     for _ in 0..2 {
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::MaxHpChange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(new_max),
-            ..Default::default()
-        });
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::CurrentHpChange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(current_hp),
-            ..Default::default()
-        });
+        effects.push(
+            crate::state::battle::fight_step::ActEffectBuilder::max_hp_change(
+                target_uid, new_max, None,
+            ),
+        );
+        effects.push(
+            crate::state::battle::fight_step::ActEffectBuilder::current_hp_change(
+                target_uid, current_hp,
+            ),
+        );
     }
     ActionResult::effects(effects)
 }
@@ -219,18 +215,12 @@ fn each_change_attr_before(ctx: &BuffActCtx<'_, '_>, parts: &[&str]) -> ActionRe
     let target_uid = ctx.effect_ctx.target_uid();
     let new_max = target_max_hp + caster_max_hp * source_rate / 1000;
     ActionResult::effects(vec![
-        ActEffect {
-            effect_type: Some(EffectType::MaxHpChange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(new_max),
-            ..Default::default()
-        },
-        ActEffect {
-            effect_type: Some(EffectType::CurrentHpChange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(current_hp),
-            ..Default::default()
-        },
+        crate::state::battle::fight_step::ActEffectBuilder::max_hp_change(
+            target_uid, new_max, None,
+        ),
+        crate::state::battle::fight_step::ActEffectBuilder::current_hp_change(
+            target_uid, current_hp,
+        ),
     ])
 }
 
@@ -243,12 +233,9 @@ pub fn on_apply(ctx: &mut EffectContext) -> ActionResult {
 /// Buff feature: AttrFromEntity — replaces ATK with entity stat for one hit, then self-deletes.
 pub fn from_entity(ctx: &mut EffectContext, buff_id: i32) -> ActionResult {
     ActionResult {
-        effects: vec![ActEffect {
-            effect_type: Some(EffectType::Attr as i32),
-            target_id: Some(ctx.target),
-            effect_num: Some(0),
-            ..Default::default()
-        }],
+        effects: vec![crate::state::battle::fight_step::ActEffectBuilder::attr(
+            ctx.target,
+        )],
         buff_dels: vec![(ctx.target, buff_id)],
         ..Default::default()
     }

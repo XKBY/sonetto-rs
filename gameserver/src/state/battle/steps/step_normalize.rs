@@ -1,4 +1,4 @@
-﻿use sonettobuf::{ActEffect, Fight};
+use sonettobuf::{ActEffect, Fight};
 
 use crate::state::battle::context::FightContext;
 
@@ -98,5 +98,3 @@ pub(crate) fn normalize_defender_round_end_wrapper(
     fs.act_effect = vec![update];
     wrapper
 }
-
-

@@ -1,4 +1,4 @@
-﻿//! Non-terminal round phase: orchestrates the post-player-turn
+//! Non-terminal round phase: orchestrates the post-player-turn
 //! sequence — round-end transition marker, attacker/defender passive
 //! sweeps, enemy actions, channel followups, defender round-end
 //! tick broadcast, DOT/HoT settlement, wave advancement, and
@@ -498,8 +498,7 @@ fn build_round_end_takestage_103_lifecycle_step(ctx: &FightContext<'_>) -> Optio
         .fold(std::collections::HashMap::new(), |mut acc, event| {
             acc.entry(event.target_uid).or_default().push(event);
             acc
-        })
-        ;
+        });
     let Some(attacker) = ctx.fight.attacker.as_ref() else {
         return None;
     };
@@ -508,7 +507,9 @@ fn build_round_end_takestage_103_lifecycle_step(ctx: &FightContext<'_>) -> Optio
         if entity.position.unwrap_or(-1) <= 0 || entity.current_hp.unwrap_or(0) <= 0 {
             continue;
         }
-        let Some(target_uid) = entity.uid else { continue };
+        let Some(target_uid) = entity.uid else {
+            continue;
+        };
         let Some(events) = events_by_target.remove(&target_uid) else {
             continue;
         };
@@ -551,9 +552,9 @@ const PICKLES_ROUND_END_SKILL_IDS: [i32; 2] = [30630151, 30630171];
 const ADVANCED_CURE_BUFF_ACT_ID: i32 = 849;
 
 fn tail_has_round_end_lifecycle_anchor(tail_steps: &[FightStep]) -> bool {
-    tail_steps
-        .iter()
-        .any(|step| step_contains_pickles_round_end_anchor(step) || step_contains_advanced_cure_anchor(step))
+    tail_steps.iter().any(|step| {
+        step_contains_pickles_round_end_anchor(step) || step_contains_advanced_cure_anchor(step)
+    })
 }
 
 fn step_contains_pickles_round_end_anchor(step: &FightStep) -> bool {
@@ -671,14 +672,9 @@ fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<Fight
             0,
             0,
             0,
-            vec![
-                ActEffectBuilder::new(EffectType::MagicCircleUpdate as i32, create_uid)
-                    .reserve_id(circle_id as i64)
-                    .reserve_str("-1")
-                    .magic_circle(updated)
-                    .effect_num(0)
-                    .build(),
-            ],
+            vec![ActEffectBuilder::magic_circle_update(
+                create_uid, circle_id, "-1", updated,
+            )],
         );
         return Some(build_effect_step(vec![wrap_step(inner)]));
     }
@@ -708,21 +704,18 @@ fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<Fight
                 .buff_mgr
                 .find_instance_by_buff_id(*enemy_uid, buff_id)
             {
-                inner_effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
-                    *enemy_uid,
-                    instance.uid,
-                    buff_id,
-                    instance.from_uid,
-                ));
+                inner_effects.push(
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                        *enemy_uid,
+                        instance.uid,
+                        buff_id,
+                        instance.from_uid,
+                    ),
+                );
             }
         }
     }
-    inner_effects.push(
-        ActEffectBuilder::new(EffectType::MagicCircleDelete as i32, create_uid)
-            .reserve_id(circle_id as i64)
-            .effect_num(0)
-            .build(),
-    );
+    inner_effects.push(ActEffectBuilder::magic_circle_delete(create_uid, circle_id));
 
     let cleanup = effect_container_step(0, 0, 0, inner_effects);
     let mut wrappers = vec![wrap_step(cleanup)];
@@ -743,6 +736,3 @@ fn build_round_end_magic_circle_step(ctx: &mut FightContext<'_>) -> Option<Fight
 
     Some(build_effect_step(wrappers))
 }
-
-
-

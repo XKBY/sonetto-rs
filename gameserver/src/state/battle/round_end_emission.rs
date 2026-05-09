@@ -1,4 +1,4 @@
-﻿//! Round-end emission helpers split out of the `FightRoundMgr`
+//! Round-end emission helpers split out of the `FightRoundMgr`
 //! god-class.
 //!
 //! These functions assemble the FightStep stream that closes a round:
@@ -36,7 +36,6 @@ use crate::state::battle::{
     round::step_shape::build_effect_step,
     step_walker,
     steps::broadcast,
-
 };
 
 const BOSS_STATE_CYCLE_SKILL_ID: i32 = 530000151;
@@ -166,7 +165,9 @@ pub(crate) fn collect_terminal_round_end_broadcast(
             }
             let Some(uid) = entity.uid else { continue };
             let buff_uid = next_buff_uid_for_target(uid);
-            let mut effect = crate::state::battle::fight_step::ActEffectBuilder::buff_update(uid, -1, 530000112, buff_uid, 0, 0);
+            let mut effect = crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                uid, -1, 530000112, buff_uid, 0, 0,
+            );
             if let Some(buff) = effect.buff.as_mut() {
                 buff.duration = Some(1);
                 buff.count = Some(0);
@@ -567,9 +568,7 @@ pub(crate) fn repair_rubuska_round_end_heal_markers(
     for target_uid in targets.into_iter().rev() {
         steps.insert(
             bundle_idx + 1,
-            build_effect_step(vec![
-                ActEffectBuilder::heal(target_uid, 0, None),
-            ]),
+            build_effect_step(vec![ActEffectBuilder::heal(target_uid, 0, None)]),
         );
     }
     true
@@ -752,8 +751,3 @@ fn effect_contains_rubuska_heal_pulse_context(effect: &ActEffect) -> bool {
         .map(step_contains_rubuska_heal_pulse_context)
         .unwrap_or(false)
 }
-
-
-
-
-

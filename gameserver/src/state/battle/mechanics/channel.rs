@@ -1,4 +1,4 @@
-﻿use std::collections::HashSet;
+use std::collections::HashSet;
 
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
@@ -15,7 +15,6 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::event_from_step,
     types::effects::EffectType,
-
 };
 
 /// Tracks entities that have MonitorContinueChannel passives.
@@ -343,14 +342,16 @@ pub(crate) fn build_monitor_continue_channel_embeds(
                 caster_uid,
                 caster_uid,
                 emit_effect_id,
-                vec![crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                    caster_uid,
-                    existing.from_uid,
-                    emit_effect_id,
-                    existing.uid,
-                    existing.stacks.max(1),
-                    existing.layer,
-                )],
+                vec![
+                    crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                        caster_uid,
+                        existing.from_uid,
+                        emit_effect_id,
+                        existing.uid,
+                        existing.stacks.max(1),
+                        existing.layer,
+                    ),
+                ],
             );
             if update_step.act_type == Some(fight_step::ActType::Effect as i32)
                 && update_step.act_effect.len() == 1
@@ -825,14 +826,16 @@ fn build_display_only_consume_channel_embeds(
         .iter()
         .find(|buff| buff.buff_id == emit_effect_id)
     {
-        let child_effects = vec![crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-            caster_uid,
-            existing.from_uid,
-            emit_effect_id,
-            existing.uid,
-            existing.stacks.max(1),
-            existing.layer,
-        )];
+        let child_effects = vec![
+            crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                caster_uid,
+                existing.from_uid,
+                emit_effect_id,
+                existing.uid,
+                existing.stacks.max(1),
+                existing.layer,
+            ),
+        ];
         let mut queue = EventQueue::new();
         queue.push(BattleEvent::SkillEmit {
             kind: crate::state::battle::event_queue::SkillEmitKind::EventTriggered,
@@ -874,6 +877,3 @@ fn explode_trigger_step_embeds(trigger_step: FightStep) -> Vec<ActEffect> {
     }
     vec![trigger_embed::trigger_step_to_embedded_effect(trigger_step)]
 }
-
-
-

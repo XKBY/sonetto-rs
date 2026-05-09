@@ -1,4 +1,4 @@
-﻿use sonettobuf::FightStep;
+use sonettobuf::FightStep;
 
 use crate::state::battle::buff_actions::use_skill_to_enemy::buff_get_use_skill_to_enemy_params;
 use crate::state::battle::fight_step::{ActEffectBuilder, effect_container_step, wrap_step};
@@ -15,7 +15,6 @@ use crate::state::battle::{
     steps::trigger_embed,
     trigger::combat::{event_from_step, fire_combat_triggers},
     trigger::passes::build_belief_gain_step,
-
 };
 
 pub(crate) fn build_round_end_use_skill_to_enemy_steps(
@@ -269,6 +268,3 @@ fn direct_lost_hp_count_add_buff_child(buff_id: i32) -> Option<i32> {
     }
     None
 }
-
-
-

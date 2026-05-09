@@ -1,4 +1,4 @@
-﻿//! Magic-circle mechanic — config lookup helpers and runtime embeds.
+//! Magic-circle mechanic — config lookup helpers and runtime embeds.
 //!
 //! A magic circle is summoned by an ex skill (`skill_effect.isBigSkill == 1`)
 //! that carries a `BehaviorType::AddMagicCircle { circle_id }` behavior slot.
@@ -73,7 +73,11 @@ pub fn add_magic_circle(
                 fight, caster_uid, buff_id,
             ));
         } else {
-            out.push(crate::state::battle::fight_step::ActEffectBuilder::buff_add(caster_uid, caster_uid, buff_id, 1));
+            out.push(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_add(
+                    caster_uid, caster_uid, buff_id, 1,
+                ),
+            );
         }
     }
     if let Some(buff_id) = circle
@@ -117,20 +121,18 @@ pub fn add_magic_circle(
             ctx.target = original_target;
         }
     }
-    out.push(
-        ActEffectBuilder::new(EffectType::MagicCircleAdd as i32, caster_uid)
-            .effect_num(0)
-            .reserve_id(circle_id as i64)
-            .magic_circle(MagicCircleInfo {
-                magic_circle_id: Some(circle_id),
-                round: Some(round),
-                create_uid: Some(caster_uid),
-                electric_level: Some(0),
-                electric_progress: Some(0),
-                max_electric_progress: Some(0),
-            })
-            .build(),
-    );
+    out.push(ActEffectBuilder::magic_circle_add(
+        caster_uid,
+        circle_id,
+        MagicCircleInfo {
+            magic_circle_id: Some(circle_id),
+            round: Some(round),
+            create_uid: Some(caster_uid),
+            electric_level: Some(0),
+            electric_progress: Some(0),
+            max_electric_progress: Some(0),
+        },
+    ));
 
     Ok(out)
 }
@@ -501,6 +503,3 @@ pub(crate) fn apply_magic_circle_self_skill_embeds_with_accumulator(
     host_step.act_effect.splice(insert_at..insert_at, embeds);
     MagicCircleApplyKind::TopLevel
 }
-
-
-

@@ -134,17 +134,13 @@ pub fn build_round_start_dot_settle_steps(ctx: &FightContext<'_>) -> Vec<FightSt
             continue;
         }
         for &settle_skill_id in &settle_skill_ids {
-            let mut effects = vec![
-                ActEffectBuilder::origin_crit(
-                    carrier_uid,
-                    total_damage,
-                    Some(SETTLE_CONFIG_EFFECT),
-                ),
-            ];
+            let mut effects = vec![ActEffectBuilder::origin_crit(
+                carrier_uid,
+                total_damage,
+                Some(SETTLE_CONFIG_EFFECT),
+            )];
             if entity_will_die_from(ctx, carrier_uid, total_damage) {
-                effects.push(
-                    ActEffectBuilder::dead(carrier_uid),
-                );
+                effects.push(ActEffectBuilder::dead(carrier_uid));
             }
             let inner = make_skill_step(carrier_uid, carrier_uid, settle_skill_id, 0, effects);
             wrappers.push(wrap_step(inner));

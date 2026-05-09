@@ -8,7 +8,7 @@ use super::super::{
     buff_actions::ex_point_overflow_bank::buff_get_ex_point_overflow,
     card::CardOpType,
     context::FightContext,
-    fight_step::make_skill_step,
+    fight_step::{ActEffectBuilder, make_skill_step},
     mechanics::Mechanics,
     passives::collector::collect,
     passives::steps::skill::execute_skill as execute_passive_skill,
@@ -839,12 +839,7 @@ impl FightCardMgr {
             // Don't mutate ex_point_mgr directly — the emitted ExPointChange
             // is applied later by calculate_mgr::play_effect_add_ex_point
             // during play_step_data.
-            out.push(ActEffect {
-                effect_type: Some(EffectType::ExPointChange as i32),
-                target_id: Some(caster_uid),
-                effect_num: Some(-consume),
-                ..Default::default()
-            });
+            out.push(ActEffectBuilder::ex_point_change(caster_uid, -consume));
             out.push(ActEffect {
                 effect_type: Some(EffectType::DirectUseExSkill as i32),
                 target_id: Some(caster_uid),
@@ -871,12 +866,7 @@ impl FightCardMgr {
 
         if refund > 0 {
             // Don't mutate ex_point_mgr directly — emitted effect is replayed.
-            out.push(ActEffect {
-                effect_type: Some(EffectType::ExPointChange as i32),
-                target_id: Some(caster_uid),
-                effect_num: Some(refund),
-                ..Default::default()
-            });
+            out.push(ActEffectBuilder::ex_point_change(caster_uid, refund));
         }
         ctx.managers
             .ex_point_mgr
@@ -964,12 +954,7 @@ impl FightCardMgr {
                 )?;
                 out.append(&mut pre);
             }
-            out.push(ActEffect {
-                effect_type: Some(EffectType::ExPointChange as i32),
-                target_id: Some(caster_uid),
-                effect_num: Some(-attr_consume),
-                ..Default::default()
-            });
+            out.push(ActEffectBuilder::ex_point_change(caster_uid, -attr_consume));
         }
 
         let point_cost = point_cost.min(current_ex).max(0);
@@ -993,12 +978,7 @@ impl FightCardMgr {
                 )?;
                 out.append(&mut pre);
             }
-            out.push(ActEffect {
-                effect_type: Some(EffectType::ExPointChange as i32),
-                target_id: Some(caster_uid),
-                effect_num: Some(-point_cost),
-                ..Default::default()
-            });
+            out.push(ActEffectBuilder::ex_point_change(caster_uid, -point_cost));
         }
 
         ctx.managers

@@ -247,11 +247,12 @@ pub(crate) fn apply_round_injury_skill_bonus(
         first_damage_target
     };
     if additional_target != 0 && first_bonus_amount > 0 {
-        skill_step.act_effect.push(
-            ActEffectBuilder::new(EffectType::AdditionalDamageCrit as i32, additional_target)
-                .effect_num(first_bonus_amount)
-                .build(),
-        );
+        skill_step
+            .act_effect
+            .push(ActEffectBuilder::additional_damage_crit(
+                additional_target,
+                first_bonus_amount,
+            ));
     }
 }
 
@@ -386,9 +387,7 @@ pub(crate) fn collect_dead_effects_after_damage(
 
     killed_in_order
         .into_iter()
-        .map(|target_id| {
-            ActEffectBuilder::dead(target_id)
-        })
+        .map(|target_id| ActEffectBuilder::dead(target_id))
         .collect()
 }
 

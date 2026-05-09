@@ -1,4 +1,4 @@
-﻿//! Wave-spawn manager. Owns wave-state mutation and exposes
+//! Wave-spawn manager. Owns wave-state mutation and exposes
 //! advance_wave plus replay-mode fast-forward helpers.
 //!
 //! In replay mode, captured boss steps may reference entity uids
@@ -21,7 +21,6 @@ use crate::state::battle::{
     },
     skill::SkillExecutor,
     types::effects::EffectType,
-
 };
 
 #[derive(Debug, Clone, Default)]
@@ -251,7 +250,9 @@ fn build_active_circle_enemy_buff_step(
     for target_uid in target_uids {
         let mut effect_ctx =
             EffectContext::new(fight, ctx.managers, ctx.mechanics, caster_uid, target_uid);
-        let effect = crate::state::battle::fight_step::ActEffectBuilder::buff_add(target_uid, caster_uid, buff_id, 1);
+        let effect = crate::state::battle::fight_step::ActEffectBuilder::buff_add(
+            target_uid, caster_uid, buff_id, 1,
+        );
         if let Some(buff_uid) = effect.buff.as_ref().and_then(|buff| buff.uid) {
             observe_explicit_buff_uid_for_target(target_uid, buff_uid);
             effect_ctx
@@ -274,6 +275,3 @@ fn build_active_circle_enemy_buff_step(
         Some(FightStepBuilder::effect().with_many(effects).build())
     }
 }
-
-
-

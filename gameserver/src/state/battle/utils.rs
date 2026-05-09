@@ -1,4 +1,4 @@
-﻿use super::{
+use super::{
     event_queue::{BattleEvent, serialize_leaf_event},
     fight_step::ActEffectBuilder,
     manager::buff_mgr::BuffMgr,
@@ -70,7 +70,12 @@ pub fn damage_with_hurt(
         from: from_uid,
         skill_id: Some(skill_id),
     });
-    ActEffectBuilder::damage_with_hurt(target_uid, amount, Some(config_effect), effect.hurt_info.unwrap_or_default())
+    ActEffectBuilder::damage_with_hurt(
+        target_uid,
+        amount,
+        Some(config_effect),
+        effect.hurt_info.unwrap_or_default(),
+    )
 }
 
 /// Damage details
@@ -136,45 +141,27 @@ pub fn hurt_detail_buff(
 
 /// Moxie change with visual effect
 pub fn moxie_change(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(crate::state::battle::types::effects::EffectType::ExPointChange as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        config_effect: Some(VfxConfig::Moxie as i32),
-        ..Default::default()
-    }
+    ActEffectBuilder::ex_point_change_with_config_effect(
+        target_uid,
+        amount,
+        VfxConfig::Moxie as i32,
+    )
 }
 
 /// Changes your max hp not current
 #[allow(dead_code)]
 pub fn max_hp_change(target_uid: i64, amount: i32, buff_id: Option<i32>) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Maxhpchange as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        buff_act_id: buff_id,
-        ..Default::default()
-    }
+    ActEffectBuilder::max_hp_change(target_uid, amount, buff_id)
 }
 
 /// Changes your current hp not max
 #[allow(dead_code)]
 pub fn current_hp_change(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Currenthpchange as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(amount),
-        ..Default::default()
-    }
+    ActEffectBuilder::current_hp_change(target_uid, amount)
 }
 
 pub fn attr_update(target_uid: i64) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Attr as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(0),
-        ..Default::default()
-    }
+    ActEffectBuilder::attr(target_uid)
 }
 
 pub fn master_halo(target: i64) -> ActEffect {
@@ -595,12 +582,14 @@ pub fn get_exclude_buff_effects(buff_mgr: &BuffMgr, target: i64, buff_id: i32) -
 
     for instance in buff_mgr.get(target) {
         if excluded_type_ids.contains(&instance.type_id) {
-            effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
-                target,
-                instance.uid,
-                instance.buff_id,
-                instance.from_uid,
-            ));
+            effects.push(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                    target,
+                    instance.uid,
+                    instance.buff_id,
+                    instance.from_uid,
+                ),
+            );
         }
     }
 
@@ -695,5 +684,3 @@ pub fn modify_hero_attr(entity: &mut FightEntityInfo, attr_id: i32, amount_permi
         _ => tracing::warn!("modify_hero_attr: unhandled attr_id={}", attr_id),
     }
 }
-
-

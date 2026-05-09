@@ -1,6 +1,6 @@
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
-use crate::state::battle::types::effects::EffectType;
+use crate::state::battle::{fight_step::ActEffectBuilder, types::effects::EffectType};
 
 /// Build the opening EFFECT step for a round:
 ///   USECARDS(159)    — player selected cards only, teamType=0
@@ -27,12 +27,7 @@ pub fn build_refresh_step(
                 card_info_list: remaining_hand,
                 ..Default::default()
             },
-            ActEffect {
-                effect_type: Some(EffectType::CardDeckNum as i32),
-                effect_num: Some(deck_num),
-                team_type: Some(1),
-                ..Default::default()
-            },
+            ActEffectBuilder::card_deck_num(deck_num),
         ],
         card_index: Some(0),
         support_hero_id: Some(0),

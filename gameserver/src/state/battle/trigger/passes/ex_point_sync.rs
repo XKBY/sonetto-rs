@@ -1,4 +1,4 @@
-﻿use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
+use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 
 use crate::state::battle::{
     context::FightContext,
@@ -75,14 +75,16 @@ impl TriggerPass for ExPointSyncPass {
                         new_layer,
                         buff.uid,
                     );
-                    act_effect.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                        *target_uid,
-                        buff.from_uid,
-                        buff.buff_id,
-                        buff.uid,
-                        buff.stacks,
-                        new_layer,
-                    ));
+                    act_effect.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                            *target_uid,
+                            buff.from_uid,
+                            buff.buff_id,
+                            buff.uid,
+                            buff.stacks,
+                            new_layer,
+                        ),
+                    );
                 } else if buff.stacks > 1 {
                     let new_count = buff.stacks - 1;
                     observe_explicit_buff_uid_for_target(*target_uid, buff.uid);
@@ -94,14 +96,16 @@ impl TriggerPass for ExPointSyncPass {
                         buff.layer,
                         buff.uid,
                     );
-                    act_effect.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                        *target_uid,
-                        buff.from_uid,
-                        buff.buff_id,
-                        buff.uid,
-                        new_count,
-                        buff.layer,
-                    ));
+                    act_effect.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                            *target_uid,
+                            buff.from_uid,
+                            buff.buff_id,
+                            buff.uid,
+                            new_count,
+                            buff.layer,
+                        ),
+                    );
                 } else {
                     let mut queue = EventQueue::new();
                     queue.push(BattleEvent::BuffRemove {
@@ -144,13 +148,8 @@ impl TriggerPass for ExPointSyncPass {
                     real_skin_id: Some(0),
                 };
 
-                let wrapped = ActEffect {
-                    effect_type: Some(162),
-                    target_id: Some(0),
-                    effect_num: Some(0),
-                    fight_step: Some(inner),
-                    ..Default::default()
-                };
+                let wrapped =
+                    crate::state::battle::fight_step::ActEffectBuilder::skill_wrapper(inner);
 
                 out.push(FightStepBuilder::effect().with(wrapped).build());
             }
@@ -159,6 +158,3 @@ impl TriggerPass for ExPointSyncPass {
         out
     }
 }
-
-
-

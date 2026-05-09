@@ -1,11 +1,12 @@
 //! Handler for buff_act 1021 BloodPoolCountAddExPoint — fires EX-point gain when bloodtithe value crosses configured thresholds.
 
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::{
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
+    fight_step::ActEffectBuilder,
     heroes::rubuska,
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     mechanics::bloodtithe::BloodtitheState,
@@ -115,23 +116,18 @@ pub fn build_blood_pool_ex_point_step(
                 act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
             }
 
-            outer_effects.push(ActEffect {
-                effect_type: Some(EffectType::Fightstep as i32),
-                target_id: Some(0),
-                fight_step: Some(FightStep {
-                    act_type: Some(fight_step::ActType::Effect.into()),
-                    from_id: Some(uid),
-                    to_id: Some(uid),
-                    act_id: Some(instance.buff_id),
-                    act_effect,
-                    card_index: Some(0),
-                    support_hero_id: Some(0),
-                    fake_timeline: Some(false),
-                    real_skill_type: Some(0),
-                    real_skin_id: Some(0),
-                }),
-                ..Default::default()
-            });
+            outer_effects.push(ActEffectBuilder::skill_wrapper_without_num(FightStep {
+                act_type: Some(fight_step::ActType::Effect.into()),
+                from_id: Some(uid),
+                to_id: Some(uid),
+                act_id: Some(instance.buff_id),
+                act_effect,
+                card_index: Some(0),
+                support_hero_id: Some(0),
+                fake_timeline: Some(false),
+                real_skill_type: Some(0),
+                real_skin_id: Some(0),
+            }));
         }
     }
 
@@ -229,23 +225,18 @@ pub fn build_blood_pool_gain_ex_point_step(
                 act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
             }
 
-            outer_effects.push(ActEffect {
-                effect_type: Some(EffectType::Fightstep as i32),
-                target_id: Some(0),
-                fight_step: Some(FightStep {
-                    act_type: Some(fight_step::ActType::Effect.into()),
-                    from_id: Some(uid),
-                    to_id: Some(uid),
-                    act_id: Some(instance.buff_id),
-                    act_effect,
-                    card_index: Some(0),
-                    support_hero_id: Some(0),
-                    fake_timeline: Some(false),
-                    real_skill_type: Some(0),
-                    real_skin_id: Some(0),
-                }),
-                ..Default::default()
-            });
+            outer_effects.push(ActEffectBuilder::skill_wrapper_without_num(FightStep {
+                act_type: Some(fight_step::ActType::Effect.into()),
+                from_id: Some(uid),
+                to_id: Some(uid),
+                act_id: Some(instance.buff_id),
+                act_effect,
+                card_index: Some(0),
+                support_hero_id: Some(0),
+                fake_timeline: Some(false),
+                real_skill_type: Some(0),
+                real_skin_id: Some(0),
+            }));
         }
     }
 

@@ -1,4 +1,4 @@
-﻿use sonettobuf::ActEffect;
+use sonettobuf::ActEffect;
 
 use crate::state::battle::context::FightContext;
 
@@ -128,5 +128,3 @@ pub(crate) fn adjust_attacker_round1_broadcast_uids(broadcast: &mut [ActEffect])
         buff.uid = Some(uid + delta);
     }
 }
-
-

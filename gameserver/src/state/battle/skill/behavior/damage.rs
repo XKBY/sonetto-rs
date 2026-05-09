@@ -1,4 +1,4 @@
-﻿//! Damage action — handler for the plain damage family plus the
+//! Damage action — handler for the plain damage family plus the
 //! Sotheby-scoped `Detonate2` special-case.
 //!
 //! Each runs the same `lost_life::apply` core, then appends a preview
@@ -143,13 +143,13 @@ fn execute_sotheby_detonate2(
     effects.extend(damage_effects);
 
     if target_died {
-        effects.push(
-            ActEffectBuilder::dead(ctx.target),
-        );
+        effects.push(ActEffectBuilder::dead(ctx.target));
     } else if let Some(poison_damage) = detonate_target_poison_damage(ctx) {
-        effects.push(
-            ActEffectBuilder::origin_crit(ctx.target, poison_damage, None),
-        );
+        effects.push(ActEffectBuilder::origin_crit(
+            ctx.target,
+            poison_damage,
+            None,
+        ));
     }
 
     let duality = ctx
@@ -194,12 +194,14 @@ fn execute_sotheby_detonate2(
                     from: instance.from_uid,
                 }));
             }
-            effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_del(
-                ally_uid,
-                instance.uid,
-                instance.buff_id,
-                instance.from_uid,
-            ));
+            effects.push(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+                    ally_uid,
+                    instance.uid,
+                    instance.buff_id,
+                    instance.from_uid,
+                ),
+            );
         }
     }
 
@@ -240,7 +242,14 @@ pub(crate) fn build_sotheby_holder_consume_steps(
     let mut cure_uid_by_ally: HashMap<i64, i64> = HashMap::new();
     for stack_idx in 0..stack_count {
         for &target_uid in target_uids {
-            add_effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_add(target_uid, caster_uid, POISON_INSTANCE_BUFF_ID, 0));
+            add_effects.push(
+                crate::state::battle::fight_step::ActEffectBuilder::buff_add(
+                    target_uid,
+                    caster_uid,
+                    POISON_INSTANCE_BUFF_ID,
+                    0,
+                ),
+            );
             add_effects.push(
                 ActEffectBuilder::new(EffectType::Poison as i32, target_uid)
                     .effect_num(0)
@@ -250,57 +259,60 @@ pub(crate) fn build_sotheby_holder_consume_steps(
         if !suppress_cure {
             for ally_uid in get_ally_uids(fight, caster_uid) {
                 if stack_idx == 0 {
-                    let cure_add = crate::state::battle::fight_step::ActEffectBuilder::buff_add(ally_uid, caster_uid, granted_buff_id, 1);
-                    let cure_uid = cure_add
-                        .buff
-                        .as_ref()
-                        .and_then(|b| b.uid)
-                        .unwrap_or(0);
+                    let cure_add = crate::state::battle::fight_step::ActEffectBuilder::buff_add(
+                        ally_uid,
+                        caster_uid,
+                        granted_buff_id,
+                        1,
+                    );
+                    let cure_uid = cure_add.buff.as_ref().and_then(|b| b.uid).unwrap_or(0);
                     if cure_uid != 0 {
                         cure_uid_by_ally.insert(ally_uid, cure_uid);
                     }
                     add_effects.push(cure_add);
-                    add_effects.push(crate::state::battle::fight_step::ActEffectBuilder::effect_none(ally_uid));
+                    add_effects.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::effect_none(ally_uid),
+                    );
                 } else if let Some(&cure_uid) = cure_uid_by_ally.get(&ally_uid) {
                     let new_layer = stack_idx + 1;
-                    add_effects.push(crate::state::battle::fight_step::ActEffectBuilder::buff_update(
-                        ally_uid,
-                        caster_uid,
-                        granted_buff_id,
-                        cure_uid,
-                        0,
-                        new_layer,
-                    ));
-                    add_effects.push(crate::state::battle::fight_step::ActEffectBuilder::effect_none(ally_uid));
+                    add_effects.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::buff_update(
+                            ally_uid,
+                            caster_uid,
+                            granted_buff_id,
+                            cure_uid,
+                            0,
+                            new_layer,
+                        ),
+                    );
+                    add_effects.push(
+                        crate::state::battle::fight_step::ActEffectBuilder::effect_none(ally_uid),
+                    );
                 }
             }
         }
     }
 
     vec![
-        ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-            .effect_num(0)
-            .fight_step(crate::state::battle::fight_step::effect_container_step(
-                caster_uid,
-                caster_uid,
-                DUALITY_POTION_BUFF_ID,
-                add_effects,
-            ))
-            .build(),
-        ActEffectBuilder::new(EffectType::FightStep as i32, 0)
-            .effect_num(0)
-            .fight_step(crate::state::battle::fight_step::effect_container_step(
-                caster_uid,
-                caster_uid,
-                DUALITY_POTION_BUFF_ID,
-                vec![crate::state::battle::fight_step::ActEffectBuilder::buff_del(
+        ActEffectBuilder::skill_wrapper(crate::state::battle::fight_step::effect_container_step(
+            caster_uid,
+            caster_uid,
+            DUALITY_POTION_BUFF_ID,
+            add_effects,
+        )),
+        ActEffectBuilder::skill_wrapper(crate::state::battle::fight_step::effect_container_step(
+            caster_uid,
+            caster_uid,
+            DUALITY_POTION_BUFF_ID,
+            vec![
+                crate::state::battle::fight_step::ActEffectBuilder::buff_del(
                     caster_uid,
                     duality.uid,
                     duality.buff_id,
                     duality.from_uid,
-                )],
-            ))
-            .build(),
+                ),
+            ],
+        )),
     ]
 }
 
@@ -442,9 +454,11 @@ fn execute_origin_damage_by_attr_and_buff_group_size(
     if damage <= 0 {
         return Vec::new();
     }
-    vec![
-        ActEffectBuilder::origin_damage(ctx.target, damage, Some(60127)),
-    ]
+    vec![ActEffectBuilder::origin_damage(
+        ctx.target,
+        damage,
+        Some(60127),
+    )]
 }
 
 /// Whether `effect_type` is one of the six damage emission types
@@ -538,5 +552,3 @@ fn append_preview_bloodtithe_gain_effects(
         });
     }
 }
-
-

@@ -33,8 +33,7 @@ fn is_self_buff_prep_skill(skill_id: i32) -> bool {
                 row.condition1.starts_with("660008#1") && row.behavior1 == expect_behavior;
             let is_targeted_psychube_entry = targeted_psychube_entry_equip_id(skill_id).is_some()
                 && row.behavior1 == expect_behavior
-                && (row.condition1.starts_with("660008#1")
-                    || row.condition1.starts_with("1104#"));
+                && (row.condition1.starts_with("660008#1") || row.condition1.starts_with("1104#"));
             is_standard_prep || is_targeted_psychube_entry
         })
         .unwrap_or(false)

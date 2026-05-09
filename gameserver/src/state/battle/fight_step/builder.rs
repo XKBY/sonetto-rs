@@ -24,10 +24,57 @@ impl ActEffectBuilder {
         }
     }
 
+    pub fn skill_wrapper(step: FightStep) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "skill_wrapper",
+            with_effect_num = true,
+            inner_act = step.act_id.unwrap_or(0),
+            inner_from = step.from_id.unwrap_or(0)
+        );
+        Self::bare(EffectType::Fightstep as i32)
+            .target_id(0)
+            .effect_num(0)
+            .fight_step(step)
+            .build()
+    }
+
+    pub fn skill_wrapper_without_num(step: FightStep) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "skill_wrapper",
+            with_effect_num = false,
+            inner_act = step.act_id.unwrap_or(0),
+            inner_from = step.from_id.unwrap_or(0)
+        );
+        Self::bare(EffectType::Fightstep as i32)
+            .target_id(0)
+            .fight_step(step)
+            .build()
+    }
+
     pub fn ex_point_change(target: i64, delta: i32) -> ActEffect {
         tracing::trace!(target: "act_effects", kind = "ex_point_change", target, delta);
         Self::new(EffectType::Expointchange as i32, target)
             .effect_num(delta)
+            .build()
+    }
+
+    pub fn ex_point_change_with_config_effect(
+        target: i64,
+        delta: i32,
+        config_effect: i32,
+    ) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "ex_point_change",
+            target,
+            delta,
+            config_effect
+        );
+        Self::new(EffectType::Expointchange as i32, target)
+            .effect_num(delta)
+            .config_effect(config_effect)
             .build()
     }
 
@@ -277,7 +324,14 @@ impl ActEffectBuilder {
             amount,
             ?config_effect
         );
-        Self::build_numeric_effect(EffectType::Damage as i32, target, amount, config_effect, None, None)
+        Self::build_numeric_effect(
+            EffectType::Damage as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            None,
+        )
     }
 
     pub fn damage_with_buff_act(target: i64, amount: i32, buff_act_id: i32) -> ActEffect {
@@ -354,7 +408,14 @@ impl ActEffectBuilder {
             amount,
             ?config_effect
         );
-        Self::build_numeric_effect(EffectType::Crit as i32, target, amount, config_effect, None, None)
+        Self::build_numeric_effect(
+            EffectType::Crit as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            None,
+        )
     }
 
     pub fn crit_with_hurt(
@@ -389,7 +450,14 @@ impl ActEffectBuilder {
             amount,
             ?config_effect
         );
-        Self::build_numeric_effect(EffectType::Heal as i32, target, amount, config_effect, None, None)
+        Self::build_numeric_effect(
+            EffectType::Heal as i32,
+            target,
+            amount,
+            config_effect,
+            None,
+            None,
+        )
     }
 
     pub fn origin_damage(target: i64, amount: i32, config_effect: Option<i32>) -> ActEffect {
@@ -459,8 +527,146 @@ impl ActEffectBuilder {
             .build()
     }
 
+    pub fn current_hp_change(target: i64, amount: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "current_hp_change",
+            target,
+            amount
+        );
+        Self::new(EffectType::Currenthpchange as i32, target)
+            .effect_num(amount)
+            .build()
+    }
+
+    pub fn max_hp_change(target: i64, amount: i32, buff_act_id: Option<i32>) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "max_hp_change",
+            target,
+            amount,
+            ?buff_act_id
+        );
+        let mut builder = Self::new(EffectType::Maxhpchange as i32, target).effect_num(amount);
+        if let Some(buff_act_id) = buff_act_id {
+            builder = builder.buff_act_id(buff_act_id);
+        }
+        builder.build()
+    }
+
+    pub fn attr(target: i64) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "attr", target);
+        Self::new(EffectType::Attr as i32, target)
+            .effect_num(0)
+            .build()
+    }
+
+    pub fn card_deck_num(deck_num: i32) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "card_deck_num", deck_num);
+        Self::bare(EffectType::Carddecknum as i32)
+            .effect_num(deck_num)
+            .team_type(1)
+            .build()
+    }
+
+    pub fn magic_circle_add(target: i64, circle_id: i32, circle: MagicCircleInfo) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "magic_circle_add",
+            target,
+            circle_id,
+            ?circle
+        );
+        Self::new(EffectType::Magiccircleadd as i32, target)
+            .effect_num(0)
+            .reserve_id(circle_id as i64)
+            .magic_circle(circle)
+            .build()
+    }
+
+    pub fn magic_circle_delete(target: i64, circle_id: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "magic_circle_delete",
+            target,
+            circle_id
+        );
+        Self::new(EffectType::Magiccircledelete as i32, target)
+            .reserve_id(circle_id as i64)
+            .effect_num(0)
+            .build()
+    }
+
+    pub fn magic_circle_update(
+        target: i64,
+        circle_id: i32,
+        reserve_str: impl Into<String>,
+        circle: MagicCircleInfo,
+    ) -> ActEffect {
+        let reserve_str = reserve_str.into();
+        tracing::trace!(
+            target: "act_effects",
+            kind = "magic_circle_update",
+            target,
+            circle_id,
+            reserve_str = reserve_str.as_str(),
+            ?circle
+        );
+        Self::new(EffectType::Magiccircleupdate as i32, target)
+            .reserve_id(circle_id as i64)
+            .reserve_str(reserve_str)
+            .magic_circle(circle)
+            .effect_num(0)
+            .build()
+    }
+
+    pub fn additional_damage(target: i64, amount: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "additional_damage",
+            target,
+            amount,
+            crit = false
+        );
+        Self::new(EffectType::Additionaldamage as i32, target)
+            .effect_num(amount)
+            .build()
+    }
+
+    pub fn additional_damage_crit(target: i64, amount: i32) -> ActEffect {
+        tracing::trace!(
+            target: "act_effects",
+            kind = "additional_damage",
+            target,
+            amount,
+            crit = true
+        );
+        Self::new(EffectType::Additionaldamagecrit as i32, target)
+            .effect_num(amount)
+            .build()
+    }
+
+    pub fn select(actor: i64, card_idx: i32) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "select", actor, card_idx);
+        Self::bare(EffectType::Cardinvalid as i32)
+            .effect_num(card_idx)
+            .build()
+    }
+
+    pub fn click_effect(target: i64) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "click_effect", target);
+        Self::new(EffectType::Expointchange as i32, target)
+            .effect_num(1)
+            .build()
+    }
+
     pub fn effect_num(mut self, value: i32) -> Self {
         self.effect.effect_num = Some(value);
+        self
+    }
+
+    pub fn target_id(mut self, value: i64) -> Self {
+        self.effect.target_id = Some(value);
         self
     }
 
@@ -591,6 +797,15 @@ impl ActEffectBuilder {
         }
         builder.build()
     }
+
+    fn bare(effect_type: i32) -> Self {
+        Self {
+            effect: ActEffect {
+                effect_type: Some(effect_type),
+                ..Default::default()
+            },
+        }
+    }
 }
 
 pub struct FightStepBuilder {
@@ -644,12 +859,8 @@ impl FightStepBuilder {
     }
 
     pub fn with_nested(mut self, step: FightStep) -> Self {
-        self.effects.push(ActEffect {
-            effect_type: Some(EffectType::Fightstep as i32),
-            fight_step: Some(step),
-            target_id: Some(0),
-            ..Default::default()
-        });
+        self.effects
+            .push(ActEffectBuilder::skill_wrapper_without_num(step));
         self
     }
 
@@ -744,8 +955,5 @@ pub fn effect_container_step(
 }
 
 pub fn wrap_step(step: FightStep) -> ActEffect {
-    ActEffectBuilder::new(EffectType::Fightstep as i32, 0)
-        .effect_num(0)
-        .fight_step(step)
-        .build()
+    ActEffectBuilder::skill_wrapper(step)
 }

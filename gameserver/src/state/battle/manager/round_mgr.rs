@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use once_cell::sync::Lazy;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, Fight, FightRound, FightStep, fight_step};
@@ -1468,6 +1468,3 @@ impl FightRoundMgr {
             && skill.behavior1.trim().starts_with("1#")
     }
 }
-
-
-

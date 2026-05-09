@@ -1,4 +1,4 @@
-﻿use anyhow::Result;
+use anyhow::Result;
 use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
@@ -78,13 +78,11 @@ impl Empathy {
         // `config_effect = 60038` flags this as a bonus emission so the
         // executor's `has_damage_effect` gate still fires the primary
         // `damageRate` damage path.
-        vec![
-            ActEffectBuilder::origin_damage(
-                ctx.target,
-                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
-                Some(SUBCONSCIOUS_BONUS_CONFIG_EFFECT),
-            ),
-        ]
+        vec![ActEffectBuilder::origin_damage(
+            ctx.target,
+            apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
+            Some(SUBCONSCIOUS_BONUS_CONFIG_EFFECT),
+        )]
     }
 
     fn execute_ex_consume(
@@ -144,13 +142,11 @@ impl Empathy {
             buff_uid,
             cap,
         ));
-        effects.push(
-            ActEffectBuilder::origin_damage(
-                ctx.target,
-                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
-                Some(EX_CONSUME_CONFIG_EFFECT),
-            ),
-        );
+        effects.push(ActEffectBuilder::origin_damage(
+            ctx.target,
+            apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.target, bonus),
+            Some(EX_CONSUME_CONFIG_EFFECT),
+        ));
 
         // Reset the mechanic state AFTER computing the bonus and the
         // reset marker, since the reset marker carries the new value
@@ -274,13 +270,11 @@ impl Empathy {
                 thresholds_crossed,
             ),
         );
-        effects.push(
-            ActEffectBuilder::origin_damage(
-                ctx.caster_uid,
-                apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.caster_uid, self_damage),
-                Some(SOLACE_CONFIG_EFFECT),
-            ),
-        );
+        effects.push(ActEffectBuilder::origin_damage(
+            ctx.caster_uid,
+            apply_real_hurt_fix(&ctx.managers.buff_mgr, ctx.caster_uid, self_damage),
+            Some(SOLACE_CONFIG_EFFECT),
+        ));
         effects.extend(buff::apply(
             buff::BuffApplySpec::new(*buff_id)
                 .caster(ctx.caster_uid)
@@ -298,6 +292,3 @@ impl Empathy {
         Some(Ok(effects))
     }
 }
-
-
-

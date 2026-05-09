@@ -4,7 +4,9 @@
 
 use sonettobuf::{ActEffect, BuffActInfo};
 
-use crate::state::battle::{heroes::rubuska, skill::SkillExecutor, types::effects::EffectType};
+use crate::state::battle::{
+    fight_step::ActEffectBuilder, heroes::rubuska, skill::SkillExecutor, types::effects::EffectType,
+};
 
 use super::{EffectContext, monitor_continue::queue_monitor_triggers};
 
@@ -66,12 +68,7 @@ pub fn add_count(
         .unwrap_or(0);
 
     Ok(vec![
-        ActEffect {
-            effect_type: Some(EffectType::CurrentHpChange as i32),
-            target_id: Some(ctx.target_uid()),
-            effect_num: Some(current_hp),
-            ..Default::default()
-        },
+        ActEffectBuilder::current_hp_change(ctx.target_uid(), current_hp),
         ActEffect {
             effect_type: Some(EffectType::BuffActInfoUpdate as i32),
             target_id: Some(ctx.target_uid()),
@@ -83,12 +80,6 @@ pub fn add_count(
             }),
             ..Default::default()
         },
-        ActEffect {
-            effect_type: Some(EffectType::MaxHpChange as i32),
-            target_id: Some(ctx.target_uid()),
-            effect_num: Some(new_max_hp),
-            buff_act_id: Some(BUFF_ACT_ID_RASPBERRY),
-            ..Default::default()
-        },
+        ActEffectBuilder::max_hp_change(ctx.target_uid(), new_max_hp, Some(BUFF_ACT_ID_RASPBERRY)),
     ])
 }
