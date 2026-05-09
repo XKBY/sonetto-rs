@@ -403,9 +403,32 @@ pub struct SkillDuplicateGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::sync::Once;
+
+    static TEST_CONFIG_INIT: Once = Once::new();
+
+    fn ensure_game_data_initialized() {
+        TEST_CONFIG_INIT.call_once(|| {
+            if config::configs::try_get().is_some() {
+                return;
+            }
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let excel_dir = root.join("data").join("excel2json");
+            if excel_dir.exists()
+                && let Some(path) = excel_dir.to_str()
+            {
+                let _ = config::configs::init(path);
+            }
+        });
+    }
 
     #[test]
     fn timeline_records_in_order() {
+        ensure_game_data_initialized();
         let mut t = EmissionTimeline::new();
         t.reset(1);
         t.record(EmissionPhase::CardCast, 100, 31140151, 1, None, None);
@@ -424,6 +447,7 @@ mod tests {
 
     #[test]
     fn duplicates_by_skill_groups_correctly() {
+        ensure_game_data_initialized();
         let mut t = EmissionTimeline::new();
         t.record(
             EmissionPhase::TriggerCombatPassive,

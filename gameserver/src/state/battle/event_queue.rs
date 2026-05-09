@@ -1398,6 +1398,7 @@ mod tests {
 
     #[test]
     fn event_triggered_skill_emit_serializes_with_children() {
+        ensure_game_data_initialized();
         let child = synthetic_effect(321, 11);
         let mut queue = EventQueue::new();
         queue.push(BattleEvent::SkillEmit {
@@ -1427,6 +1428,7 @@ mod tests {
 
     #[test]
     fn player_initiated_skill_emit_serializes_single_wrap_with_recursive_children() {
+        ensure_game_data_initialized();
         let direct = synthetic_effect(123, 9);
         let reactive_direct = synthetic_effect(321, 11);
         let mut queue = EventQueue::new();
@@ -1485,6 +1487,7 @@ mod tests {
 
     #[test]
     fn automatic_phase_skill_emit_serializes_with_double_wrap() {
+        ensure_game_data_initialized();
         let child = synthetic_effect(654, 32);
         let mut queue = EventQueue::new();
         queue.push(BattleEvent::SkillEmit {
@@ -1552,6 +1555,7 @@ mod tests {
 
     #[test]
     fn equipment_embedded_skill_emit_serializes_single_wrap_with_recursive_children() {
+        ensure_game_data_initialized();
         let direct = synthetic_effect(456, 21);
         let reactive_direct = synthetic_effect(654, 32);
         let mut queue = EventQueue::new();
@@ -1803,6 +1807,7 @@ mod tests {
 
     #[test]
     fn fight_step_to_event_round_trip_preserves_skill_step() {
+        ensure_game_data_initialized();
         let original = make_skill_step(
             3003,
             4004,
