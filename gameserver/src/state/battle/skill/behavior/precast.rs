@@ -4,36 +4,67 @@ use crate::state::battle::{
     buff_actions::add_passive_skills::for_each_add_passive_skill_id_for_entity,
     manager::fight_data_mgr::Managers,
     skill::{
-        cache::SKILL_CACHE, euphoria::resolve_skill_effect_id_for_entity, targets::get_entity,
+        cache::SKILL_CACHE, euphoria::resolve_skill_effect_id_for_entity, source_kind,
+        targets::get_entity,
     },
     types::{behavior::BehaviorType, condition::ConditionType},
 };
 
-fn find_self_buff_prep_skills(passive_skills: &[i32]) -> Vec<i32> {
+fn targeted_psychube_entry_equip_id(skill_id: i32) -> Option<i32> {
+    match source_kind::classify(skill_id) {
+        source_kind::SkillSource::PsychubeSkill { equip_id }
+        | source_kind::SkillSource::PortraySkill { equip_id, .. }
+            if matches!(equip_id, 1528 | 1538) =>
+        {
+            Some(equip_id)
+        }
+        _ => None,
+    }
+}
+
+fn is_self_buff_prep_skill(skill_id: i32) -> bool {
     let cfg = config::configs::get();
+    cfg.skill_effect
+        .iter()
+        .find(|s| s.id == skill_id)
+        .map(|row| {
+            let expect_behavior = format!("1#{}", skill_id);
+            let is_standard_prep =
+                row.condition1.starts_with("660008#1") && row.behavior1 == expect_behavior;
+            let is_targeted_psychube_entry = targeted_psychube_entry_equip_id(skill_id).is_some()
+                && row.behavior1 == expect_behavior
+                && (row.condition1.starts_with("660008#1")
+                    || row.condition1.starts_with("1104#"));
+            is_standard_prep || is_targeted_psychube_entry
+        })
+        .unwrap_or(false)
+}
+
+fn find_self_buff_prep_skills(passive_skills: &[i32]) -> Vec<i32> {
     let mut out: Vec<i32> = Vec::new();
     for &sid in passive_skills {
         if sid <= 0 {
             continue;
         }
-        // Some rows are directly a "self-buff prep skill" entry.
-        if let Some(row) = cfg.skill_effect.iter().find(|s| s.id == sid) {
-            let expect_behavior = format!("1#{}", sid);
-            if row.condition1.starts_with("660008#1")
-                && row.behavior1 == expect_behavior
-                && !out.contains(&sid)
-            {
-                out.push(sid);
-            }
+
+        // Keep psychube prep skills on the exact passive-surface variant that
+        // the fight snapshot already carries. Promoting `433811 -> 433815`
+        // over-fires later portray branches that are out of scope here.
+        let can_promote_variant = targeted_psychube_entry_equip_id(sid).is_none();
+
+        if is_self_buff_prep_skill(sid) && !out.contains(&sid) {
+            out.push(sid);
         }
+
+        if !can_promote_variant {
+            continue;
+        }
+
         let mut best_for_sid: Option<i32> = None;
         for delta in 1..=20 {
             let candidate = sid + delta;
-            if let Some(row) = cfg.skill_effect.iter().find(|s| s.id == candidate) {
-                let expect_behavior = format!("1#{}", candidate);
-                if row.condition1.starts_with("660008#1") && row.behavior1 == expect_behavior {
-                    best_for_sid = Some(best_for_sid.map_or(candidate, |cur| cur.max(candidate)));
-                }
+            if is_self_buff_prep_skill(candidate) {
+                best_for_sid = Some(best_for_sid.map_or(candidate, |cur| cur.max(candidate)));
             }
         }
         if let Some(candidate) = best_for_sid
