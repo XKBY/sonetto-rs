@@ -1,8 +1,11 @@
 use sonettobuf::{Fight, FightStep};
 
 use crate::state::battle::{
-    context::FightContext, fight_step::FightStepBuilder, passives::collector::CollectedPassives,
-    trigger::combat::TriggerEvent, types::ex_point::ExPointType, utils::moxie_change,
+    context::FightContext,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
+    passives::collector::CollectedPassives,
+    trigger::combat::TriggerEvent,
+    types::ex_point::ExPointType,
 };
 
 use super::TriggerPass;
@@ -35,7 +38,7 @@ pub fn build_belief_gain_step(fight: &Fight, team_type: i32, gain: i32) -> Optio
             continue;
         }
         for _ in 0..gain {
-            effects.push(moxie_change(uid, 1));
+            effects.push(ActEffectBuilder::moxie_change(uid, 1));
         }
     }
 

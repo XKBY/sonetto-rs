@@ -1,9 +1,9 @@
-use sonettobuf::{ActEffect, BeginRoundOper, FightStep};
+use sonettobuf::{BeginRoundOper, FightStep};
 
 use crate::state::battle::{
     BehaviorType,
     context::FightContext,
-    fight_step::FightStepBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::round_mgr::FightRoundMgr,
     round::RoundState,
     skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
@@ -71,14 +71,7 @@ pub(crate) fn pre_operation_ex_gain(
     ctx.managers.ex_point_mgr.add_ex_point(caster_uid, 1);
     Some(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(
-                    crate::state::battle::types::effects::EffectType::ExPointChange as i32,
-                ),
-                target_id: Some(caster_uid),
-                effect_num: Some(1),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::ex_point_change(caster_uid, 1))
             .build(),
     )
 }
@@ -120,14 +113,7 @@ pub(crate) fn standard_action_ex_gain_for_uid(
     ctx.managers.ex_point_mgr.add_ex_point(caster_uid, 1);
     Some(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(
-                    crate::state::battle::types::effects::EffectType::ExPointChange as i32,
-                ),
-                target_id: Some(caster_uid),
-                effect_num: Some(1),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::ex_point_change(caster_uid, 1))
             .build(),
     )
 }

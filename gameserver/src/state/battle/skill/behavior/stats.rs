@@ -13,7 +13,7 @@
 //! buffs (`SkillRateUp*`) live inline in the dispatcher for now.
 
 use anyhow::Result;
-use sonettobuf::{ActEffect, effect_type_enum::EffectType};
+use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::fight_step::ActEffectBuilder;
@@ -43,22 +43,17 @@ impl BehaviorAction for Stats {
 }
 
 pub fn bloodlust(target: i64, amount: i32) -> Vec<ActEffect> {
-    vec![
-        ActEffectBuilder::new(EffectType::Bloodlust as i32, target)
-            .effect_num(amount)
-            .build(),
-    ]
+    vec![ActEffectBuilder::bloodlust(target, amount)]
 }
 
 pub fn change_power(target: i64, amount: i32) -> Vec<ActEffect> {
-    vec![
-        ActEffectBuilder::new(EffectType::Powerchange as i32, target)
-            .effect_num(amount)
-            .config_effect(1)
-            .build(),
-    ]
+    vec![ActEffectBuilder::power_change(
+        Some(target),
+        amount,
+        Some(1),
+    )]
 }
 
 pub fn average_life(target: i64) -> Vec<ActEffect> {
-    vec![ActEffectBuilder::new(EffectType::Averagelife as i32, target).build()]
+    vec![ActEffectBuilder::average_life(target)]
 }

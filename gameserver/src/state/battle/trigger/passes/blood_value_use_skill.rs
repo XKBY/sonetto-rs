@@ -160,7 +160,7 @@ impl TriggerPass for BloodValueUseSkillPass {
                                 to: holder_uid,
                                 children: effects
                                     .into_iter()
-                                    .map(|effect| BattleEvent::SerializedActEffect { effect })
+                                    .map(|effect| BattleEvent::SerializedActEffect{ effect })
                                     .collect(),
                                 kind: crate::state::battle::event_queue::SkillEmitKind::EventTriggered,
                             });

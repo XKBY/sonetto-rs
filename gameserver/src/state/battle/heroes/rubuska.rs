@@ -12,13 +12,14 @@ use std::{
 use crate::state::battle::{
     buff_actions::{find_feature_parts, raspberry::buff_get_raspberry_params},
     context::FightContext,
+    fight_step::ActEffectBuilder,
     hero::HeroId,
     manager::buff_mgr::BuffMgr,
     manager::round_mgr::lookup_entry_max_hp,
     mechanics::shadowcloak::ShadowCloakState,
     round::step_shape::build_effect_step,
     skill::source_kind,
-    utils::{find_entity, moxie_change},
+    utils::find_entity,
 };
 
 pub const SHADOW_CLOAK_ACCUMULATOR_BUFF_ID: i32 = 31250151;
@@ -200,7 +201,7 @@ pub fn build_shadow_cloak_full_cap_step(
         .insert(tracker_key);
 
     let effects = (0..targets.len())
-        .map(|_| moxie_change(rubuska_uid, 1))
+        .map(|_| ActEffectBuilder::moxie_change(rubuska_uid, 1))
         .collect();
     Some(build_effect_step(effects))
 }

@@ -172,11 +172,10 @@ pub fn inject_damage_redirect(
             kakania_uid,
             cap,
         ));
-        out.push(
-            ActEffectBuilder::new(EffectType::DamageFromAbsorb as i32, kakania_uid)
-                .effect_num(absorbed_damage)
-                .build(),
-        );
+        out.push(ActEffectBuilder::damage_from_absorb(
+            kakania_uid,
+            absorbed_damage,
+        ));
         effect.effect_num = Some(original_damage.saturating_sub(absorbed_damage));
         out.push(effect);
         out.extend(build_insight_iii_threshold_heals(
@@ -212,11 +211,7 @@ pub fn build_insight_iii_threshold_heals(
 
     alive_allies(fight, holder_uid)
         .into_iter()
-        .map(|ally_uid| {
-            ActEffectBuilder::new(EffectType::InjuryBankHeal as i32, ally_uid)
-                .effect_num(heal_amount)
-                .build()
-        })
+        .map(|ally_uid| ActEffectBuilder::injury_bank_heal(ally_uid, heal_amount))
         .collect()
 }
 

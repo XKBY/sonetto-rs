@@ -1,7 +1,7 @@
 //! Handler for buff_act 1021 BloodPoolCountAddExPoint — fires EX-point gain when bloodtithe value crosses configured thresholds.
 
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
+use sonettobuf::{Fight, FightStep, fight_step};
 use std::{collections::HashMap, sync::Mutex};
 
 use crate::state::battle::{
@@ -93,13 +93,11 @@ pub fn build_blood_pool_ex_point_step(
 
             let mut act_effect = Vec::new();
             for _ in 0..gain {
-                act_effect.push(ActEffect {
-                    effect_type: Some(0),
-                    effect_num: Some(instance.buff_id),
-                    buff_act_id: Some(BUFF_ACT_ID),
-                    target_id: Some(uid),
-                    ..Default::default()
-                });
+                act_effect.push(ActEffectBuilder::effect_none_with_buff_act(
+                    uid,
+                    instance.buff_id,
+                    BUFF_ACT_ID,
+                ));
                 let mut queue = EventQueue::new();
                 queue.push(BattleEvent::ExPointChange {
                     target: uid,
@@ -201,13 +199,11 @@ pub fn build_blood_pool_gain_ex_point_step(
 
             let mut act_effect = Vec::new();
             for _ in 0..gain {
-                act_effect.push(ActEffect {
-                    effect_type: Some(0),
-                    effect_num: Some(instance.buff_id),
-                    buff_act_id: Some(BUFF_ACT_ID),
-                    target_id: Some(uid),
-                    ..Default::default()
-                });
+                act_effect.push(ActEffectBuilder::effect_none_with_buff_act(
+                    uid,
+                    instance.buff_id,
+                    BUFF_ACT_ID,
+                ));
                 let mut queue = EventQueue::new();
                 queue.push(BattleEvent::ExPointChange {
                     target: uid,

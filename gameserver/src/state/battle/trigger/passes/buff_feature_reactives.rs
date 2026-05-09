@@ -105,7 +105,7 @@ fn run_probability_add_buff_reactives(
             to: event.caster_uid,
             children: inner_effects
                 .into_iter()
-                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .map(|effect| BattleEvent::SerializedActEffect{ effect })
                 .collect(),
             kind: SkillEmitKind::EventTriggered,
         });

@@ -840,12 +840,7 @@ impl FightCardMgr {
             // is applied later by calculate_mgr::play_effect_add_ex_point
             // during play_step_data.
             out.push(ActEffectBuilder::ex_point_change(caster_uid, -consume));
-            out.push(ActEffect {
-                effect_type: Some(EffectType::DirectUseExSkill as i32),
-                target_id: Some(caster_uid),
-                effect_num: Some(0),
-                ..Default::default()
-            });
+            out.push(ActEffectBuilder::direct_use_ex_skill(caster_uid));
         }
 
         let mut ex = self.execute_skill_and_apply_pending_summons(
@@ -997,10 +992,7 @@ impl FightCardMgr {
     fn end_turn(&self) -> FightStep {
         FightStep {
             act_type: Some(fight_step::ActType::Effect.into()),
-            act_effect: vec![ActEffect {
-                effect_type: Some(EffectType::RoundEnd as i32),
-                ..Default::default()
-            }],
+            act_effect: vec![ActEffectBuilder::round_end(None, None)],
             ..Default::default()
         }
     }
@@ -1019,12 +1011,10 @@ impl FightCardMgr {
         // for now emit empty effect
         FightStep {
             act_type: Some(fight_step::ActType::Effect.into()),
-            act_effect: vec![ActEffect {
-                effect_type: Some(EffectType::CardsPush as i32),
-                card_info_list: state.player_deck.clone(),
-                team_type: Some(1),
-                ..Default::default()
-            }],
+            act_effect: vec![ActEffectBuilder::cards_push(
+                state.player_deck.clone(),
+                Some(1),
+            )],
             ..Default::default()
         }
     }

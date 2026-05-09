@@ -1,6 +1,6 @@
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
-use crate::state::battle::context::FightContext;
+use crate::state::battle::{context::FightContext, fight_step::ActEffectBuilder};
 
 pub fn build_temp_card_step(ctx: &mut FightContext<'_>, uids: &[i64]) -> Option<FightStep> {
     let cfg = config::configs::get();
@@ -40,21 +40,8 @@ pub fn build_temp_card_step(ctx: &mut FightContext<'_>, uids: &[i64]) -> Option<
                     to_id: Some(uid),
                     act_id: Some(instance.buff_id),
                     act_effect: vec![
-                        ActEffect {
-                            effect_type: Some(78),
-                            target_id: Some(uid),
-                            effect_num: Some(ex_skill_id),
-                            reserve_id: Some(model_id as i64),
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
-                        ActEffect {
-                            effect_type: Some(141),
-                            target_id: Some(uid),
-                            reserve_str: Some(ex_max.to_string()),
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
+                        ActEffectBuilder::sp_card_add(uid, ex_skill_id, model_id as i64, 1),
+                        ActEffectBuilder::change_to_temp_card(uid, ex_max.to_string(), 1),
                     ],
                     ..Default::default()
                 };

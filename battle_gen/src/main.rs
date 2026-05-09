@@ -201,9 +201,8 @@ fn generate_scenario_entries(
             replay_selected_cards,
             replay_silent_ops,
             replay_wave_snapshots,
-        ) =
-            extract_begin_round_inputs(&v, request_v.as_ref())
-                .with_context(|| format!("failed extracting operations from {}", path.display()))?;
+        ) = extract_begin_round_inputs(&v, request_v.as_ref())
+            .with_context(|| format!("failed extracting operations from {}", path.display()))?;
         rounds.push((
             name,
             deck,
@@ -383,10 +382,8 @@ mod tests {
                 replay_selected_cards,
                 replay_silent_ops,
                 replay_wave_snapshots,
-            ) =
-                extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
-                    format!("failed extracting operations from {}", path.display())
-                })?;
+            ) = extract_begin_round_inputs(&v, request_v.as_ref())
+                .with_context(|| format!("failed extracting operations from {}", path.display()))?;
             rounds.push((
                 name,
                 deck,
@@ -502,10 +499,8 @@ mod tests {
                 replay_selected_cards,
                 replay_silent_ops,
                 replay_wave_snapshots,
-            ) =
-                extract_begin_round_inputs(&v, request_v.as_ref()).with_context(|| {
-                    format!("failed extracting operations from {}", path.display())
-                })?;
+            ) = extract_begin_round_inputs(&v, request_v.as_ref())
+                .with_context(|| format!("failed extracting operations from {}", path.display()))?;
             rounds.push((
                 name,
                 deck,

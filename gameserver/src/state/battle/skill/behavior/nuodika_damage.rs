@@ -15,10 +15,10 @@ use sonettobuf::ActEffect;
 use super::super::cache::resolve_skill_effect_id;
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::buff_actions::attr_replace::buff_get_attr_replace_permille;
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::targets::{TargetResolver, get_entity};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
-use crate::state::battle::utils::damage_with_hurt;
 
 pub(super) struct NuoDiKaDamage;
 
@@ -73,7 +73,7 @@ impl BehaviorAction for NuoDiKaDamage {
 
         let mut out = Vec::new();
         if self_loss > 0 {
-            out.push(damage_with_hurt(
+            out.push(ActEffectBuilder::damage_skill(
                 ctx.caster_uid,
                 self_loss,
                 30006,
@@ -89,7 +89,7 @@ impl BehaviorAction for NuoDiKaDamage {
             if damage_target == 0 || damage_target == ctx.caster_uid {
                 continue;
             }
-            out.push(damage_with_hurt(
+            out.push(ActEffectBuilder::damage_skill(
                 damage_target,
                 damage,
                 -1,

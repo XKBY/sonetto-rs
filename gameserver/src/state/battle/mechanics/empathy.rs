@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use sonettobuf::{ActEffect, BuffInfo, Fight};
+use sonettobuf::{ActEffect, Fight};
 
 use crate::state::battle::{
     buff_actions::injury_bank::{InjuryBankParams, buff_get_injury_bank_params},
@@ -258,25 +258,16 @@ impl EmpathyState {
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
-    ) -> ActEffect {
-        ActEffect {
-            effect_type: Some(EffectType::StorageInjury as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(amount.max(0)),
-            buff: Some(BuffInfo {
-                buff_id: Some(buff_id),
-                duration: Some(0),
-                uid: Some(buff_uid),
-                ex_info: Some(0),
-                from_uid: Some(from_uid),
-                count: Some(0),
-                act_common_params: Some(build_empathy_params(amount.max(0), cap)),
-                layer: Some(0),
-                r#type: Some(BuffLayerType::Normal as i32),
-                act_info: vec![],
-            }),
-            ..Default::default()
-        }
+    ) -> ActEffect{
+        ActEffectBuilder::storage_injury(
+            target_uid,
+            amount.max(0),
+            buff_id,
+            buff_uid,
+            from_uid,
+            build_empathy_params(amount.max(0), cap),
+            None,
+        )
     }
 
     pub fn emit_buff_update(
@@ -287,7 +278,7 @@ impl EmpathyState {
         buff_uid: i64,
         from_uid: i64,
         cap: i32,
-    ) -> ActEffect {
+    ) -> ActEffect{
         ActEffectBuilder::buff_update_with_snapshot(
             target_uid,
             from_uid,

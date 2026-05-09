@@ -1,5 +1,3 @@
-use crate::state::battle::utils::attr_update;
-
 use super::EffectContext;
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
@@ -227,7 +225,9 @@ fn each_change_attr_before(ctx: &BuffActCtx<'_, '_>, parts: &[&str]) -> ActionRe
 /// Buff feature: Attr (post stage) — emit Attr(26) marker.
 /// HP-specific MaxHp/CurrentHp broadcasts are handled in the before-add stage.
 pub fn on_apply(ctx: &mut EffectContext) -> ActionResult {
-    ActionResult::single(attr_update(ctx.target))
+    ActionResult::single(crate::state::battle::fight_step::ActEffectBuilder::attr(
+        ctx.target,
+    ))
 }
 
 /// Buff feature: AttrFromEntity — replaces ATK with entity stat for one hit, then self-deletes.

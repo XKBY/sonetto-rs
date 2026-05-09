@@ -3,10 +3,9 @@
 //! a payload from `parts[1]`. DOT family + status flags follow the
 //! same shape: BuffAdd → matching effect-type marker.
 
-use sonettobuf::ActEffect;
-
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::types::effects::EffectType;
 
 pub(super) struct MarkerParams {
@@ -80,11 +79,10 @@ impl BuffActionHandler for MarkerHandler {
     }
 
     fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
-        ActionResult::single(ActEffect {
-            effect_type: Some(params.effect_type),
-            target_id: Some(params.target_uid),
-            effect_num: Some(params.effect_num),
-            ..Default::default()
-        })
+        ActionResult::single(ActEffectBuilder::marker(
+            params.effect_type,
+            params.target_uid,
+            params.effect_num,
+        ))
     }
 }

@@ -3,7 +3,7 @@ use super::super::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
     utils::find_entity,
 };
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, Fight, FightStep};
 
 use crate::state::battle::heroes::rubuska;
 
@@ -92,27 +92,17 @@ impl ShadowCloakState {
                 .map(|b| b.uid)
                 .unwrap_or(0);
 
-            effects.push(
-                ActEffectBuilder::new(EffectType::Currenthpchange as i32, uid)
-                    .effect_num(current_hp)
-                    .build(),
-            );
-            effects.push(
-                ActEffectBuilder::new(EffectType::Buffactinfoupdate as i32, uid)
-                    .reserve_id(buff_uid)
-                    .buff_act_info(sonettobuf::BuffActInfo {
-                        act_id: Some(1042),
-                        param: vec![gain, max_capacity],
-                        ..Default::default()
-                    })
-                    .build(),
-            );
-            effects.push(
-                ActEffectBuilder::new(EffectType::Maxhpchange as i32, uid)
-                    .effect_num(new_max_hp)
-                    .buff_act_id(1042)
-                    .build(),
-            );
+            effects.push(ActEffectBuilder::current_hp_change(uid, current_hp));
+            effects.push(ActEffectBuilder::buff_act_info_update(
+                uid,
+                buff_uid,
+                sonettobuf::BuffActInfo {
+                    act_id: Some(1042),
+                    param: vec![gain, max_capacity],
+                    ..Default::default()
+                },
+            ));
+            effects.push(ActEffectBuilder::max_hp_change(uid, new_max_hp, Some(1042)));
         }
 
         effects

@@ -223,12 +223,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         // below is applied by calculate_mgr::play_effect_add_ex_point
         // during play_step_data. Direct mutation + replay = double-apply.
         out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, -consume));
-        out.push(ActEffect {
-            effect_type: Some(327),
-            target_id: Some(ctx.caster_uid),
-            effect_num: Some(0),
-            ..Default::default()
-        });
+        out.push(ActEffectBuilder::direct_use_ex_skill(ctx.caster_uid));
     }
 
     let ex_target_uid = if get_team_type(fight, ctx.target) != caster_team

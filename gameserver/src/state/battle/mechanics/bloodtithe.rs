@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType};
+use sonettobuf::{ActEffect, Fight, FightStep};
 use std::{
     collections::{HashMap, HashSet},
     sync::Mutex,
@@ -20,7 +20,7 @@ use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
-    utils::{buff_has_bloodpool, damage_with_buff_act, find_entity},
+    utils::{buff_has_bloodpool, find_entity},
 };
 
 const DAMAGE_PER_POINT: i32 = 3000;
@@ -334,7 +334,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     out
 }
 
-pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect {
+pub fn bloodtithe_add_to_pool(target_uid: i64, new_total: i32) -> ActEffect{
     serialize_leaf_event(BattleEvent::BloodpoolValueChange {
         team_type: 1,
         target: target_uid,
@@ -346,14 +346,14 @@ pub fn set_gain(value: i32) {
     *GAINED.lock().unwrap() = value;
 }
 
-pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect {
+pub fn bloodtithe_max_change(amount: i32, change_type: i32) -> ActEffect{
     serialize_leaf_event(BattleEvent::BloodpoolMaxChange {
         team_type: change_type,
         max: amount,
     })
 }
 
-pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect {
+pub fn bloodtithe_value_change(target_uid: i64, amount: i32, change_type: i32) -> ActEffect{
     serialize_leaf_event(BattleEvent::BloodpoolValueChange {
         team_type: change_type,
         target: target_uid,
@@ -369,9 +369,7 @@ impl BloodtitheState {
         Some(
             FightStepBuilder::effect()
                 .with_many(vec![
-                    ActEffectBuilder::new(EffectType::Bloodpoolmaxcreate as i32, 0)
-                        .effect_num(1)
-                        .build(),
+                    ActEffectBuilder::bloodpool_max_create(1),
                     ActEffectBuilder::bloodpool_max_change(1, 57),
                 ])
                 .build(),
@@ -439,7 +437,7 @@ impl BloodtitheState {
                 }
 
                 let entity = find_entity(fight, uid);
-                let mut effects = vec![damage_with_buff_act(
+                let mut effects = vec![ActEffectBuilder::damage_buff_with_uid(
                     uid,
                     damage,
                     act_id,

@@ -1,14 +1,5 @@
+use crate::state::battle::fight_step::ActEffectBuilder;
 use sonettobuf::{ActEffect, FightStep, fight_step};
-
-fn effect(effect_type: i32, effect_num: i32, team_type: Option<i32>) -> ActEffect {
-    ActEffect {
-        effect_type: Some(effect_type),
-        target_id: Some(0),
-        effect_num: Some(effect_num),
-        team_type,
-        ..Default::default()
-    }
-}
 
 fn effect_step(effects: Vec<ActEffect>) -> FightStep {
     FightStep {
@@ -30,11 +21,11 @@ fn effect_step(effects: Vec<ActEffect>) -> FightStep {
 pub fn build_pre_enemy_transition_steps(deck_num: i32) -> Vec<FightStep> {
     vec![
         effect_step(vec![
-            effect(61, 0, None),
-            effect(211, 0, None),
-            effect(60, 0, None),
+            ActEffectBuilder::round_end(Some(0), Some(0)),
+            ActEffectBuilder::small_round_end(Some(0), 0),
+            ActEffectBuilder::deal_card2(0, 0),
         ]),
-        effect_step(vec![effect(310, deck_num, Some(1))]),
+        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(0, deck_num)]),
     ]
 }
 
@@ -43,9 +34,13 @@ pub fn build_pre_enemy_transition_steps(deck_num: i32) -> Vec<FightStep> {
 #[allow(dead_code)]
 pub fn build_post_enemy_transition_steps(deck_num: i32) -> Vec<FightStep> {
     vec![
-        effect_step(vec![effect(211, 0, None)]),
-        effect_step(vec![effect(96, 0, None)]),
-        effect_step(vec![effect(212, 0, None)]),
-        effect_step(vec![effect(310, deck_num, Some(1))]),
+        effect_step(vec![ActEffectBuilder::small_round_end(Some(0), 0)]),
+        effect_step(vec![ActEffectBuilder::clear_universal_card(
+            Some(0),
+            Some(0),
+            None,
+        )]),
+        effect_step(vec![ActEffectBuilder::change_round(Some(0), Some(0))]),
+        effect_step(vec![ActEffectBuilder::card_deck_num_with_target(0, deck_num)]),
     ]
 }

@@ -270,7 +270,10 @@ fn extract_replay_wave_snapshots(steps: &[Value]) -> Result<Vec<Fight>> {
             continue;
         };
         for effect in effects {
-            let effect_type = effect.get("effectType").and_then(Value::as_i64).unwrap_or(0);
+            let effect_type = effect
+                .get("effectType")
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
             if effect_type != 337 {
                 continue;
             }
@@ -436,11 +439,15 @@ mod tests {
             .unwrap_or_else(|| PathBuf::from("."));
         let captures = [
             (
-                root.join("tests").join("battle3").join("begin_round_4.json"),
+                root.join("tests")
+                    .join("battle3")
+                    .join("begin_round_4.json"),
                 vec![3],
             ),
             (
-                root.join("tests").join("battle3").join("begin_round_5.json"),
+                root.join("tests")
+                    .join("battle3")
+                    .join("begin_round_5.json"),
                 vec![4],
             ),
         ];
@@ -458,7 +465,8 @@ mod tests {
                 .map(|fight| fight.cur_wave.unwrap_or_default())
                 .collect();
             assert_eq!(
-                observed_waves, expected_waves,
+                observed_waves,
+                expected_waves,
                 "unexpected replay wave snapshots for {}",
                 path.display()
             );

@@ -11,7 +11,7 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BuffInfo, CardInfo, FightStep};
+use sonettobuf::{ActEffect, CardInfo, FightStep};
 
 use crate::state::battle::{
     buff_actions::round_end as round_end_handler,
@@ -67,12 +67,9 @@ pub(crate) async fn run(
     // Player turn finished; emit round-end transition marker (live parity).
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(276),
-                effect_num: Some(1),
-                card_info_list: selected_for_round_end,
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::allocate_card_energy(
+                selected_for_round_end,
+            ))
             .build(),
     );
     // Late-round attacker passive sweep — runs every attacker c100/c101/c102/c104
@@ -288,11 +285,7 @@ pub(crate) async fn run(
     // End of enemy turn transition.
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(EffectType::SmallRoundEnd as i32),
-                effect_num: Some(1),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::small_round_end(None, 1))
             .build(),
     );
     if let Some(caster_uid) = mgr.first_alive_defender_uid(ctx.fight)
@@ -305,11 +298,7 @@ pub(crate) async fn run(
     // Round transition markers.
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(EffectType::ClearUniversalCard as i32),
-                team_type: Some(1),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::clear_universal_card(None, None, Some(1)))
             .build(),
     );
     // Skip the magic-circle duration tick only when the battle
@@ -349,10 +338,7 @@ pub(crate) async fn run(
     }
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(EffectType::ChangeRound as i32),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::change_round(None, None))
             .build(),
     );
     // New-round boundary: reset per-slot round-limit usage trackers before
@@ -476,12 +462,7 @@ fn run_post_change_round_tail(
     // Next-round deck snapshot marker.
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(310),
-                effect_num: Some(deck_num),
-                team_type: Some(1),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::card_deck_num(deck_num))
             .build(),
     );
 
@@ -518,26 +499,30 @@ fn build_round_end_takestage_103_lifecycle_step(ctx: &FightContext<'_>) -> Optio
                 LifecycleEventKind::Expiring => 0,
                 LifecycleEventKind::Ticking => event.instance.duration - 1,
             };
-            effects.push(ActEffect {
-                effect_type: Some(match event.kind {
-                    LifecycleEventKind::Expiring => EffectType::BuffDel as i32,
-                    LifecycleEventKind::Ticking => EffectType::BuffUpdate as i32,
-                }),
-                target_id: Some(event.target_uid),
-                effect_num: Some(0),
-                buff: Some(BuffInfo {
-                    buff_id: Some(event.instance.buff_id),
-                    duration: Some(duration),
-                    uid: Some(event.instance.uid),
-                    ex_info: Some(0),
-                    from_uid: Some(event.instance.from_uid),
-                    count: Some(event.instance.stacks),
-                    act_common_params: Some(buff_get_act_common_params(event.instance.buff_id)),
-                    layer: Some(event.instance.layer),
-                    r#type: Some(0),
-                    act_info: vec![],
-                }),
-                ..Default::default()
+            let act_common_params = buff_get_act_common_params(event.instance.buff_id);
+            effects.push(match event.kind {
+                LifecycleEventKind::Expiring => ActEffectBuilder::buff_del_with_snapshot(
+                    event.target_uid,
+                    event.instance.uid,
+                    event.instance.buff_id,
+                    event.instance.from_uid,
+                    duration,
+                    event.instance.stacks,
+                    act_common_params,
+                    event.instance.layer,
+                    0,
+                ),
+                LifecycleEventKind::Ticking => ActEffectBuilder::buff_update_with_snapshot(
+                    event.target_uid,
+                    event.instance.from_uid,
+                    event.instance.buff_id,
+                    event.instance.uid,
+                    duration,
+                    event.instance.stacks,
+                    act_common_params,
+                    event.instance.layer,
+                    0,
+                ),
             });
         }
     }

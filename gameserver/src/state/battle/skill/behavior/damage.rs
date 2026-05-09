@@ -251,9 +251,7 @@ pub(crate) fn build_sotheby_holder_consume_steps(
                 ),
             );
             add_effects.push(
-                ActEffectBuilder::new(EffectType::Poison as i32, target_uid)
-                    .effect_num(0)
-                    .build(),
+                ActEffectBuilder::poison(target_uid),
             );
         }
         if !suppress_cure {
@@ -543,12 +541,8 @@ fn append_preview_bloodtithe_gain_effects(
     }
 
     if gained > 0 {
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::BloodPoolValueChange as i32),
-            target_id: Some(target_uid),
-            effect_num: Some(team_type),
-            effect_num1: Some(gained),
-            ..Default::default()
-        });
+        effects.push(ActEffectBuilder::bloodpool_value_change(
+            target_uid, team_type, gained,
+        ));
     }
 }

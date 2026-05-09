@@ -16,7 +16,9 @@ use super::super::{
         SkillEmitKind, drain_to_fight_steps, find_attachment_candidates,
         most_recent_round_host_for_caster,
     },
-    fight_step::{FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step},
+    fight_step::{
+        ActEffectBuilder, FightStepBuilder, make_skill_step, split_step_by_effect_limit, wrap_step,
+    },
     heroes::pickles,
     manager::{
         buff_mgr::next_buff_uid_for_target,
@@ -496,7 +498,7 @@ impl FightRoundMgr {
                     skill_id: BE_ATTACKED_REACTIVE_ACT_ID,
                     from: reactive_caster_uid,
                     to: target_uid,
-                    children: vec![BattleEvent::SerializedActEffect { effect }],
+                    children: vec![BattleEvent::SerializedActEffect{ effect }],
                     kind: SkillEmitKind::EventTriggered,
                 });
                 let mut event_ctx = EventContext {
@@ -521,7 +523,7 @@ impl FightRoundMgr {
             .map(|idx| idx + 1)
             .unwrap_or_else(|| step_walker::host_trigger_insert_index(host_step));
         for effect in wrappers {
-            accumulator.push_be_attacked(BattleEvent::SerializedActEffect { effect });
+            accumulator.push_be_attacked(BattleEvent::SerializedActEffect{ effect });
         }
         Some(insert_at)
     }
@@ -568,12 +570,7 @@ impl FightRoundMgr {
             for snapshot in replay_wave_snapshots {
                 open.steps.push(
                     FightStepBuilder::effect()
-                        .with(ActEffect {
-                            effect_type: Some(EffectType::NewChangeWave as i32),
-                            effect_num: Some(0),
-                            fight: Some(snapshot.clone()),
-                            ..Default::default()
-                        })
+                        .with(ActEffectBuilder::new_change_wave(snapshot.clone()))
                         .build(),
                 );
             }
@@ -723,20 +720,8 @@ impl FightRoundMgr {
             vec![
                 FightStepBuilder::effect()
                     .with_many(vec![
-                        ActEffect {
-                            effect_type: Some(
-                                sonettobuf::effect_type_enum::EffectType::Cardspush as i32,
-                            ),
-                            card_info_list: next_round_cards,
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
-                        ActEffect {
-                            effect_type: Some(310),
-                            effect_num: Some(open.deck_num.saturating_sub(2)),
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
+                        ActEffectBuilder::cards_push(next_round_cards, Some(1)),
+                        ActEffectBuilder::card_deck_num(open.deck_num.saturating_sub(2)),
                     ])
                     .build(),
             ]
@@ -744,29 +729,14 @@ impl FightRoundMgr {
             vec![
                 FightStep {
                     act_type: Some(fight_step::ActType::Effect.into()),
-                    act_effect: vec![ActEffect {
-                        effect_type: Some(59),
-                        ..Default::default()
-                    }],
+                    act_effect: vec![ActEffectBuilder::deal_card1()],
                     ..Default::default()
                 },
                 FightStep {
                     act_type: Some(fight_step::ActType::Effect.into()),
                     act_effect: vec![
-                        ActEffect {
-                            effect_type: Some(
-                                sonettobuf::effect_type_enum::EffectType::Cardspush as i32,
-                            ),
-                            card_info_list: next_round_cards,
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
-                        ActEffect {
-                            effect_type: Some(310),
-                            effect_num: Some(open.deck_num.saturating_sub(2)),
-                            team_type: Some(1),
-                            ..Default::default()
-                        },
+                        ActEffectBuilder::cards_push(next_round_cards, Some(1)),
+                        ActEffectBuilder::card_deck_num(open.deck_num.saturating_sub(2)),
                     ],
                     ..Default::default()
                 },

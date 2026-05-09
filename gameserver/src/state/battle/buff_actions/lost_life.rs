@@ -2,11 +2,12 @@ use sonettobuf::{ActEffect, fight_hurt_info::DamageFromType};
 use std::collections::HashMap;
 
 use crate::state::battle::{
+    fight_step::ActEffectBuilder,
     manager::buff_mgr::StackConsumeResult,
     types::attr::AttrId,
     utils::{
-        career_damage_multiplier, check_career_restraint, damage, get_attr_replace_damage,
-        get_exclude_buff_effects, hurt_detail,
+        career_damage_multiplier, check_career_restraint, get_attr_replace_damage,
+        get_exclude_buff_effects,
     },
 };
 
@@ -120,8 +121,8 @@ pub fn lost_all_life_by_attr(
     };
 
     vec![
-        damage(ctx.target_uid(), dmg),
-        hurt_detail(
+        ActEffectBuilder::damage_default(ctx.target_uid(), dmg),
+        ActEffectBuilder::hurt_detail_skill(
             ctx.target_uid(),
             dmg,
             skill_id,
@@ -175,8 +176,8 @@ pub fn damage_real_lost_life(
     };
 
     let mut effects = vec![
-        damage(ctx.target_uid(), dmg),
-        hurt_detail(
+        ActEffectBuilder::damage_default(ctx.target_uid(), dmg),
+        ActEffectBuilder::hurt_detail_skill(
             ctx.target_uid(),
             dmg,
             skill_id,

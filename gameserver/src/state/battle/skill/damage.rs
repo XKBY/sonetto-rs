@@ -340,7 +340,7 @@ pub fn calculate_heal_by_two_attr(
     vec![heal_effect(target_uid, total, false)]
 }
 
-pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect {
+pub fn heal_effect(target_id: i64, heal: i32, is_crit: bool) -> ActEffect{
     let mut effect = if is_crit {
         serialize_leaf_event(BattleEvent::HealCrit {
             target: target_id,

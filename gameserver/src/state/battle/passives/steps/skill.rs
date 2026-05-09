@@ -47,7 +47,7 @@ pub fn execute_skill(
                 .act_effect
                 .clone()
                 .into_iter()
-                .map(|effect| BattleEvent::SerializedActEffect { effect })
+                .map(|effect| BattleEvent::SerializedActEffect{ effect })
                 .collect(),
             kind: SkillEmitKind::EventTriggered,
         });

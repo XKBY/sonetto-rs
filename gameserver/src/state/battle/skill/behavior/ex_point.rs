@@ -15,8 +15,8 @@
 use anyhow::Result;
 use sonettobuf::ActEffect;
 
-use super::super::super::utils::moxie_change;
 use super::action::{ActionCtx, BehaviorAction};
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
@@ -33,7 +33,7 @@ impl BehaviorAction for ExPoint {
     ) -> Option<Result<Vec<ActEffect>>> {
         match behavior {
             BehaviorType::AddExPoint { amount } | BehaviorType::AddExPointWithMax { amount } => {
-                Some(Ok(vec![moxie_change(ctx.target, *amount)]))
+                Some(Ok(vec![ActEffectBuilder::moxie_change(ctx.target, *amount)]))
             }
             BehaviorType::ConsumeExPointAddAttr {
                 min_consume,

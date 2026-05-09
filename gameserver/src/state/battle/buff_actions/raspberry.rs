@@ -5,7 +5,7 @@
 use sonettobuf::{ActEffect, BuffActInfo};
 
 use crate::state::battle::{
-    fight_step::ActEffectBuilder, heroes::rubuska, skill::SkillExecutor, types::effects::EffectType,
+    fight_step::ActEffectBuilder, heroes::rubuska, skill::SkillExecutor,
 };
 
 use super::{EffectContext, monitor_continue::queue_monitor_triggers};
@@ -69,17 +69,15 @@ pub fn add_count(
 
     Ok(vec![
         ActEffectBuilder::current_hp_change(ctx.target_uid(), current_hp),
-        ActEffect {
-            effect_type: Some(EffectType::BuffActInfoUpdate as i32),
-            target_id: Some(ctx.target_uid()),
-            reserve_id: Some(buff_uid),
-            buff_act_info: Some(BuffActInfo {
+        ActEffectBuilder::buff_act_info_update(
+            ctx.target_uid(),
+            buff_uid,
+            BuffActInfo {
                 act_id: Some(BUFF_ACT_ID_RASPBERRY),
                 param: vec![accum, max_cap],
                 ..Default::default()
-            }),
-            ..Default::default()
-        },
+            },
+        ),
         ActEffectBuilder::max_hp_change(ctx.target_uid(), new_max_hp, Some(BUFF_ACT_ID_RASPBERRY)),
     ])
 }

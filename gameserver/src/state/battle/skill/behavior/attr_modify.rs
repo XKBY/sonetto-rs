@@ -15,10 +15,10 @@ use sonettobuf::ActEffect;
 
 use super::action::{ActionCtx, BehaviorAction};
 use crate::state::battle::buff_actions::{EffectContext, raspberry};
+use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::targets::get_entity;
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
-use crate::state::battle::utils::attr_update;
 
 pub(super) struct AttrModify;
 
@@ -35,7 +35,7 @@ impl BehaviorAction for AttrModify {
             | BehaviorType::AttrFix { attr_id, amount } => {
                 ctx.executor
                     .add_attr_bonus(ctx.caster_uid, *attr_id, *amount);
-                Some(Ok(vec![attr_update(ctx.caster_uid)]))
+                Some(Ok(vec![ActEffectBuilder::attr(ctx.caster_uid)]))
             }
             BehaviorType::AttrFixByLoseHp {
                 step_permille,
@@ -63,7 +63,7 @@ impl BehaviorAction for AttrModify {
                 }
                 let bonus = stacks.saturating_mul(*bonus_per_stack);
                 ctx.executor.add_attr_bonus(ctx.caster_uid, *attr_id, bonus);
-                Some(Ok(vec![attr_update(ctx.caster_uid)]))
+                Some(Ok(vec![ActEffectBuilder::attr(ctx.caster_uid)]))
             }
             BehaviorType::RaspberryAddCount { attr_id, rate } => {
                 let mut effect_ctx = EffectContext::new(

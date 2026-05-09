@@ -8,19 +8,18 @@
 //! card_mgr::execute_ai_turn lazy-spawn future waves on demand.
 
 use anyhow::Result;
-use sonettobuf::{ActEffect, Fight, FightStep};
+use sonettobuf::{Fight, FightStep};
 
 use crate::state::battle::{
     buff_actions::{EffectContext, apply_after_buff_add_features},
     context::FightContext,
     fight::defender::Defender,
-    fight_step::FightStepBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::{
         buff_mgr::observe_explicit_buff_uid_for_target, ex_point_mgr::sync_from_fight,
         round_mgr::seed_entry_max_hp_from_fight,
     },
     skill::SkillExecutor,
-    types::effects::EffectType,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -79,12 +78,7 @@ impl WaveMgr {
         let fight = ctx.fight.clone();
         let mut steps = vec![
             FightStepBuilder::effect()
-                .with(ActEffect {
-                    effect_type: Some(EffectType::NewChangeWave as i32),
-                    effect_num: Some(0),
-                    fight: Some(fight.clone()),
-                    ..Default::default()
-                })
+                .with(ActEffectBuilder::new_change_wave(fight.clone()))
                 .build(),
         ];
 

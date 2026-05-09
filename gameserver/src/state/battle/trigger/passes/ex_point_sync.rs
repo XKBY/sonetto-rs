@@ -3,11 +3,10 @@ use sonettobuf::{ActEffect, FightStep, FightStep as ProtoFightStep, fight_step};
 use crate::state::battle::{
     context::FightContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
-    fight_step::FightStepBuilder,
+    fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
     passives::collector::CollectedPassives,
     trigger::combat::TriggerEvent,
-    utils::moxie_change,
 };
 
 use super::TriggerPass;
@@ -121,18 +120,13 @@ impl TriggerPass for ExPointSyncPass {
                     act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
                 }
 
-                act_effect.push(ActEffect {
-                    effect_type: Some(0),
-                    target_id: Some(*target_uid),
-                    effect_num: Some(0),
-                    ..Default::default()
-                });
+                act_effect.push(ActEffectBuilder::effect_none_with_num(*target_uid, 0));
 
                 if ex_gain != 0 {
                     // Don't mutate ex_point_mgr directly — the emitted ExPointChange
                     // effect is applied by calculate_mgr::play_effect_add_ex_point during
                     // play_step_data. Direct mutation + replay = double-apply.
-                    act_effect.push(moxie_change(buff.from_uid, ex_gain));
+                    act_effect.push(ActEffectBuilder::moxie_change(buff.from_uid, ex_gain));
                 }
 
                 let inner = ProtoFightStep {

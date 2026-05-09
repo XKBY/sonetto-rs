@@ -18,7 +18,6 @@ use crate::state::battle::{
     mechanics::bloodtithe::is_bloodtithe_enabled,
     round::round_end_bundling::{RoundEndBundleSpec, StepOwnership, discover_buff_ids_with_acts},
     skill::targets::alive_allies,
-    types::effects::EffectType,
 };
 
 /// Insight-Lv.1 base id of `And So It Rises Again`. The Lv.0 base
@@ -118,9 +117,7 @@ pub fn expand_blood_domain_self_buff_aura(
             ),
         );
         out.push(
-            ActEffectBuilder::new(EffectType::CureUpByLostHp as i32, ally_uid)
-                .effect_num(0)
-                .build(),
+            ActEffectBuilder::cure_up_by_lost_hp(ally_uid),
         );
     }
     out

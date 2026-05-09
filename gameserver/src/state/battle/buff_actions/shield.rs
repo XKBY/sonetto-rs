@@ -1,6 +1,4 @@
-use sonettobuf::ActEffect;
-
-use crate::state::battle::types::effects::EffectType;
+use crate::state::battle::fight_step::ActEffectBuilder;
 
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
 use super::result::ActionResult;
@@ -36,11 +34,6 @@ impl BuffActionHandler for ShieldHandler {
     }
 
     fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
-        ActionResult::single(ActEffect {
-            effect_type: Some(EffectType::Shield as i32),
-            target_id: Some(params.target_uid),
-            effect_num: Some(params.amount),
-            ..Default::default()
-        })
+        ActionResult::single(ActEffectBuilder::shield(params.target_uid, params.amount))
     }
 }

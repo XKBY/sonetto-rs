@@ -178,13 +178,11 @@ pub fn lost_life(
             .map(|b| b.uid)
             .unwrap_or(0);
 
-        effects.push(ActEffect {
-            effect_type: Some(EffectType::Burn as i32),
-            target_id: Some(target),
-            effect_num: Some(skill_id),
-            buff_act_id: (act_id > 0).then_some(act_id),
-            ..Default::default()
-        });
+        effects.push(ActEffectBuilder::burn(
+            target,
+            skill_id,
+            (act_id > 0).then_some(act_id),
+        ));
 
         let damage = apply_real_hurt_fix(buff_mgr, target, actual_loss);
         effects.push(ActEffectBuilder::origin_damage_with_hurt(

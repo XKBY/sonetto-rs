@@ -7,9 +7,8 @@
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
+    fight_step::ActEffectBuilder,
     manager::buff_mgr::observe_explicit_buff_uid_for_target,
-    types::effects::EffectType,
-    utils::{master_halo, slave_halo},
 };
 
 use super::action::{BuffActCtx, BuffActionHandler, BuffStage};
@@ -86,7 +85,8 @@ impl BuffActionHandler for MasterHaloHandler {
                 );
             }
             params.slave_effects.push(buff_effect);
-            params.slave_effects.push(slave_halo(ally_uid));
+            params.slave_effects
+                .push(ActEffectBuilder::slave_halo(ally_uid));
 
             let after = apply_after_buff_add_features(
                 ctx.effect_ctx,
@@ -100,25 +100,20 @@ impl BuffActionHandler for MasterHaloHandler {
     }
 
     fn steps(&self, params: Self::Params, _ctx: &BuffActCtx<'_, '_>) -> ActionResult {
-        let slave_step = ActEffect {
-            effect_type: Some(EffectType::FightStep as i32),
-            target_id: Some(0),
-            fight_step: Some(FightStep {
-                act_type: Some(fight_step::ActType::Effect.into()),
-                from_id: Some(params.caster_uid),
-                to_id: Some(0),
-                act_id: Some(0),
-                act_effect: params.slave_effects,
-                card_index: Some(0),
-                support_hero_id: Some(0),
-                fake_timeline: Some(false),
-                real_skill_type: Some(0),
-                real_skin_id: Some(0),
-            }),
-            ..Default::default()
-        };
+        let slave_step = ActEffectBuilder::skill_wrapper_without_num(FightStep {
+            act_type: Some(fight_step::ActType::Effect.into()),
+            from_id: Some(params.caster_uid),
+            to_id: Some(0),
+            act_id: Some(0),
+            act_effect: params.slave_effects,
+            card_index: Some(0),
+            support_hero_id: Some(0),
+            fake_timeline: Some(false),
+            real_skill_type: Some(0),
+            real_skin_id: Some(0),
+        });
         ActionResult {
-            effects: vec![master_halo(params.target_uid)],
+            effects: vec![ActEffectBuilder::master_halo(params.target_uid)],
             side_effects: vec![slave_step],
             ..Default::default()
         }

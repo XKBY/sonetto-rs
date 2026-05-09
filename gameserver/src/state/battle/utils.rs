@@ -1,14 +1,11 @@
 use super::{
-    event_queue::{BattleEvent, serialize_leaf_event},
-    fight_step::ActEffectBuilder,
     manager::buff_mgr::BuffMgr,
     skill::get_entity,
     types::career::CareerType,
 };
 
 use sonettobuf::{
-    ActEffect, Fight, FightEntityInfo, FightHurtInfo, effect_type_enum::EffectType,
-    fight_hurt_info::DamageFromType,
+    ActEffect, Fight, FightEntityInfo,
 };
 
 //skill_behaviour table
@@ -33,151 +30,6 @@ pub enum EffectTag {
 pub enum DamageType {
     Reality = 1,
     Mental = 2,
-}
-
-/// Damage with visual effect
-pub fn damage(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffectBuilder::damage(target_uid, amount, Some(VfxConfig::Damage as i32))
-}
-
-#[allow(dead_code)]
-pub fn damage_buff(target_uid: i64, amount: i32, buff_id: i32) -> ActEffect {
-    ActEffectBuilder::damage_with_buff_act(target_uid, amount, buff_id)
-}
-
-pub fn damage_with_hurt(
-    target_uid: i64,
-    amount: i32,
-    config_effect: i32,
-    skill_id: i32,
-    from_uid: i64,
-) -> ActEffect {
-    let effect = serialize_leaf_event(BattleEvent::Damage {
-        target: target_uid,
-        amount,
-        is_crit: false,
-        hurt_info: FightHurtInfo {
-            damage: Some(amount),
-            reduce_hp: Some(0),
-            hurt_effect: Some(EffectType::Damage as i32),
-            damage_from_type: Some(DamageFromType::SkillEffect as i32),
-            config_effect: Some(config_effect),
-            effect_id: Some(skill_id),
-            skill_id: Some(skill_id),
-            from_uid: Some(from_uid),
-            ..Default::default()
-        },
-        from: from_uid,
-        skill_id: Some(skill_id),
-    });
-    ActEffectBuilder::damage_with_hurt(
-        target_uid,
-        amount,
-        Some(config_effect),
-        effect.hurt_info.unwrap_or_default(),
-    )
-}
-
-/// Damage details
-pub fn hurt_detail(
-    target_uid: i64,
-    damage: i32,
-    skill_id: i32,
-    damage_type: i32,
-    hurt_effect: i32,
-) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Fighthurtdetail as i32),
-        target_id: Some(target_uid),
-        hurt_info: Some(FightHurtInfo {
-            damage: Some(damage),
-            reduce_hp: Some(damage),
-            reduce_shield: Some(0),
-            career_restraint: Some(false),
-            critical: Some(false),
-            assassinate: Some(false),
-            hurt_effect: Some(hurt_effect),
-            damage_from_type: Some(damage_type),
-            config_effect: Some(VfxConfig::Damage as i32),
-            effect_id: Some(skill_id),
-            skill_id: Some(skill_id),
-            from_uid: Some(target_uid),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
-}
-
-#[allow(dead_code)]
-pub fn hurt_detail_buff(
-    target_uid: i64,
-    damage: i32,
-    skill_id: i32,
-    damage_type: i32,
-    buff_id: i32,
-) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Fighthurtdetail as i32),
-        target_id: Some(target_uid),
-        hurt_info: Some(FightHurtInfo {
-            damage: Some(damage),
-            reduce_hp: Some(damage),
-            reduce_shield: Some(0),
-            career_restraint: Some(false),
-            critical: Some(false),
-            assassinate: Some(false),
-            hurt_effect: Some(EffectType::Damage as i32),
-            damage_from_type: Some(damage_type),
-            config_effect: Some(0),
-            buff_act_id: Some(buff_id),
-            effect_id: Some(skill_id),
-            skill_id: Some(skill_id),
-            from_uid: Some(target_uid),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
-}
-
-/// Moxie change with visual effect
-pub fn moxie_change(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffectBuilder::ex_point_change_with_config_effect(
-        target_uid,
-        amount,
-        VfxConfig::Moxie as i32,
-    )
-}
-
-/// Changes your max hp not current
-#[allow(dead_code)]
-pub fn max_hp_change(target_uid: i64, amount: i32, buff_id: Option<i32>) -> ActEffect {
-    ActEffectBuilder::max_hp_change(target_uid, amount, buff_id)
-}
-
-/// Changes your current hp not max
-#[allow(dead_code)]
-pub fn current_hp_change(target_uid: i64, amount: i32) -> ActEffect {
-    ActEffectBuilder::current_hp_change(target_uid, amount)
-}
-
-pub fn attr_update(target_uid: i64) -> ActEffect {
-    ActEffectBuilder::attr(target_uid)
-}
-
-pub fn master_halo(target: i64) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Masterhalo as i32),
-        target_id: Some(target),
-        ..Default::default()
-    }
-}
-
-pub fn slave_halo(target: i64) -> ActEffect {
-    ActEffect {
-        effect_type: Some(EffectType::Slavehalo as i32),
-        target_id: Some(target),
-        ..Default::default()
-    }
 }
 
 pub fn buff_has_bloodpool(buff_id: i32) -> bool {
@@ -284,29 +136,6 @@ pub fn for_each_buff_feature_chain(buff_id: i32, mut f: impl FnMut(&str, &[&str]
             f(act_type, &parts);
         }
     }
-}
-
-pub fn damage_with_buff_act(
-    target: i64,
-    amount: i32,
-    buff_act_id: i32,
-    from_uid: i64,
-    buff_uid: i64,
-) -> ActEffect {
-    ActEffectBuilder::damage_with_buff_hurt(
-        target,
-        amount,
-        buff_act_id,
-        sonettobuf::FightHurtInfo {
-            damage: Some(amount),
-            hurt_effect: Some(EffectType::Damage as i32),
-            damage_from_type: Some(EffectTag::Buff as i32),
-            buff_act_id: Some(buff_act_id),
-            from_uid: Some(from_uid),
-            buff_uid: Some(buff_uid as i32),
-            ..Default::default()
-        },
-    )
 }
 
 pub fn buff_get_act_common_params(buff_id: i32) -> String {

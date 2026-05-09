@@ -2,7 +2,7 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::fight_step::wrap_step;
 
-pub(crate) fn trigger_step_to_embedded_effect(trigger_step: FightStep) -> ActEffect {
+pub(crate) fn trigger_step_to_embedded_effect(trigger_step: FightStep) -> ActEffect{
     // Trigger steps are usually wrapped as EFFECT -> 162(fightStep=...).
     // Reuse that existing 162 directly to avoid creating a second wrapper.
     if trigger_step.act_type == Some(fight_step::ActType::Effect as i32)

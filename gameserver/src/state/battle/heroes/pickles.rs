@@ -17,7 +17,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
     event_queue::{HostSide, round_host_index_snapshot},
-    fight_step::{FightStepBuilder, wrap_step},
+    fight_step::{ActEffectBuilder, FightStepBuilder, wrap_step},
     hero::HeroId,
     manager::buff_mgr::BuffMgr,
     round::step_shape::build_effect_step,
@@ -229,12 +229,7 @@ pub fn repair_round_end_hedonism_emission(
             buff_mgr.add_with_uid(target_uid, buff_id, pickles_uid, 0, 0, buff_uid);
         }
         hedonism_effects.push(add);
-        hedonism_effects.push(ActEffect {
-            effect_type: Some(26),
-            target_id: Some(target_uid),
-            effect_num: Some(0),
-            ..Default::default()
-        });
+        hedonism_effects.push(ActEffectBuilder::attr_with_num(target_uid, 0));
     }
 
     let hedonism_skill =

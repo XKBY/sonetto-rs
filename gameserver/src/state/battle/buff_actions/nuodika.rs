@@ -23,7 +23,6 @@ use crate::state::battle::{
     skill::classification::has_injury_reactive_condition,
     skill::targets,
     trigger::combat::{event_from_step, fire_combat_triggers},
-    utils::damage_with_hurt,
 };
 
 pub(crate) fn build_nuodika_channel_steps(
@@ -198,12 +197,11 @@ pub(crate) fn build_nuodika_channel_steps(
                 bloodtithe: &mut local_bloodtithe,
             };
             let mut step_effects = drain_to_fight_steps(queue.drain(), &mut event_ctx);
-            step_effects.push(
-                ActEffectBuilder::new(EffectType::NuoDiKaRandomAttackNum as i32, holder_uid)
-                    .effect_num(granted_points)
-                    .effect_num1(1)
-                    .build(),
-            );
+            step_effects.push(ActEffectBuilder::nuodika_random_attack_num(
+                holder_uid,
+                granted_points,
+                1,
+            ));
 
             step_effects.append(&mut channel_effects);
             let inner =
@@ -502,41 +500,34 @@ pub(crate) fn rewrite_nuodika_channel_body(
     }
 
     let mut rebuilt = preserved;
-    rebuilt.push(
-        ActEffectBuilder::new(EffectType::NuoDiKaRandomAttackNum as i32, caster_uid)
-            .effect_num(blood_sacrifice_points)
-            .effect_num1(1)
-            .build(),
-    );
+    rebuilt.push(ActEffectBuilder::nuodika_random_attack_num(
+        caster_uid,
+        blood_sacrifice_points,
+        1,
+    ));
     for (index, (damage, effect_num1)) in random_hit_pattern.iter().enumerate() {
         if random_target != 0 {
-            rebuilt.push(
-                ActEffectBuilder::new(EffectType::NuoDiKaRandomAttack as i32, random_target)
-                    .effect_num(*damage)
-                    .effect_num1(*effect_num1)
-                    .config_effect(behavior_id)
-                    .buff_act_id(output_skill_id)
-                    .reserve_str(format!(
-                        "{}#{}",
-                        index + 1,
-                        blood_sacrifice_points.max(0) as usize
-                    ))
-                    .build(),
-            );
+            rebuilt.push(ActEffectBuilder::nuodika_random_attack(
+                random_target,
+                *damage,
+                *effect_num1,
+                behavior_id,
+                output_skill_id,
+                format!("{}#{}", index + 1, blood_sacrifice_points.max(0) as usize),
+            ));
         }
     }
     for target_id in &team_targets {
-        rebuilt.push(
-            ActEffectBuilder::new(EffectType::NuoDiKaTeamAttack as i32, *target_id)
-                .effect_num(team_hit_damage)
-                .effect_num1(1)
-                .config_effect(behavior_id)
-                .buff_act_id(output_skill_id)
-                .build(),
-        );
+        rebuilt.push(ActEffectBuilder::nuodika_team_attack(
+            *target_id,
+            team_hit_damage,
+            1,
+            behavior_id,
+            output_skill_id,
+        ));
     }
     for (target_id, damage) in aggregate_damage {
-        rebuilt.push(damage_with_hurt(
+        rebuilt.push(ActEffectBuilder::damage_skill(
             target_id,
             damage.max(1),
             behavior_id,

@@ -1,8 +1,8 @@
 use sonettobuf::ActEffect;
 
 use crate::state::battle::{
+    fight_step::ActEffectBuilder,
     skill::damage::{calculate_heal, calculate_heal_by_two_attr},
-    types::effects::EffectType,
 };
 
 use super::EffectContext;
@@ -86,19 +86,9 @@ pub fn heal_by_two_attr(
 }
 
 pub fn cure_up_by_lost_hp(target_uid: i64) -> ActionResult {
-    ActionResult::single(ActEffect {
-        effect_type: Some(EffectType::CureUpByLostHp as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(0),
-        ..Default::default()
-    })
+    ActionResult::single(ActEffectBuilder::cure_up_by_lost_hp(target_uid))
 }
 
 pub fn revive(target_uid: i64) -> ActionResult {
-    ActionResult::single(ActEffect {
-        effect_type: Some(EffectType::Cure as i32),
-        target_id: Some(target_uid),
-        effect_num: Some(0),
-        ..Default::default()
-    })
+    ActionResult::single(ActEffectBuilder::cure(target_uid))
 }

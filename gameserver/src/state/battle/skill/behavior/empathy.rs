@@ -6,7 +6,7 @@ use super::buff;
 use crate::state::battle::{
     fight_step::ActEffectBuilder,
     mechanics::empathy::{EmpathyState, empathy_default_buff_id, empathy_type_id},
-    types::{behavior::BehaviorType, condition::ConditionType, effects::EffectType},
+    types::{behavior::BehaviorType, condition::ConditionType},
     utils::apply_real_hurt_fix,
 };
 
@@ -168,27 +168,16 @@ impl Empathy {
         empathy_buff_id: i32,
         buff_uid: i64,
         cap: i32,
-    ) -> ActEffect {
-        use sonettobuf::BuffInfo;
-        ActEffect {
-            effect_type: Some(EffectType::StorageInjury as i32),
-            target_id: Some(caster_uid),
-            effect_num: Some(0),
-            config_effect: Some(EX_CONSUME_CONFIG_EFFECT),
-            buff: Some(BuffInfo {
-                buff_id: Some(empathy_buff_id),
-                duration: Some(0),
-                uid: Some(buff_uid),
-                ex_info: Some(0),
-                from_uid: Some(caster_uid),
-                count: Some(0),
-                act_common_params: Some(format!("770#0#{}", cap.max(0))),
-                layer: Some(0),
-                r#type: Some(crate::state::battle::types::buff::BuffLayerType::Normal as i32),
-                act_info: vec![],
-            }),
-            ..Default::default()
-        }
+    ) -> ActEffect{
+        ActEffectBuilder::storage_injury(
+            caster_uid,
+            0,
+            empathy_buff_id,
+            buff_uid,
+            caster_uid,
+            format!("770#0#{}", cap.max(0)),
+            Some(EX_CONSUME_CONFIG_EFFECT),
+        )
     }
 
     fn execute_solace(

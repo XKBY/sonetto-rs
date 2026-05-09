@@ -77,12 +77,9 @@ pub(crate) fn emit_terminal_round_steps(
 
     steps.push(
         FightStepBuilder::effect()
-            .with(ActEffect {
-                effect_type: Some(276),
-                effect_num: Some(1),
-                card_info_list: selected_for_round_end,
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::allocate_card_energy(
+                selected_for_round_end,
+            ))
             .build(),
     );
     if let Some(raw_step) = build_terminal_attacker_round_end_passive_step(mgr, ctx, collected) {
@@ -522,12 +519,7 @@ pub(crate) fn repair_boss_state_cycle_second_wave(
         }
         let skill = FightStepBuilder::skill(uid, uid, BOSS_STATE_CYCLE_SKILL_ID)
             .with(update)
-            .with(ActEffect {
-                effect_type: Some(26),
-                target_id: Some(uid),
-                effect_num: Some(0),
-                ..Default::default()
-            })
+            .with(ActEffectBuilder::attr_with_num(uid, 0))
             .build();
         wrapped.push(wrap_step(build_effect_step(vec![wrap_step(skill)])));
     }
