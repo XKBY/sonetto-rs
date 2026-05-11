@@ -1,5 +1,6 @@
 use crate::error::{AppError, CmdError};
 use crate::handlers::*;
+use crate::network::default_handlers;
 use crate::network::packet::ClientPacket;
 use crate::state::ConnectionContext;
 use sonettobuf::CmdId;
@@ -14,7 +15,10 @@ macro_rules! dispatch {
             $(
                 $variant => $handler($ctx, $packet).await?,
             )*
-            v => return Err(AppError::Cmd(CmdError::UnhandledCmd(v))),
+            v => {
+                tracing::warn!("Unhandled command: {:?}, sending default reply", v);
+                default_handlers::send_default_reply($ctx, $packet, v).await?;
+            }
         }
     };
 }
@@ -109,6 +113,7 @@ pub async fn dispatch_command(
         CmdId::ChangeHeroGroupSelectCmd => dungeon::on_change_hero_group_select,
         CmdId::DungeonEndDungeonCmd => dungeon::on_dungeon_end_dungeon,
         CmdId::ReconnectFightCmd => fight::on_reconnect_fight,
+        CmdId::EntityInfoCmd => fight::on_entity_info,
 
         // === Tower ===
         CmdId::GetTowerInfoCmd => tower::on_get_tower_info,
@@ -219,6 +224,7 @@ pub async fn dispatch_command(
 
         // === Activities ===
         CmdId::GetActivityInfosCmd => events::on_get_activity_infos,
+        CmdId::GetActivityInfosWithParamCmd => events::on_get_activity_infos_with_param,
         // Controls the ui for the latest euphoria not implemented yet tho
         CmdId::GetAct125InfosCmd => events::on_get_act125_infos,
         // controls ui for bonus currency at the start usually for 7 days
