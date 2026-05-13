@@ -46,20 +46,26 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
         return vec![];
     };
 
-    let defender_uids: Vec<i64> = defender
-        .entitys
-        .iter()
-        .filter_map(|e| {
-            let uid = e.uid.unwrap_or(0);
-            if uid < 0 && e.current_hp.unwrap_or(0) > 0 {
-                Some(uid)
-            } else {
-                None
-            }
+    // Collect alive attacker UIDs (player heroes) - these are the targets for enemy attacks
+    let attacker_uids: Vec<i64> = fight
+        .attacker
+        .as_ref()
+        .map(|a| {
+            a.entitys
+                .iter()
+                .filter_map(|e| {
+                    let uid = e.uid.unwrap_or(0);
+                    if uid > 0 && e.current_hp.unwrap_or(0) > 0 {
+                        Some(uid)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
 
-    if defender_uids.is_empty() {
+    if attacker_uids.is_empty() {
         return vec![];
     }
 
@@ -73,7 +79,8 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
         let Some(&skill_id) = enemy.skill_group1.first() else {
             continue;
         };
-        let target_uid = defender_uids[rng.gen_range(0..defender_uids.len())];
+        // Pick a random player hero as the target
+        let target_uid = attacker_uids[rng.gen_range(0..attacker_uids.len())];
         cards.push(CardInfo {
             uid: Some(enemy_uid),
             skill_id: Some(skill_id),
