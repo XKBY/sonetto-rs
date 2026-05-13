@@ -19,7 +19,19 @@ pub async fn generate_initial_deck(
         .filter(|&u| u != 0)
         .collect();
     let candidates = build_candidate_pool(pool, user_id, &active_heroes).await?;
-    let opening_hand_size = (active_heroes.len() + 4).min(9);
+
+    // Calculate opening hand size based on game rules:
+    // 1 hero → 4 cards, 2 → 5, 3 → 6 or 7 (support check), 4 → 8
+    let hero_count = active_heroes.len();
+    let has_support = fight_group.hero_list.len() > 3 && fight_group.hero_list[3] != 0;
+    let opening_hand_size = match hero_count {
+        1 => 4,
+        2 => 5,
+        3 => if has_support { 7 } else { 6 },
+        4 => 8,
+        _ => (hero_count + 4).min(9), // Fallback for unexpected counts
+    };
+
     let mut rng = thread_rng();
 
     let dealt_cards = draw_deck_guaranteed_by_uid_with_rng(

@@ -90,5 +90,11 @@ pub fn draw_deck_guaranteed_by_uid_with_rng<R: Rng + ?Sized>(
     }
 
     separate_adjacent_same_skill(&mut out);
+
+    // Game rule: For odd-sized hands (5, 7), first card must equal last card
+    if count % 2 == 1 && out.len() == count && count > 0 {
+        out[count - 1] = out[0].clone();
+    }
+
     out
 }
