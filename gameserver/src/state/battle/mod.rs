@@ -4,6 +4,7 @@ mod passives;
 
 pub mod context;
 pub mod destiny;
+pub mod dungeon_end_logic;
 pub mod emission_timeline;
 pub mod end_fight;
 pub mod equipment;

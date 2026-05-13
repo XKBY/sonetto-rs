@@ -96,6 +96,30 @@ impl BattleSimulator {
         Ok(round)
     }
 
+    /// Check battle result
+    /// Returns: 0 = lose, 1 = win, 2 = turn_exhausted
+    pub fn check_battle_result(&self) -> i32 {
+        let fight = self.data.get_fight();
+
+        let enemies_alive = fight.defender.as_ref()
+            .map(|d| d.entitys.iter().any(|e| e.current_hp.unwrap_or(0) > 0))
+            .unwrap_or(false);
+
+        let heroes_alive = fight.attacker.as_ref()
+            .map(|a| a.entitys.iter().any(|e| e.current_hp.unwrap_or(0) > 0))
+            .unwrap_or(false);
+
+        if !heroes_alive {
+            0 // Lose: heroes dead
+        } else if !enemies_alive {
+            1 // Win: enemies dead, heroes alive
+        } else {
+            // Both sides alive - could be turn limit reached
+            // TODO: Check if max turns reached, return 2 if so
+            1 // Default to win if unclear
+        }
+    }
+
     pub fn into_data(self) -> FightDataMgr {
         self.data
     }
