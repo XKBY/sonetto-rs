@@ -231,6 +231,7 @@ pub(crate) fn run(
 
     // set to the deck after simulating all operations
     state.player_deck = sim_deck;
+    state.selected_cards = selected_cards.clone();
 
     tracing::warn!("=== RESULT ===");
     tracing::warn!("selected ({}):", selected_cards.len());

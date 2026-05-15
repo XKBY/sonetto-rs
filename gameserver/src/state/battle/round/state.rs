@@ -15,10 +15,8 @@ pub struct RoundState {
     pub is_finish: bool,
     pub before_cards2: Vec<CardInfo>,
     pub team_a_cards2: Vec<CardInfo>,
-    /// Replay mode: ordered list of cards consumed per play op (selected_cards
-    /// from begin_round capture, in op order). When set, `card_mgr::play_card`
-    /// uses `replay_selected_cards[op_index]` instead of
-    /// `player_deck[card_index]`.
+    /// Replay mode: overrides `selected_cards` when set. `play_card` uses
+    /// `replay_selected_cards[op_index]` instead of `selected_cards[op_index]`.
     pub replay_selected_cards: Option<Vec<CardInfo>>,
     /// Replay mode: per-op flag. When `replay_silent_ops[op_index]` is true,
     /// `play_card` returns `FightStep::default()` (no SKILL emission) — matching
@@ -27,6 +25,8 @@ pub struct RoundState {
     pub replay_silent_ops: Option<Vec<bool>>,
     pub replay_wave_snapshot_applied: bool,
     pub replay_wave_snapshot_target_wave: Option<i32>,
+    /// Cards selected this round in play order, populated by round_open.
+    pub selected_cards: Vec<CardInfo>,
 }
 
 impl RoundState {

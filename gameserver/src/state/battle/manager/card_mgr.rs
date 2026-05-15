@@ -102,27 +102,16 @@ impl FightCardMgr {
             return Ok(FightStep::default());
         }
 
-        // Client sends 1-based card index, convert to 0-based
-        let card_index = (oper.param1.unwrap_or(1) - 1) as usize;
         let raw_target_uid = oper.to_id.unwrap_or(0);
 
-        let replay_card = state
+        let card = match state
             .replay_selected_cards
             .as_ref()
-            .and_then(|selected_cards| selected_cards.get(op_index).cloned());
-        let card = if let Some(rc) = replay_card {
-            if state.player_deck.get(card_index).is_some() {
-                state.player_deck.remove(card_index);
-            }
-            rc
-        } else {
-            match state.player_deck.get(card_index).cloned() {
-                Some(c) => {
-                    state.player_deck.remove(card_index);
-                    c
-                }
-                None => return Ok(FightStep::default()),
-            }
+            .and_then(|cards| cards.get(op_index).cloned())
+            .or_else(|| state.selected_cards.get(op_index).cloned())
+        {
+            Some(c) => c,
+            None => return Ok(FightStep::default()),
         };
 
         let display_caster_uid = card.uid.unwrap_or(0);
@@ -351,7 +340,7 @@ impl FightCardMgr {
             }
         }
 
-        state.used_cards.push(card_index as i32);
+        state.used_cards.push(op_index as i32);
         // Temp cards are bonus plays and should not consume a normal card-use slot.
         if !is_temp_card {
             state.act_point = (state.act_point - 1).max(0);
@@ -361,7 +350,7 @@ impl FightCardMgr {
             display_caster_uid,
             target_uid,
             resolved_skill_id, // actId shows the resolved skill, not the choice card
-            card_index as i32,
+            op_index as i32,
             skill_effects,
         ))
     }
