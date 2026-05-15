@@ -810,6 +810,7 @@ impl ActEffectBuilder {
             .build()
     }
 
+
     pub fn cards_push(card_info_list: Vec<CardInfo>, team_type: Option<i32>) -> ActEffect {
         tracing::trace!(
             target: "act_effects",
@@ -822,6 +823,13 @@ impl ActEffectBuilder {
             builder = builder.team_type(team_type);
         }
         builder.build()
+    }
+
+    pub fn remove_entity_cards(target_uid: i64, team_type: Option<i32>) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "remove_entity_cards", target_uid);
+        Self::new(BattleEffectType::RemoveEntityCards as i32, target_uid)
+            .team_type(team_type.unwrap_or(1))
+            .build()
     }
 
     pub fn new_change_wave(fight: Fight) -> ActEffect {
@@ -1332,19 +1340,12 @@ impl ActEffectBuilder {
 
     pub fn deal_card1() -> ActEffect {
         tracing::trace!(target: "act_effects", kind = "deal_card1");
-        Self::bare(BattleEffectType::DealCard1 as i32).build()
+        Self::new(BattleEffectType::DealCard1 as i32, 0).build()
     }
 
-    pub fn deal_card2(target: i64, effect_num: i32) -> ActEffect {
-        tracing::trace!(
-            target: "act_effects",
-            kind = "deal_card2",
-            target,
-            effect_num
-        );
-        Self::new(BattleEffectType::DealCard2 as i32, target)
-            .effect_num(effect_num)
-            .build()
+    pub fn deal_card2() -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "deal_card2");
+        Self::new(BattleEffectType::DealCard2 as i32, 0).build()
     }
 
     pub fn sp_card_add(target: i64, effect_num: i32, reserve_id: i64, team_type: i32) -> ActEffect {

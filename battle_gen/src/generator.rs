@@ -100,6 +100,7 @@ pub async fn generate_begin_round_sequence(
                 Some(replay_selected_cards),
                 Some(replay_silent_ops),
                 Some(replay_wave_snapshots),
+                vec![],
             )
             .await
             .with_context(|| format!("failed simulating {}", name))?;

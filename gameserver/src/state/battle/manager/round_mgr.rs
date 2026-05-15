@@ -1,6 +1,6 @@
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use rand::rngs::StdRng;
+use rand::{rngs::StdRng, thread_rng};
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, Fight, FightRound, FightStep, fight_step};
 use std::{
     collections::{HashMap, HashSet},
@@ -541,7 +541,8 @@ impl FightRoundMgr {
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
         replay_wave_snapshots: Option<&[Fight]>,
-    ) -> Result<FightRound> {
+        candidate_pool: &[CardInfo],
+    ) -> Result<(FightRound, Vec<CardInfo>)> {
         let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
         let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
         let replay_wave_snapshot_target_wave = replay_wave_snapshots
@@ -554,6 +555,8 @@ impl FightRoundMgr {
                 sync_new_change_wave_snapshot(ctx, snapshot);
             }
         }
+        
+        // 1. round_open
         let mut open = phase::round_open::run(
             round_ctx,
             &current_deck,
@@ -605,6 +608,8 @@ impl FightRoundMgr {
             open.steps.push(step);
         }
 
+
+        // 2. player_actions
         phase::player_actions::run(
             self,
             rng,
@@ -613,10 +618,12 @@ impl FightRoundMgr {
             &mut open.state,
             operations,
             &open.collected,
+            candidate_pool,
             &mut open.steps,
         )
         .await?;
 
+        // 3. non_terminal_round
         phase::non_terminal_round::run(
             self,
             rng,
@@ -627,9 +634,12 @@ impl FightRoundMgr {
             open.deck_num,
             &open.collected,
             open.defender_uid_checkpoint,
+            candidate_pool,
             &mut open.steps,
         )
         .await?;
+
+        // 4. post_processing
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
         mechanics::nautika::consolidate_into_bundle(ctx.fight, &mut open.steps);
@@ -663,121 +673,8 @@ impl FightRoundMgr {
             eprint!("{}", ctx.mechanics.emission_timeline.dump());
         }
 
-        self.build_round_output(round_ctx, open, current_deck, ai_deck)
-    }
-
-    fn build_round_output(
-        &self,
-        round_ctx: &mut RoundContext<'_, '_>,
-        mut open: phase::round_open::RoundOpenPhaseData,
-        current_deck: Vec<CardInfo>,
-        ai_deck: Vec<CardInfo>,
-    ) -> Result<FightRound> {
-        let ctx = &mut *round_ctx.fight_ctx;
-        if open.state.pending_cloth_power_delta != 0
-            && let Some(cloth) = active_cloth_level(ctx.fight)
-        {
-            apply_cloth_power_delta(ctx.fight, &cloth, open.state.pending_cloth_power_delta);
-        }
-        open.state.is_finish = self.check_battle_end(ctx.fight);
-
-        sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
-        round_ctx.on_round_end();
-        let ctx = &mut *round_ctx.fight_ctx;
-        let ex_point_info = build_ex_point_info(ctx.fight, &ctx.managers.ex_point_mgr);
-
-        let before_cards2 = open.state.player_deck.clone();
-        tracing::warn!("=== ROUND END ===");
-        tracing::warn!(
-            "state.player_deck ({} cards) [team_a_cards1 / before_cards2]:",
-            open.state.player_deck.len()
-        );
-        for (i, c) in open.state.player_deck.iter().enumerate() {
-            tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-        }
-
-        let skill_infos = ctx.managers.calculate_mgr.build_player_skills();
-        let hero_sp_attributes = ctx
-            .managers
-            .calculate_mgr
-            .build_hero_sp_attributes(ctx.fight);
-        let power = ctx
-            .fight
-            .attacker
-            .as_ref()
-            .and_then(|a| a.power)
-            .unwrap_or(0);
-
-        let before_cards1: Vec<sonettobuf::CardInfo> = current_deck
-            .iter()
-            .filter(|c| !c.temp_card.unwrap_or(false))
-            .cloned()
-            .collect();
-
-        let mut next_round_cards = before_cards2.clone();
-        next_round_cards.extend(open.selected_non_temp.clone());
-        let next_round_begin_step = if open.state.is_finish {
-            vec![
-                FightStepBuilder::effect()
-                    .with_many(vec![
-                        ActEffectBuilder::cards_push(next_round_cards, Some(1)),
-                        ActEffectBuilder::card_deck_num(open.deck_num.saturating_sub(2)),
-                    ])
-                    .build(),
-            ]
-        } else {
-            vec![
-                FightStep {
-                    act_type: Some(fight_step::ActType::Effect.into()),
-                    act_effect: vec![ActEffectBuilder::deal_card1()],
-                    ..Default::default()
-                },
-                FightStep {
-                    act_type: Some(fight_step::ActType::Effect.into()),
-                    act_effect: vec![
-                        ActEffectBuilder::cards_push(next_round_cards, Some(1)),
-                        ActEffectBuilder::card_deck_num(open.deck_num.saturating_sub(2)),
-                    ],
-                    ..Default::default()
-                },
-            ]
-        };
-        open.steps = open
-            .steps
-            .into_iter()
-            .flat_map(split_step_by_effect_limit)
-            .collect();
-
-        let attacker_main_count = ctx
-            .fight
-            .attacker
-            .as_ref()
-            .map(|a| a.entitys.len() as i32)
-            .unwrap_or(3);
-
-        Ok(FightRound {
-            fight_step: open.steps,
-            act_point: Some(if open.state.is_finish {
-                0
-            } else {
-                attacker_main_count
-            }),
-            is_finish: Some(open.state.is_finish),
-            move_num: Some(open.state.move_num),
-            ex_point_info,
-            ai_use_cards: ai_deck,
-            power: Some(power),
-            skill_infos,
-            before_cards1,
-            team_a_cards1: vec![],
-            before_cards2,
-            team_a_cards2: open.selected_non_temp,
-            next_round_begin_step,
-            use_card_list: vec![],
-            cur_round: Some(ctx.fight.cur_round.unwrap_or(1) + 1),
-            hero_sp_attributes,
-            last_change_hero_uid: Some(0),
-        })
+        // 5. build_round_output
+        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, candidate_pool)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(
@@ -809,6 +706,23 @@ impl FightRoundMgr {
             sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
         }
         Ok(())
+    }
+
+    pub(crate) fn drain_and_emit_dead_hero_purge(
+        &self,
+        ctx: &mut FightContext<'_>,
+        deck: &mut Vec<CardInfo>,
+        steps: &mut Vec<FightStep>,
+    ) {
+        let dead_uids = ctx.managers.calculate_mgr.drain_dead_hero_uids();
+        for uid in dead_uids {
+            deck.retain(|c| {
+                let card_uid = c.uid.unwrap_or(0);
+                card_uid == 0 || c.temp_card.unwrap_or(false) || card_uid != uid
+            });
+            let act = ActEffectBuilder::remove_entity_cards(uid, Some(1));
+            steps.push(FightStepBuilder::effect().with(act).build());
+        }
     }
 
     #[allow(clippy::too_many_arguments)]

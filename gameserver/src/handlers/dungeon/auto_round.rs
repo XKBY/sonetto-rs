@@ -81,7 +81,7 @@ pub async fn on_auto_round(
 
     let mut simulator = BattleSimulator::new(fight_data_mgr);
 
-    let mut round = simulator
+    let (mut round, _) = simulator
         .process_round(auto_opers.clone(), current_deck, ai_deck, None)
         .await?;
 

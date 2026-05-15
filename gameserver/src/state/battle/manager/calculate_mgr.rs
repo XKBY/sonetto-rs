@@ -23,6 +23,7 @@ pub struct FightCalculateDataMgr {
     entity_mgr: FightEntityDataMgr,
     buff_mgr: BuffMgr,
     pub pending_effects: Vec<ActEffect>,
+    pending_dead_hero_uids: Vec<i64>,
 }
 
 impl FightCalculateDataMgr {
@@ -64,11 +65,16 @@ impl FightCalculateDataMgr {
         false
     }
 
+    pub fn drain_dead_hero_uids(&mut self) -> Vec<i64> {
+        std::mem::take(&mut self.pending_dead_hero_uids)
+    }
+
     pub fn new(fight: &Fight) -> Self {
         Self {
             entity_mgr: FightEntityDataMgr::new(fight),
             buff_mgr: BuffMgr::new(),
             pending_effects: Vec::new(),
+            pending_dead_hero_uids: Vec::new(),
         }
     }
 
@@ -232,6 +238,7 @@ impl FightCalculateDataMgr {
             | EffectType::UseCards
             | EffectType::EnterFightDeal
             | EffectType::CardsPush
+            | EffectType::DealCard2
             | EffectType::CardDeckNum => Ok(()),
 
             other => {
@@ -474,6 +481,9 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
         entity.current_hp = Some(0);
+        if location.is_attacker {
+            self.pending_dead_hero_uids.push(target_id);
+        }
         self.buff_mgr.clear(target_id);
 
         tracing::trace!("Entity died: target={}", target_id);

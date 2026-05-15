@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, create_battle,
-    default_max_ap, generate_initial_deck,
+    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_candidate_pool,
+    create_battle, default_max_ap, generate_initial_deck,
 };
 use config::configs;
 use database::db::game::dungeons::{get_user_dungeon, update_dungeon_progress};
@@ -63,8 +63,22 @@ pub async fn on_start_dungeon(
     // Initial round should use raw dealt cards.
     let card_deck = card_push.deal_card_group.clone();
 
-    let (initial_round, fight_data_mgr, ai_deck) =
+    let (initial_round, mut fight_data_mgr, ai_deck) =
         create_battle(&pool, battle_ctx, &fight_group, card_deck.clone()).await?;
+    let all_hero_uids: Vec<i64> = fight_group
+        .hero_list
+        .iter()
+        .chain(fight_group.sub_hero_list.iter())
+        .copied()
+        .filter(|&u| u != 0)
+        .collect();
+    let candidate_pool = build_candidate_pool(&pool, player_id, &all_hero_uids)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!("build_candidate_pool failed at battle start: {e}");
+            vec![]
+        });
+    fight_data_mgr.set_candidate_pool(candidate_pool);
     // Authoritative post-start deck = pushed opening hand + opening temp/special additions.
     let mut push_round = initial_round.clone();
     push_round.team_a_cards1 = card_push.card_group.clone();

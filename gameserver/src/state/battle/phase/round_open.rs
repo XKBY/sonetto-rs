@@ -34,6 +34,7 @@ use crate::state::battle::{
     mechanics::injury_counter,
     passives::collector::{CollectedPassives, collect},
     round::{RoundState, steps::refresh::build_refresh_step},
+    card::apply_card_upgrades,
 };
 
 fn ensure_battle_tracing() {
@@ -58,7 +59,6 @@ pub(crate) struct RoundOpenPhaseData {
     pub steps: Vec<FightStep>,
     pub collected: CollectedPassives,
     pub selected_for_round_end: Vec<CardInfo>,
-    pub selected_non_temp: Vec<CardInfo>,
     pub deck_num: i32,
     pub defender_uid_checkpoint: i64,
 }
@@ -180,7 +180,20 @@ pub(crate) fn run(
         let op_type = op.oper_type.unwrap_or(0);
         let to_id = op.to_id.unwrap_or(0);
         let is_play = op_type == 2 || (op_type == 1 && to_id != 0);
-        if is_play {
+        let is_move = op_type == 1 && to_id == 0;
+        if is_move {
+            let from = (op.param1.unwrap_or(1) - 1) as usize;
+            let to = (op.param2.unwrap_or(1) - 1) as usize;
+            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, sim_deck.len());
+            if from < sim_deck.len() && to < sim_deck.len() {
+                let card = sim_deck.remove(from);
+                sim_deck.insert(to, card);
+                apply_card_upgrades(&mut sim_deck, ctx.fight);
+            }
+            for (i, c) in sim_deck.iter().enumerate() {
+                tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
+            }
+        } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
             tracing::warn!("  pick idx={} from deck of {} cards:", idx, sim_deck.len());
             for (i, c) in sim_deck.iter().enumerate() {
@@ -190,6 +203,7 @@ pub(crate) fn run(
                 let card = sim_deck.remove(idx);
                 tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                 selected_pairs.push((selected_pairs.len(), card));
+                apply_card_upgrades(&mut sim_deck, ctx.fight);
             } else {
                 tracing::warn!(
                     "  -> idx {} OUT OF RANGE (deck size {})",
@@ -214,15 +228,17 @@ pub(crate) fn run(
         .collect();
     let mut selected_for_round_end = selected_non_temp.clone();
     selected_for_round_end.extend(selected_temp);
-    let remaining_hand = sim_deck;
+
+    // set to the deck after simulating all operations
+    state.player_deck = sim_deck;
 
     tracing::warn!("=== RESULT ===");
     tracing::warn!("selected ({}):", selected_cards.len());
     for (i, c) in selected_cards.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
-    tracing::warn!("remaining ({}):", remaining_hand.len());
-    for (i, c) in remaining_hand.iter().enumerate() {
+    tracing::warn!("remaining ({}):", state.player_deck.len());
+    for (i, c) in state.player_deck.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
@@ -233,7 +249,7 @@ pub(crate) fn run(
         .map(|a| a.entitys.len())
         .unwrap_or(0);
     let deck_num = (attacker_count as i32) * 16;
-    let steps = vec![build_refresh_step(selected_cards, remaining_hand, deck_num)];
+    let steps = vec![build_refresh_step(selected_cards, state.player_deck.clone(), deck_num)];
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {
@@ -241,7 +257,6 @@ pub(crate) fn run(
         steps,
         collected,
         selected_for_round_end,
-        selected_non_temp,
         deck_num,
         defender_uid_checkpoint,
     }

@@ -67,7 +67,7 @@ pub async fn on_begin_round(
     let mut simulator = BattleSimulator::new(fight_data_mgr);
 
     let round_num_played = round_num;
-    let round = simulator
+    let (round, next_deck) = simulator
         .process_round(request.opers.clone(), current_deck, ai_deck, None)
         .await?;
     let fight_data_mgr = simulator.into_data();
@@ -86,6 +86,9 @@ pub async fn on_begin_round(
             .ok_or(AppError::InvalidRequest)?;
         battle.fight_data_mgr = Some(fight_data_mgr);
         battle.current_round = next_round_num;
+        if !is_finish {
+            battle.current_deck = next_deck;
+        }
     }
 
     tracing::info!(

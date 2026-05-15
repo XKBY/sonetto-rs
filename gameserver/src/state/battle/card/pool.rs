@@ -56,6 +56,39 @@ pub async fn build_candidate_pool(
     Ok(cards)
 }
 
+pub fn build_ai_pool(monster_ids: &[i32]) -> Vec<CardInfo> {
+    let game_data = configs::get();
+    let mut cards = Vec::new();
+
+    for &monster_id in monster_ids {
+        let Some(monster) = game_data.monster.iter().find(|m| m.id == monster_id) else {
+            tracing::warn!("Unknown monster ID: {}", monster_id);
+            continue;
+        };
+        let Some(skill_template) = game_data
+            .monster_skill_template
+            .iter()
+            .find(|s| s.id == monster.skill_template)
+        else {
+            tracing::warn!("No skill template for monster {}", monster_id);
+            continue;
+        };
+
+        let uid = monster_id as i64;
+        for group in 1..=2 {
+            if let Some(skill_id) =
+                super::super::entity::skill::parse_skill_group(&skill_template.active_skill, group)
+                    .into_iter()
+                    .next()
+            {
+                cards.push(make_card(monster_id, skill_id, uid, false));
+            }
+        }
+    }
+
+    cards
+}
+
 fn make_card(hero_id: i32, skill_id: i32, hero_uid: i64, is_trial: bool) -> CardInfo {
     CardInfo {
         uid: Some(hero_uid),

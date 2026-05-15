@@ -51,6 +51,7 @@ pub(crate) async fn run(
     deck_num: i32,
     collected: &CollectedPassives,
     defender_uid_checkpoint: i64,
+    candidate_pool: &[CardInfo],
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     if state.is_finish {
@@ -155,7 +156,10 @@ pub(crate) async fn run(
     }
 
     reset_buff_uid_to(defender_uid_checkpoint);
+
+    // Enemy actions
     phase::enemy_actions::run(mgr, rng, ctx, card_mgr, state, collected, steps).await?;
+    
     let injected_channel_buffs =
         channel_mechanics::inject_channel_followup_buffs_if_missing(mgr, ctx, collected, steps);
 
@@ -258,6 +262,7 @@ pub(crate) async fn run(
 
     if let Some(step) = round_end_handler::build_round_end_lost_hp_count_add_buff_step(ctx) {
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
         steps.push(step);
     }
 
@@ -273,6 +278,7 @@ pub(crate) async fn run(
         let mut step = build_effect_step(dot_effects);
         buff_actions::dedupe_dead_effects_against_prior_steps(&mut step, steps);
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
         steps.push(step);
     }
 

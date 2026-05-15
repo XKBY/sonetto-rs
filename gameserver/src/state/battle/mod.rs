@@ -41,7 +41,7 @@ use sqlx::SqlitePool;
 
 pub use auto::generate_auto_opers;
 pub use card::apply_opening_deck;
-pub use card::{default_max_ap, generate_ai_deck, generate_initial_deck};
+pub use card::{build_candidate_pool, default_max_ap, generate_ai_deck, generate_initial_deck};
 pub use types::{behavior::BehaviorType, condition::ConditionType};
 
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;

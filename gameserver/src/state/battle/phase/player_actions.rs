@@ -21,9 +21,10 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
+use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightStep, fight_step};
 
 use crate::state::battle::{
+    card::refill_deck,
     context::FightContext,
     event_queue::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
@@ -39,6 +40,7 @@ use crate::state::battle::{
     step_walker,
     steps::{ex_gain, trigger_embed},
     trigger::passes::sync_blood_value_baseline,
+    utils::alive_hero_uids,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -66,6 +68,7 @@ pub(crate) async fn run(
     state: &mut RoundState,
     operations: Vec<BeginRoundOper>,
     collected: &CollectedPassives,
+    candidate_pool: &[CardInfo],
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
@@ -100,6 +103,7 @@ pub(crate) async fn run(
             let expanded_steps =
                 mgr.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             steps.extend(expanded_steps);
+            mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
             state.is_finish = mgr.check_battle_end(ctx.fight);
             if state.is_finish {
                 break;
@@ -282,11 +286,16 @@ pub(crate) async fn run(
             steps.len(),
         );
         steps.push(host_step);
+        mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
         state.is_finish = mgr.check_battle_end(ctx.fight);
         if state.is_finish {
             break;
         }
     }
+
+    state.before_cards2 = state.player_deck.clone();
+    let alive_uids = alive_hero_uids(ctx.fight);
+    state.team_a_cards2 = refill_deck(rng, &mut state.player_deck, candidate_pool, &alive_uids, 0, ctx.fight);
 
     Ok(())
 }

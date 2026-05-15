@@ -1,10 +1,45 @@
 use crate::error::AppError;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
-use sonettobuf::{CardInfo, CardInfoPush, Fight, FightGroup};
+use sonettobuf::{CardInfo, CardInfoPush, Fight, FightGroup, FightStep};
 use sqlx::SqlitePool;
+use std::collections::HashSet;
 
 use super::draw::draw_deck_guaranteed_by_uid_with_rng;
-use super::pool::build_candidate_pool;
+use super::pool::{build_ai_pool, build_candidate_pool};
+use super::upgrade::apply_card_upgrades;
+
+pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
+    match alive_count {
+        1 => 4,
+        2 => 5,
+        3 => if has_support { 7 } else { 6 },
+        4 => 8,
+        _ => (alive_count + 4).min(9),
+    }
+}
+
+pub(crate) fn purge_dead_hero_cards(
+    deck: &mut Vec<CardInfo>,
+    alive_uids: &HashSet<i64>,
+) -> Vec<FightStep> {
+    // Build RemoveEntityCards steps while scanning deck (collect only owner UIDs)
+    let mut steps: Vec<FightStep> = Vec::new();
+    for c in deck.iter() {
+        let uid = c.uid.unwrap_or(0);
+        if uid != 0 && !c.temp_card.unwrap_or(false) && !alive_uids.contains(&uid) {
+            let act = crate::state::battle::fight_step::ActEffectBuilder::remove_entity_cards(uid, Some(1));
+            steps.push(crate::state::battle::fight_step::FightStepBuilder::effect().with(act).build());
+        }
+    }
+
+    // Perform the actual retention
+    deck.retain(|c| {
+        let uid = c.uid.unwrap_or(0);
+        uid == 0 || c.temp_card.unwrap_or(false) || alive_uids.contains(&uid)
+    });
+
+    steps
+}
 
 pub async fn generate_initial_deck(
     pool: &SqlitePool,
@@ -23,14 +58,8 @@ pub async fn generate_initial_deck(
     // Calculate opening hand size based on game rules:
     // 1 hero → 4 cards, 2 → 5, 3 → 6 or 7 (support check), 4 → 8
     let hero_count = active_heroes.len();
-    let has_support = fight_group.hero_list.len() > 3 && fight_group.hero_list[3] != 0;
-    let opening_hand_size = match hero_count {
-        1 => 4,
-        2 => 5,
-        3 => if has_support { 7 } else { 6 },
-        4 => 8,
-        _ => (hero_count + 4).min(9), // Fallback for unexpected counts
-    };
+    let has_support = fight_group.sub_hero_list.len() > 0;
+    let opening_hand_size = card_limit(hero_count, has_support);
 
     let mut rng = thread_rng();
 
@@ -114,6 +143,60 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
     cards
 }
 
+pub fn generate_ai_initial_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
+    let candidates = build_ai_pool(monster_ids);
+    let required_uids: Vec<i64> = monster_ids.iter().map(|&id| id as i64).collect();
+
+    let monster_count = monster_ids.len();
+    let opening_hand_size = match monster_count {
+        1 => 4,
+        2 => 5,
+        3 => 6,
+        4 => 8,
+        _ => (monster_count + 4).min(9),
+    };
+
+    let mut rng: rand::prelude::ThreadRng = thread_rng();
+    draw_deck_guaranteed_by_uid_with_rng(&candidates, &required_uids, opening_hand_size, &mut rng)
+}
+
+pub(crate) fn refill_deck(
+    rng: &mut impl Rng,
+    deck: &mut Vec<CardInfo>,
+    candidate_pool: &[CardInfo],
+    alive_uids: &HashSet<i64>,
+    extra: usize,
+    fight: &Fight,
+) -> Vec<CardInfo> {
+    let has_support = fight.attacker.as_ref().map_or(false, |a| {
+        a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
+    });
+    let target_size = card_limit(alive_uids.len(), has_support) + extra;
+    let alive_pool: Vec<&CardInfo> = candidate_pool
+        .iter()
+        .filter(|c| {
+            let uid = c.uid.unwrap_or(0);
+            uid == 0 || c.temp_card.unwrap_or(false) || alive_uids.contains(&uid)
+        })
+        .collect();
+    if alive_pool.is_empty() {
+        return vec![];
+    }
+    tracing::info!(target: "refill_deck", before = ?deck.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size);
+    // Collect raw (pre-upgrade) cards pulled from the pool to return to caller.
+    let mut pulled_raw: Vec<CardInfo> = Vec::new();
+    while deck.len() < target_size {
+        let idx = rng.gen_range(0..alive_pool.len());
+        let raw = alive_pool[idx].clone();
+        pulled_raw.push(raw.clone());
+        deck.push(raw);
+        apply_card_upgrades(deck, fight);
+    }
+    tracing::info!(target: "refill_deck", after = ?deck.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>());
+    // Return the raw pulled cards (before upgrades were applied in-place).
+    pulled_raw
+}
+
 pub fn default_max_ap(episode_id: i32, hero_count: usize) -> i32 {
     let game_data = config::configs::get();
 
@@ -135,6 +218,5 @@ pub fn default_max_ap(episode_id: i32, hero_count: usize) -> i32 {
         0..=2 => 2,
         _ => 4,
     };
-
     base_ap.min(hero_ap)
 }

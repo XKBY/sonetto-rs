@@ -50,7 +50,7 @@ impl BattleSimulator {
         current_deck: Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
-    ) -> Result<FightRound> {
+    ) -> Result<(FightRound, Vec<CardInfo>)> {
         self.process_round_with_replay(
             operations,
             current_deck,
@@ -59,6 +59,7 @@ impl BattleSimulator {
             None,
             None,
             None,
+            vec![],
         )
         .await
     }
@@ -72,13 +73,20 @@ impl BattleSimulator {
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
         replay_wave_snapshots: Option<Vec<Fight>>,
-    ) -> Result<FightRound> {
+        candidate_pool: Vec<CardInfo>,
+    ) -> Result<(FightRound, Vec<CardInfo>)> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
+        // Prefer stored pool; fall back to caller-supplied (battle_gen passes vec![])
+        let pool = if !self.data.candidate_pool().is_empty() {
+            self.data.candidate_pool().to_vec()
+        } else {
+            candidate_pool
+        };
         let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
         let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
         let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
-        let round = self
+        let (round, next_deck) = self
             .round_mgr
             .process_round_with_replay(
                 &mut self.rng,
@@ -91,9 +99,10 @@ impl BattleSimulator {
                 replay_selected_cards,
                 replay_silent_ops,
                 replay_wave_snapshots.as_deref(),
+                &pool,
             )
             .await?;
-        Ok(round)
+        Ok((round, next_deck))
     }
 
     /// Check battle result

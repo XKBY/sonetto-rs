@@ -1,6 +1,7 @@
 use super::{manager::buff_mgr::BuffMgr, skill::get_entity, types::career::CareerType};
 
 use sonettobuf::{ActEffect, Fight, FightEntityInfo};
+use std::collections::HashSet;
 
 //skill_behaviour table
 pub enum VfxConfig {
@@ -83,6 +84,21 @@ pub fn apply_real_hurt_fix(buff_mgr: &BuffMgr, target_uid: i64, base_damage: i32
         .max(0)
         .saturating_mul(multiplier_permille.max(0))
         / 1000
+}
+
+pub fn alive_hero_uids(fight: &Fight) -> HashSet<i64> {
+    fight
+        .attacker
+        .as_ref()
+        .map(|a| {
+            a.entitys
+                .iter()
+                .filter_map(|e| {
+                    if e.current_hp.unwrap_or(0) > 0 { e.uid } else { None }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub fn for_each_buff_feature_chain(buff_id: i32, mut f: impl FnMut(&str, &[&str])) {

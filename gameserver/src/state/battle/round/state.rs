@@ -13,6 +13,8 @@ pub struct RoundState {
     pub move_num: i32,
     pub pending_cloth_power_delta: i32,
     pub is_finish: bool,
+    pub before_cards2: Vec<CardInfo>,
+    pub team_a_cards2: Vec<CardInfo>,
     /// Replay mode: ordered list of cards consumed per play op (selected_cards
     /// from begin_round capture, in op order). When set, `card_mgr::play_card`
     /// uses `replay_selected_cards[op_index]` instead of
