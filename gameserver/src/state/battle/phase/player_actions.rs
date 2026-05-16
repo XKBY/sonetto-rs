@@ -103,7 +103,6 @@ pub(crate) async fn run(
             let expanded_steps =
                 mgr.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             steps.extend(expanded_steps);
-            mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
             state.is_finish = mgr.check_battle_end(ctx.fight);
             if state.is_finish {
                 break;
@@ -286,7 +285,6 @@ pub(crate) async fn run(
             steps.len(),
         );
         steps.push(host_step);
-        mgr.drain_and_emit_dead_hero_purge(ctx, &mut state.player_deck, steps);
         state.is_finish = mgr.check_battle_end(ctx.fight);
         if state.is_finish {
             break;

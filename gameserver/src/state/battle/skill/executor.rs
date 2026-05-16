@@ -1544,7 +1544,12 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
 
     killed_in_order
         .into_iter()
-        .map(|target_id| ActEffectBuilder::dead(target_id))
+        .flat_map(|target_id| {
+            [
+                ActEffectBuilder::dead(target_id),
+                ActEffectBuilder::remove_entity_cards(target_id, Some(1)),
+            ]
+        })
         .collect()
 }
 

@@ -144,6 +144,7 @@ fn execute_sotheby_detonate2(
 
     if target_died {
         effects.push(ActEffectBuilder::dead(ctx.target));
+        effects.push(ActEffectBuilder::remove_entity_cards(ctx.target, Some(1)));
     } else if let Some(poison_damage) = detonate_target_poison_damage(ctx) {
         effects.push(ActEffectBuilder::origin_crit(
             ctx.target,

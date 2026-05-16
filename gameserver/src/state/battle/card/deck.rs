@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
-use sonettobuf::{CardInfo, CardInfoPush, Fight, FightGroup, FightStep};
+use sonettobuf::{CardInfo, CardInfoPush, Fight, FightGroup};
 use sqlx::SqlitePool;
 use std::collections::HashSet;
 
@@ -21,24 +21,11 @@ pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
 pub(crate) fn purge_dead_hero_cards(
     deck: &mut Vec<CardInfo>,
     alive_uids: &HashSet<i64>,
-) -> Vec<FightStep> {
-    // Build RemoveEntityCards steps while scanning deck (collect only owner UIDs)
-    let mut steps: Vec<FightStep> = Vec::new();
-    for c in deck.iter() {
-        let uid = c.uid.unwrap_or(0);
-        if uid != 0 && !c.temp_card.unwrap_or(false) && !alive_uids.contains(&uid) {
-            let act = crate::state::battle::fight_step::ActEffectBuilder::remove_entity_cards(uid, Some(1));
-            steps.push(crate::state::battle::fight_step::FightStepBuilder::effect().with(act).build());
-        }
-    }
-
-    // Perform the actual retention
+) {
     deck.retain(|c| {
         let uid = c.uid.unwrap_or(0);
         uid == 0 || c.temp_card.unwrap_or(false) || alive_uids.contains(&uid)
     });
-
-    steps
 }
 
 pub async fn generate_initial_deck(

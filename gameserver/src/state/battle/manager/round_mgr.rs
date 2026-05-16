@@ -1,6 +1,6 @@
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use rand::{rngs::StdRng, thread_rng};
+use rand::{rngs::StdRng};
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, Fight, FightRound, FightStep, fight_step};
 use std::{
     collections::{HashMap, HashSet},
@@ -706,23 +706,6 @@ impl FightRoundMgr {
             sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
         }
         Ok(())
-    }
-
-    pub(crate) fn drain_and_emit_dead_hero_purge(
-        &self,
-        ctx: &mut FightContext<'_>,
-        deck: &mut Vec<CardInfo>,
-        steps: &mut Vec<FightStep>,
-    ) {
-        let dead_uids = ctx.managers.calculate_mgr.drain_dead_hero_uids();
-        for uid in dead_uids {
-            deck.retain(|c| {
-                let card_uid = c.uid.unwrap_or(0);
-                card_uid == 0 || c.temp_card.unwrap_or(false) || card_uid != uid
-            });
-            let act = ActEffectBuilder::remove_entity_cards(uid, Some(1));
-            steps.push(FightStepBuilder::effect().with(act).build());
-        }
     }
 
     #[allow(clippy::too_many_arguments)]

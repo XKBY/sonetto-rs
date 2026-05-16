@@ -239,7 +239,12 @@ fn append_round_end_dot_dead_effects(fight: &Fight, effects: &mut Vec<ActEffect>
         }
     }
 
-    effects.extend(killed_in_order.into_iter().map(ActEffectBuilder::dead));
+    effects.extend(killed_in_order.into_iter().flat_map(|target_id| {
+        [
+            ActEffectBuilder::dead(target_id),
+            ActEffectBuilder::remove_entity_cards(target_id, Some(1)),
+        ]
+    }));
 }
 
 fn collect_dead_targets(effects: &[ActEffect], out: &mut HashSet<i64>) {

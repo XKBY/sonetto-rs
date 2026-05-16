@@ -827,9 +827,11 @@ impl ActEffectBuilder {
 
     pub fn remove_entity_cards(target_uid: i64, team_type: Option<i32>) -> ActEffect {
         tracing::trace!(target: "act_effects", kind = "remove_entity_cards", target_uid);
-        Self::new(BattleEffectType::RemoveEntityCards as i32, target_uid)
+        let inner = Self::new(BattleEffectType::RemoveEntityCards as i32, target_uid)
             .team_type(team_type.unwrap_or(1))
-            .build()
+            .build();
+        let step = effect_container_step(0, 0, 0, vec![inner]);
+        Self::skill_wrapper(step)
     }
 
     pub fn new_change_wave(fight: Fight) -> ActEffect {

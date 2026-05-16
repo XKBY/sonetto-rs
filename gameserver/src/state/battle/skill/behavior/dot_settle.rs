@@ -125,6 +125,7 @@ impl BehaviorAction for DotSettle {
             let after_shield = total_damage.saturating_sub(shield);
             if after_shield > 0 && hp - after_shield <= 0 {
                 effects.push(ActEffectBuilder::dead(carrier));
+                effects.push(ActEffectBuilder::remove_entity_cards(carrier, Some(1)));
             }
         }
 

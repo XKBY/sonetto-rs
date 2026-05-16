@@ -47,9 +47,8 @@ pub(crate) fn build_round_output(
 
     // Purge cards belonging to dead heroes
     let alive_uids = alive_hero_uids(ctx.fight);
-    // Purge dead-hero cards and collect CARDREMOVE steps
-    let purge_steps = purge_dead_hero_cards(&mut open.state.player_deck, &alive_uids);
-    open.steps.extend(purge_steps);
+    purge_dead_hero_cards(&mut open.state.player_deck, &alive_uids);
+    
     let before_cards1 = open.state.player_deck.clone();
     let team_a_cards1 = refill_deck(
         &mut thread_rng(),
