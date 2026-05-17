@@ -60,7 +60,7 @@ pub(crate) fn build_round_output(
         ctx.fight,
     );
 
-    let next_round_begin_step = build_next_round_begin_step(player_hand.clone(), open.deck_num);
+    let next_round_begin_step = build_next_round_begin_step(player_hand.clone(), player_deck.len() as i32);
     open.steps = open
         .steps
         .into_iter()

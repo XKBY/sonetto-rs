@@ -560,6 +560,7 @@ impl FightRoundMgr {
         let mut open = phase::round_open::run(
             round_ctx,
             player_hand,
+            player_deck,
             &ai_deck,
             ai_override_steps.as_deref(),
             &operations,
@@ -632,7 +633,6 @@ impl FightRoundMgr {
             card_mgr,
             &mut open.state,
             open.selected_for_round_end.clone(),
-            open.deck_num,
             &open.collected,
             open.defender_uid_checkpoint,
             player_hand,

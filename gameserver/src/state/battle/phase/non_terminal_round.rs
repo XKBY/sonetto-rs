@@ -48,7 +48,6 @@ pub(crate) async fn run(
     card_mgr: &mut FightCardMgr,
     state: &mut RoundState,
     selected_for_round_end: Vec<CardInfo>,
-    deck_num: i32,
     collected: &CollectedPassives,
     defender_uid_checkpoint: i64,
     player_hand: &mut Vec<CardInfo>,
@@ -96,7 +95,7 @@ pub(crate) async fn run(
         true,
         steps,
     )?;
-    steps.extend(build_pre_enemy_transition_steps(deck_num));
+    steps.extend(build_pre_enemy_transition_steps(player_deck.len() as i32));
     let defender_bootstrap_start = steps.len();
     mgr.apply_passive_phase(
         ctx,
@@ -355,7 +354,7 @@ pub(crate) async fn run(
     // post-round-start passive sweeps execute.
     ctx.managers.buff_mgr.reset_skill_slot_round_usage();
     let round_start_tail_start = steps.len();
-    run_post_change_round_tail(mgr, ctx, collected, steps, deck_num, injected_channel_buffs)?;
+    run_post_change_round_tail(mgr, ctx, collected, steps, player_deck.len() as i32, injected_channel_buffs)?;
 
     // LIVE still applies the downstream Shadow Cloak / bloodpool state updates
     // on terminal transitions, but it does not surface the visible

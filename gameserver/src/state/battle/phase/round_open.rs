@@ -59,7 +59,6 @@ pub(crate) struct RoundOpenPhaseData {
     pub steps: Vec<FightStep>,
     pub collected: CollectedPassives,
     pub selected_for_round_end: Vec<CardInfo>,
-    pub deck_num: i32,
     pub defender_uid_checkpoint: i64,
 }
 
@@ -73,6 +72,7 @@ pub(crate) struct RoundOpenPhaseData {
 pub(crate) fn run(
     round_ctx: &mut RoundContext<'_, '_>,
     player_hand: &[CardInfo],
+    player_deck: &[CardInfo],
     ai_deck: &[CardInfo],
     ai_override_steps: Option<&[FightStep]>,
     operations: &[BeginRoundOper],
@@ -241,14 +241,7 @@ pub(crate) fn run(
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
-    let attacker_count = ctx
-        .fight
-        .attacker
-        .as_ref()
-        .map(|a| a.entitys.len())
-        .unwrap_or(0);
-    let deck_num = (attacker_count as i32) * 16;
-    let steps = vec![build_refresh_step(selected_cards, sim_deck, deck_num)];
+    let steps = vec![build_refresh_step(selected_cards, sim_deck, player_deck.len() as i32)];
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {
@@ -256,7 +249,6 @@ pub(crate) fn run(
         steps,
         collected,
         selected_for_round_end,
-        deck_num,
         defender_uid_checkpoint,
     }
 }
