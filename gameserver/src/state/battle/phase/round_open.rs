@@ -72,7 +72,7 @@ pub(crate) struct RoundOpenPhaseData {
 /// - Collect attacker/defender passives.
 pub(crate) fn run(
     round_ctx: &mut RoundContext<'_, '_>,
-    current_deck: &[CardInfo],
+    player_hand: &[CardInfo],
     ai_deck: &[CardInfo],
     ai_override_steps: Option<&[FightStep]>,
     operations: &[BeginRoundOper],
@@ -119,11 +119,6 @@ pub(crate) fn run(
     }
     reset_buff_uid_to(attacker_uid_checkpoint.max(0));
 
-    state.player_deck = current_deck
-        .iter()
-        .filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false))
-        .cloned()
-        .collect();
     state.ai_cards = ai_deck.to_vec();
     state.ai_override_steps = ai_override_steps.map(|steps| steps.to_vec());
     if let Some(cards) = replay_selected_cards {
@@ -138,8 +133,8 @@ pub(crate) fn run(
     }
 
     tracing::warn!("=== ROUND START ===");
-    tracing::warn!("current_deck ({} cards):", current_deck.len());
-    for (i, c) in current_deck.iter().enumerate() {
+    tracing::warn!("player_hand ({} cards):", player_hand.len());
+    for (i, c) in player_hand.iter().enumerate() {
         tracing::warn!(
             "  [{}] uid={:?} hero={:?} skill={:?}",
             i,
@@ -149,10 +144,10 @@ pub(crate) fn run(
         );
     }
     tracing::warn!(
-        "player_deck after filter ({} cards):",
-        state.player_deck.len()
+        "player_hand after filter ({} cards):",
+        player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).count()
     );
-    for (i, c) in state.player_deck.iter().enumerate() {
+    for (i, c) in player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).enumerate() {
         tracing::warn!(
             "  [{}] uid={:?} hero={:?} skill={:?}",
             i,
@@ -172,7 +167,11 @@ pub(crate) fn run(
         );
     }
 
-    let mut sim_deck = state.player_deck.clone();
+    let mut sim_deck = player_hand
+        .iter()
+        .filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false))
+        .cloned()
+        .collect::<Vec<_>>();
     let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
 
     tracing::warn!("=== CARD SELECTION ===");
@@ -230,7 +229,6 @@ pub(crate) fn run(
     selected_for_round_end.extend(selected_temp);
 
     // set to the deck after simulating all operations
-    state.player_deck = sim_deck;
     state.selected_cards = selected_cards.clone();
 
     tracing::warn!("=== RESULT ===");
@@ -238,8 +236,8 @@ pub(crate) fn run(
     for (i, c) in selected_cards.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
-    tracing::warn!("remaining ({}):", state.player_deck.len());
-    for (i, c) in state.player_deck.iter().enumerate() {
+    tracing::warn!("remaining ({}):", sim_deck.len());
+    for (i, c) in sim_deck.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
@@ -250,7 +248,7 @@ pub(crate) fn run(
         .map(|a| a.entitys.len())
         .unwrap_or(0);
     let deck_num = (attacker_count as i32) * 16;
-    let steps = vec![build_refresh_step(selected_cards, state.player_deck.clone(), deck_num)];
+    let steps = vec![build_refresh_step(selected_cards, sim_deck, deck_num)];
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {

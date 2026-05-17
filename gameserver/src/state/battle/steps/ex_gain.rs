@@ -26,7 +26,7 @@ pub(crate) fn pre_operation_ex_gain(
     }
 
     let card_index = oper.param1.unwrap_or(1).saturating_sub(1) as usize;
-    let card = state.player_deck.get(card_index)?;
+    let card = state.selected_cards.get(card_index)?;
     let caster_uid = card.uid.unwrap_or(0);
     if caster_uid <= 0 || card.temp_card.unwrap_or(false) {
         return None;

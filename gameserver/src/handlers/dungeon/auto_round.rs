@@ -32,7 +32,8 @@ pub async fn on_auto_round(
     );
 
     let (
-        current_deck,
+        player_hand,
+        player_deck,
         fight_group,
         chapter_id,
         episode_id,
@@ -55,7 +56,8 @@ pub async fn on_auto_round(
             .ok_or(AppError::InvalidRequest)?;
 
         (
-            battle.current_deck.clone(),
+            battle.player_hand.clone(),
+            battle.player_deck.clone(),
             battle.fight_group.clone(),
             battle.chapter_id,
             battle.episode_id,
@@ -76,13 +78,15 @@ pub async fn on_auto_round(
         )
     };
 
-    let auto_opers = generate_auto_opers(&current_deck);
+    let auto_opers = generate_auto_opers(&player_hand);
     tracing::info!("AutoRound server selected {} ops", auto_opers.len());
 
     let mut simulator = BattleSimulator::new(fight_data_mgr);
 
-    let (mut round, _) = simulator
-        .process_round(auto_opers.clone(), current_deck, ai_deck, None)
+    let mut player_hand = player_hand;
+    let mut player_deck = player_deck;
+    let mut round = simulator
+        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, ai_deck, None)
         .await?;
 
     round.is_finish = Some(true);

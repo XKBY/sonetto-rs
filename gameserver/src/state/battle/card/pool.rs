@@ -17,7 +17,7 @@ static TRIAL_UID_MAP: Lazy<HashMap<i64, i32>> = Lazy::new(|| {
         .collect()
 });
 
-pub async fn build_candidate_pool(
+pub async fn build_player_deck(
     pool: &SqlitePool,
     user_id: i64,
     hero_uids: &[i64],
@@ -46,10 +46,14 @@ pub async fn build_candidate_pool(
         let (group1, group2) = Skill::get_skill_groups_with_destiny(hero_id, ex_level, destiny_ref);
 
         if let Some(skill_id) = group1.first().copied() {
-            cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
+            for _ in 0..8 {
+                cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
+            }
         }
         if let Some(skill_id) = group2.first().copied() {
-            cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
+            for _ in 0..8 {
+                cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
+            }
         }
     }
 

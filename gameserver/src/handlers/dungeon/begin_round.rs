@@ -20,7 +20,8 @@ pub async fn on_begin_round(
     );
 
     let (
-        current_deck,
+        player_hand,
+        player_deck,
         fight_group,
         chapter_id,
         episode_id,
@@ -43,7 +44,8 @@ pub async fn on_begin_round(
             .ok_or(AppError::InvalidRequest)?;
 
         (
-            battle.current_deck.clone(),
+            battle.player_hand.clone(),
+            battle.player_deck.clone(),
             battle.fight_group.clone(),
             battle.chapter_id,
             battle.episode_id,
@@ -67,8 +69,10 @@ pub async fn on_begin_round(
     let mut simulator = BattleSimulator::new(fight_data_mgr);
 
     let round_num_played = round_num;
-    let (round, next_deck) = simulator
-        .process_round(request.opers.clone(), current_deck, ai_deck, None)
+    let mut player_hand = player_hand;
+    let mut player_deck = player_deck;
+    let round = simulator
+        .process_round(request.opers.clone(), &mut player_hand, &mut player_deck, ai_deck, None)
         .await?;
     let fight_data_mgr = simulator.into_data();
     let is_finish = round.is_finish.unwrap_or(false);
@@ -86,9 +90,8 @@ pub async fn on_begin_round(
             .ok_or(AppError::InvalidRequest)?;
         battle.fight_data_mgr = Some(fight_data_mgr);
         battle.current_round = next_round_num;
-        if !is_finish {
-            battle.current_deck = next_deck;
-        }
+        battle.player_hand = player_hand;
+        battle.player_deck = player_deck;
     }
 
     tracing::info!(

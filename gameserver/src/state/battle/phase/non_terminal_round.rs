@@ -51,7 +51,8 @@ pub(crate) async fn run(
     deck_num: i32,
     collected: &CollectedPassives,
     defender_uid_checkpoint: i64,
-    candidate_pool: &[CardInfo],
+    player_hand: &mut Vec<CardInfo>,
+    player_deck: &mut Vec<CardInfo>,
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     if state.is_finish {

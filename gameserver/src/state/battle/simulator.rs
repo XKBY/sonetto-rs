@@ -47,19 +47,20 @@ impl BattleSimulator {
     pub async fn process_round(
         &mut self,
         operations: Vec<BeginRoundOper>,
-        current_deck: Vec<CardInfo>,
+        player_hand: &mut Vec<CardInfo>,
+        player_deck: &mut Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
-    ) -> Result<(FightRound, Vec<CardInfo>)> {
+    ) -> Result<FightRound> {
         self.process_round_with_replay(
             operations,
-            current_deck,
+            player_hand,
+            player_deck,
             ai_deck,
             ai_override_steps,
             None,
             None,
             None,
-            vec![],
         )
         .await
     }
@@ -67,42 +68,36 @@ impl BattleSimulator {
     pub async fn process_round_with_replay(
         &mut self,
         operations: Vec<BeginRoundOper>,
-        current_deck: Vec<CardInfo>,
+        player_hand: &mut Vec<CardInfo>,
+        player_deck: &mut Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
         replay_wave_snapshots: Option<Vec<Fight>>,
-        candidate_pool: Vec<CardInfo>,
-    ) -> Result<(FightRound, Vec<CardInfo>)> {
+    ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
-        // Prefer stored pool; fall back to caller-supplied (battle_gen passes vec![])
-        let pool = if !self.data.candidate_pool().is_empty() {
-            self.data.candidate_pool().to_vec()
-        } else {
-            candidate_pool
-        };
         let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
         let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
         let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
-        let (round, next_deck) = self
+        let round = self
             .round_mgr
             .process_round_with_replay(
                 &mut self.rng,
                 &mut round_ctx,
                 &mut self.card_mgr,
                 operations,
-                current_deck,
+                player_hand,
+                player_deck,
                 ai_deck,
                 ai_override_steps,
                 replay_selected_cards,
                 replay_silent_ops,
                 replay_wave_snapshots.as_deref(),
-                &pool,
             )
             .await?;
-        Ok((round, next_deck))
+        Ok(round)
     }
 
     /// Check battle result

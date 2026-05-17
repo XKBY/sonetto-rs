@@ -44,7 +44,8 @@ pub struct ActiveBattle {
     pub current_round: i32,
     pub act_point: i32, //  Remaining action points
     pub power: i32,
-    pub current_deck: Vec<sonettobuf::CardInfo>,
+    pub player_hand: Vec<sonettobuf::CardInfo>,
+    pub player_deck: Vec<sonettobuf::CardInfo>,
     pub fight_group: Option<sonettobuf::FightGroup>,
     pub fight_id: Option<i64>,
     pub is_replay: Option<bool>,

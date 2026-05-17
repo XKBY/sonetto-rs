@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use std::collections::HashSet;
 
 use super::draw::draw_deck_guaranteed_by_uid_with_rng;
-use super::pool::{build_ai_pool, build_candidate_pool};
+use super::pool::{build_ai_pool, build_player_deck};
 use super::upgrade::apply_card_upgrades;
 
 pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
@@ -28,7 +28,7 @@ pub(crate) fn purge_dead_hero_cards(
     });
 }
 
-pub async fn generate_initial_deck(
+pub async fn generate_initial_player_hand(
     pool: &SqlitePool,
     user_id: i64,
     fight_group: &FightGroup,
@@ -40,7 +40,7 @@ pub async fn generate_initial_deck(
         .copied()
         .filter(|&u| u != 0)
         .collect();
-    let candidates = build_candidate_pool(pool, user_id, &active_heroes).await?;
+    let candidates = build_player_deck(pool, user_id, &active_heroes).await?;
 
     // Calculate opening hand size based on game rules:
     // 1 hero → 4 cards, 2 → 5, 3 → 6 or 7 (support check), 4 → 8
@@ -147,10 +147,10 @@ pub fn generate_ai_initial_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
     draw_deck_guaranteed_by_uid_with_rng(&candidates, &required_uids, opening_hand_size, &mut rng)
 }
 
-pub(crate) fn refill_deck(
+pub(crate) fn refill_hand(
     rng: &mut impl Rng,
-    deck: &mut Vec<CardInfo>,
-    candidate_pool: &[CardInfo],
+    hand: &mut Vec<CardInfo>,
+    player_deck: &mut Vec<CardInfo>,
     alive_uids: &HashSet<i64>,
     extra: usize,
     fight: &Fight,
@@ -159,28 +159,20 @@ pub(crate) fn refill_deck(
         a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
-    let alive_pool: Vec<&CardInfo> = candidate_pool
-        .iter()
-        .filter(|c| {
-            let uid = c.uid.unwrap_or(0);
-            uid == 0 || c.temp_card.unwrap_or(false) || alive_uids.contains(&uid)
-        })
-        .collect();
-    if alive_pool.is_empty() {
+    if player_deck.is_empty() {
+        tracing::warn!("refill_hand: player_deck is empty, cannot refill");
         return vec![];
     }
-    tracing::info!(target: "refill_deck", before = ?deck.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size);
-    // Collect raw (pre-upgrade) cards pulled from the pool to return to caller.
+    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size);
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
-    while deck.len() < target_size {
-        let idx = rng.gen_range(0..alive_pool.len());
-        let raw = alive_pool[idx].clone();
+    while hand.len() < target_size && !player_deck.is_empty() {
+        let idx = rng.gen_range(0..player_deck.len());
+        let raw = player_deck.remove(idx);
         pulled_raw.push(raw.clone());
-        deck.push(raw);
-        apply_card_upgrades(deck, fight);
+        hand.push(raw);
+        apply_card_upgrades(hand, fight);
     }
-    tracing::info!(target: "refill_deck", after = ?deck.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>());
-    // Return the raw pulled cards (before upgrades were applied in-place).
+    tracing::info!(target: "refill_hand", after = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>());
     pulled_raw
 }
 

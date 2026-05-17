@@ -3,7 +3,7 @@ use rand::thread_rng;
 use sonettobuf::{CardInfo, FightRound};
 
 use crate::state::battle::{
-    card::{purge_dead_hero_cards, refill_deck},
+    card::{purge_dead_hero_cards, refill_hand},
     context::RoundContext,
     manager::{ex_point_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
     fight_step::split_step_by_effect_limit,
@@ -17,8 +17,9 @@ pub(crate) fn build_round_output(
     round_ctx: &mut RoundContext<'_, '_>,
     mut open: RoundOpenPhaseData,
     ai_deck: Vec<CardInfo>,
-    candidate_pool: &[CardInfo],
-) -> Result<(FightRound, Vec<CardInfo>)> {
+    player_hand: &mut Vec<CardInfo>,
+    player_deck: &mut Vec<CardInfo>,
+) -> Result<FightRound> {
     let ctx = &mut *round_ctx.fight_ctx;
     if open.state.pending_cloth_power_delta != 0
         && let Some(cloth) = active_cloth_level(ctx.fight)
@@ -47,19 +48,19 @@ pub(crate) fn build_round_output(
 
     // Purge cards belonging to dead heroes
     let alive_uids = alive_hero_uids(ctx.fight);
-    purge_dead_hero_cards(&mut open.state.player_deck, &alive_uids);
-    
-    let before_cards1 = open.state.player_deck.clone();
-    let team_a_cards1 = refill_deck(
+    purge_dead_hero_cards(player_hand, &alive_uids);
+
+    let before_cards1 = player_hand.clone();
+    let team_a_cards1 = refill_hand(
         &mut thread_rng(),
-        &mut open.state.player_deck,
-        candidate_pool,
+        player_hand,
+        player_deck,
         &alive_uids,
         0,
         ctx.fight,
     );
 
-    let next_round_begin_step = build_next_round_begin_step(open.state.player_deck.clone(), open.deck_num);
+    let next_round_begin_step = build_next_round_begin_step(player_hand.clone(), open.deck_num);
     open.steps = open
         .steps
         .into_iter()
@@ -73,8 +74,7 @@ pub(crate) fn build_round_output(
         .map(|a| a.entitys.len() as i32)
         .unwrap_or(3);
 
-    let result = (
-        FightRound {
+    let result = FightRound {
             fight_step: open.steps,
             act_point: Some(if open.state.is_finish { 0 } else { attacker_main_count }),
             is_finish: Some(open.state.is_finish),
@@ -92,8 +92,6 @@ pub(crate) fn build_round_output(
             cur_round: Some(ctx.fight.cur_round.unwrap_or(1) + 1),
             hero_sp_attributes,
             last_change_hero_uid: Some(0),
-        },
-        open.state.player_deck,
-    );
+        };
     Ok(result)
 }

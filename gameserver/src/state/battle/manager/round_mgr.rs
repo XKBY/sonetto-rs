@@ -535,14 +535,14 @@ impl FightRoundMgr {
         round_ctx: &mut RoundContext<'_, '_>,
         card_mgr: &mut FightCardMgr,
         operations: Vec<BeginRoundOper>,
-        current_deck: Vec<CardInfo>,
+        player_hand: &mut Vec<CardInfo>,
+        player_deck: &mut Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
         replay_wave_snapshots: Option<&[Fight]>,
-        candidate_pool: &[CardInfo],
-    ) -> Result<(FightRound, Vec<CardInfo>)> {
+    ) -> Result<FightRound> {
         let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
         let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
         let replay_wave_snapshot_target_wave = replay_wave_snapshots
@@ -559,7 +559,7 @@ impl FightRoundMgr {
         // 1. round_open
         let mut open = phase::round_open::run(
             round_ctx,
-            &current_deck,
+            player_hand,
             &ai_deck,
             ai_override_steps.as_deref(),
             &operations,
@@ -616,9 +616,10 @@ impl FightRoundMgr {
             ctx,
             card_mgr,
             &mut open.state,
+            player_hand,
+            player_deck,
             operations,
             &open.collected,
-            candidate_pool,
             &mut open.steps,
         )
         .await?;
@@ -634,7 +635,8 @@ impl FightRoundMgr {
             open.deck_num,
             &open.collected,
             open.defender_uid_checkpoint,
-            candidate_pool,
+            player_hand,
+            player_deck,
             &mut open.steps,
         )
         .await?;
@@ -674,7 +676,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, candidate_pool)
+        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, player_hand, player_deck)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(

@@ -991,8 +991,8 @@ impl FightCardMgr {
         let dissolve_index = (oper.param1.unwrap_or(1) - 1) as usize;
 
         // remove dissolved card
-        if dissolve_index < state.player_deck.len() {
-            state.player_deck.remove(dissolve_index);
+        if dissolve_index < state.selected_cards.len() {
+            state.selected_cards.remove(dissolve_index);
         }
 
         // generate replacement card
@@ -1001,7 +1001,7 @@ impl FightCardMgr {
         FightStep {
             act_type: Some(fight_step::ActType::Effect.into()),
             act_effect: vec![ActEffectBuilder::cards_push(
-                state.player_deck.clone(),
+                state.selected_cards.clone(),
                 Some(1),
             )],
             ..Default::default()

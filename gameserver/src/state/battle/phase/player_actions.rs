@@ -24,7 +24,7 @@ use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightStep, fight_step};
 
 use crate::state::battle::{
-    card::refill_deck,
+    card::refill_hand,
     context::FightContext,
     event_queue::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
@@ -66,9 +66,10 @@ pub(crate) async fn run(
     ctx: &mut FightContext<'_>,
     card_mgr: &mut FightCardMgr,
     state: &mut RoundState,
+    player_hand: &mut Vec<CardInfo>,
+    player_deck: &mut Vec<CardInfo>,
     operations: Vec<BeginRoundOper>,
     collected: &CollectedPassives,
-    candidate_pool: &[CardInfo],
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
@@ -291,9 +292,9 @@ pub(crate) async fn run(
         }
     }
 
-    state.before_cards2 = state.player_deck.clone();
+    state.before_cards2 = player_hand.clone();
     let alive_uids = alive_hero_uids(ctx.fight);
-    state.team_a_cards2 = refill_deck(rng, &mut state.player_deck, candidate_pool, &alive_uids, 0, ctx.fight);
+    state.team_a_cards2 = refill_hand(rng, player_hand, player_deck, &alive_uids, 0, ctx.fight);
 
     Ok(())
 }

@@ -1,8 +1,8 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_candidate_pool,
-    create_battle, default_max_ap, generate_initial_deck,
+    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_player_deck,
+    create_battle, default_max_ap, generate_initial_player_hand,
 };
 use config::configs;
 use prost::Message;
@@ -78,7 +78,7 @@ pub async fn on_start_tower_battle(
         max_ap,
     };
 
-    let mut card_push = generate_initial_deck(&pool, player_id, &fight_group, max_ap).await?;
+    let mut card_push = generate_initial_player_hand(&pool, player_id, &fight_group, max_ap).await?;
 
     // Initial round should use raw dealt cards.
     let card_deck = card_push.deal_card_group.clone();
@@ -92,13 +92,12 @@ pub async fn on_start_tower_battle(
         .copied()
         .filter(|&u| u != 0)
         .collect();
-    let candidate_pool = build_candidate_pool(&pool, player_id, &all_hero_uids)
+    let player_deck = build_player_deck(&pool, player_id, &all_hero_uids)
         .await
         .unwrap_or_else(|e| {
-            tracing::warn!("build_candidate_pool failed at battle start: {e}");
+            tracing::warn!("build_player_deck failed at battle start: {e}");
             vec![]
         });
-    fight_data_mgr.set_candidate_pool(candidate_pool);
     // Authoritative post-start deck = pushed opening hand + opening temp/special additions.
     let mut push_round = initial_round.clone();
     push_round.team_a_cards1 = card_push.card_group.clone();
@@ -128,7 +127,8 @@ pub async fn on_start_tower_battle(
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            current_deck: final_cards,
+            player_hand: final_cards,
+            player_deck,
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,

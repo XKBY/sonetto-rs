@@ -52,7 +52,6 @@ pub struct FightDataMgr {
     pub pre_fight: Option<Fight>,
     mechanics: Mechanics,
     pub managers: Managers,
-    candidate_pool: Vec<CardInfo>,
 }
 
 impl FightDataMgr {
@@ -65,7 +64,6 @@ impl FightDataMgr {
             pre_fight,
             fight,
             mechanics,
-            candidate_pool: Vec::new(),
         }
     }
 
@@ -104,14 +102,6 @@ impl FightDataMgr {
                     .collect()
             })
             .unwrap_or_default()
-    }
-
-    pub fn set_candidate_pool(&mut self, pool: Vec<CardInfo>) {
-        self.candidate_pool = pool;
-    }
-
-    pub fn candidate_pool(&self) -> &[CardInfo] {
-        &self.candidate_pool
     }
 
     pub fn ctx(&mut self) -> FightContext<'_> {
