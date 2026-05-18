@@ -565,7 +565,6 @@ impl FightRoundMgr {
             player_hand,
             player_deck,
             enemy_hand,
-            enemy_ex_deck,
             ai_override_steps.as_deref(),
             &operations,
             replay_selected_cards.as_deref(),
