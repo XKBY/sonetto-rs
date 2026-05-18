@@ -8,7 +8,10 @@ fn next_tier(card: &CardInfo, fight: &Fight) -> Option<i32> {
         .as_ref()?
         .entitys
         .iter()
-        .find(|e| e.uid.unwrap_or(0) == uid)?;
+        .find(|e| e.uid.unwrap_or(0) == uid)
+        .or_else(|| {
+            fight.defender.as_ref()?.entitys.iter().find(|e| e.uid.unwrap_or(0) == uid)
+        })?;
     for group in [&entity.skill_group1, &entity.skill_group2] {
         if let Some(pos) = group.iter().position(|&id| id == skill_id) {
             if pos + 1 < group.len() {
