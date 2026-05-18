@@ -70,11 +70,21 @@ pub(crate) struct RoundOpenPhaseData {
 ///   card splits.
 /// - Build the round's initial refresh step.
 /// - Collect attacker/defender passives.
+fn skill_level(skill_id: i32, entity: &sonettobuf::FightEntityInfo) -> usize {
+    for group in [&entity.skill_group1, &entity.skill_group2] {
+        if let Some(pos) = group.iter().position(|&id| id == skill_id) {
+            return pos;
+        }
+    }
+    0
+}
+
 pub(crate) fn run(
     round_ctx: &mut RoundContext<'_, '_>,
     player_hand: &mut Vec<CardInfo>,
     player_deck: &[CardInfo],
-    ai_deck: &[CardInfo],
+    enemy_hand: &mut Vec<CardInfo>,
+    enemy_ex_deck: &mut Vec<CardInfo>,
     ai_override_steps: Option<&[FightStep]>,
     operations: &[BeginRoundOper],
     replay_selected_cards: Option<&[CardInfo]>,
@@ -120,7 +130,36 @@ pub(crate) fn run(
     }
     reset_buff_uid_to(attacker_uid_checkpoint.max(0));
 
-    state.ai_cards = ai_deck.to_vec();
+    // Enemy card selection: for each live enemy entity, pick EX > highest-level > index-0
+    let mut ai_cards: Vec<CardInfo> = Vec::new();
+    if let Some(defender) = &ctx.fight.defender {
+        for entity in &defender.entitys {
+            let uid = entity.uid.unwrap_or(0);
+            if uid == 0 || entity.current_hp.unwrap_or(0) <= 0 {
+                continue;
+            }
+            // Priority 1: EX card
+            if let Some(pos) = enemy_ex_deck.iter().position(|c| c.uid.unwrap_or(0) == uid) {
+                ai_cards.push(enemy_ex_deck.remove(pos));
+                continue;
+            }
+            // Priority 2: highest-level card in enemy_hand
+            let best = enemy_hand
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| c.uid.unwrap_or(0) == uid)
+                .max_by_key(|(_, c)| skill_level(c.skill_id.unwrap_or(0), entity));
+            if let Some((pos, _)) = best {
+                ai_cards.push(enemy_hand.remove(pos));
+                continue;
+            }
+            // Priority 3: index-0 fallback (first card for this uid)
+            if let Some(pos) = enemy_hand.iter().position(|c| c.uid.unwrap_or(0) == uid) {
+                ai_cards.push(enemy_hand.remove(pos));
+            }
+        }
+    }
+    state.ai_cards = ai_cards;
     state.ai_override_steps = ai_override_steps.map(|steps| steps.to_vec());
     if let Some(cards) = replay_selected_cards {
         if !cards.is_empty() {
