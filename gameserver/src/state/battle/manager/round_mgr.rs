@@ -9,7 +9,7 @@ use std::{
 
 use super::super::{
     ConditionType,
-    card::CardOpType,
+    card::{CardOpType, purge_dead_entity_cards, refill_hand},
     context::{FightContext, RoundContext},
     event_queue::{
         AttachmentResolver, BattleEvent, EventContext, EventQueue, HostEventAccumulator,
@@ -538,7 +538,9 @@ impl FightRoundMgr {
         player_hand: &mut Vec<CardInfo>,
         player_deck: &mut Vec<CardInfo>,
         player_ex_deck: &mut Vec<CardInfo>,
-        ai_deck: Vec<CardInfo>,
+        enemy_hand: &mut Vec<CardInfo>,
+        enemy_deck: &mut Vec<CardInfo>,
+        enemy_ex_deck: &mut Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
@@ -562,7 +564,7 @@ impl FightRoundMgr {
             round_ctx,
             player_hand,
             player_deck,
-            &ai_deck,
+            enemy_deck,
             ai_override_steps.as_deref(),
             &operations,
             replay_selected_cards.as_deref(),
@@ -643,6 +645,14 @@ impl FightRoundMgr {
         )
         .await?;
 
+        // After enemy actions: purge dead-entity cards and refill enemy hand
+        let alive_enemy_uids: Vec<i64> = ctx.fight.defender.as_ref()
+            .map(|d| d.entitys.iter().filter_map(|e| if e.current_hp.unwrap_or(0) > 0 { e.uid } else { None }).collect())
+            .unwrap_or_default();
+        purge_dead_entity_cards(enemy_hand, &alive_enemy_uids.iter().copied().collect());
+        purge_dead_entity_cards(enemy_ex_deck, &alive_enemy_uids.iter().copied().collect());
+        let _ = refill_hand(rng, enemy_hand, enemy_deck, enemy_ex_deck, &alive_enemy_uids.iter().copied().collect(), 0, ctx.fight);
+
         // 4. post_processing
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
@@ -678,7 +688,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, player_hand, player_deck, player_ex_deck)
+        phase::build_round_output::build_round_output(self, round_ctx, open, enemy_deck.to_vec(), player_hand, player_deck, player_ex_deck)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(
