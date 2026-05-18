@@ -1,8 +1,9 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_player_deck,
-    create_battle, default_max_ap, generate_initial_hand,
+    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_enemy_deck,
+    build_player_deck, create_battle, default_max_ap, generate_initial_enemy_hand,
+    generate_initial_hand,
 };
 use config::configs;
 use prost::Message;
@@ -83,7 +84,7 @@ pub async fn on_start_tower_battle(
     // Initial round should use raw dealt cards.
     let card_deck = card_push.deal_card_group.clone();
 
-    let (initial_round, mut fight_data_mgr, ai_deck) =
+    let (initial_round, mut fight_data_mgr, _) =
         create_battle(&pool, battle_ctx, &fight_group, card_deck.clone()).await?;
     let all_hero_uids: Vec<i64> = fight_group
         .hero_list
@@ -113,6 +114,20 @@ pub async fn on_start_tower_battle(
     let fight_for_battle = fight_data_mgr.fight().clone(); // post-sync fight
     // final fight object with passive changes applied
 
+    let monster_ids: Vec<i32> = fight_for_battle
+        .defender
+        .as_ref()
+        .map(|d| {
+            d.entitys
+                .iter()
+                .chain(d.sub_entitys.iter())
+                .filter_map(|e| e.model_id)
+                .collect()
+        })
+        .unwrap_or_default();
+    let enemy_deck = build_enemy_deck(&monster_ids);
+    let enemy_hand = generate_initial_enemy_hand(&monster_ids);
+
     {
         let mut conn = ctx.lock().await;
         conn.active_battle = Some(ActiveBattle {
@@ -130,12 +145,14 @@ pub async fn on_start_tower_battle(
             player_hand: final_cards,
             player_deck,
             player_ex_deck: vec![],
+            enemy_hand,
+            enemy_deck,
+            enemy_ex_deck: vec![],
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,
             fight_id: Some(chrono::Utc::now().timestamp_millis()),
             multiplication: None,
-            ai_deck,
             fight_data_mgr: Some(fight_data_mgr),
         });
     }
