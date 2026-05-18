@@ -689,7 +689,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, enemy_deck.to_vec(), player_hand, player_deck, player_ex_deck)
+        phase::build_round_output::build_round_output(self, round_ctx, open, player_hand, player_deck, player_ex_deck)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(
