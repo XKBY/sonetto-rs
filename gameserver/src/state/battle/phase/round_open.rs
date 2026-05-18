@@ -71,7 +71,7 @@ pub(crate) struct RoundOpenPhaseData {
 /// - Collect attacker/defender passives.
 pub(crate) fn run(
     round_ctx: &mut RoundContext<'_, '_>,
-    player_hand: &[CardInfo],
+    player_hand: &mut Vec<CardInfo>,
     player_deck: &[CardInfo],
     ai_deck: &[CardInfo],
     ai_override_steps: Option<&[FightStep]>,
@@ -167,11 +167,7 @@ pub(crate) fn run(
         );
     }
 
-    let mut sim_deck = player_hand
-        .iter()
-        .filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false))
-        .cloned()
-        .collect::<Vec<_>>();
+    player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
     let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
 
     tracing::warn!("=== CARD SELECTION ===");
@@ -183,35 +179,37 @@ pub(crate) fn run(
         if is_move {
             let from = (op.param1.unwrap_or(1) - 1) as usize;
             let to = (op.param2.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, sim_deck.len());
-            if from < sim_deck.len() && to < sim_deck.len() {
-                let card = sim_deck.remove(from);
-                sim_deck.insert(to, card);
-                apply_card_upgrades(&mut sim_deck, ctx.fight);
+            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, player_hand.len());
+            if from < player_hand.len() && to < player_hand.len() {
+                let card = player_hand.remove(from);
+                player_hand.insert(to, card);
+                apply_card_upgrades(player_hand, ctx.fight);
             }
-            for (i, c) in sim_deck.iter().enumerate() {
+            for (i, c) in player_hand.iter().enumerate() {
                 tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
             }
         } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  pick idx={} from deck of {} cards:", idx, sim_deck.len());
-            for (i, c) in sim_deck.iter().enumerate() {
+            tracing::warn!("  pick idx={} from deck of {} cards:", idx, player_hand.len());
+            for (i, c) in player_hand.iter().enumerate() {
                 tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
             }
-            if idx < sim_deck.len() {
-                let card = sim_deck.remove(idx);
+            if idx < player_hand.len() {
+                let card = player_hand.remove(idx);
                 tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                 selected_pairs.push((selected_pairs.len(), card));
-                apply_card_upgrades(&mut sim_deck, ctx.fight);
+                apply_card_upgrades(player_hand, ctx.fight);
             } else {
                 tracing::warn!(
                     "  -> idx {} OUT OF RANGE (deck size {})",
                     idx,
-                    sim_deck.len()
+                    player_hand.len()
                 );
             }
         }
     }
+
+    
 
     let selected_cards: Vec<sonettobuf::CardInfo> =
         selected_pairs.into_iter().map(|(_, c)| c).collect();
@@ -236,12 +234,12 @@ pub(crate) fn run(
     for (i, c) in selected_cards.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
-    tracing::warn!("remaining ({}):", sim_deck.len());
-    for (i, c) in sim_deck.iter().enumerate() {
+    tracing::warn!("remaining ({}):", player_hand.len());
+    for (i, c) in player_hand.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
-    let steps = vec![build_refresh_step(selected_cards, sim_deck, player_deck.len() as i32)];
+    let steps = vec![build_refresh_step(selected_cards, player_hand.clone(), player_deck.len() as i32)];
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {

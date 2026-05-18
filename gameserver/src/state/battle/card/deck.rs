@@ -164,7 +164,7 @@ pub(crate) fn refill_hand(
         tracing::warn!("refill_hand: both decks empty, cannot refill");
         return vec![];
     }
-    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size);
+    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size, ex_deck_len = player_ex_deck.len());
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
     // Drain EX cards first (preferential)
     while hand.len() < target_size && !player_ex_deck.is_empty() {

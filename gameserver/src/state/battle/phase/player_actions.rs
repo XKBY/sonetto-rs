@@ -112,7 +112,10 @@ pub(crate) async fn run(
                 .collect();
             for (uid, ex_skill, hero_id) in entities {
                 if let (Some(ex_skill), Some(hero_id)) = (ex_skill, hero_id) {
-                    if ex_skill != 0 {
+                    if ex_skill != 0
+                        && !player_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                        && !player_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill)) {
+                        tracing::info!("ex_deck: add uid={} ex_skill={}", uid, ex_skill);
                         player_ex_deck.push(make_card(hero_id, ex_skill, uid, false));
                     }
                 }
