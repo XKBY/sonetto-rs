@@ -47,12 +47,14 @@ pub struct ActiveBattle {
     pub player_hand: Vec<sonettobuf::CardInfo>,
     pub player_deck: Vec<sonettobuf::CardInfo>,
     pub player_ex_deck: Vec<sonettobuf::CardInfo>,
+    pub enemy_hand: Vec<sonettobuf::CardInfo>,
+    pub enemy_deck: Vec<sonettobuf::CardInfo>,
+    pub enemy_ex_deck: Vec<sonettobuf::CardInfo>,
     pub fight_group: Option<sonettobuf::FightGroup>,
     pub fight_id: Option<i64>,
     pub is_replay: Option<bool>,
     pub replay_episode_id: Option<i32>,
     pub multiplication: Option<i32>,
-    pub ai_deck: Vec<sonettobuf::CardInfo>,
     pub fight_data_mgr: Option<FightDataMgr>,
 }
 
