@@ -42,7 +42,9 @@ pub async fn on_auto_round(
         battle_id,
         round_num,
         multiplication,
-        ai_deck,
+        enemy_hand,
+        enemy_deck,
+        enemy_ex_deck,
         fight_data_mgr,
     ) = {
         let mut conn = ctx.lock().await;
@@ -67,7 +69,9 @@ pub async fn on_auto_round(
             battle.fight_id.unwrap_or_default(),
             battle.current_round,
             battle.multiplication.unwrap_or(1),
-            battle.ai_deck.clone(),
+            battle.enemy_hand.clone(),
+            battle.enemy_deck.clone(),
+            battle.enemy_ex_deck.clone(),
             mgr,
         )
     };
@@ -88,8 +92,11 @@ pub async fn on_auto_round(
     let mut player_hand = player_hand;
     let mut player_deck = player_deck;
     let mut player_ex_deck = player_ex_deck;
+    let mut enemy_hand = enemy_hand;
+    let mut enemy_deck = enemy_deck;
+    let mut enemy_ex_deck = enemy_ex_deck;
     let mut round = simulator
-        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, &mut player_ex_deck, ai_deck, None)
+        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, &mut player_ex_deck, &mut enemy_hand, &mut enemy_deck, &mut enemy_ex_deck, None)
         .await?;
 
     round.is_finish = Some(true);
@@ -104,6 +111,12 @@ pub async fn on_auto_round(
             .ok_or(AppError::InvalidRequest)?;
 
         battle.fight_data_mgr = Some(fight_data_mgr);
+        battle.player_hand = player_hand;
+        battle.player_deck = player_deck;
+        battle.player_ex_deck = player_ex_deck;
+        battle.enemy_hand = enemy_hand;
+        battle.enemy_deck = enemy_deck;
+        battle.enemy_ex_deck = enemy_ex_deck;
     }
 
     let record_round = round.cur_round.unwrap_or(1);
