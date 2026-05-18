@@ -17,13 +17,26 @@ static TRIAL_UID_MAP: Lazy<HashMap<i64, i32>> = Lazy::new(|| {
         .collect()
 });
 
+pub fn generate_deck(entries: &[(i64, i32, i32, i32, bool)]) -> Vec<CardInfo> {
+    let mut deck = Vec::new();
+    for &(uid, hero_id, skill1, skill2, is_trial) in entries {
+        for &skill_id in &[skill1, skill2] {
+            if skill_id == 0 { continue; }
+            for _ in 0..8 {
+                deck.push(make_card(hero_id, skill_id, uid, is_trial));
+            }
+        }
+    }
+    deck
+}
+
 pub async fn build_player_deck(
     pool: &SqlitePool,
     user_id: i64,
     hero_uids: &[i64],
 ) -> Result<Vec<CardInfo>, AppError> {
-    let mut cards: Vec<CardInfo> = Vec::new();
     let hero_db = UserHeroModel::new(user_id, pool.clone());
+    let mut entries: Vec<(i64, i32, i32, i32, bool)> = Vec::new();
 
     for &hero_uid in hero_uids {
         if hero_uid == 0 {
@@ -45,57 +58,33 @@ pub async fn build_player_deck(
         let destiny_ref = destiny_map.as_ref();
         let (group1, group2) = Skill::get_skill_groups_with_destiny(hero_id, ex_level, destiny_ref);
 
-        if let Some(skill_id) = group1.first().copied() {
-            for _ in 0..8 {
-                cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
-            }
-        }
-        if let Some(skill_id) = group2.first().copied() {
-            for _ in 0..8 {
-                cards.push(make_card(hero_id, skill_id, hero_uid, hero_uid < 0));
-            }
-        }
+        let skill1 = group1.first().copied().unwrap_or(0);
+        let skill2 = group2.first().copied().unwrap_or(0);
+        entries.push((hero_uid, hero_id, skill1, skill2, hero_uid < 0));
     }
 
-    Ok(cards)
+    Ok(generate_deck(&entries))
 }
 
-pub fn build_ai_pool(monster_ids: &[i32]) -> Vec<CardInfo> {
+pub fn build_enemy_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
     let game_data = configs::get();
-    let mut cards = Vec::new();
-
-    for &monster_id in monster_ids {
-        let Some(monster) = game_data.monster.iter().find(|m| m.id == monster_id) else {
-            tracing::warn!("Unknown monster ID: {}", monster_id);
-            continue;
-        };
-        let Some(skill_template) = game_data
-            .monster_skill_template
-            .iter()
-            .find(|s| s.id == monster.skill_template)
-        else {
-            tracing::warn!("No skill template for monster {}", monster_id);
-            continue;
-        };
-
-        let uid = monster_id as i64;
-        for group in 1..=2 {
-            if let Some(skill_id) =
-                super::super::entity::skill::parse_skill_group(&skill_template.active_skill, group)
-                    .into_iter()
-                    .next()
-            {
-                cards.push(make_card(monster_id, skill_id, uid, false));
-            }
-        }
-    }
-
-    cards
+    let entries: Vec<(i64, i32, i32, i32, bool)> = monster_ids
+        .iter()
+        .filter_map(|&monster_id| {
+            let monster = game_data.monster.iter().find(|m| m.id == monster_id)?;
+            let template = game_data.monster_skill_template.iter().find(|s| s.id == monster.skill_template)?;
+            let uid = monster_id as i64;
+            let skill1 = super::super::entity::skill::parse_skill_group(&template.active_skill, 1).into_iter().next().unwrap_or(0);
+            let skill2 = super::super::entity::skill::parse_skill_group(&template.active_skill, 2).into_iter().next().unwrap_or(0);
+            Some((uid, monster_id, skill1, skill2, false))
+        })
+        .collect();
+    generate_deck(&entries)
 }
 
-pub(crate) fn make_card(hero_id: i32, skill_id: i32, hero_uid: i64, is_trial: bool) -> CardInfo {
+pub(crate) fn make_card(hero_id: i32, skill_id: i32, uid: i64, is_trial: bool) -> CardInfo {
     CardInfo {
-        uid: Some(hero_uid),
+        uid: Some(uid),
         hero_id: Some(hero_id),
         skill_id: Some(skill_id),
         card_type: Some(0),

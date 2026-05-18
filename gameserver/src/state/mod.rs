@@ -13,7 +13,7 @@ pub use battle::manager::fight_data_mgr::FightDataMgr;
 pub use battle::{
     BattleContext, apply_opening_deck, build_player_deck, create_battle, default_max_ap,
     dungeon_end_logic::handle_dungeon_end,
-    end_fight::send_end_fight_push, generate_auto_opers, generate_initial_player_hand,
+    end_fight::send_end_fight_push, generate_auto_opers, generate_initial_hand,
     rewards::generate_dungeon_rewards, simulator::BattleSimulator, skill::cache::init_skill_cache,
 };
 pub use connection::{ActiveBattle, ConnectionContext};

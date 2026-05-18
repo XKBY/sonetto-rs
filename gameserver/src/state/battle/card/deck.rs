@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use std::collections::HashSet;
 
 use super::draw::draw_deck_guaranteed_by_uid_with_rng;
-use super::pool::{build_ai_pool, build_player_deck};
+use super::pool::{build_enemy_deck, build_player_deck};
 use super::upgrade::apply_card_upgrades;
 
 pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
@@ -18,7 +18,7 @@ pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
     }
 }
 
-pub(crate) fn purge_dead_hero_cards(
+pub(crate) fn purge_dead_entity_cards(
     deck: &mut Vec<CardInfo>,
     alive_uids: &HashSet<i64>,
 ) {
@@ -28,7 +28,7 @@ pub(crate) fn purge_dead_hero_cards(
     });
 }
 
-pub async fn generate_initial_player_hand(
+pub async fn generate_initial_hand(
     pool: &SqlitePool,
     user_id: i64,
     fight_group: &FightGroup,
@@ -42,8 +42,6 @@ pub async fn generate_initial_player_hand(
         .collect();
     let candidates = build_player_deck(pool, user_id, &active_heroes).await?;
 
-    // Calculate opening hand size based on game rules:
-    // 1 hero → 4 cards, 2 → 5, 3 → 6 or 7 (support check), 4 → 8
     let hero_count = active_heroes.len();
     let has_support = fight_group.sub_hero_list.len() > 0;
     let opening_hand_size = card_limit(hero_count, has_support);
@@ -130,18 +128,11 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
     cards
 }
 
-pub fn generate_ai_initial_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
-    let candidates = build_ai_pool(monster_ids);
+pub fn generate_initial_enemy_hand(monster_ids: &[i32]) -> Vec<CardInfo> {
+    let candidates = build_enemy_deck(monster_ids);
     let required_uids: Vec<i64> = monster_ids.iter().map(|&id| id as i64).collect();
 
-    let monster_count = monster_ids.len();
-    let opening_hand_size = match monster_count {
-        1 => 4,
-        2 => 5,
-        3 => 6,
-        4 => 8,
-        _ => (monster_count + 4).min(9),
-    };
+    let opening_hand_size = card_limit(monster_ids.len(), false);
 
     let mut rng: rand::prelude::ThreadRng = thread_rng();
     draw_deck_guaranteed_by_uid_with_rng(&candidates, &required_uids, opening_hand_size, &mut rng)
@@ -150,8 +141,8 @@ pub fn generate_ai_initial_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
 pub(crate) fn refill_hand(
     rng: &mut impl Rng,
     hand: &mut Vec<CardInfo>,
-    player_deck: &mut Vec<CardInfo>,
-    player_ex_deck: &mut Vec<CardInfo>,
+    deck: &mut Vec<CardInfo>,
+    ex_deck: &mut Vec<CardInfo>,
     alive_uids: &HashSet<i64>,
     extra: usize,
     fight: &Fight,
@@ -160,23 +151,23 @@ pub(crate) fn refill_hand(
         a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
-    if player_deck.is_empty() && player_ex_deck.is_empty() {
+    if deck.is_empty() && ex_deck.is_empty() {
         tracing::warn!("refill_hand: both decks empty, cannot refill");
         return vec![];
     }
-    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size, ex_deck_len = player_ex_deck.len());
+    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size, ex_deck_len = ex_deck.len());
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
     // Drain EX cards first (preferential)
-    while hand.len() < target_size && !player_ex_deck.is_empty() {
-        let card = player_ex_deck.remove(0);
+    while hand.len() < target_size && !ex_deck.is_empty() {
+        let card = ex_deck.remove(0);
         pulled_raw.push(card.clone());
         hand.push(card);
         apply_card_upgrades(hand, fight);
     }
-    // Fill remaining slots from player_deck
-    while hand.len() < target_size && !player_deck.is_empty() {
-        let idx = rng.gen_range(0..player_deck.len());
-        let raw = player_deck.remove(idx);
+    // Fill remaining slots from deck
+    while hand.len() < target_size && !deck.is_empty() {
+        let idx = rng.gen_range(0..deck.len());
+        let raw = deck.remove(idx);
         pulled_raw.push(raw.clone());
         hand.push(raw);
         apply_card_upgrades(hand, fight);

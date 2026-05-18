@@ -3,7 +3,7 @@ use rand::thread_rng;
 use sonettobuf::{CardInfo, FightRound};
 
 use crate::state::battle::{
-    card::{purge_dead_hero_cards, refill_hand},
+    card::{purge_dead_entity_cards, refill_hand},
     context::RoundContext,
     manager::{ex_point_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
     fight_step::split_step_by_effect_limit,
@@ -49,8 +49,8 @@ pub(crate) fn build_round_output(
 
     // Purge cards belonging to dead heroes
     let alive_uids = alive_hero_uids(ctx.fight);
-    purge_dead_hero_cards(player_hand, &alive_uids);
-    purge_dead_hero_cards(player_ex_deck, &alive_uids);
+    purge_dead_entity_cards(player_hand, &alive_uids);
+    purge_dead_entity_cards(player_ex_deck, &alive_uids);
 
     let before_cards1 = player_hand.clone();
     let team_a_cards1 = refill_hand(

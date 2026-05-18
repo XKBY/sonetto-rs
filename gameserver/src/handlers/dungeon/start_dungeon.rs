@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
     ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_player_deck,
-    create_battle, default_max_ap, generate_initial_player_hand,
+    create_battle, default_max_ap, generate_initial_hand,
 };
 use config::configs;
 use database::db::game::dungeons::{get_user_dungeon, update_dungeon_progress};
@@ -58,7 +58,7 @@ pub async fn on_start_dungeon(
         max_ap,
     };
 
-    let mut card_push = generate_initial_player_hand(&pool, player_id, &fight_group, max_ap).await?;
+    let mut card_push = generate_initial_hand(&pool, player_id, &fight_group, max_ap).await?;
 
     // Initial round should use raw dealt cards.
     let card_deck = card_push.deal_card_group.clone();
