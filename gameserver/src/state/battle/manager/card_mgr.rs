@@ -201,6 +201,9 @@ impl FightCardMgr {
             .map(|ex| ex == resolved_skill_id)
             .unwrap_or(false);
         ctx.mark_round_active_card_cast(exec_caster_uid);
+        if used_ex_skill {
+            ctx.managers.ex_point_mgr.set_ex_point(exec_caster_uid, 0);
+        }
         let card_cast_record_idx = ctx.mechanics.emission_timeline.record(
             crate::state::battle::emission_timeline::EmissionPhase::CardCast,
             exec_caster_uid,

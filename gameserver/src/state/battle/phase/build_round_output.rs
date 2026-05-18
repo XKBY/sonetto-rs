@@ -19,6 +19,7 @@ pub(crate) fn build_round_output(
     ai_deck: Vec<CardInfo>,
     player_hand: &mut Vec<CardInfo>,
     player_deck: &mut Vec<CardInfo>,
+    player_ex_deck: &mut Vec<CardInfo>,
 ) -> Result<FightRound> {
     let ctx = &mut *round_ctx.fight_ctx;
     if open.state.pending_cloth_power_delta != 0
@@ -49,12 +50,14 @@ pub(crate) fn build_round_output(
     // Purge cards belonging to dead heroes
     let alive_uids = alive_hero_uids(ctx.fight);
     purge_dead_hero_cards(player_hand, &alive_uids);
+    purge_dead_hero_cards(player_ex_deck, &alive_uids);
 
     let before_cards1 = player_hand.clone();
     let team_a_cards1 = refill_hand(
         &mut thread_rng(),
         player_hand,
         player_deck,
+        player_ex_deck,
         &alive_uids,
         0,
         ctx.fight,

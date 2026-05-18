@@ -2,7 +2,7 @@ mod deck;
 mod draw;
 mod op;
 mod opening;
-mod pool;
+pub(crate) mod pool;
 mod upgrade;
 
 pub use deck::{default_max_ap, generate_ai_deck, generate_ai_initial_deck, generate_initial_player_hand};

@@ -93,7 +93,7 @@ pub fn build_ai_pool(monster_ids: &[i32]) -> Vec<CardInfo> {
     cards
 }
 
-fn make_card(hero_id: i32, skill_id: i32, hero_uid: i64, is_trial: bool) -> CardInfo {
+pub(crate) fn make_card(hero_id: i32, skill_id: i32, hero_uid: i64, is_trial: bool) -> CardInfo {
     CardInfo {
         uid: Some(hero_uid),
         hero_id: Some(hero_id),

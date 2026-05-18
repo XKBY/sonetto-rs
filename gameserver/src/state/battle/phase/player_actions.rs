@@ -24,7 +24,7 @@ use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightStep, fight_step};
 
 use crate::state::battle::{
-    card::refill_hand,
+    card::{pool::make_card, refill_hand},
     context::FightContext,
     event_queue::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
@@ -68,6 +68,7 @@ pub(crate) async fn run(
     state: &mut RoundState,
     player_hand: &mut Vec<CardInfo>,
     player_deck: &mut Vec<CardInfo>,
+    player_ex_deck: &mut Vec<CardInfo>,
     operations: Vec<BeginRoundOper>,
     collected: &CollectedPassives,
     steps: &mut Vec<FightStep>,
@@ -94,6 +95,29 @@ pub(crate) async fn run(
         }
 
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        // Generate EX cards for heroes that have reached max EX points
+        if let Some(attacker) = ctx.fight.attacker.as_ref() {
+            let entities: Vec<_> = attacker.entitys.iter().chain(attacker.sub_entitys.iter())
+                .filter_map(|e| {
+                    let uid = e.uid.unwrap_or(0);
+                    if uid > 0
+                        && ctx.managers.ex_point_mgr.get_ex_point(uid) >= ctx.managers.ex_point_mgr.get_ex_max(uid)
+                        && ctx.managers.ex_point_mgr.get_ex_max(uid) > 0
+                    {
+                        Some((uid, e.ex_skill, e.model_id))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            for (uid, ex_skill, hero_id) in entities {
+                if let (Some(ex_skill), Some(hero_id)) = (ex_skill, hero_id) {
+                    if ex_skill != 0 {
+                        player_ex_deck.push(make_card(hero_id, ex_skill, uid, false));
+                    }
+                }
+            }
+        }
         let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
         let runtime_deleted_buff_ids =
             mgr.deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
@@ -294,7 +318,7 @@ pub(crate) async fn run(
 
     state.before_cards2 = player_hand.clone();
     let alive_uids = alive_hero_uids(ctx.fight);
-    state.team_a_cards2 = refill_hand(rng, player_hand, player_deck, &alive_uids, 0, ctx.fight);
+    state.team_a_cards2 = refill_hand(rng, player_hand, player_deck, player_ex_deck, &alive_uids, 0, ctx.fight);
 
     Ok(())
 }

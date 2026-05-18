@@ -111,6 +111,7 @@ pub async fn on_start_dungeon(
             power: 15,
             player_hand: final_cards,
             player_deck,
+            player_ex_deck: vec![],
             fight_group: Some(fight_group.clone()),
             is_replay: Some(use_record),
             replay_episode_id: Some(episode_id),

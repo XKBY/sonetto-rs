@@ -34,6 +34,7 @@ pub async fn on_auto_round(
     let (
         player_hand,
         player_deck,
+        player_ex_deck,
         fight_group,
         chapter_id,
         episode_id,
@@ -58,6 +59,7 @@ pub async fn on_auto_round(
         (
             battle.player_hand.clone(),
             battle.player_deck.clone(),
+            battle.player_ex_deck.clone(),
             battle.fight_group.clone(),
             battle.chapter_id,
             battle.episode_id,
@@ -85,8 +87,9 @@ pub async fn on_auto_round(
 
     let mut player_hand = player_hand;
     let mut player_deck = player_deck;
+    let mut player_ex_deck = player_ex_deck;
     let mut round = simulator
-        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, ai_deck, None)
+        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, &mut player_ex_deck, ai_deck, None)
         .await?;
 
     round.is_finish = Some(true);

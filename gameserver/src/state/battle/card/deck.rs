@@ -151,6 +151,7 @@ pub(crate) fn refill_hand(
     rng: &mut impl Rng,
     hand: &mut Vec<CardInfo>,
     player_deck: &mut Vec<CardInfo>,
+    player_ex_deck: &mut Vec<CardInfo>,
     alive_uids: &HashSet<i64>,
     extra: usize,
     fight: &Fight,
@@ -159,12 +160,20 @@ pub(crate) fn refill_hand(
         a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
-    if player_deck.is_empty() {
-        tracing::warn!("refill_hand: player_deck is empty, cannot refill");
+    if player_deck.is_empty() && player_ex_deck.is_empty() {
+        tracing::warn!("refill_hand: both decks empty, cannot refill");
         return vec![];
     }
     tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size);
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
+    // Drain EX cards first (preferential)
+    while hand.len() < target_size && !player_ex_deck.is_empty() {
+        let card = player_ex_deck.remove(0);
+        pulled_raw.push(card.clone());
+        hand.push(card);
+        apply_card_upgrades(hand, fight);
+    }
+    // Fill remaining slots from player_deck
     while hand.len() < target_size && !player_deck.is_empty() {
         let idx = rng.gen_range(0..player_deck.len());
         let raw = player_deck.remove(idx);

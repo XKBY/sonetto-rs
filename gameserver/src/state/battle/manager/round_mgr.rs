@@ -537,6 +537,7 @@ impl FightRoundMgr {
         operations: Vec<BeginRoundOper>,
         player_hand: &mut Vec<CardInfo>,
         player_deck: &mut Vec<CardInfo>,
+        player_ex_deck: &mut Vec<CardInfo>,
         ai_deck: Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
@@ -619,6 +620,7 @@ impl FightRoundMgr {
             &mut open.state,
             player_hand,
             player_deck,
+            player_ex_deck,
             operations,
             &open.collected,
             &mut open.steps,
@@ -676,7 +678,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, player_hand, player_deck)
+        phase::build_round_output::build_round_output(self, round_ctx, open, ai_deck, player_hand, player_deck, player_ex_deck)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(
