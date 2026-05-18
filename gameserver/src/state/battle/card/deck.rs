@@ -69,7 +69,7 @@ pub async fn generate_initial_player_hand(
 }
 
 pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
-    let mut rng = StdRng::seed_from_u64(seed);
+    let mut rng: StdRng = StdRng::seed_from_u64(seed);
     let Some(defender) = &fight.defender else {
         return vec![];
     };

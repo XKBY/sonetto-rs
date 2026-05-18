@@ -1664,6 +1664,12 @@ impl FightStepBuilder {
         }
     }
 
+    pub fn ex_point_change(uid: i64, delta: i32) -> FightStep {
+        Self::effect()
+            .with(ActEffectBuilder::ex_point_change(uid, delta))
+            .build()
+    }
+
     pub fn wrap(self) -> ActEffect {
         wrap_step(self.build())
     }

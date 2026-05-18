@@ -19,6 +19,7 @@ use sonettobuf::{BeginRoundOper, CardInfo, FightStep};
 use crate::state::battle::{
     context::RoundContext,
     event_queue::reset_round_host_index,
+    fight_step::FightStepBuilder,
     manager::{
         buff_mgr::{
             DEFENDER_BUFF_UID_START, attacker_buff_uid_checkpoint, defender_buff_uid_checkpoint,
@@ -169,6 +170,7 @@ pub(crate) fn run(
 
     player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
     let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
+    let mut move_ex_uids: Vec<i64> = Vec::new();
 
     tracing::warn!("=== CARD SELECTION ===");
     for op in operations {
@@ -181,6 +183,11 @@ pub(crate) fn run(
             let to = (op.param2.unwrap_or(1) - 1) as usize;
             tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, player_hand.len());
             if from < player_hand.len() && to < player_hand.len() {
+                let uid = player_hand[from].uid.unwrap_or(0);
+                if uid > 0 {
+                    ctx.managers.ex_point_mgr.add_ex_point(uid, 1);
+                    move_ex_uids.push(uid);
+                }
                 let card = player_hand.remove(from);
                 player_hand.insert(to, card);
                 apply_card_upgrades(player_hand, ctx.fight);
@@ -239,7 +246,10 @@ pub(crate) fn run(
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
-    let steps = vec![build_refresh_step(selected_cards, player_hand.clone(), player_deck.len() as i32)];
+    let mut steps = vec![build_refresh_step(selected_cards, player_hand.clone(), player_deck.len() as i32)];
+    for uid in move_ex_uids {
+        steps.push(FightStepBuilder::ex_point_change(uid, 1));
+    }
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {
