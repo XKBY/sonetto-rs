@@ -82,7 +82,7 @@ pub fn build_enemy_deck(monster_ids: &[i32]) -> Vec<CardInfo> {
     generate_deck(&entries)
 }
 
-pub(crate) fn make_card(hero_id: i32, skill_id: i32, uid: i64, is_trial: bool) -> CardInfo {
+pub fn make_card(hero_id: i32, skill_id: i32, uid: i64, is_trial: bool) -> CardInfo {
     CardInfo {
         uid: Some(uid),
         hero_id: Some(hero_id),

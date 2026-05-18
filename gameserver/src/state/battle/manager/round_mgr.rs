@@ -9,7 +9,7 @@ use std::{
 
 use super::super::{
     ConditionType,
-    card::{CardOpType, purge_dead_entity_cards, refill_hand},
+    card::{CardOpType, make_card, purge_dead_entity_cards, refill_hand},
     context::{FightContext, RoundContext},
     event_queue::{
         AttachmentResolver, BattleEvent, EventContext, EventQueue, HostEventAccumulator,
@@ -442,7 +442,7 @@ impl FightRoundMgr {
         }
 
         let reactive_caster_uid = state
-            .ai_cards
+            .ai_use_cards
             .iter()
             .find(|card| {
                 card.skill_id == Some(BE_ATTACKED_REACTIVE_ACT_ID) && card.uid.unwrap_or(0) < 0
@@ -562,6 +562,7 @@ impl FightRoundMgr {
         // 1. round_open
         let mut open = phase::round_open::run(
             round_ctx,
+            rng,
             player_hand,
             player_deck,
             enemy_hand,
@@ -649,6 +650,23 @@ impl FightRoundMgr {
         let alive_enemy_uids: Vec<i64> = ctx.fight.defender.as_ref()
             .map(|d| d.entitys.iter().filter_map(|e| if e.current_hp.unwrap_or(0) > 0 { e.uid } else { None }).collect())
             .unwrap_or_default();
+        // Accumulate EX cards for enemies that have reached max EX points
+        if let Some(defender) = ctx.fight.defender.as_ref() {
+            for e in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
+                let uid = e.uid.unwrap_or(0);
+                if uid >= 0 { continue; }
+                let ex_skill = e.ex_skill.unwrap_or(0);
+                if ex_skill == 0 { continue; }
+                let ex_point = ctx.managers.ex_point_mgr.get_ex_point(uid);
+                let ex_max = ctx.managers.ex_point_mgr.get_ex_max(uid);
+                if ex_max > 0 && ex_point >= ex_max
+                    && !enemy_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                    && !enemy_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                {
+                    enemy_ex_deck.push(make_card(e.model_id.unwrap_or(0), ex_skill, uid, false));
+                }
+            }
+        }
         purge_dead_entity_cards(enemy_hand, &alive_enemy_uids.iter().copied().collect());
         purge_dead_entity_cards(enemy_ex_deck, &alive_enemy_uids.iter().copied().collect());
         let _ = refill_hand(rng, enemy_hand, enemy_deck, enemy_ex_deck, &alive_enemy_uids.iter().copied().collect(), 0, ctx.fight);

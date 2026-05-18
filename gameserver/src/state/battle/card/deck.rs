@@ -131,10 +131,8 @@ pub async fn generate_ai_deck(fight: &Fight, seed: u64) -> Vec<CardInfo> {
 pub fn generate_initial_enemy_hand(monster_ids: &[i32]) -> Vec<CardInfo> {
     let candidates = build_enemy_deck(monster_ids);
     let required_uids: Vec<i64> = monster_ids.iter().map(|&id| id as i64).collect();
-
     let opening_hand_size = card_limit(monster_ids.len(), false);
-
-    let mut rng: rand::prelude::ThreadRng = thread_rng();
+    let mut rng = thread_rng();
     draw_deck_guaranteed_by_uid_with_rng(&candidates, &required_uids, opening_hand_size, &mut rng)
 }
 

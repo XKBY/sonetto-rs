@@ -5,7 +5,7 @@ use sonettobuf::{CardInfo, Fight, FightStep};
 #[derive(Default, Debug, Clone)]
 pub struct RoundState {
     pub act_point: i32,
-    pub ai_cards: Vec<CardInfo>,
+    pub ai_use_cards: Vec<CardInfo>,
     pub ai_override_steps: Option<Vec<FightStep>>,
     pub used_cards: Vec<i32>,
     pub enemy_skill_actors: HashSet<i64>,

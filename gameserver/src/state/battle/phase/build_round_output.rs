@@ -82,7 +82,7 @@ pub(crate) fn build_round_output(
             is_finish: Some(open.state.is_finish),
             move_num: Some(open.state.move_num),
             ex_point_info,
-            ai_use_cards: vec![],
+            ai_use_cards: open.state.ai_use_cards,
             power: Some(power),
             skill_infos,
             before_cards1,

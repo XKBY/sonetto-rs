@@ -546,9 +546,9 @@ impl FightCardMgr {
         }
 
         let mut candidates: Vec<AiCast> = Vec::new();
-        for i in 0..state.ai_cards.len() {
+        for i in 0..state.ai_use_cards.len() {
             let (caster_uid, raw_skill_id, target_uid_opt) = {
-                let card = &state.ai_cards[i];
+                let card = &state.ai_use_cards[i];
                 (
                     card.uid.unwrap_or(0),
                     card.skill_id.unwrap_or(0),
@@ -663,7 +663,7 @@ impl FightCardMgr {
                 Some(t) if t != 0 => resolve_requested_target_uid(&preview_fight, t),
                 _ => {
                     let t = players[rng.gen_range(0..players.len())];
-                    state.ai_cards[i].target_uid = Some(t);
+                    state.ai_use_cards[i].target_uid = Some(t);
                     t
                 }
             };
