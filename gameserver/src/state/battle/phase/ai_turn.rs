@@ -1,8 +1,7 @@
 use anyhow::Result;
 use rand::{Rng, rngs::StdRng};
-use std::collections::HashMap;
 
-use sonettobuf::{ActEffect, Fight, FightEntityInfo, FightStep, fight_step};
+use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 
 use crate::state::battle::{
     buff_actions::ex_point_overflow_bank::buff_get_ex_point_overflow,
@@ -13,7 +12,6 @@ use crate::state::battle::{
     round::RoundState,
     skill::{
         SkillExecutor,
-        cache::SKILL_CACHE,
         euphoria::resolve_with_euphoria,
     },
     types::effects::EffectType,
@@ -184,142 +182,17 @@ async fn execute_ai_turn_live(
     preview_managers: &mut Managers,
     preview_mechanics: &mut Mechanics,
 ) -> Result<Vec<FightStep>> {
-    #[derive(Clone)]
-    struct AiCast {
-        idx: usize,
-        caster_uid: i64,
-        skill_id: i32,
-        target_uid_opt: Option<i64>,
-    }
-
     let mut steps = Vec::new();
-    let players: Vec<i64> = ctx
-        .fight
-        .attacker
-        .as_ref()
-        .map(|a| {
-            a.entitys
-                .iter()
-                .filter(|e| e.current_hp.unwrap_or(0) > 0)
-                .filter_map(|e| e.uid)
-                .collect()
-        })
-        .unwrap_or_default();
-    if players.is_empty() {
-        return Ok(steps);
-    }
 
-    let mut candidates: Vec<AiCast> = Vec::new();
     for i in 0..state.ai_use_cards.len() {
-        let (caster_uid, raw_skill_id, target_uid_opt) = {
+        let (caster_uid, skill_id) = {
             let card = &state.ai_use_cards[i];
-            (
-                card.uid.unwrap_or(0),
-                card.skill_id.unwrap_or(0),
-                card.target_uid,
-            )
+            (card.uid.unwrap_or(0), card.skill_id.unwrap_or(0))
         };
-        if caster_uid >= 0 || raw_skill_id == 0 {
-            continue;
-        }
-
-        let caster_alive = ctx
-            .fight
-            .defender
-            .as_ref()
-            .map(|d| {
-                d.entitys
-                    .iter()
-                    .find(|e| e.uid == Some(caster_uid))
-                    .map(|e| e.current_hp.unwrap_or(0) > 0)
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false);
-
-        if !caster_alive {
-            continue;
-        }
-        let resolved_skill_id = {
-            let has_behaviors = SKILL_CACHE
-                .get(&raw_skill_id)
-                .map(|b| !b.is_empty())
-                .unwrap_or(false);
-            if has_behaviors {
-                raw_skill_id
-            } else {
-                let fallback = raw_skill_id - 1;
-                let fallback_has_behaviors = SKILL_CACHE
-                    .get(&fallback)
-                    .map(|b| !b.is_empty())
-                    .unwrap_or(false);
-                if fallback_has_behaviors {
-                    fallback
-                } else {
-                    raw_skill_id
-                }
-            }
-        };
-
-        let canonical_caster_uid =
-            canonical_ai_caster_uid(ctx.fight, caster_uid, resolved_skill_id)
-                .unwrap_or(caster_uid);
-
-        candidates.push(AiCast {
-            idx: i,
-            caster_uid: canonical_caster_uid,
-            skill_id: resolved_skill_id,
-            target_uid_opt,
-        });
-    }
-
-    let mut caster_base_choice: HashMap<(i64, i32), AiCast> = HashMap::new();
-    for cast in candidates {
-        let base = cast.skill_id / 10;
-        caster_base_choice
-            .entry((cast.caster_uid, base))
-            .and_modify(|current| {
-                if cast.skill_id < current.skill_id
-                    || (cast.skill_id == current.skill_id && cast.idx < current.idx)
-                {
-                    *current = cast.clone();
-                }
-            })
-            .or_insert(cast);
-    }
-
-    let mut chosen_by_skill: HashMap<i32, AiCast> = HashMap::new();
-    for cast in caster_base_choice.into_values() {
-        chosen_by_skill
-            .entry(cast.skill_id)
-            .and_modify(|current| {
-                if cast.caster_uid > current.caster_uid
-                    || (cast.caster_uid == current.caster_uid && cast.idx < current.idx)
-                {
-                    *current = cast.clone();
-                }
-            })
-            .or_insert(cast);
-    }
-
-    let mut casts: Vec<AiCast> = chosen_by_skill.into_values().collect();
-    casts.sort_by(|a, b| b.caster_uid.cmp(&a.caster_uid).then(a.idx.cmp(&b.idx)));
-
-    for cast in casts {
-        let i = cast.idx;
-        let caster_uid = cast.caster_uid;
-        let skill_id = cast.skill_id;
-        let target_uid_opt = cast.target_uid_opt;
 
         preview_managers.buff_mgr.clear_step_deleted_buff_ids();
 
-        let target_uid = match target_uid_opt {
-            Some(t) if t != 0 => resolve_target_fallback(preview_fight, t),
-            _ => {
-                let t = players[rng.gen_range(0..players.len())];
-                state.ai_use_cards[i].target_uid = Some(t);
-                t
-            }
-        };
+        let target_uid = resolve_target_fallback(preview_fight, state.ai_use_cards[i].target_uid.unwrap_or(0));
 
         let resolved_skill_id = resolve_with_euphoria(preview_fight, caster_uid, skill_id);
         let per_behavior = executor.execute_skill(
@@ -333,17 +206,11 @@ async fn execute_ai_turn_live(
             &ctx.combat_phase(),
         )?;
         let pending_summons = executor.take_pending_summons();
-        SkillExecutor::apply_summon_batch(
-            preview_fight,
-            preview_managers,
-            &pending_summons,
-        )?;
+        SkillExecutor::apply_summon_batch(preview_fight, preview_managers, &pending_summons)?;
         SkillExecutor::apply_summon_batch(ctx.fight, ctx.managers, &pending_summons)?;
         let mut op_effects =
             normalize_skill_effects_for_operation(per_behavior, caster_uid, resolved_skill_id);
-        clamp_ai_add_ex_with_max_effects(
-            preview_fight, preview_managers, caster_uid, &mut op_effects,
-        );
+        clamp_ai_add_ex_with_max_effects(preview_fight, preview_managers, caster_uid, &mut op_effects);
         if op_effects.is_empty() {
             continue;
         }
@@ -419,31 +286,6 @@ fn normalize_skill_effects_for_operation(
 
     out.extend(iter);
     out
-}
-
-fn canonical_ai_caster_uid(
-    fight: &Fight,
-    caster_uid: i64,
-    skill_id: i32,
-) -> Option<i64> {
-    let defender = fight.defender.as_ref()?;
-    let mut owners: Vec<&FightEntityInfo> = defender
-        .entitys
-        .iter()
-        .filter(|e| e.current_hp.unwrap_or(0) > 0)
-        .filter(|e| {
-            e.skill_group1.contains(&skill_id)
-                || e.skill_group2.contains(&skill_id)
-                || e.ex_skill == Some(skill_id)
-        })
-        .collect();
-
-    if owners.len() <= 1 {
-        return Some(caster_uid);
-    }
-
-    owners.sort_by_key(|e| e.position.unwrap_or(i32::MAX));
-    owners.first().and_then(|e| e.uid).or(Some(caster_uid))
 }
 
 fn advance_ai_preview_after_cast(
