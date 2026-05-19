@@ -1,9 +1,7 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, DeckManager, apply_opening_deck,
-    build_enemy_deck, build_player_deck, create_battle, default_max_ap,
-    generate_initial_enemy_hand, generate_initial_hand,
+    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
 };
 use config::configs;
 use prost::Message;
@@ -79,54 +77,27 @@ pub async fn on_start_tower_battle(
         max_ap,
     };
 
-    let mut card_push = generate_initial_hand(&pool, player_id, &fight_group, max_ap).await?;
+    let (initial_round, mut fight_data_mgr) =
+        create_battle(&pool, battle_ctx, &fight_group).await?;
 
-    // Initial round should use raw dealt cards.
-    let card_deck = card_push.deal_card_group.clone();
+    let mut card_push = fight_data_mgr.managers.deck_mgr
+        .init_player(&pool, player_id, &fight_group, max_ap).await?;
 
-    let (initial_round, mut fight_data_mgr, _) =
-        create_battle(&pool, battle_ctx, &fight_group, card_deck.clone()).await?;
-    let all_hero_uids: Vec<i64> = fight_group
-        .hero_list
-        .iter()
-        .chain(fight_group.sub_hero_list.iter())
-        .copied()
-        .filter(|&u| u != 0)
-        .collect();
-    let player_deck = build_player_deck(&pool, player_id, &all_hero_uids)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!("build_player_deck failed at battle start: {e}");
-            vec![]
-        });
-    // Authoritative post-start deck = pushed opening hand + opening temp/special additions.
-    let mut push_round = initial_round.clone();
-    push_round.team_a_cards1 = card_push.card_group.clone();
-    let final_cards = apply_opening_deck(&mut push_round);
-    card_push.card_group = final_cards.clone();
-
-    let fight_snapshot = fight_data_mgr
-        .pre_fight
-        .clone()
-        .unwrap_or_else(|| fight_data_mgr.fight().clone()); // pre-sync fight
-    // intial fight object with no passive changes
-
-    let fight_for_battle = fight_data_mgr.fight().clone(); // post-sync fight
-    // final fight object with passive changes applied
-
+    let fight_for_battle = fight_data_mgr.fight().clone();
     let monster_ids: Vec<i32> = fight_for_battle
-        .defender
-        .as_ref()
-        .map(|d| {
-            d.entitys
-                .iter()
-                .chain(d.sub_entitys.iter())
-                .filter_map(|e| e.model_id)
-                .collect()
-        })
+        .defender.as_ref()
+        .map(|d| d.entitys.iter().chain(d.sub_entitys.iter())
+            .filter_map(|e| e.model_id).collect())
         .unwrap_or_default();
-    let enemy_deck = build_enemy_deck(&monster_ids);
-    let enemy_hand = generate_initial_enemy_hand(&monster_ids);
+
+    let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
+    fight_data_mgr.managers.deck_mgr.init_enemy(&fight_for_battle, seed, &monster_ids);
+
+    // SP cards already in player_hand from build_initial_round passives
+    card_push.card_group = fight_data_mgr.managers.deck_mgr.player_hand.clone();
+
+    let fight_snapshot = fight_data_mgr.pre_fight.clone()
+        .unwrap_or_else(|| fight_data_mgr.fight().clone());
 
     {
         let mut conn = ctx.lock().await;
@@ -142,14 +113,7 @@ pub async fn on_start_tower_battle(
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            deck_mgr: DeckManager {
-                player_hand: final_cards,
-                player_deck,
-                player_ex_deck: vec![],
-                enemy_hand,
-                enemy_deck,
-                enemy_ex_deck: vec![],
-            },
+            deck_mgr: std::mem::take(&mut fight_data_mgr.managers.deck_mgr),
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,
