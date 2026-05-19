@@ -95,6 +95,13 @@ pub(crate) async fn run(
         steps,
     )?;
     steps.extend(build_pre_enemy_transition_steps(deck_mgr.player_deck.len() as i32));
+    if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
+        steps.push(
+            FightStepBuilder::effect()
+                .with(ActEffectBuilder::change_hero(dead_uid, sub_entity, position))
+                .build(),
+        );
+    }
     let defender_bootstrap_start = steps.len();
     mgr.apply_passive_phase(
         ctx,
@@ -296,6 +303,13 @@ pub(crate) async fn run(
             .with(ActEffectBuilder::small_round_end(None, 1))
             .build(),
     );
+    if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
+        steps.push(
+            FightStepBuilder::effect()
+                .with(ActEffectBuilder::change_hero(dead_uid, sub_entity, position))
+                .build(),
+        );
+    }
     if let Some(caster_uid) = mgr.first_alive_defender_uid(ctx.fight)
         && state.enemy_skill_actors.contains(&caster_uid)
         && let Some(ex_step) = ex_gain::standard_action_ex_gain_for_uid(mgr, ctx, caster_uid)

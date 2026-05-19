@@ -1246,6 +1246,16 @@ impl ActEffectBuilder {
         builder.build()
     }
 
+    pub fn change_hero(dead_uid: i64, sub_entity: sonettobuf::FightEntityInfo, position: i32) -> ActEffect {
+        ActEffect {
+            effect_type: Some(BattleEffectType::ChangeHero as i32),
+            target_id: Some(dead_uid),
+            effect_num: Some(position),
+            entity: Some(sub_entity),
+            ..Default::default()
+        }
+    }
+
     pub fn small_round_end(target: Option<i64>, effect_num: i32) -> ActEffect {
         tracing::trace!(
             target: "act_effects",

@@ -77,6 +77,29 @@ impl EntityMgr {
             .collect()
     }
 
+    /// If any active hero is dead and a sub is available, substitutes the first such hero.
+    /// Returns `(dead_uid, new_entity, position)` where position is 1-based.
+    pub fn sub_hero(&mut self, fight: &mut Fight) -> Option<(i64, FightEntityInfo, i32)> {
+        let attacker = fight.attacker.as_mut()?;
+        if attacker.sub_entitys.is_empty() {
+            return None;
+        }
+        let (slot, dead_uid, position) = attacker.entitys.iter().enumerate().find_map(|(i, e)| {
+            let uid = e.uid?;
+            let pos = e.position.unwrap_or(0);
+            if e.current_hp.unwrap_or(0) <= 0 && pos > 0 {
+                Some((i, uid, pos))
+            } else {
+                None
+            }
+        })?;
+        let mut sub = attacker.sub_entitys.remove(0);
+        sub.position = Some(position);
+        attacker.entitys[slot] = sub.clone();
+        self.rebuild_cache(fight);
+        Some((dead_uid, sub, position))
+    }
+
     #[allow(dead_code)]
     pub fn get_team_entities<'a>(&self, fight: &'a Fight, team_type: i32) -> Vec<&'a FightEntityInfo> {
         let mut entities = Vec::new();
