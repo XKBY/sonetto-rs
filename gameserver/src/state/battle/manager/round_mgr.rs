@@ -10,7 +10,7 @@ use std::{
 use super::super::{
     ConditionType,
     card::CardOpType,
-    deck::{DeckManager, make_card},
+    deck::make_card,
     context::{FightContext, RoundContext},
     event_queue::{
         AttachmentResolver, BattleEvent, EventContext, EventQueue, HostEventAccumulator,
@@ -535,13 +535,13 @@ impl FightRoundMgr {
         rng: &mut StdRng,
         round_ctx: &mut RoundContext<'_, '_>,
         executor: &mut SkillExecutor,
-        deck_mgr: &mut DeckManager,
         operations: Vec<BeginRoundOper>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
         replay_wave_snapshots: Option<&[Fight]>,
     ) -> Result<FightRound> {
+        let mut deck_mgr = std::mem::take(&mut round_ctx.fight_ctx.managers.deck_mgr);
         let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
         let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
         let replay_wave_snapshot_target_wave = replay_wave_snapshots
@@ -559,7 +559,7 @@ impl FightRoundMgr {
         let mut open = phase::round_open::run(
             round_ctx,
             rng,
-            deck_mgr,
+            &mut deck_mgr,
             ai_override_steps.as_deref(),
             &operations,
             replay_selected_cards.as_deref(),
@@ -615,7 +615,7 @@ impl FightRoundMgr {
             ctx,
             executor,
             &mut open.state,
-            deck_mgr,
+            &mut deck_mgr,
             operations,
             &open.collected,
             &mut open.steps,
@@ -632,7 +632,7 @@ impl FightRoundMgr {
             open.selected_for_round_end.clone(),
             &open.collected,
             open.defender_uid_checkpoint,
-            deck_mgr,
+            &mut deck_mgr,
             &mut open.steps,
         )
         .await?;
@@ -697,7 +697,9 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, deck_mgr)
+        let result = phase::build_round_output::build_round_output(self, round_ctx, open, &mut deck_mgr);
+        round_ctx.fight_ctx.managers.deck_mgr = deck_mgr;
+        result
     }
 
     pub(crate) fn apply_step_and_maybe_sync(

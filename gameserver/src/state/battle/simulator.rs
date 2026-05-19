@@ -1,5 +1,4 @@
 use crate::state::battle::context::RoundContext;
-use crate::state::battle::deck::DeckManager;
 use crate::state::battle::manager::{
     fight_data_mgr::FightDataMgr, round_mgr::FightRoundMgr,
 };
@@ -54,7 +53,6 @@ impl BattleSimulator {
     ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
-        let mut deck_mgr = std::mem::take(&mut self.data.managers.deck_mgr);
         let result = {
             let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
             let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
@@ -64,7 +62,6 @@ impl BattleSimulator {
                     &mut self.rng,
                     &mut round_ctx,
                     &mut self.skill_executor,
-                    &mut deck_mgr,
                     operations,
                     ai_override_steps,
                     replay_selected_cards,
@@ -73,7 +70,6 @@ impl BattleSimulator {
                 )
                 .await
         };
-        self.data.managers.deck_mgr = deck_mgr;
         result
     }
 
