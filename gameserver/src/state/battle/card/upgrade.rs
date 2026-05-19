@@ -23,10 +23,6 @@ fn next_tier(card: &CardInfo, fight: &Fight) -> Option<i32> {
 }
 
 pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) {
-    tracing::warn!(
-        "apply_card_upgrades BEFORE: {:?}",
-        player_deck.iter().map(|c| c.skill_id).collect::<Vec<_>>()
-    );
     let mut i = 0;
     while i + 1 < player_deck.len() {
         if player_deck[i].skill_id == player_deck[i + 1].skill_id {
@@ -38,8 +34,4 @@ pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) {
         }
         i += 1;
     }
-    tracing::warn!(
-        "apply_card_upgrades AFTER: {:?}",
-        player_deck.iter().map(|c| c.skill_id).collect::<Vec<_>>()
-    );
 }

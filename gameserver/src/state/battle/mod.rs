@@ -41,7 +41,7 @@ use sonettobuf::FightRound;
 use sqlx::SqlitePool;
 
 pub use auto::generate_auto_opers;
-pub use deck::{build_enemy_deck, build_player_deck, default_max_ap, generate_deck, generate_initial_enemy_hand, generate_initial_hand};
+pub use deck::default_max_ap;
 pub use types::{behavior::BehaviorType, condition::ConditionType};
 
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;

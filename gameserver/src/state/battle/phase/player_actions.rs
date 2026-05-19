@@ -21,7 +21,7 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightStep, fight_step};
+use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
 
 use crate::state::battle::{
     deck::{DeckManager, make_card},

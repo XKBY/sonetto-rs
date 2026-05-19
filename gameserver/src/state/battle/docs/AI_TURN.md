@@ -10,13 +10,13 @@ How enemy skill casts are computed each round — from `RoundState.ai_use_cards`
 
 ```
 state.ai_override_steps.is_some()
-  → execute_ai_turn_replay   (replay mode: follow recorded steps)
-  → execute_ai_turn_live     (live mode: derive casts from ai_use_cards)
+  → execute_ai_operations_replay   (replay mode: follow recorded steps)
+  → execute_ai_operations_live     (live mode: derive casts from ai_use_cards)
 ```
 
 ---
 
-## Live Mode — `execute_ai_turn_live`
+## Live Mode — `execute_ai_operations_live`
 
 Iterates `state.ai_use_cards` in order. For each card:
 
@@ -31,7 +31,7 @@ Iterates `state.ai_use_cards` in order. For each card:
 
 ---
 
-## Replay Mode — `execute_ai_turn_replay`
+## Replay Mode — `execute_ai_operations_replay`
 
 Iterates `override_steps` (recorded from a previous run). For each step where `from_id < 0` and `act_id != 0`:
 

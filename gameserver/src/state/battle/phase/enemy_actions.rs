@@ -25,7 +25,7 @@ use crate::state::battle::{
     manager::{round_mgr::FightRoundMgr, wave_mgr::WaveMgr},
     mechanics::magic_circle,
     passives::collector::CollectedPassives,
-    phase::ai_turn,
+    operation::ai_executor,
     round::RoundState,
     skill::SkillExecutor,
     step_walker,
@@ -46,7 +46,7 @@ pub(crate) async fn run(
     sync_blood_value_baseline(battle_id, 1, ctx.mechanics.bloodtithe.get_value(1));
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
     state.enemy_skill_actors.clear();
-    let ai_steps = ai_turn::execute_ai_turn(executor, rng, ctx, state).await?;
+    let ai_steps = ai_executor::execute_ai_operations(executor, rng, ctx, state).await?;
     let mut previous_negative_skill_host: Option<(i64, i32)> = None;
     for step in ai_steps {
         let current_negative_skill_host =

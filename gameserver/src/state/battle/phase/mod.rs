@@ -8,7 +8,6 @@
 //! to call back into FightRoundMgr's helper methods (which are also
 //! state-free).
 
-pub(crate) mod ai_turn;
 pub(crate) mod enemy_actions;
 pub(crate) mod build_round_output;
 pub(crate) mod non_terminal_round;

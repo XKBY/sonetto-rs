@@ -18,7 +18,7 @@ use crate::state::battle::{
     utils::{find_entity, find_entity_mut, gains_standard_action_ex},
 };
 
-pub(crate) async fn execute_ai_turn(
+pub(crate) async fn execute_ai_operations(
     executor: &mut SkillExecutor,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
@@ -29,19 +29,19 @@ pub(crate) async fn execute_ai_turn(
     let mut preview_mechanics = ctx.mechanics.clone();
 
     if let Some(override_steps) = state.ai_override_steps.as_ref() {
-        return execute_ai_turn_replay(
+        return execute_ai_operations_replay(
             executor, rng, ctx, state, override_steps.clone(),
             &mut preview_fight, &mut preview_managers, &mut preview_mechanics,
         ).await;
     }
 
-    execute_ai_turn_live(
+    execute_ai_operations_live(
         executor, rng, ctx, state,
         &mut preview_fight, &mut preview_managers, &mut preview_mechanics,
     ).await
 }
 
-async fn execute_ai_turn_replay(
+async fn execute_ai_operations_replay(
     executor: &mut SkillExecutor,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
@@ -173,7 +173,7 @@ async fn execute_ai_turn_replay(
     Ok(steps)
 }
 
-async fn execute_ai_turn_live(
+async fn execute_ai_operations_live(
     executor: &mut SkillExecutor,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,

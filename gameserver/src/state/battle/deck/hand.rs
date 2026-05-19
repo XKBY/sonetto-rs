@@ -148,10 +148,8 @@ pub(crate) fn refill_hand(
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
     if deck.is_empty() && ex_deck.is_empty() {
-        tracing::warn!("refill_hand: both decks empty, cannot refill");
         return vec![];
     }
-    tracing::info!(target: "refill_hand", before = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>(), target_size, ex_deck_len = ex_deck.len());
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
     while hand.len() < target_size && !ex_deck.is_empty() {
         let card = ex_deck.remove(0);
@@ -165,9 +163,7 @@ pub(crate) fn refill_hand(
         pulled_raw.push(raw.clone());
         hand.push(raw);
         apply_card_upgrades(hand, fight);
-    }
-    tracing::info!(target: "refill_hand", after = ?hand.iter().map(|c| c.skill_id.unwrap_or(0)).collect::<Vec<_>>());
-    pulled_raw
+    }pulled_raw
 }
 
 pub fn default_max_ap(episode_id: i32, hero_count: usize) -> i32 {
