@@ -1,11 +1,9 @@
 use rand::Rng;
 use sonettobuf::{CardInfo, CardInfoPush, Fight};
 use crate::state::battle::manager::entity_mgr::EntityMgr;
-use crate::state::battle::utils::alive_hero_uids;
 use crate::state::battle::deck::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
 use crate::state::battle::deck::hand::{generate_initial_hand, refill_hand};
 use crate::state::battle::deck::pool::build_deck;
-use crate::state::battle::deck::utils::alive_enemy_uids;
 
 #[derive(Default, Debug, Clone)]
 pub struct DeckManager {
@@ -49,24 +47,24 @@ impl DeckManager {
         self.enemy_ex_deck = vec![];
     }
 
-    pub fn purge_player_dead_cards(&mut self, fight: &Fight) {
-        let alive_uids = alive_hero_uids(fight);
+    pub fn purge_player_dead_cards(&mut self, fight: &Fight, entity_mgr: &EntityMgr) {
+        let alive_uids = entity_mgr.alive_hero_uids();
         let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.iter().filter(|e| alive_uids.contains(&e.uid.unwrap_or(0))).cloned().collect()).unwrap_or_default();
         purge_dead_entity_cards(&mut self.player_hand, &alive_uids);
         purge_dead_entity_cards(&mut self.player_ex_deck, &alive_uids);
         purge_and_maybe_rebuild_deck(&mut self.player_deck, &alive_uids, || build_deck(&entities));
     }
 
-    pub fn purge_enemy_dead_cards(&mut self, fight: &Fight) {
-        let alive_uids = alive_enemy_uids(fight);
+    pub fn purge_enemy_dead_cards(&mut self, fight: &Fight, entity_mgr: &EntityMgr) {
+        let alive_uids = entity_mgr.alive_enemy_uids();
         let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.iter().filter(|e| alive_uids.contains(&e.uid.unwrap_or(0))).cloned().collect()).unwrap_or_default();
         purge_dead_entity_cards(&mut self.enemy_hand, &alive_uids);
         purge_dead_entity_cards(&mut self.enemy_ex_deck, &alive_uids);
         purge_and_maybe_rebuild_deck(&mut self.enemy_deck, &alive_uids, || build_deck(&entities));
     }
 
-    pub fn refill_player_hand(&mut self, rng: &mut impl Rng, extra: usize, fight: &Fight) -> Vec<CardInfo> {
-        let alive_uids = alive_hero_uids(fight);
+    pub fn refill_player_hand(&mut self, rng: &mut impl Rng, extra: usize, fight: &Fight, entity_mgr: &EntityMgr) -> Vec<CardInfo> {
+        let alive_uids = entity_mgr.alive_hero_uids();
         let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.clone()).unwrap_or_default();
         tracing::info!("player refill: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
         let result = refill_hand(rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, &alive_uids, extra, fight, || build_deck(&entities));
@@ -78,8 +76,8 @@ impl DeckManager {
         crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, ex_point_mgr);
     }
 
-    pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, fight: &Fight) -> Vec<CardInfo> {
-        let alive_uids = alive_enemy_uids(fight);
+    pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, fight: &Fight, entity_mgr: &EntityMgr) -> Vec<CardInfo> {
+        let alive_uids = entity_mgr.alive_enemy_uids();
         let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.clone()).unwrap_or_default();
         tracing::info!("enemy refill: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
         let result = refill_hand(rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));

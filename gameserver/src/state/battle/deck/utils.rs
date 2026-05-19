@@ -1,6 +1,3 @@
-use std::collections::HashSet;
-use sonettobuf::Fight;
-
 pub(crate) fn card_limit(alive_count: usize, has_support: bool) -> usize {
     match alive_count {
         1 => 4,
@@ -39,12 +36,4 @@ pub fn default_max_ap(episode_id: i32, hero_count: usize) -> i32 {
         _ => 4,
     };
     base_ap.min(hero_ap)
-}
-
-pub(crate) fn alive_enemy_uids(fight: &Fight) -> HashSet<i64> {
-    fight.defender.as_ref()
-        .map(|d| d.entitys.iter()
-            .filter_map(|e| if e.current_hp.unwrap_or(0) > 0 { e.uid } else { None })
-            .collect())
-        .unwrap_or_default()
 }

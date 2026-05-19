@@ -40,7 +40,6 @@ use crate::state::battle::{
     step_walker,
     steps::{ex_gain, trigger_embed},
     trigger::passes::sync_blood_value_baseline,
-    utils::alive_hero_uids,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -318,7 +317,7 @@ pub(crate) async fn run(
     }
 
     state.before_cards2 = deck_mgr.player_hand.clone();
-    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, 0, ctx.fight);
+    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
 
     Ok(())
 }

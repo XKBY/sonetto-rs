@@ -1,5 +1,5 @@
 use sonettobuf::{Fight, FightEntityInfo, FightExPointInfo};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::super::types::ex_point::ExPointType;
 use super::traits::Manager;
@@ -38,11 +38,15 @@ impl EntityMgr {
                     self.entity_cache.insert(uid, EntityLocation { is_attacker: true, index: idx });
                 }
             }
+            /* 
+            When a hero die, sub_entity will move to entity list
+            So we may only cache the main entity list
             for (idx, entity) in attacker.sub_entitys.iter().enumerate() {
                 if let Some(uid) = entity.uid {
                     self.entity_cache.insert(uid, EntityLocation { is_attacker: true, index: idx });
                 }
             }
+            */
         }
         if let Some(defender) = &fight.defender {
             for (idx, entity) in defender.entitys.iter().enumerate() {
@@ -55,6 +59,22 @@ impl EntityMgr {
 
     pub fn get_location(&self, entity_id: i64) -> Option<EntityLocation> {
         self.entity_cache.get(&entity_id).copied()
+    }
+
+    pub fn alive_hero_uids(&self) -> HashSet<i64> {
+        self.entity_cache
+            .iter()
+            .filter(|(uid, loc)| loc.is_attacker && self.current_hp.get(uid).copied().unwrap_or(0) > 0)
+            .map(|(uid, _)| *uid)
+            .collect()
+    }
+
+    pub fn alive_enemy_uids(&self) -> HashSet<i64> {
+        self.entity_cache
+            .iter()
+            .filter(|(uid, loc)| !loc.is_attacker && self.current_hp.get(uid).copied().unwrap_or(0) > 0)
+            .map(|(uid, _)| *uid)
+            .collect()
     }
 
     #[allow(dead_code)]
