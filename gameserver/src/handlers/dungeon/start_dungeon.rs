@@ -93,7 +93,6 @@ pub async fn on_start_dungeon(
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            deck_mgr: std::mem::take(&mut fight_data_mgr.managers.deck_mgr),
             fight_group: Some(fight_group.clone()),
             is_replay: Some(use_record),
             replay_episode_id: Some(episode_id),

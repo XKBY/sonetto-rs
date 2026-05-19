@@ -7,7 +7,6 @@ use tokio::sync::Mutex;
 
 use crate::error::AppError;
 
-use crate::state::battle::deck::DeckManager;
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;
 use crate::util::common::{encode_message, send_raw_server_message};
 use sonettobuf::CmdId;
@@ -45,7 +44,6 @@ pub struct ActiveBattle {
     pub current_round: i32,
     pub act_point: i32,
     pub power: i32,
-    pub deck_mgr: DeckManager,
     pub fight_group: Option<sonettobuf::FightGroup>,
     pub fight_id: Option<i64>,
     pub is_replay: Option<bool>,

@@ -40,7 +40,7 @@ pub async fn on_fight_end_fight(
     let result = if is_abort {
         0
     } else if let Some(mgr) = fight_data_mgr {
-        let simulator = BattleSimulator::new(mgr, Default::default());
+        let simulator = BattleSimulator::new(mgr);
         simulator.check_battle_result()
     } else {
         1

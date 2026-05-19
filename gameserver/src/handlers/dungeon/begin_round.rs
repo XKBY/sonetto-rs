@@ -27,7 +27,6 @@ pub async fn on_begin_round(
         battle_id,
         round_num,
         multiplication,
-        deck_mgr,
         fight_data_mgr,
     ) = {
         let mut conn = ctx.lock().await;
@@ -49,7 +48,6 @@ pub async fn on_begin_round(
             battle.fight_id.unwrap_or_default(),
             battle.current_round,
             battle.multiplication.unwrap_or(1),
-            std::mem::take(&mut battle.deck_mgr),
             mgr,
         )
     };
@@ -62,13 +60,13 @@ pub async fn on_begin_round(
         )
     };
 
-    let mut simulator = BattleSimulator::new(fight_data_mgr, deck_mgr);
+    let mut simulator = BattleSimulator::new(fight_data_mgr);
 
     let round_num_played = round_num;
     let round = simulator
         .process_round(request.opers.clone(), None)
         .await?;
-    let (fight_data_mgr, deck_mgr) = simulator.into_parts();
+    let fight_data_mgr = simulator.into_parts();
     let is_finish = round.is_finish.unwrap_or(false);
     let simulator_next_round = round
         .cur_round
@@ -84,7 +82,6 @@ pub async fn on_begin_round(
             .ok_or(AppError::InvalidRequest)?;
         battle.fight_data_mgr = Some(fight_data_mgr);
         battle.current_round = next_round_num;
-        battle.deck_mgr = deck_mgr;
     }
 
     tracing::info!(

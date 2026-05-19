@@ -15,12 +15,11 @@ pub struct BattleSimulator {
     data: FightDataMgr,
     round_mgr: FightRoundMgr,
     pub(crate) skill_executor: SkillExecutor,
-    pub deck_mgr: DeckManager,
     rounds_processed: i32,
 }
 
 impl BattleSimulator {
-    pub fn new(data: FightDataMgr, deck_mgr: DeckManager) -> Self {
+    pub fn new(data: FightDataMgr) -> Self {
         let fight = data.get_fight();
         let seed = fight.cur_round.unwrap_or(0) as u64;
         tracing::info!(
@@ -33,7 +32,6 @@ impl BattleSimulator {
             data,
             round_mgr: FightRoundMgr::new(),
             skill_executor: SkillExecutor::new(),
-            deck_mgr,
             rounds_processed: 0,
         }
     }
@@ -56,22 +54,27 @@ impl BattleSimulator {
     ) -> Result<FightRound> {
         self.rounds_processed += 1;
         set_simulated_round(self.rounds_processed);
-        let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
-        let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
-        let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
-        self.round_mgr
-            .process_round_with_replay(
-                &mut self.rng,
-                &mut round_ctx,
-                &mut self.skill_executor,
-                &mut self.deck_mgr,
-                operations,
-                ai_override_steps,
-                replay_selected_cards,
-                replay_silent_ops,
-                replay_wave_snapshots.as_deref(),
-            )
-            .await
+        let mut deck_mgr = std::mem::take(&mut self.data.managers.deck_mgr);
+        let result = {
+            let mut fight_ctx = self.data.ctx_with_rng(&mut self.rng);
+            let round_index = fight_ctx.fight.cur_round.unwrap_or(1);
+            let mut round_ctx = RoundContext::new(&mut fight_ctx, round_index);
+            self.round_mgr
+                .process_round_with_replay(
+                    &mut self.rng,
+                    &mut round_ctx,
+                    &mut self.skill_executor,
+                    &mut deck_mgr,
+                    operations,
+                    ai_override_steps,
+                    replay_selected_cards,
+                    replay_silent_ops,
+                    replay_wave_snapshots.as_deref(),
+                )
+                .await
+        };
+        self.data.managers.deck_mgr = deck_mgr;
+        result
     }
 
     pub fn check_battle_result(&self) -> i32 {
@@ -85,7 +88,7 @@ impl BattleSimulator {
         if !heroes_alive { 0 } else if !enemies_alive { 1 } else { 1 }
     }
 
-    pub fn into_parts(self) -> (FightDataMgr, DeckManager) {
-        (self.data, self.deck_mgr)
+    pub fn into_parts(self) -> FightDataMgr {
+        self.data
     }
 }
