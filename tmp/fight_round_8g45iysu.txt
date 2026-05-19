@@ -1,0 +1,7043 @@
+=== round 0 compact ===
+actPoint: 1
+
+=== round 0 detailed ===
+fight_step(FightStep[]): 2
+act_point: 1
+move_num: -1
+
+=== round 1 compact ===
+curRound: 2
+actPoint: 3
+power: 37
+beforeCards1: [243981178, 243870713, 243981173, 243981178, 243981173, 243981178, 243981173]
+beforeCards2: [243981178, 243870713, 243981173, 243981178]
+teamACards2: [243981173, 243981178, 243981173]
+[step 0]
+  UseCards  cards=[243981178, 243981173, 243870713]
+  CardsPush  cards=[243981178, 243870713, 243981173, 243981178]
+  CardDeckNum  num=48
+[step 1]
+  ExPointChange  target=243981178  num=1
+[step 2]
+  SKILL  from=243981178  to=-1
+    Damage  target=-1  num=1051
+[step 3]
+  ExPointChange  target=243981173  num=1
+[step 4]
+  SKILL  from=243981173  to=-1
+    Damage  target=-1  num=754
+    Damage  target=-3  num=787
+[step 5]
+  ExPointChange  target=243870713  num=1
+[step 6]
+  SKILL  from=243870713  to=-1
+    Damage  target=-1  num=1301
+    FightStep
+      SKILL  from=-99999  to=-1
+        ExPointChange  target=-2  num=1
+    FightStep
+      SKILL  from=243981173  to=243981173
+        BuffAdd  target=243870713  num=30581  buffId=30581
+        Attr  target=243870713
+        BuffAdd  target=243981173  num=30581  buffId=30581
+        Attr  target=243981173
+        BuffAdd  target=243981178  num=30581  buffId=30581
+        Attr  target=243981178
+    Dead  target=-1
+[step 7]
+  AllocateCardEnergy  num=1  cards=[243981178, 243870713, 243981173, 243981178]
+[step 8]
+  RoundEnd
+  SmallRoundEnd  num=2
+  DealCard2
+[step 9]
+  FightStep
+    RemoveEntityCards  target=-1
+[step 10]
+  CardDeckNum  num=45
+[step 11]
+  CardInvalid  num=1
+[step 12]
+  ExPointChange  target=-1  num=1
+[step 13]
+  ExPointChange  target=-2  num=1
+[step 14]
+  SKILL  from=-2  to=243870713
+    Damage  target=243870713  num=46
+    Damage  target=243981178  num=46
+[step 15]
+  ExPointChange  target=-3  num=1
+[step 16]
+  SKILL  from=-3  to=243981173
+    Crit  target=243981173  num=74
+[step 17]
+  SmallRoundEnd  num=1
+[step 18]
+  ClearUniversalCard
+[step 19]
+  ChangeRound
+[step 20]
+  BuffUpdate  target=243870713  buffId=30581
+  BuffUpdate  target=243981173  buffId=30581
+  BuffUpdate  target=243981178  buffId=30581
+[step 21]
+  CardDeckNum  num=45
+[nextRoundBeginStep]
+  [step 0]
+    DealCard1
+  [step 1]
+    CardsPush  cards=[243981178, 243870713, 243981173, 243981178, 243981173, 243981178, 243981173]
+    CardDeckNum  num=45
+
+=== round 1 detailed ===
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 159 (UseCards)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 48
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981178
+  to_id(i64): -1
+  act_id: 30330111
+  act_effect(ActEffect[]):
+    target_id(i64): -1
+    effect_type: 2 (Damage)
+    effect_num: 1051
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1051
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981178
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -1
+  act_id: 30580121
+  act_effect(ActEffect[]):
+    target_id(i64): -1
+    effect_type: 2 (Damage)
+    effect_num: 754
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 754
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 2 (Damage)
+    effect_num: 787
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 787
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243870713
+  to_id(i64): -1
+  act_id: 30410111
+  act_effect(ActEffect[]):
+    target_id(i64): -1
+    effect_type: 2 (Damage)
+    effect_num: 1301
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1301
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243870713
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): -99999
+      to_id(i64): -1
+      act_id: 201002
+      act_effect(ActEffect[]):
+        target_id(i64): -2
+        effect_type: 111 (ExPointChange)
+        effect_num: 1
+        config_effect: 20002
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): 243981173
+      to_id(i64): 243981173
+      act_id: 30580141
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 2
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 4
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 6
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -1
+    effect_type: 9 (Dead)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 3
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 276 (AllocateCardEnergy)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 61 (RoundEnd)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 2
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 60 (DealCard2)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 3 (EFFECT)
+      from_id(i64): 0
+      to_id(i64): 0
+      act_id: 0
+      act_effect(ActEffect[]):
+        target_id(i64): -1
+        effect_type: 152 (RemoveEntityCards)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 2
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 45
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): -1
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 2
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -1
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): -2
+  to_id(i64): 243870713
+  act_id: 40110221
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 2 (Damage)
+    effect_num: 46
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 46
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -2
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 2 (Damage)
+    effect_num: 46
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 46
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -2
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): -3
+  to_id(i64): 243981173
+  act_id: 40110111
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 3 (Crit)
+    effect_num: 74
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 74
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 3
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -3
+  card_index: 3
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 96 (ClearUniversalCard)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 212 (ChangeRound)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 2
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 4
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 6
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 45
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+act_point: 3
+is_finish: 0
+move_num: 0
+ex_point_info:
+  f1: 243870713
+  f2: 1
+  f4: 3558
+  f5: 0
+ex_point_info:
+  f1: 243981173
+  f2: 1
+  f4: 3140
+  f5: 0
+ex_point_info:
+  f1: 243981178
+  f2: 1
+  f4: 3337
+  f5: 0
+ex_point_info:
+  f1: 243870761
+  f2: 0
+  f4: 2244
+  f5: 0
+ex_point_info:
+  f1: -1
+  f2: 1
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -2
+  f2: 2
+  f4: 2308
+  f5: 0
+ex_point_info:
+  f1: -3
+  f2: 1
+  f4: 1390
+  f5: 0
+ex_point_info:
+  f1: -6
+  f2: 0
+  f4: 3
+  f5: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -2
+  skill_id: 40110211
+  temp_card: 0
+  card_type: 0
+  hero_id: 120802
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -3
+  skill_id: 40110121
+  temp_card: 0
+  card_type: 0
+  hero_id: 120803
+  status: 0
+  target_uid(i64): 243981173
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+power: 37
+skill_infos:
+  f1: 30010201
+  f2: 0
+  f3: 40
+  f4: 0
+skill_infos:
+  f1: 30010202
+  f2: 0
+  f3: 25
+  f4: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 59 (DealCard1)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 45
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+cur_round: 2
+hero_sp_attributes:
+  f1: -2
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -3
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -6
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+last_change_hero_uid(i64): 0
+
+=== round 2 compact ===
+actPoint: 3
+
+=== round 2 detailed ===
+fight_step(FightStep[]): 2
+act_point: 3
+move_num: -2
+
+=== round 3 compact ===
+curRound: 3
+actPoint: 3
+power: 58
+beforeCards1: [243981178, 243870713, 243981178, 243981178, 243981173, 243870713, 243870713]
+beforeCards2: [243981178, 243870713, 243981178]
+teamACards2: [243981178, 243981178, 243981173, 243870713, 243870713]
+[step 0]
+  UseCards  cards=[243981173, 243981173, 243981173]
+  CardsPush  cards=[243981178, 243870713, 243981178]
+  CardDeckNum  num=45
+[step 1]
+  ExPointChange  target=243981173  num=1
+[step 2]
+  SKILL  from=243981173  to=-2
+    Damage  target=-2  num=1052
+[step 3]
+  ExPointChange  target=243981178  num=1
+[step 4]
+  ExPointChange  target=243981173  num=1
+[step 5]
+  SKILL  from=243981173  to=-2
+    Damage  target=-2  num=1052
+[step 6]
+  ExPointChange  target=243981173  num=1
+[step 7]
+  SKILL  from=243981173  to=-2
+    Damage  target=-2  num=1052
+    FightStep
+      SKILL  from=243981173  to=243981173
+        BuffDel  target=243870713  buffId=30581
+        BuffAdd  target=243870713  num=30581  buffId=30581
+        Attr  target=243870713
+        BuffDel  target=243981173  buffId=30581
+        BuffAdd  target=243981173  num=30581  buffId=30581
+        Attr  target=243981173
+        BuffDel  target=243981178  buffId=30581
+        BuffAdd  target=243981178  num=30581  buffId=30581
+        Attr  target=243981178
+    Dead  target=-2
+[step 8]
+  AllocateCardEnergy  num=1  cards=[243981178, 243870713, 243981178]
+[step 9]
+  RoundEnd
+  SmallRoundEnd  num=2
+  DealCard2
+[step 10]
+  FightStep
+    RemoveEntityCards  target=-2
+[step 11]
+  ExPointChange  target=243981178  num=1
+  CardsCompose
+  CardDeckNum  num=40
+[step 12]
+  ExPointChange  target=-3  num=1
+[step 13]
+  CardInvalid  num=1
+[step 14]
+  ExPointChange  target=-2  num=1
+[step 15]
+  ExPointChange  target=-3  num=1
+[step 16]
+  SKILL  from=-3  to=243981173
+    Damage  target=243981173  num=120
+    Damage  target=243870713  num=123
+[step 17]
+  SmallRoundEnd  num=1
+[step 18]
+  ExPointChange  target=-3  num=1
+[step 19]
+  ClearUniversalCard
+[step 20]
+  ChangeRound
+[step 21]
+  BuffUpdate  target=243870713  buffId=30581
+  BuffUpdate  target=243981173  buffId=30581
+  BuffUpdate  target=243981178  buffId=30581
+[step 22]
+  CardDeckNum  num=40
+[nextRoundBeginStep]
+  [step 0]
+    DealCard1
+  [step 1]
+    CardsPush  cards=[243981178, 243870713, 243981178, 243981178, 243981173, 243870713, 243870713]
+    CardDeckNum  num=40
+
+=== round 3 detailed ===
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 159 (UseCards)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 45
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -2
+  act_id: 30580111
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 2 (Damage)
+    effect_num: 1052
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1052
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -2
+  act_id: 30580111
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 2 (Damage)
+    effect_num: 1052
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1052
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -2
+  act_id: 30580111
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 2 (Damage)
+    effect_num: 1052
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1052
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): 243981173
+      to_id(i64): 243981173
+      act_id: 30580141
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 2
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 8
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 4
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 10
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 6
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 12
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 9 (Dead)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 3
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 276 (AllocateCardEnergy)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 61 (RoundEnd)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 2
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 60 (DealCard2)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 3 (EFFECT)
+      from_id(i64): 0
+      to_id(i64): 0
+      act_id: 0
+      act_effect(ActEffect[]):
+        target_id(i64): -2
+        effect_type: 152 (RemoveEntityCards)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 2
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 153 (CardsCompose)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 40
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): -2
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 2
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -2
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): -3
+  to_id(i64): 243981173
+  act_id: 40110121
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 2 (Damage)
+    effect_num: 120
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 120
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -3
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 2 (Damage)
+    effect_num: 123
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 123
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -3
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 96 (ClearUniversalCard)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 212 (ChangeRound)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 8
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 10
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 12
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 40
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+act_point: 3
+is_finish: 0
+move_num: 0
+ex_point_info:
+  f1: 243870713
+  f2: 1
+  f4: 3435
+  f5: 0
+ex_point_info:
+  f1: 243981173
+  f2: 4
+  f4: 3020
+  f5: 0
+ex_point_info:
+  f1: 243981178
+  f2: 3
+  f4: 3337
+  f5: 0
+ex_point_info:
+  f1: 243870761
+  f2: 0
+  f4: 2244
+  f5: 0
+ex_point_info:
+  f1: -1
+  f2: 1
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -2
+  f2: 3
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -3
+  f2: 4
+  f4: 1390
+  f5: 0
+ex_point_info:
+  f1: -6
+  f2: 0
+  f4: 3
+  f5: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -3
+  skill_id: 40110112
+  temp_card: 0
+  card_type: 0
+  hero_id: 120803
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+power: 58
+skill_infos:
+  f1: 30010201
+  f2: 0
+  f3: 40
+  f4: 0
+skill_infos:
+  f1: 30010202
+  f2: 0
+  f3: 25
+  f4: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330112
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330122
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330112
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 59 (DealCard1)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 40
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+cur_round: 3
+hero_sp_attributes:
+  f1: -3
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -6
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+last_change_hero_uid(i64): 0
+
+=== round 4 compact ===
+actPoint: 5
+
+=== round 4 detailed ===
+fight_step(FightStep[]): 2
+act_point: 5
+move_num: -3
+
+=== round 5 compact ===
+curRound: 4
+actPoint: 3
+power: 75
+beforeCards1: [243981178, 243870713, 243981178, 243981178, 243981173, 243981173, 243981178]
+beforeCards2: [243981178, 243870713, 243981178, 243981178]
+teamACards2: [243981173, 243981173, 243981178]
+[step 0]
+  UseCards  cards=[243981173, 243870713, 243870713]
+  CardsPush  cards=[243981178, 243870713, 243981178, 243981178]
+  CardDeckNum  num=40
+[step 1]
+  ExPointChange  target=243981173  num=1
+[step 2]
+  SKILL  from=243981173  to=-3
+    Damage  target=-3  num=1329
+[step 3]
+  ExPointChange  target=243870713  num=1
+[step 4]
+  SKILL  from=243870713  to=-3
+    Damage  target=-3  num=943
+    Damage  target=-6  num=1
+    FightStep
+      SKILL  from=243981173  to=243981173
+        BuffDel  target=243870713  buffId=30581
+        BuffAdd  target=243870713  num=30581  buffId=30581
+        Attr  target=243870713
+        BuffDel  target=243981173  buffId=30581
+        BuffAdd  target=243981173  num=30581  buffId=30581
+        Attr  target=243981173
+        BuffDel  target=243981178  buffId=30581
+        BuffAdd  target=243981178  num=30581  buffId=30581
+        Attr  target=243981178
+    Dead  target=-3
+[step 5]
+  CardInvalid  num=3
+[step 6]
+  ExPointChange  target=243870713  num=1
+[step 7]
+  AllocateCardEnergy  num=1  cards=[243981178, 243870713, 243981178, 243981178]
+[step 8]
+  RoundEnd
+  SmallRoundEnd  num=2
+  DealCard2
+[step 9]
+  FightStep
+    RemoveEntityCards  target=-3
+[step 10]
+  CardDeckNum  num=38
+[step 11]
+  CardInvalid  num=1
+[step 12]
+  ExPointChange  target=-3  num=1
+[step 13]
+  SmallRoundEnd  num=1
+[step 14]
+  ClearUniversalCard
+[step 15]
+  NewChangeWave
+[step 16]
+  ChangeRound
+[step 17]
+  FightStep
+    FightStep
+      SKILL  from=-7  to=-7
+        BuffAdd  target=-7  num=22201  buffId=22201
+        FixedHurt  target=-7
+        Injury  target=-7
+        SelectLast  target=-7
+[step 18]
+  BuffUpdate  target=243870713  buffId=30581
+  BuffUpdate  target=243981173  buffId=30581
+  BuffUpdate  target=243981178  buffId=30581
+[step 19]
+  CardDeckNum  num=38
+[nextRoundBeginStep]
+  [step 0]
+    DealCard1
+  [step 1]
+    CardsPush  cards=[243981178, 243870713, 243981178, 243981178, 243981173, 243981173, 243981178]
+    CardDeckNum  num=38
+
+=== round 5 detailed ===
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 159 (UseCards)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 40
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -3
+  act_id: 30580111
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 2 (Damage)
+    effect_num: 1329
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1329
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243870713
+  to_id(i64): -3
+  act_id: 30410121
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 2 (Damage)
+    effect_num: 943
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 943
+      f2: 0
+      f3: 0
+      f4: 1
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243870713
+  act_effect(ActEffect[]):
+    target_id(i64): -6
+    effect_type: 2 (Damage)
+    effect_num: 1
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243870713
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): 243981173
+      to_id(i64): 243981173
+      act_id: 30580141
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 8
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 14
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 10
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 16
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 12
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 18
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 9 (Dead)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 243870713
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 3
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 276 (AllocateCardEnergy)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 61 (RoundEnd)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 2
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 60 (DealCard2)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 3 (EFFECT)
+      from_id(i64): 0
+      to_id(i64): 0
+      act_id: 0
+      act_effect(ActEffect[]):
+        target_id(i64): -3
+        effect_type: 152 (RemoveEntityCards)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 2
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 38
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): -3
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 2
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -3
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 96 (ClearUniversalCard)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 337 (NewChangeWave)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    fight:
+      f1:
+        f1:
+          f1: 243870713
+          f2: 3041
+          f3: 304101
+          f4: 1
+          f5: 1
+          f6: 412778836
+          f7: 3
+          f8: 70
+          f9: 3435
+          f10:
+            f1: 3604
+            f2: 629
+            f3: 291
+            f4: 323
+            f5: 288
+            f6: 0
+            f7: 0
+          f11:
+            f1: 30581
+            f2: 2
+            f3: 14
+            f4: 0
+            f5: 243981173
+            f6: 0
+            f7:
+            f8: 0
+            f9: 0
+          f12: 30410111
+          f12: 30410112
+          f12: 30410113
+          f13: 30410121
+          f13: 30410122
+          f13: 30410123
+          f14: 30410141
+          f15: 30410131
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 710030743
+          f21:
+          f22: 0
+          f27:
+            f1: 3604
+            f2: 629
+            f3: 291
+            f4: 323
+            f5: 288
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 1
+          f30:
+            f1: 243870713
+          f31: 0
+          f32: 2
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f37:
+            f1: 710030743
+            f2: 1307
+            f3: 1
+            f4: 1
+          f38: 0
+          f39: 0
+          f40: 0
+        f1:
+          f1: 243981173
+          f2: 3058
+          f3: 305801
+          f4: 2
+          f5: 1
+          f6: 412778836
+          f7: 5
+          f8: 70
+          f9: 3020
+          f10:
+            f1: 3214
+            f2: 616
+            f3: 294
+            f4: 252
+            f5: 226
+            f6: 0
+            f7: 0
+          f11:
+            f1: 30581
+            f2: 2
+            f3: 16
+            f4: 0
+            f5: 243981173
+            f6: 0
+            f7:
+            f8: 0
+            f9: 0
+          f12: 30580111
+          f12: 30580112
+          f12: 30580113
+          f13: 30580121
+          f13: 30580122
+          f13: 30580123
+          f14: 30580141
+          f15: 30580131
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 3214
+            f2: 616
+            f3: 294
+            f4: 252
+            f5: 226
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 1
+          f30:
+            f1: 243981173
+          f31: 0
+          f32: 2
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f1:
+          f1: 243981178
+          f2: 3033
+          f3: 303301
+          f4: 3
+          f5: 1
+          f6: 412778836
+          f7: 3
+          f8: 70
+          f9: 3337
+          f10:
+            f1: 3383
+            f2: 560
+            f3: 280
+            f4: 308
+            f5: 226
+            f6: 0
+            f7: 0
+          f11:
+            f1: 30581
+            f2: 2
+            f3: 18
+            f4: 0
+            f5: 243981173
+            f6: 0
+            f7:
+            f8: 0
+            f9: 0
+          f12: 30330111
+          f12: 30330112
+          f12: 30330113
+          f13: 30330121
+          f13: 30330122
+          f13: 30330123
+          f14: 30330141
+          f15: 30330131
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 3383
+            f2: 560
+            f3: 280
+            f4: 308
+            f5: 226
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 1
+          f30:
+            f1: 243981178
+          f31: 0
+          f32: 2
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f2:
+          f1: 243870761
+          f2: 3107
+          f3: 310701
+          f4: -1
+          f5: 1
+          f6: 412778836
+          f7: 0
+          f8: 30
+          f9: 2244
+          f10:
+            f1: 2244
+            f2: 381
+            f3: 187
+            f4: 187
+            f5: 546
+            f6: 0
+            f7: 0
+          f12: 31070111
+          f12: 31070112
+          f12: 31070113
+          f13: 31070121
+          f13: 31070122
+          f13: 31070123
+          f15: 31070131
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 2244
+            f2: 381
+            f3: 187
+            f4: 187
+            f5: 546
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 1
+          f30:
+            f1: 243870761
+          f31: 0
+          f32: 6
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f3: 70
+        f4: 1
+        f5:
+          f1: 30010201
+          f2: 0
+          f3: 40
+          f4: 0
+        f5:
+          f1: 30010202
+          f2: 0
+          f3: 25
+          f4: 0
+        f8:
+        f13:
+          f1: 0
+          f2: 0
+          f3: 0
+          f4: 0
+          f5: 3
+          f6: 412778836
+          f7: 0
+          f8: 0
+          f9: 100
+          f10:
+            f1: 100
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f15: 0
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 100
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 1
+          f30:
+            f1: 0
+          f31: 0
+          f32: 0
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f15: 0
+        f16:
+        f17: 38
+      f2:
+        f1:
+          f1: -4
+          f2: 120804
+          f3: 411901
+          f4: 1
+          f5: 2
+          f6: 0
+          f7: 0
+          f8: 25
+          f9: 2390
+          f10:
+            f1: 2390
+            f2: 344
+            f3: 159
+            f4: 127
+            f5: 336
+            f6: 0
+            f7: 0
+          f12: 40120511
+          f12: 40120512
+          f13: 40120521
+          f13: 40120522
+          f14: 2108
+          f14: 2301
+          f15: 40120531
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 2390
+            f2: 344
+            f3: 159
+            f4: 127
+            f5: 336
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 2
+          f30:
+            f1: -4
+          f31: 0
+          f32: 6
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f1:
+          f1: -5
+          f2: 120805
+          f3: 412001
+          f4: 2
+          f5: 2
+          f6: 0
+          f7: 0
+          f8: 25
+          f9: 2459
+          f10:
+            f1: 2459
+            f2: 344
+            f3: 159
+            f4: 159
+            f5: 229
+            f6: 0
+            f7: 0
+          f12: 40120611
+          f12: 40120612
+          f13: 40120621
+          f13: 40120622
+          f14: 2207
+          f14: 2301
+          f15: 40120631
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 2459
+            f2: 344
+            f3: 159
+            f4: 159
+            f5: 229
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 2
+          f30:
+            f1: -5
+          f31: 0
+          f32: 5
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f3: 0
+        f4: 0
+        f6:
+          f1: -6
+          f2: 120806
+          f3: 413501
+          f4: 5
+          f5: 2
+          f6: 0
+          f7: 0
+          f8: 25
+          f9: 2
+          f10:
+            f1: 3
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f11:
+            f1: 22201
+            f2: 1
+            f3: 100002
+            f4: 0
+            f5: -6
+            f6: 0
+            f7:
+            f8: 0
+            f9: 0
+          f14: 2220
+          f14: 2407
+          f15: 0
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 3
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 2
+          f30:
+            f1: -6
+          f31: 0
+          f32: 5
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f6:
+          f1: -7
+          f2: 120807
+          f3: 413601
+          f4: 6
+          f5: 2
+          f6: 0
+          f7: 0
+          f8: 25
+          f9: 3
+          f10:
+            f1: 3
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f14: 2220
+          f14: 2408
+          f15: 0
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 3
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 2
+          f30:
+            f1: -7
+          f31: 0
+          f32: 5
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f8:
+        f13:
+          f1: -99999
+          f2: 0
+          f3: 0
+          f4: 0
+          f5: 3
+          f6: 0
+          f7: 0
+          f8: 0
+          f9: 100
+          f10:
+            f1: 100
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f15: 0
+          f16: 0
+          f18: 0
+          f19: 0
+          f20: 0
+          f21:
+          f22: 0
+          f27:
+            f1: 100
+            f2: 0
+            f3: 0
+            f4: 0
+            f5: 0
+            f6: 0
+            f7: 0
+          f28: 0
+          f29: 2
+          f30:
+            f1: -99999
+          f31: 0
+          f32: 0
+          f33: 0
+          f34: -1
+          f35: 0
+          f36: 0
+          f38: 0
+          f39: 0
+          f40: 0
+        f15: 0
+        f16:
+        f17: 0
+      f3: 4
+      f4: 20
+      f5: 0
+      f6: 2
+      f7: 1208
+      f9: 6
+      f10: 0
+      f11: 10210
+      f12: 1
+      f13: 0
+      f14: 0
+      f15: 0
+      f18:
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 212 (ChangeRound)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 3 (EFFECT)
+      from_id(i64): 0
+      to_id(i64): 0
+      act_id: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 0
+        effect_type: 162 (FightStep)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        fight_step(FightStep):
+          act_type: 1 (SKILL)
+          from_id(i64): -7
+          to_id(i64): -7
+          act_id: 2220
+          act_effect(ActEffect[]):
+            target_id(i64): -7
+            effect_type: 5 (BuffAdd)
+            effect_num: 22201
+            buff(BuffInfo):
+              buff_id: 22201
+              stack: 1
+              duration: 200004
+              source_id(i64): 0
+              param: -7
+              is_new: 0
+              buff_type:
+              reserve_id(i64): 0
+              f9: 0
+            config_effect: 0
+            buff_act_id: 0
+            reserve_id(i64): 0
+            team_type: 0
+            effect_num1: 0
+          act_effect(ActEffect[]):
+            target_id(i64): -7
+            effect_type: 74 (FixedHurt)
+            effect_num: 0
+            config_effect: 0
+            buff_act_id: 0
+            reserve_id(i64): 0
+            team_type: 0
+            effect_num1: 0
+          act_effect(ActEffect[]):
+            target_id(i64): -7
+            effect_type: 34 (Injury)
+            effect_num: 0
+            config_effect: 0
+            buff_act_id: 0
+            reserve_id(i64): 0
+            team_type: 0
+            effect_num1: 0
+          act_effect(ActEffect[]):
+            target_id(i64): -7
+            effect_type: 94 (SelectLast)
+            effect_num: 0
+            config_effect: 0
+            buff_act_id: 0
+            reserve_id(i64): 0
+            team_type: 0
+            effect_num1: 0
+          card_index: 0
+          fake_timeline: 0
+          real_skill_type: 0
+          real_skin_id: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 14
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 16
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 18
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 38
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+act_point: 3
+is_finish: 0
+move_num: 0
+ex_point_info:
+  f1: 243870713
+  f2: 3
+  f4: 3435
+  f5: 0
+ex_point_info:
+  f1: 243981173
+  f2: 5
+  f4: 3020
+  f5: 0
+ex_point_info:
+  f1: 243981178
+  f2: 3
+  f4: 3337
+  f5: 0
+ex_point_info:
+  f1: 243870761
+  f2: 0
+  f4: 2244
+  f5: 0
+ex_point_info:
+  f1: -4
+  f2: 0
+  f4: 2390
+  f5: 0
+ex_point_info:
+  f1: -5
+  f2: 0
+  f4: 2459
+  f5: 0
+ex_point_info:
+  f1: -6
+  f2: 0
+  f4: 2
+  f5: 0
+ex_point_info:
+  f1: -7
+  f2: 0
+  f4: 3
+  f5: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120621
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243870713
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -4
+  skill_id: 40120511
+  temp_card: 0
+  card_type: 0
+  hero_id: 120804
+  status: 0
+  target_uid(i64): 243981173
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120611
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -4
+  skill_id: 40120521
+  temp_card: 0
+  card_type: 0
+  hero_id: 120804
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+power: 75
+skill_infos:
+  f1: 30010201
+  f2: 0
+  f3: 40
+  f4: 0
+skill_infos:
+  f1: 30010202
+  f2: 0
+  f3: 25
+  f4: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330112
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330122
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580131
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330112
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330122
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580131
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 59 (DealCard1)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580131
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 38
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+cur_round: 4
+hero_sp_attributes:
+  f1: -4
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -5
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -6
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -7
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+last_change_hero_uid(i64): 0
+
+=== round 6 compact ===
+actPoint: 5
+
+=== round 6 detailed ===
+fight_step(FightStep[]): 2
+act_point: 5
+move_num: -4
+
+=== round 7 compact ===
+curRound: 5
+actPoint: 3
+power: 92
+beforeCards1: [243981178, 243981178, 243981173, 243981178, 243870713, 243981178, 243981173]
+beforeCards2: [243981178, 243981178, 243981173, 243981178]
+teamACards2: [243870713, 243981178, 243981173]
+[step 0]
+  UseCards  cards=[243981173, 243870713, 243981178]
+  CardsPush  cards=[243981178, 243981178, 243981173, 243981178]
+  CardDeckNum  num=38
+[step 1]
+  SKILL  from=243981173  to=-4
+    ExPointChange  target=243981173  num=-5
+    Crit  target=-4  num=3149
+    FightStep
+      SKILL  from=243981173  to=243981173
+        BuffDel  target=243870713  buffId=30581
+        BuffAdd  target=243870713  num=30581  buffId=30581
+        Attr  target=243870713
+        BuffDel  target=243981173  buffId=30581
+        BuffAdd  target=243981173  num=30581  buffId=30581
+        Attr  target=243981173
+        BuffDel  target=243981178  buffId=30581
+        BuffAdd  target=243981178  num=30581  buffId=30581
+        Attr  target=243981178
+    Dead  target=-4
+[step 2]
+  ExPointChange  target=243870713  num=1
+[step 3]
+  SKILL  from=243870713  to=-5
+    Damage  target=-5  num=707
+    Damage  target=-7  num=1
+[step 4]
+  ExPointChange  target=243981178  num=1
+[step 5]
+  SKILL  from=243981178  to=-5
+    Damage  target=-5  num=1076
+[step 6]
+  AllocateCardEnergy  num=1  cards=[243981178, 243981178, 243981173, 243981178]
+[step 7]
+  RoundEnd
+  SmallRoundEnd  num=2
+  DealCard2
+[step 8]
+  FightStep
+    RemoveEntityCards  target=-4
+[step 9]
+  CardDeckNum  num=35
+[step 10]
+  ExPointChange  target=-5  num=1
+[step 11]
+  SKILL  from=-5  to=243870713
+    Damage  target=243870713  num=42
+    Damage  target=243981173  num=113
+    Bloodlust  target=-5  num=31
+[step 12]
+  CardInvalid  num=2
+[step 13]
+  ExPointChange  target=-4  num=1
+[step 14]
+  ExPointChange  target=-5  num=1
+[step 15]
+  SKILL  from=-5  to=243981178
+    Damage  target=243981178  num=55
+    HealCrit  target=-5  num=145
+[step 16]
+  CardInvalid  num=4
+[step 17]
+  ExPointChange  target=-4  num=1
+[step 18]
+  SmallRoundEnd  num=1
+[step 19]
+  ExPointChange  target=-5  num=1
+  ExPointChange  target=-5  num=1
+[step 20]
+  ClearUniversalCard
+[step 21]
+  ChangeRound
+[step 22]
+  BuffUpdate  target=243870713  buffId=30581
+  BuffUpdate  target=243981173  buffId=30581
+  BuffUpdate  target=243981178  buffId=30581
+[step 23]
+  CardDeckNum  num=35
+[step 24]
+  ExPointChange  target=-5  num=1
+[nextRoundBeginStep]
+  [step 0]
+    DealCard1
+  [step 1]
+    CardsPush  cards=[243981178, 243981178, 243981173, 243981178, 243870713, 243981178, 243981173]
+    CardDeckNum  num=35
+
+=== round 7 detailed ===
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 159 (UseCards)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580131
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330112
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 38
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981173
+  to_id(i64): -4
+  act_id: 30580131
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 111 (ExPointChange)
+    effect_num: -5
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -4
+    effect_type: 3 (Crit)
+    effect_num: 3149
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 3149
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 3
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981173
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): 243981173
+      to_id(i64): 243981173
+      act_id: 30580141
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 14
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 20
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 16
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 22
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 18
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 24
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -4
+    effect_type: 9 (Dead)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243870713
+  to_id(i64): -5
+  act_id: 30410121
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 2 (Damage)
+    effect_num: 707
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 707
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243870713
+  act_effect(ActEffect[]):
+    target_id(i64): -7
+    effect_type: 2 (Damage)
+    effect_num: 1
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243870713
+  card_index: 2
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981178
+  to_id(i64): -5
+  act_id: 30330112
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 2 (Damage)
+    effect_num: 1076
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1076
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981178
+  card_index: 3
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 276 (AllocateCardEnergy)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 61 (RoundEnd)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 2
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 60 (DealCard2)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 3 (EFFECT)
+      from_id(i64): 0
+      to_id(i64): 0
+      act_id: 0
+      act_effect(ActEffect[]):
+        target_id(i64): -4
+        effect_type: 152 (RemoveEntityCards)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 2
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 35
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): -5
+  to_id(i64): 243870713
+  act_id: 40120621
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 2 (Damage)
+    effect_num: 42
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 42
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -5
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 2 (Damage)
+    effect_num: 113
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 113
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -5
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 12 (Bloodlust)
+    effect_num: 31
+    config_effect: 20010
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): -4
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 2
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 2
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -4
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): -5
+  to_id(i64): 243981178
+  act_id: 40120611
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 2 (Damage)
+    effect_num: 55
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 55
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: -5
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 57 (HealCrit)
+    effect_num: 145
+    config_effect: 20001
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 3
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): -4
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 160 (CardInvalid)
+    effect_num: 4
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 2
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -4
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 211 (SmallRoundEnd)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 96 (ClearUniversalCard)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 212 (ChangeRound)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243870713
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 20
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981173
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 22
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 7 (BuffUpdate)
+    effect_num: 0
+    buff(BuffInfo):
+      buff_id: 30581
+      stack: 1
+      duration: 24
+      source_id(i64): 0
+      param: 243981173
+      is_new: 0
+      buff_type:
+      reserve_id(i64): 0
+      f9: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 35
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+act_point: 3
+is_finish: 0
+move_num: 0
+ex_point_info:
+  f1: 243870713
+  f2: 4
+  f4: 3393
+  f5: 0
+ex_point_info:
+  f1: 243981173
+  f2: 0
+  f4: 2907
+  f5: 0
+ex_point_info:
+  f1: 243981178
+  f2: 4
+  f4: 3282
+  f5: 0
+ex_point_info:
+  f1: 243870761
+  f2: 0
+  f4: 2244
+  f5: 0
+ex_point_info:
+  f1: -4
+  f2: 2
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -5
+  f2: 5
+  f4: 852
+  f5: 0
+ex_point_info:
+  f1: -6
+  f2: 0
+  f4: 2
+  f5: 0
+ex_point_info:
+  f1: -7
+  f2: 0
+  f4: 2
+  f5: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120622
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120612
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243981173
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+power: 92
+skill_infos:
+  f1: 30010201
+  f2: 0
+  f3: 40
+  f4: 0
+skill_infos:
+  f1: 30010202
+  f2: 0
+  f3: 25
+  f4: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330122
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards1(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330122
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+before_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330121
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243870713
+  skill_id: 30410111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3041
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981178
+  skill_id: 30330111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3033
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+team_a_cards2(CardInfo[]):
+  uid(i64): 243981173
+  skill_id: 30580111
+  temp_card: 0
+  card_type: 0
+  hero_id: 3058
+  status: 0
+  target_uid(i64): 0
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 59 (DealCard1)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330121
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 35
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+cur_round: 5
+hero_sp_attributes:
+  f1: -5
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -6
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -7
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+last_change_hero_uid(i64): 0
+
+=== round 8 compact ===
+actPoint: 2
+
+=== round 8 detailed ===
+fight_step(FightStep[]): 2
+act_point: 2
+move_num: -5
+
+=== round 9 compact ===
+curRound: 5
+power: 98
+isFinish: 1
+[step 0]
+  UseCards  cards=[243981178, 243981173, 243981178]
+  CardsPush  cards=[243870713, 243981178, 243981173]
+  CardDeckNum  num=35
+[step 1]
+  ExPointChange  target=243981178  num=1
+[step 2]
+  SKILL  from=243981178  to=-5
+    Damage  target=-5  num=1156
+    FightStep
+      SKILL  from=243981173  to=243981173
+        BuffDel  target=243870713  buffId=30581
+        BuffAdd  target=243870713  num=30581  buffId=30581
+        Attr  target=243870713
+        BuffDel  target=243981173  buffId=30581
+        BuffAdd  target=243981173  num=30581  buffId=30581
+        Attr  target=243981173
+        BuffDel  target=243981178  buffId=30581
+        BuffAdd  target=243981178  num=30581  buffId=30581
+        Attr  target=243981178
+    Dead  target=-5
+[step 3]
+  AllocateCardEnergy  num=1  cards=[243870713, 243981178, 243981173]
+[nextRoundBeginStep]
+  [step 0]
+    CardsPush  cards=[243870713, 243981178, 243981173]
+    CardDeckNum  num=35
+
+=== round 9 detailed ===
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 159 (UseCards)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330122
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 35
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 243981178
+    effect_type: 111 (ExPointChange)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 1 (SKILL)
+  from_id(i64): 243981178
+  to_id(i64): -5
+  act_id: 30330122
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 2 (Damage)
+    effect_num: 1156
+    config_effect: -1
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+    hurt_info:
+      f1: 1156
+      f2: 0
+      f3: 0
+      f4: 0
+      f6: 0
+      f7: 2
+      f8: 1
+      f9: -1
+      f10: 0
+      f11: 0
+      f12: 0
+      f13: 0
+      f14: 243981178
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 162 (FightStep)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    fight_step(FightStep):
+      act_type: 1 (SKILL)
+      from_id(i64): 243981173
+      to_id(i64): 243981173
+      act_id: 30580141
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 20
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 26
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243870713
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 22
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 28
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981173
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 6 (BuffDel)
+        effect_num: 0
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 0
+          duration: 24
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 5 (BuffAdd)
+        effect_num: 30581
+        buff(BuffInfo):
+          buff_id: 30581
+          stack: 2
+          duration: 30
+          source_id(i64): 0
+          param: 243981173
+          is_new: 0
+          buff_type:
+          reserve_id(i64): 0
+          f9: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      act_effect(ActEffect[]):
+        target_id(i64): 243981178
+        effect_type: 26 (Attr)
+        effect_num: 0
+        config_effect: 0
+        buff_act_id: 0
+        reserve_id(i64): 0
+        team_type: 0
+        effect_num1: 0
+      card_index: 0
+      fake_timeline: 0
+      real_skill_type: 0
+      real_skin_id: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): -5
+    effect_type: 9 (Dead)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 1
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+fight_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 276 (AllocateCardEnergy)
+    effect_num: 1
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+act_point: 0
+is_finish: 1
+move_num: 0
+ex_point_info:
+  f1: 243870713
+  f2: 4
+  f4: 3393
+  f5: 0
+ex_point_info:
+  f1: 243981173
+  f2: 0
+  f4: 2907
+  f5: 0
+ex_point_info:
+  f1: 243981178
+  f2: 5
+  f4: 3282
+  f5: 0
+ex_point_info:
+  f1: 243870761
+  f2: 0
+  f4: 2244
+  f5: 0
+ex_point_info:
+  f1: -4
+  f2: 2
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -5
+  f2: 5
+  f4: 0
+  f5: 0
+ex_point_info:
+  f1: -6
+  f2: 0
+  f4: 2
+  f5: 0
+ex_point_info:
+  f1: -7
+  f2: 0
+  f4: 2
+  f5: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120622
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243981178
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+ai_use_cards(CardInfo[]):
+  uid(i64): -5
+  skill_id: 40120612
+  temp_card: 0
+  card_type: 0
+  hero_id: 120805
+  status: 0
+  target_uid(i64): 243981173
+  energy: 0
+  area_red_or_blue: 0
+  heat_id: 0
+power: 98
+skill_infos:
+  f1: 30010201
+  f2: 0
+  f3: 40
+  f4: 0
+skill_infos:
+  f1: 30010202
+  f2: 0
+  f3: 25
+  f4: 0
+next_round_begin_step(FightStep[]):
+  act_type: 3 (EFFECT)
+  from_id(i64): 0
+  to_id(i64): 0
+  act_id: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 154 (CardsPush)
+    effect_num: 0
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243870713
+      skill_id: 30410111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3041
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981178
+      skill_id: 30330111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3033
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    card_info_list(CardInfo[]):
+      uid(i64): 243981173
+      skill_id: 30580111
+      temp_card: 0
+      card_type: 0
+      hero_id: 3058
+      status: 0
+      target_uid(i64): 0
+      energy: 0
+      area_red_or_blue: 0
+      heat_id: 0
+    team_type: 0
+    effect_num1: 0
+  act_effect(ActEffect[]):
+    target_id(i64): 0
+    effect_type: 310 (CardDeckNum)
+    effect_num: 35
+    config_effect: 0
+    buff_act_id: 0
+    reserve_id(i64): 0
+    team_type: 1
+    effect_num1: 0
+  card_index: 0
+  fake_timeline: 0
+  real_skill_type: 0
+  real_skin_id: 0
+cur_round: 5
+hero_sp_attributes:
+  f1: -6
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+hero_sp_attributes:
+  f1: -7
+  f2:
+    f1: 0
+    f2: 0
+    f3: 0
+    f4: 0
+    f5: 0
+    f6: 0
+    f7: 0
+    f8: 0
+    f9: 0
+    f10: 0
+    f11: 0
+    f12: 0
+    f13: 0
+    f14: 0
+    f15: 0
+    f16: 0
+    f17: 0
+    f18: 0
+    f19: 0
+    f20: 0
+    f21: 0
+    f22: 0
+    f23: 0
+    f24: 0
+    f25: 0
+    f26: 0
+    f27: 0
+    f28: 0
+    f29: 0
+    f30: 0
+last_change_hero_uid(i64): 0

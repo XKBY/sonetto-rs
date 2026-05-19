@@ -1,0 +1,105 @@
+=== BeginRound 0 compact ===
+actPoint: 3
+
+=== BeginRound 1 compact ===
+curRound: 2
+actPoint: 2
+power: 59
+beforeCards1: [20000114, 20000114, 20000114, 20000114, 20000074]
+beforeCards2: [20000114, 20000114, 20000114]
+teamACards2: [20000114, 20000074]
+[step 0]
+  UseCards  cards=[20000074, 20000074]
+  CardsPush  cards=[20000114, 20000114, 20000114]
+  CardDeckNum  num=25
+[step 1]
+  SKILL  from=20000074  to=20000074
+    BuffAdd  target=20000074  num=30870311  buffId=30870311
+    Attr  target=20000074
+    Attr  target=20000074
+    None  target=20000074
+    None  target=20000074
+[step 2]
+  SKILL  from=20000074  to=20000114
+    BuffAdd  target=20000114  num=30870311  buffId=30870311
+    Attr  target=20000114
+    Attr  target=20000114
+    None  target=20000114
+    None  target=20000114
+[step 3]
+  AllocateCardEnergy  num=1  cards=[20000074, 20000074]
+[step 4]
+  FightStep
+    SKILL  from=20000114  to=20000114
+      BuffAdd  target=20000114  num=31270408  buffId=31270408
+      None  target=20000114
+      BuffUpdate  target=20000114  buffId=31270201
+      BuffUpdate  target=20000114  buffId=31270201
+[step 5]
+  RoundEnd
+  SmallRoundEnd
+  DealCard2
+[step 6]
+  CardDeckNum  num=24
+[step 7]
+  ExPointChange  target=-1  num=1
+[step 8]
+  SKILL  from=-1  to=20000074
+    Crit  target=20000074  num=175
+    Damage  target=20000114  num=745
+[step 9]
+  ExPointChange  target=-1  num=1
+[step 10]
+  SKILL  from=-1  to=20000114
+    Damage  target=20000114  num=795
+    Bloodlust  target=-1  num=300
+[step 11]
+  FightStep
+    None  target=20000114  num=31270400
+    ExPointChange  target=20000114  num=1
+[step 12]
+  FightStep
+    Burn  target=-1  num=4150001
+    OriginDamage  target=-1  num=283
+  FightStep
+    Burn  target=-1  num=4150001
+    OriginDamage  target=-1  num=283
+  FightStep
+    Burn  target=-1  num=4150001
+    OriginDamage  target=-1  num=283
+  FightStep
+    Burn  target=-2  num=4150001
+    OriginDamage  target=-2  num=283
+  FightStep
+    Burn  target=-2  num=4150001
+    OriginDamage  target=-2  num=283
+  FightStep
+    Burn  target=-2  num=4150001
+    OriginDamage  target=-2  num=283
+  FightStep
+    Burn  target=-3  num=4150001
+    OriginDamage  target=-3  num=283
+  FightStep
+    Burn  target=-3  num=4150001
+    OriginDamage  target=-3  num=283
+  FightStep
+    Burn  target=-3  num=4150001
+    OriginDamage  target=-3  num=283
+[step 13]
+  SmallRoundEnd  num=1
+[step 14]
+  ExPointChange  target=-1  num=1
+[step 15]
+  ClearUniversalCard
+[step 16]
+  ChangeRound
+[step 17]
+  BloodPoolMaxChange  num=1
+[step 18]
+  CardDeckNum  num=24
+[nextRoundBeginStep]
+  [step 0]
+    DealCard1
+  [step 1]
+    CardsPush  cards=[20000114, 20000114, 20000114, 20000114, 20000074]
+    CardDeckNum  num=24
