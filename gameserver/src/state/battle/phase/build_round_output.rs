@@ -1,13 +1,14 @@
 use anyhow::Result;
-use rand::thread_rng;
+use std::collections::HashSet;
+use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::FightRound;
 
 use crate::state::battle::{
-    deck::{DeckManager, purge_dead_entity_cards, refill_hand},
+    ai,
+    deck::DeckManager,
     context::RoundContext,
     manager::{ex_point_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
     fight_step::split_step_by_effect_limit,
-    utils::alive_hero_uids,
 };
 use crate::state::battle::round::steps::transitions::build_next_round_begin_step;
 use super::round_open::RoundOpenPhaseData;
@@ -17,6 +18,7 @@ pub(crate) fn build_round_output(
     round_ctx: &mut RoundContext<'_, '_>,
     mut open: RoundOpenPhaseData,
     deck_mgr: &mut DeckManager,
+    rng: &mut StdRng,
 ) -> Result<FightRound> {
     let ctx = &mut *round_ctx.fight_ctx;
     if open.state.pending_cloth_power_delta != 0
@@ -45,22 +47,18 @@ pub(crate) fn build_round_output(
         .unwrap_or(0);
 
     // Purge cards belonging to dead heroes
-    let alive_uids = alive_hero_uids(ctx.fight);
-    purge_dead_entity_cards(&mut deck_mgr.player_hand, &alive_uids);
-    purge_dead_entity_cards(&mut deck_mgr.player_ex_deck, &alive_uids);
+    deck_mgr.purge_player_dead_cards(ctx.fight);
 
     let before_cards1 = deck_mgr.player_hand.clone();
-    let team_a_cards1 = refill_hand(
-        &mut thread_rng(),
-        &mut deck_mgr.player_hand,
-        &mut deck_mgr.player_deck,
-        &mut deck_mgr.player_ex_deck,
-        &alive_uids,
-        0,
-        ctx.fight,
-    );
+    let team_a_cards1 = deck_mgr.refill_player_hand(rng, 0, ctx.fight);
 
-    let next_round_begin_step = build_next_round_begin_step(deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32);
+    // Accumulate EX cards for enemies that have reached max EX points
+    deck_mgr.accumulate_enemy_ex_cards(ctx.fight, &ctx.managers.ex_point_mgr);
+    // Purge and refill enemy hand after EX accumulation
+    deck_mgr.purge_enemy_dead_cards(ctx.fight);
+    deck_mgr.refill_enemy_hand(rng, ctx.fight);
+
+    let next_round_begin_step: Vec<sonettobuf::FightStep> = build_next_round_begin_step(deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32);
     open.steps = open
         .steps
         .into_iter()
@@ -74,13 +72,17 @@ pub(crate) fn build_round_output(
         .map(|a| a.entitys.len() as i32)
         .unwrap_or(3);
 
+    let mut rng_for_ai = StdRng::from_entropy();
+    deck_mgr.next_ai_use_cards = ai::select_enemy_cards(deck_mgr, ctx.fight, &mut rng_for_ai);
+    let next_ai_use_cards = deck_mgr.next_ai_use_cards.clone();
+
     let result = FightRound {
             fight_step: open.steps,
             act_point: Some(if open.state.is_finish { 0 } else { attacker_main_count }),
             is_finish: Some(open.state.is_finish),
             move_num: Some(open.state.move_num),
             ex_point_info,
-            ai_use_cards: open.state.ai_use_cards,
+            ai_use_cards: next_ai_use_cards,
             power: Some(power),
             skill_infos,
             before_cards1,

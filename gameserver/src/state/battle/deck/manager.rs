@@ -1,11 +1,11 @@
-use std::collections::HashSet;
-use rand::{Rng, SeedableRng, rngs::StdRng, thread_rng};
-use sonettobuf::{CardInfo, CardInfoPush, Fight, FightGroup};
-use sqlx::SqlitePool;
-use crate::error::AppError;
-use super::draw::draw_deck_guaranteed_by_uid_with_rng;
-use super::hand::{card_limit, purge_dead_entity_cards, refill_hand};
-use super::pool::{build_enemy_deck, build_player_deck};
+use rand::Rng;
+use sonettobuf::{CardInfo, CardInfoPush, Fight};
+use crate::state::battle::manager::ex_point_mgr::ExPointMgr;
+use crate::state::battle::utils::alive_hero_uids;
+use super::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
+use super::hand::{generate_initial_hand, refill_hand};
+use super::pool::build_deck;
+use super::utils::alive_enemy_uids;
 
 #[derive(Default, Debug, Clone)]
 pub struct DeckManager {
@@ -15,115 +15,75 @@ pub struct DeckManager {
     pub enemy_hand: Vec<CardInfo>,
     pub enemy_deck: Vec<CardInfo>,
     pub enemy_ex_deck: Vec<CardInfo>,
+    pub next_ai_use_cards: Vec<CardInfo>,
 }
 
 impl DeckManager {
-    pub fn purge_player_dead_cards(&mut self, alive_uids: &HashSet<i64>) {
-        purge_dead_entity_cards(&mut self.player_hand, alive_uids);
-        purge_dead_entity_cards(&mut self.player_ex_deck, alive_uids);
-    }
-
-    pub fn purge_enemy_dead_cards(&mut self, alive_uids: &HashSet<i64>) {
-        purge_dead_entity_cards(&mut self.enemy_hand, alive_uids);
-        purge_dead_entity_cards(&mut self.enemy_ex_deck, alive_uids);
-    }
-
-    pub fn refill_player_hand(&mut self, rng: &mut impl Rng, alive_uids: &HashSet<i64>, extra: usize, fight: &Fight) -> Vec<CardInfo> {
-        refill_hand(rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, alive_uids, extra, fight)
-    }
-
-    pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, alive_uids: &HashSet<i64>, fight: &Fight) -> Vec<CardInfo> {
-        refill_hand(rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, alive_uids, 0, fight)
-    }
-
-    pub async fn init_player(
-        &mut self,
-        pool: &SqlitePool,
-        player_id: i64,
-        fight_group: &FightGroup,
-        max_ap: i32,
-    ) -> Result<CardInfoPush, AppError> {
-        let active_heroes: Vec<i64> = fight_group
-            .hero_list.iter().copied().filter(|&u| u != 0).collect();
-        let all_heroes: Vec<i64> = fight_group
-            .hero_list.iter().chain(fight_group.sub_hero_list.iter())
-            .copied().filter(|&u| u != 0).collect();
-
-        let candidates = build_player_deck(pool, player_id, &active_heroes).await?;
-        let full_deck = build_player_deck(pool, player_id, &all_heroes).await.unwrap_or_default();
-
-        let has_support = !fight_group.sub_hero_list.is_empty();
-        let opening_hand_size = card_limit(active_heroes.len(), has_support);
-        let mut rng = thread_rng();
-        let dealt = draw_deck_guaranteed_by_uid_with_rng(
-            &candidates, &active_heroes, opening_hand_size, &mut rng,
-        );
-
-        self.player_hand = dealt.clone();
-        self.player_deck = full_deck;
+    pub fn init_player(&mut self, fight: &Fight, max_ap: i32) -> CardInfoPush {
+        let attacker = fight.attacker.as_ref();
+        let active_entities: Vec<_> = attacker.map(|a| a.entitys.clone()).unwrap_or_default();
+        let has_support = attacker.map_or(false, |a| !a.sub_entitys.is_empty());
+        let opening_hand = generate_initial_hand(&active_entities, has_support);
+        self.player_hand = opening_hand.clone();
+        self.player_deck = build_deck(&active_entities);
         self.player_ex_deck = vec![];
-
-        Ok(CardInfoPush {
-            card_group: dealt.clone(),
-            deal_card_group: dealt,
+        CardInfoPush {
+            card_group: opening_hand.clone(),
+            deal_card_group: opening_hand,
             act_point: Some(max_ap),
             move_num: Some(0),
             before_cards: vec![],
             extra_move_act: Some(0),
             is_gm: Some(false),
-        })
+        }
     }
 
-    pub fn init_enemy(&mut self, fight: &Fight, seed: u64, monster_ids: &[i32]) {
-        let enemy_deck_full = build_enemy_deck(monster_ids);
-        let required_uids: Vec<i64> = monster_ids.iter().map(|&id| id as i64).collect();
-        let opening_hand_size = card_limit(monster_ids.len(), false);
-        let mut rng = thread_rng();
-        let enemy_hand = draw_deck_guaranteed_by_uid_with_rng(
-            &enemy_deck_full, &required_uids, opening_hand_size, &mut rng,
-        );
-
-        let mut ai_rng: StdRng = StdRng::seed_from_u64(seed);
-        let attacker_uids: Vec<i64> = fight.attacker.as_ref().map(|a| {
-            a.entitys.iter()
-                .filter_map(|e| {
-                    let uid = e.uid.unwrap_or(0);
-                    if uid > 0 && e.current_hp.unwrap_or(0) > 0 { Some(uid) } else { None }
-                })
-                .collect()
-        }).unwrap_or_default();
-
-        let mut ai_deck = Vec::new();
-        if !attacker_uids.is_empty() {
-            if let Some(defender) = &fight.defender {
-                for enemy in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
-                    let enemy_uid = enemy.uid.unwrap_or(0);
-                    if enemy_uid >= 0 || enemy.current_hp.unwrap_or(0) <= 0 { continue; }
-                    let Some(&skill_id) = enemy.skill_group1.first() else { continue; };
-                    let target_uid = attacker_uids[ai_rng.gen_range(0..attacker_uids.len())];
-                    ai_deck.push(CardInfo {
-                        uid: Some(enemy_uid),
-                        skill_id: Some(skill_id),
-                        target_uid: Some(target_uid),
-                        card_effect: Some(0),
-                        temp_card: Some(false),
-                        enchants: vec![],
-                        card_type: Some(0),
-                        hero_id: enemy.model_id,
-                        status: Some(0),
-                        extra_info: None,
-                        energy: Some(0),
-                        extra_infos: vec![],
-                        area_red_or_blue: Some(0),
-                        heat_id: Some(0),
-                        music_note: None,
-                    });
-                }
-            }
-        }
-
-        self.enemy_hand = enemy_hand;
-        self.enemy_deck = ai_deck;
+    pub fn init_enemy(&mut self, fight: &Fight) {
+        let defender = match &fight.defender {
+            Some(d) => d,
+            None => return,
+        };
+        let active_entities: Vec<_> = defender.entitys.iter().cloned().collect();
+        self.enemy_hand = generate_initial_hand(&active_entities, false);
+        self.enemy_deck = build_deck(&active_entities);
         self.enemy_ex_deck = vec![];
+    }
+
+    pub fn purge_player_dead_cards(&mut self, fight: &Fight) {
+        let alive_uids = alive_hero_uids(fight);
+        let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.iter().filter(|e| alive_uids.contains(&e.uid.unwrap_or(0))).cloned().collect()).unwrap_or_default();
+        purge_dead_entity_cards(&mut self.player_hand, &alive_uids);
+        purge_dead_entity_cards(&mut self.player_ex_deck, &alive_uids);
+        purge_and_maybe_rebuild_deck(&mut self.player_deck, &alive_uids, || build_deck(&entities));
+    }
+
+    pub fn purge_enemy_dead_cards(&mut self, fight: &Fight) {
+        let alive_uids = alive_enemy_uids(fight);
+        let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.iter().filter(|e| alive_uids.contains(&e.uid.unwrap_or(0))).cloned().collect()).unwrap_or_default();
+        purge_dead_entity_cards(&mut self.enemy_hand, &alive_uids);
+        purge_dead_entity_cards(&mut self.enemy_ex_deck, &alive_uids);
+        purge_and_maybe_rebuild_deck(&mut self.enemy_deck, &alive_uids, || build_deck(&entities));
+    }
+
+    pub fn refill_player_hand(&mut self, rng: &mut impl Rng, extra: usize, fight: &Fight) -> Vec<CardInfo> {
+        let alive_uids = alive_hero_uids(fight);
+        let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.clone()).unwrap_or_default();
+        tracing::info!("player refill: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
+        let result = refill_hand(rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, &alive_uids, extra, fight, || build_deck(&entities));
+        tracing::info!("player refill done: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
+        result
+    }
+
+    pub fn accumulate_enemy_ex_cards(&mut self, fight: &Fight, ex_point_mgr: &ExPointMgr) {
+        crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, ex_point_mgr);
+    }
+
+    pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, fight: &Fight) -> Vec<CardInfo> {
+        let alive_uids = alive_enemy_uids(fight);
+        let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.clone()).unwrap_or_default();
+        tracing::info!("enemy refill: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
+        let result = refill_hand(rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));
+        tracing::info!("enemy refill done: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
+        result
     }
 }

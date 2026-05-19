@@ -16,6 +16,7 @@ pub use battle::{
     end_fight::send_end_fight_push, generate_auto_opers, rewards::generate_dungeon_rewards, simulator::BattleSimulator,
     skill::cache::init_skill_cache,
 };
+pub(crate) use battle::ai::select_enemy_cards;
 pub use connection::{ActiveBattle, ConnectionContext};
 pub use gacha::{
     BannerType, GachaResult, GachaState, build_gacha, get_rewards, grant_dupe_rewards,

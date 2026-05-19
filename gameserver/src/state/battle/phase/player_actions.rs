@@ -318,8 +318,7 @@ pub(crate) async fn run(
     }
 
     state.before_cards2 = deck_mgr.player_hand.clone();
-    let alive_uids = alive_hero_uids(ctx.fight);
-    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, &alive_uids, 0, ctx.fight);
+    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, 0, ctx.fight);
 
     Ok(())
 }

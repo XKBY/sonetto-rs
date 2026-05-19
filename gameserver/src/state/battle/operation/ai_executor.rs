@@ -184,11 +184,13 @@ async fn execute_ai_operations_live(
 ) -> Result<Vec<FightStep>> {
     let mut steps = Vec::new();
 
+    tracing::info!("enemy plays {} card(s)", state.ai_use_cards.len());
     for i in 0..state.ai_use_cards.len() {
         let (caster_uid, skill_id) = {
             let card = &state.ai_use_cards[i];
             (card.uid.unwrap_or(0), card.skill_id.unwrap_or(0))
         };
+        tracing::info!("enemy card[{}]: uid={} skill_id={}", i, caster_uid, skill_id);
 
         preview_managers.buff_mgr.clear_step_deleted_buff_ids();
 
@@ -217,6 +219,25 @@ async fn execute_ai_operations_live(
 
         let step = make_skill_step(caster_uid, target_uid, resolved_skill_id, 0, op_effects);
         advance_ai_preview_after_cast(preview_fight, preview_managers, caster_uid, &step);
+
+        let is_ex = preview_fight.defender.as_ref()
+            .and_then(|d| d.entitys.iter().chain(d.sub_entitys.iter()).find(|e| e.uid == Some(caster_uid)))
+            .and_then(|e| e.ex_skill)
+            .map(|ex| ex == skill_id)
+            .unwrap_or(false);
+        if is_ex {
+            tracing::info!("enemy uid={} used ex skill {}, resetting ex_point to 0", caster_uid, skill_id);
+            preview_managers.ex_point_mgr.set_ex_point(caster_uid, 0);
+            ctx.managers.ex_point_mgr.set_ex_point(caster_uid, 0);
+            for fight in [&mut *preview_fight, ctx.fight] {
+                if let Some(e) = fight.defender.as_mut()
+                    .and_then(|d| d.entitys.iter_mut().chain(d.sub_entitys.iter_mut()).find(|e| e.uid == Some(caster_uid)))
+                {
+                    e.ex_point = Some(0);
+                }
+            }
+        }
+
         steps.push(step);
     }
     Ok(steps)

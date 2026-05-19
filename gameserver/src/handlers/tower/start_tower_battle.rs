@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
+    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap, select_enemy_cards,
 };
 use config::configs;
 use prost::Message;
@@ -77,21 +77,27 @@ pub async fn on_start_tower_battle(
         max_ap,
     };
 
-    let (initial_round, mut fight_data_mgr) =
+    let (mut initial_round, mut fight_data_mgr) =
         create_battle(&pool, battle_ctx, &fight_group).await?;
 
-    let mut card_push = fight_data_mgr.managers.deck_mgr
-        .init_player(&pool, player_id, &fight_group, max_ap).await?;
-
     let fight_for_battle = fight_data_mgr.fight().clone();
-    let monster_ids: Vec<i32> = fight_for_battle
-        .defender.as_ref()
-        .map(|d| d.entitys.iter().chain(d.sub_entitys.iter())
-            .filter_map(|e| e.model_id).collect())
-        .unwrap_or_default();
+    let mut card_push = fight_data_mgr.managers.deck_mgr
+        .init_player(&fight_for_battle, max_ap);
 
     let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
-    fight_data_mgr.managers.deck_mgr.init_enemy(&fight_for_battle, seed, &monster_ids);
+    fight_data_mgr.managers.deck_mgr.init_enemy(&fight_for_battle);
+
+    {
+        use rand::SeedableRng;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let cards = select_enemy_cards(
+            &mut fight_data_mgr.managers.deck_mgr,
+            &fight_for_battle,
+            &mut rng,
+        );
+        fight_data_mgr.managers.deck_mgr.next_ai_use_cards = cards.clone();
+        initial_round.ai_use_cards = cards;
+    }
 
     // SP cards already in player_hand from build_initial_round passives
     card_push.card_group = fight_data_mgr.managers.deck_mgr.player_hand.clone();

@@ -567,6 +567,7 @@ impl FightRoundMgr {
         );
         open.state.replay_wave_snapshot_applied = replay_wave_snapshot_applied;
         open.state.replay_wave_snapshot_target_wave = replay_wave_snapshot_target_wave;
+        open.state.ai_use_cards = std::mem::take(&mut deck_mgr.next_ai_use_cards);
         let ctx = &mut *round_ctx.fight_ctx;
         if replay_wave_snapshot_applied {
             for snapshot in replay_wave_snapshots {
@@ -637,31 +638,6 @@ impl FightRoundMgr {
         )
         .await?;
 
-        // After enemy actions: purge dead-entity cards and refill enemy hand
-        let alive_enemy_uids: Vec<i64> = ctx.fight.defender.as_ref()
-            .map(|d| d.entitys.iter().filter_map(|e| if e.current_hp.unwrap_or(0) > 0 { e.uid } else { None }).collect())
-            .unwrap_or_default();
-        // Accumulate EX cards for enemies that have reached max EX points
-        if let Some(defender) = ctx.fight.defender.as_ref() {
-            for e in defender.entitys.iter().chain(defender.sub_entitys.iter()) {
-                let uid = e.uid.unwrap_or(0);
-                if uid >= 0 { continue; }
-                let ex_skill = e.ex_skill.unwrap_or(0);
-                if ex_skill == 0 { continue; }
-                let ex_point = ctx.managers.ex_point_mgr.get_ex_point(uid);
-                let ex_max = ctx.managers.ex_point_mgr.get_ex_max(uid);
-                if ex_max > 0 && ex_point >= ex_max
-                    && !deck_mgr.enemy_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
-                    && !deck_mgr.enemy_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
-                {
-                    deck_mgr.enemy_ex_deck.push(make_card(e.model_id.unwrap_or(0), ex_skill, uid, false));
-                }
-            }
-        }
-        let alive_set: HashSet<i64> = alive_enemy_uids.iter().copied().collect();
-        deck_mgr.purge_enemy_dead_cards(&alive_set);
-        deck_mgr.refill_enemy_hand(rng, &alive_set, ctx.fight);
-
         // 4. post_processing
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
         mechanics::nautika::strip_duplicate_change_round_markers(&mut open.steps);
@@ -697,7 +673,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        let result = phase::build_round_output::build_round_output(self, round_ctx, open, &mut deck_mgr);
+        let result = phase::build_round_output::build_round_output(self, round_ctx, open, &mut deck_mgr, rng);
         round_ctx.fight_ctx.managers.deck_mgr = deck_mgr;
         result
     }

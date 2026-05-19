@@ -17,6 +17,8 @@ use std::sync::Once;
 use rand::{Rng, rngs::StdRng};
 use sonettobuf::{BeginRoundOper, CardInfo, FightStep};
 
+use sonettobuf::Fight;
+
 use crate::state::battle::deck::DeckManager;
 use crate::state::battle::{
     context::RoundContext,
@@ -38,7 +40,6 @@ use crate::state::battle::{
     passives::collector::{CollectedPassives, collect},
     round::{RoundState, steps::refresh::build_refresh_step},
     card::apply_card_upgrades,
-    card::skill_level,
 };
 
 fn ensure_battle_tracing() {
@@ -122,49 +123,6 @@ pub(crate) fn run(
     }
     reset_buff_uid_to(attacker_uid_checkpoint.max(0));
 
-    // Enemy card selection: draw up to enemy_ap cards (EX priority > highest-level > index 0)
-    let mut ai_use_cards: Vec<CardInfo> = Vec::new();
-    if let Some(defender) = &ctx.fight.defender {
-        let entities: Vec<_> = defender.entitys.iter()
-            .filter(|e| e.current_hp.unwrap_or(0) > 0)
-            .cloned()
-            .collect();
-        let ex_skill_ids: std::collections::HashSet<i32> = entities.iter()
-            .filter_map(|e| e.ex_skill)
-            .filter(|&id| id != 0)
-            .collect();
-        let enemy_ap = entities.len();
-        for _ in 0..enemy_ap {
-            if deck_mgr.enemy_hand.is_empty() { break; }
-            let best_pos = deck_mgr.enemy_hand.iter().enumerate()
-                .max_by_key(|(_, c)| {
-                    let sid = c.skill_id.unwrap_or(0);
-                    let is_ex = ex_skill_ids.contains(&sid);
-                    (is_ex, skill_level(sid, &entities))
-                })
-                .map(|(i, _)| i)
-                .unwrap_or(0);
-            let mut card = deck_mgr.enemy_hand.remove(best_pos);
-            // Remap monster_id UID to actual fight entity UID (negative)
-            if let Some(mid) = card.uid {
-                if let Some(entity) = entities.iter().find(|e| e.model_id == Some(mid as i32)) {
-                    card.uid = entity.uid;
-                }
-            }
-            ai_use_cards.push(card);
-            apply_card_upgrades(&mut deck_mgr.enemy_hand, ctx.fight);
-        }
-    }
-    // Assign random target_uid (alive attacker) to each ai_card
-    let attacker_uids: Vec<i64> = ctx.fight.attacker.as_ref()
-        .map(|a| a.entitys.iter().filter(|e| e.current_hp.unwrap_or(0) > 0).filter_map(|e| e.uid).collect())
-        .unwrap_or_default();
-    if !attacker_uids.is_empty() {
-        for card in &mut ai_use_cards {
-            card.target_uid = Some(attacker_uids[rng.gen_range(0..attacker_uids.len())]);
-        }
-    }
-    state.ai_use_cards = ai_use_cards;
     state.ai_override_steps = ai_override_steps.map(|steps| steps.to_vec());
     if let Some(cards) = replay_selected_cards {
         if !cards.is_empty() {

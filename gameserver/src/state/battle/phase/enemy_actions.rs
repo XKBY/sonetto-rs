@@ -49,6 +49,7 @@ pub(crate) async fn run(
     let ai_steps = ai_executor::execute_ai_operations(executor, rng, ctx, state).await?;
     let mut previous_negative_skill_host: Option<(i64, i32)> = None;
     for step in ai_steps {
+        tracing::info!("enemy plays: uid={} skill_id={}", step.from_id.unwrap_or(0), step.act_id.unwrap_or(0));
         let current_negative_skill_host =
             if step.act_type == Some(fight_step::ActType::Skill as i32) {
                 step.from_id

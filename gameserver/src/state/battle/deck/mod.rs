@@ -1,9 +1,10 @@
+mod cleanup;
 mod draw;
 mod manager;
 pub(crate) mod pool;
 mod hand;
+pub(crate) mod utils;
 
-pub use hand::default_max_ap;
-pub(crate) use hand::{purge_dead_entity_cards, refill_hand};
+pub use utils::default_max_ap;
 pub use manager::DeckManager;
-pub use pool::make_card;
+pub use crate::state::battle::card::utils::make_card;

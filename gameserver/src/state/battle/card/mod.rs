@@ -1,9 +1,12 @@
 pub(crate) mod executor;
+pub(crate) mod ex_card;
 mod op;
 mod upgrade;
+pub mod utils;
 
 pub use op::CardOpType;
 pub use upgrade::apply_card_upgrades;
+pub use utils::make_card;
 
 pub fn skill_level(skill_id: i32, entities: &[sonettobuf::FightEntityInfo]) -> usize {
     entities.iter().flat_map(|e| [&e.skill_group1, &e.skill_group2]).find_map(|g| {

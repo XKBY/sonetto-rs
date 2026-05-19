@@ -1,4 +1,5 @@
 mod auto;
+pub(crate) mod ai;
 mod card;
 pub mod deck;
 pub(crate) mod operation;
