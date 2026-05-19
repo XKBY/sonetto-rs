@@ -2,10 +2,10 @@ use rand::Rng;
 use sonettobuf::{CardInfo, CardInfoPush, Fight};
 use crate::state::battle::manager::ex_point_mgr::ExPointMgr;
 use crate::state::battle::utils::alive_hero_uids;
-use super::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
-use super::hand::{generate_initial_hand, refill_hand};
-use super::pool::build_deck;
-use super::utils::alive_enemy_uids;
+use crate::state::battle::deck::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
+use crate::state::battle::deck::hand::{generate_initial_hand, refill_hand};
+use crate::state::battle::deck::pool::build_deck;
+use crate::state::battle::deck::utils::alive_enemy_uids;
 
 #[derive(Default, Debug, Clone)]
 pub struct DeckManager {
