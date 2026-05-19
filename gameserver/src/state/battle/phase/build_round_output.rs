@@ -1,9 +1,9 @@
 use anyhow::Result;
 use rand::thread_rng;
-use sonettobuf::{CardInfo, FightRound};
+use sonettobuf::FightRound;
 
 use crate::state::battle::{
-    card::{purge_dead_entity_cards, refill_hand},
+    deck::{DeckManager, purge_dead_entity_cards, refill_hand},
     context::RoundContext,
     manager::{ex_point_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
     fight_step::split_step_by_effect_limit,
@@ -16,9 +16,7 @@ pub(crate) fn build_round_output(
     mgr: &FightRoundMgr,
     round_ctx: &mut RoundContext<'_, '_>,
     mut open: RoundOpenPhaseData,
-    player_hand: &mut Vec<CardInfo>,
-    player_deck: &mut Vec<CardInfo>,
-    player_ex_deck: &mut Vec<CardInfo>,
+    deck_mgr: &mut DeckManager,
 ) -> Result<FightRound> {
     let ctx = &mut *round_ctx.fight_ctx;
     if open.state.pending_cloth_power_delta != 0
@@ -48,21 +46,21 @@ pub(crate) fn build_round_output(
 
     // Purge cards belonging to dead heroes
     let alive_uids = alive_hero_uids(ctx.fight);
-    purge_dead_entity_cards(player_hand, &alive_uids);
-    purge_dead_entity_cards(player_ex_deck, &alive_uids);
+    purge_dead_entity_cards(&mut deck_mgr.player_hand, &alive_uids);
+    purge_dead_entity_cards(&mut deck_mgr.player_ex_deck, &alive_uids);
 
-    let before_cards1 = player_hand.clone();
+    let before_cards1 = deck_mgr.player_hand.clone();
     let team_a_cards1 = refill_hand(
         &mut thread_rng(),
-        player_hand,
-        player_deck,
-        player_ex_deck,
+        &mut deck_mgr.player_hand,
+        &mut deck_mgr.player_deck,
+        &mut deck_mgr.player_ex_deck,
         &alive_uids,
         0,
         ctx.fight,
     );
 
-    let next_round_begin_step = build_next_round_begin_step(player_hand.clone(), player_deck.len() as i32);
+    let next_round_begin_step = build_next_round_begin_step(deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32);
     open.steps = open
         .steps
         .into_iter()

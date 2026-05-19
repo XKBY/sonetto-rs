@@ -1,6 +1,5 @@
 pub mod buff_mgr;
 pub mod calculate_mgr;
-pub mod card_mgr;
 pub mod entity_mgr;
 pub mod ex_point_mgr;
 pub mod fight_data_mgr;

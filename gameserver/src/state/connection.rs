@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 
 use crate::error::AppError;
 
+use crate::state::battle::deck::DeckManager;
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;
 use crate::util::common::{encode_message, send_raw_server_message};
 use sonettobuf::CmdId;
@@ -40,16 +41,11 @@ pub struct ActiveBattle {
     pub chapter_id: i32,
     pub difficulty: Option<i32>,
     pub talent_plan_id: Option<i32>,
-    pub fight: Option<sonettobuf::Fight>, // Current battle state
+    pub fight: Option<sonettobuf::Fight>,
     pub current_round: i32,
-    pub act_point: i32, //  Remaining action points
+    pub act_point: i32,
     pub power: i32,
-    pub player_hand: Vec<sonettobuf::CardInfo>,
-    pub player_deck: Vec<sonettobuf::CardInfo>,
-    pub player_ex_deck: Vec<sonettobuf::CardInfo>,
-    pub enemy_hand: Vec<sonettobuf::CardInfo>,
-    pub enemy_deck: Vec<sonettobuf::CardInfo>,
-    pub enemy_ex_deck: Vec<sonettobuf::CardInfo>,
+    pub deck_mgr: DeckManager,
     pub fight_group: Option<sonettobuf::FightGroup>,
     pub fight_id: Option<i64>,
     pub is_replay: Option<bool>,

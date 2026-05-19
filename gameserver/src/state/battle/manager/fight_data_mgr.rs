@@ -1,5 +1,6 @@
 use super::super::{
     context::FightContext,
+    deck::DeckManager,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::split_step_by_effect_limit,
     manager::{
@@ -32,6 +33,7 @@ pub struct Managers {
     pub buff_mgr: BuffMgr,
     pub ex_point_mgr: ExPointMgr,
     pub wave_mgr: WaveMgr,
+    pub deck_mgr: DeckManager,
 }
 
 impl Managers {
@@ -42,6 +44,7 @@ impl Managers {
             buff_mgr: BuffMgr::new(),
             ex_point_mgr: ExPointMgr::new(),
             wave_mgr: WaveMgr::new(),
+            deck_mgr: DeckManager::default(),
         }
     }
 }
@@ -83,25 +86,6 @@ impl FightDataMgr {
     #[inline]
     pub fn fight_mut(&mut self) -> &mut Fight {
         &mut self.fight
-    }
-
-    pub fn alive_hero_uids(&self) -> Vec<i64> {
-        self.fight
-            .attacker
-            .as_ref()
-            .map(|a| {
-                a.entitys
-                    .iter()
-                    .filter_map(|e| {
-                        if e.current_hp.unwrap_or(0) > 0 {
-                            e.uid
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     pub fn ctx(&mut self) -> FightContext<'_> {

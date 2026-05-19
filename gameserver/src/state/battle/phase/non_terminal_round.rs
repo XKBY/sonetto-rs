@@ -16,11 +16,11 @@ use sonettobuf::{ActEffect, CardInfo, FightStep};
 use crate::state::battle::{
     buff_actions::{self, BuffStage, round_end as round_end_handler},
     context::FightContext,
+    deck::DeckManager,
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
     heroes::rubuska,
     manager::{
         buff_mgr::{LifecycleEventKind, reset_buff_uid_to},
-        card_mgr::FightCardMgr,
         ex_point_mgr::sync_from_fight,
         round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
         traits::Manager,
@@ -45,13 +45,12 @@ pub(crate) async fn run(
     mgr: &FightRoundMgr,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
-    card_mgr: &mut FightCardMgr,
+    executor: &mut SkillExecutor,
     state: &mut RoundState,
     selected_for_round_end: Vec<CardInfo>,
     collected: &CollectedPassives,
     defender_uid_checkpoint: i64,
-    player_hand: &mut Vec<CardInfo>,
-    player_deck: &mut Vec<CardInfo>,
+    deck_mgr: &mut DeckManager,
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     if state.is_finish {
@@ -95,7 +94,7 @@ pub(crate) async fn run(
         true,
         steps,
     )?;
-    steps.extend(build_pre_enemy_transition_steps(player_deck.len() as i32));
+    steps.extend(build_pre_enemy_transition_steps(deck_mgr.player_deck.len() as i32));
     let defender_bootstrap_start = steps.len();
     mgr.apply_passive_phase(
         ctx,
@@ -158,7 +157,7 @@ pub(crate) async fn run(
     reset_buff_uid_to(defender_uid_checkpoint);
 
     // Enemy actions
-    phase::enemy_actions::run(mgr, rng, ctx, card_mgr, state, collected, steps).await?;
+    phase::enemy_actions::run(mgr, rng, ctx, executor, state, collected, steps).await?;
     
     let injected_channel_buffs =
         channel_mechanics::inject_channel_followup_buffs_if_missing(mgr, ctx, collected, steps);
@@ -354,7 +353,7 @@ pub(crate) async fn run(
     // post-round-start passive sweeps execute.
     ctx.managers.buff_mgr.reset_skill_slot_round_usage();
     let round_start_tail_start = steps.len();
-    run_post_change_round_tail(mgr, ctx, collected, steps, player_deck.len() as i32, injected_channel_buffs)?;
+    run_post_change_round_tail(mgr, ctx, collected, steps, deck_mgr.player_deck.len() as i32, injected_channel_buffs)?;
 
     // LIVE still applies the downstream Shadow Cloak / bloodpool state updates
     // on terminal transitions, but it does not surface the visible

@@ -24,19 +24,19 @@ use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightStep, fight_step};
 
 use crate::state::battle::{
-    card::{pool::make_card, refill_hand},
+    deck::{DeckManager, make_card},
     context::FightContext,
     event_queue::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
         register_round_host,
     },
     manager::{
-        card_mgr::FightCardMgr,
         round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
     },
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
     passives::collector::CollectedPassives,
     round::RoundState,
+    skill::SkillExecutor,
     step_walker,
     steps::{ex_gain, trigger_embed},
     trigger::passes::sync_blood_value_baseline,
@@ -64,11 +64,9 @@ pub(crate) async fn run(
     mgr: &FightRoundMgr,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
-    card_mgr: &mut FightCardMgr,
+    executor: &mut SkillExecutor,
     state: &mut RoundState,
-    player_hand: &mut Vec<CardInfo>,
-    player_deck: &mut Vec<CardInfo>,
-    player_ex_deck: &mut Vec<CardInfo>,
+    deck_mgr: &mut DeckManager,
     operations: Vec<BeginRoundOper>,
     collected: &CollectedPassives,
     steps: &mut Vec<FightStep>,
@@ -84,7 +82,7 @@ pub(crate) async fn run(
             .unwrap_or(0);
         let ex_step_after_op = ex_gain::pre_operation_ex_gain(ctx, state, &oper);
         let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
-        let step = card_mgr.execute_operation(rng, ctx, state, oper).await?;
+        let step = crate::state::battle::operation::executor::execute_operation(executor, rng, ctx, state, oper).await?;
         if step.act_type.unwrap_or(0) == 0 {
             continue;
         }
@@ -113,10 +111,10 @@ pub(crate) async fn run(
             for (uid, ex_skill, hero_id) in entities {
                 if let (Some(ex_skill), Some(hero_id)) = (ex_skill, hero_id) {
                     if ex_skill != 0
-                        && !player_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
-                        && !player_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill)) {
+                        && !deck_mgr.player_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                        && !deck_mgr.player_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill)) {
                         tracing::info!("ex_deck: add uid={} ex_skill={}", uid, ex_skill);
-                        player_ex_deck.push(make_card(hero_id, ex_skill, uid, false));
+                        deck_mgr.player_ex_deck.push(make_card(hero_id, ex_skill, uid, false));
                     }
                 }
             }
@@ -319,9 +317,9 @@ pub(crate) async fn run(
         }
     }
 
-    state.before_cards2 = player_hand.clone();
+    state.before_cards2 = deck_mgr.player_hand.clone();
     let alive_uids = alive_hero_uids(ctx.fight);
-    state.team_a_cards2 = refill_hand(rng, player_hand, player_deck, player_ex_deck, &alive_uids, 0, ctx.fight);
+    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, &alive_uids, 0, ctx.fight);
 
     Ok(())
 }

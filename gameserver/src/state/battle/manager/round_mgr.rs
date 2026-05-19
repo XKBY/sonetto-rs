@@ -9,7 +9,8 @@ use std::{
 
 use super::super::{
     ConditionType,
-    card::{CardOpType, make_card, purge_dead_entity_cards, refill_hand},
+    card::CardOpType,
+    deck::{DeckManager, make_card},
     context::{FightContext, RoundContext},
     event_queue::{
         AttachmentResolver, BattleEvent, EventContext, EventQueue, HostEventAccumulator,
@@ -22,9 +23,9 @@ use super::super::{
     heroes::pickles,
     manager::{
         buff_mgr::next_buff_uid_for_target,
-        card_mgr::FightCardMgr,
         ex_point_mgr::{build_ex_point_info, sync_from_fight, sync_to_fight},
     },
+    skill::SkillExecutor,
     mechanics::{self, injury_counter},
     passives::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
@@ -533,14 +534,9 @@ impl FightRoundMgr {
         &self,
         rng: &mut StdRng,
         round_ctx: &mut RoundContext<'_, '_>,
-        card_mgr: &mut FightCardMgr,
+        executor: &mut SkillExecutor,
+        deck_mgr: &mut DeckManager,
         operations: Vec<BeginRoundOper>,
-        player_hand: &mut Vec<CardInfo>,
-        player_deck: &mut Vec<CardInfo>,
-        player_ex_deck: &mut Vec<CardInfo>,
-        enemy_hand: &mut Vec<CardInfo>,
-        enemy_deck: &mut Vec<CardInfo>,
-        enemy_ex_deck: &mut Vec<CardInfo>,
         ai_override_steps: Option<Vec<FightStep>>,
         replay_selected_cards: Option<Vec<CardInfo>>,
         replay_silent_ops: Option<Vec<bool>>,
@@ -563,9 +559,7 @@ impl FightRoundMgr {
         let mut open = phase::round_open::run(
             round_ctx,
             rng,
-            player_hand,
-            player_deck,
-            enemy_hand,
+            deck_mgr,
             ai_override_steps.as_deref(),
             &operations,
             replay_selected_cards.as_deref(),
@@ -619,11 +613,9 @@ impl FightRoundMgr {
             self,
             rng,
             ctx,
-            card_mgr,
+            executor,
             &mut open.state,
-            player_hand,
-            player_deck,
-            player_ex_deck,
+            deck_mgr,
             operations,
             &open.collected,
             &mut open.steps,
@@ -635,13 +627,12 @@ impl FightRoundMgr {
             self,
             rng,
             ctx,
-            card_mgr,
+            executor,
             &mut open.state,
             open.selected_for_round_end.clone(),
             &open.collected,
             open.defender_uid_checkpoint,
-            player_hand,
-            player_deck,
+            deck_mgr,
             &mut open.steps,
         )
         .await?;
@@ -660,16 +651,16 @@ impl FightRoundMgr {
                 let ex_point = ctx.managers.ex_point_mgr.get_ex_point(uid);
                 let ex_max = ctx.managers.ex_point_mgr.get_ex_max(uid);
                 if ex_max > 0 && ex_point >= ex_max
-                    && !enemy_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
-                    && !enemy_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                    && !deck_mgr.enemy_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
+                    && !deck_mgr.enemy_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
                 {
-                    enemy_ex_deck.push(make_card(e.model_id.unwrap_or(0), ex_skill, uid, false));
+                    deck_mgr.enemy_ex_deck.push(make_card(e.model_id.unwrap_or(0), ex_skill, uid, false));
                 }
             }
         }
-        purge_dead_entity_cards(enemy_hand, &alive_enemy_uids.iter().copied().collect());
-        purge_dead_entity_cards(enemy_ex_deck, &alive_enemy_uids.iter().copied().collect());
-        let _ = refill_hand(rng, enemy_hand, enemy_deck, enemy_ex_deck, &alive_enemy_uids.iter().copied().collect(), 0, ctx.fight);
+        let alive_set: HashSet<i64> = alive_enemy_uids.iter().copied().collect();
+        deck_mgr.purge_enemy_dead_cards(&alive_set);
+        deck_mgr.refill_enemy_hand(rng, &alive_set, ctx.fight);
 
         // 4. post_processing
         round_end_emission::merge_post_turn_reactives_into_host(&mut open.steps);
@@ -706,7 +697,7 @@ impl FightRoundMgr {
         }
 
         // 5. build_round_output
-        phase::build_round_output::build_round_output(self, round_ctx, open, player_hand, player_deck, player_ex_deck)
+        phase::build_round_output::build_round_output(self, round_ctx, open, deck_mgr)
     }
 
     pub(crate) fn apply_step_and_maybe_sync(

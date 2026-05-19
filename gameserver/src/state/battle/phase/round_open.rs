@@ -17,6 +17,7 @@ use std::sync::Once;
 use rand::{Rng, rngs::StdRng};
 use sonettobuf::{BeginRoundOper, CardInfo, FightStep};
 
+use crate::state::battle::deck::DeckManager;
 use crate::state::battle::{
     context::RoundContext,
     event_queue::reset_round_host_index,
@@ -75,9 +76,7 @@ pub(crate) struct RoundOpenPhaseData {
 pub(crate) fn run(
     round_ctx: &mut RoundContext<'_, '_>,
     rng: &mut StdRng,
-    player_hand: &mut Vec<CardInfo>,
-    player_deck: &[CardInfo],
-    enemy_hand: &mut Vec<CardInfo>,
+    deck_mgr: &mut DeckManager,
     ai_override_steps: Option<&[FightStep]>,
     operations: &[BeginRoundOper],
     replay_selected_cards: Option<&[CardInfo]>,
@@ -136,8 +135,8 @@ pub(crate) fn run(
             .collect();
         let enemy_ap = entities.len();
         for _ in 0..enemy_ap {
-            if enemy_hand.is_empty() { break; }
-            let best_pos = enemy_hand.iter().enumerate()
+            if deck_mgr.enemy_hand.is_empty() { break; }
+            let best_pos = deck_mgr.enemy_hand.iter().enumerate()
                 .max_by_key(|(_, c)| {
                     let sid = c.skill_id.unwrap_or(0);
                     let is_ex = ex_skill_ids.contains(&sid);
@@ -145,7 +144,7 @@ pub(crate) fn run(
                 })
                 .map(|(i, _)| i)
                 .unwrap_or(0);
-            let mut card = enemy_hand.remove(best_pos);
+            let mut card = deck_mgr.enemy_hand.remove(best_pos);
             // Remap monster_id UID to actual fight entity UID (negative)
             if let Some(mid) = card.uid {
                 if let Some(entity) = entities.iter().find(|e| e.model_id == Some(mid as i32)) {
@@ -153,7 +152,7 @@ pub(crate) fn run(
                 }
             }
             ai_use_cards.push(card);
-            apply_card_upgrades(enemy_hand, ctx.fight);
+            apply_card_upgrades(&mut deck_mgr.enemy_hand, ctx.fight);
         }
     }
     // Assign random target_uid (alive attacker) to each ai_card
@@ -179,8 +178,8 @@ pub(crate) fn run(
     }
 
     tracing::warn!("=== ROUND START ===");
-    tracing::warn!("player_hand ({} cards):", player_hand.len());
-    for (i, c) in player_hand.iter().enumerate() {
+    tracing::warn!("player_hand ({} cards):", deck_mgr.player_hand.len());
+    for (i, c) in deck_mgr.player_hand.iter().enumerate() {
         tracing::warn!(
             "  [{}] uid={:?} hero={:?} skill={:?}",
             i,
@@ -191,9 +190,9 @@ pub(crate) fn run(
     }
     tracing::warn!(
         "player_hand after filter ({} cards):",
-        player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).count()
+        deck_mgr.player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).count()
     );
-    for (i, c) in player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).enumerate() {
+    for (i, c) in deck_mgr.player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).enumerate() {
         tracing::warn!(
             "  [{}] uid={:?} hero={:?} skill={:?}",
             i,
@@ -213,7 +212,7 @@ pub(crate) fn run(
         );
     }
 
-    player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
+    deck_mgr.player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
     let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
     let mut move_ex_uids: Vec<i64> = Vec::new();
 
@@ -226,36 +225,36 @@ pub(crate) fn run(
         if is_move {
             let from = (op.param1.unwrap_or(1) - 1) as usize;
             let to = (op.param2.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, player_hand.len());
-            if from < player_hand.len() && to < player_hand.len() {
-                let uid = player_hand[from].uid.unwrap_or(0);
+            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, deck_mgr.player_hand.len());
+            if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
+                let uid = deck_mgr.player_hand[from].uid.unwrap_or(0);
                 if uid > 0 {
                     ctx.managers.ex_point_mgr.add_ex_point(uid, 1);
                     move_ex_uids.push(uid);
                 }
-                let card = player_hand.remove(from);
-                player_hand.insert(to, card);
-                apply_card_upgrades(player_hand, ctx.fight);
+                let card = deck_mgr.player_hand.remove(from);
+                deck_mgr.player_hand.insert(to, card);
+                apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
             }
-            for (i, c) in player_hand.iter().enumerate() {
+            for (i, c) in deck_mgr.player_hand.iter().enumerate() {
                 tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
             }
         } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  pick idx={} from deck of {} cards:", idx, player_hand.len());
-            for (i, c) in player_hand.iter().enumerate() {
+            tracing::warn!("  pick idx={} from deck of {} cards:", idx, deck_mgr.player_hand.len());
+            for (i, c) in deck_mgr.player_hand.iter().enumerate() {
                 tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
             }
-            if idx < player_hand.len() {
-                let card = player_hand.remove(idx);
+            if idx < deck_mgr.player_hand.len() {
+                let card = deck_mgr.player_hand.remove(idx);
                 tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                 selected_pairs.push((selected_pairs.len(), card));
-                apply_card_upgrades(player_hand, ctx.fight);
+                apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
             } else {
                 tracing::warn!(
                     "  -> idx {} OUT OF RANGE (deck size {})",
                     idx,
-                    player_hand.len()
+                    deck_mgr.player_hand.len()
                 );
             }
         }
@@ -286,12 +285,12 @@ pub(crate) fn run(
     for (i, c) in selected_cards.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
-    tracing::warn!("remaining ({}):", player_hand.len());
-    for (i, c) in player_hand.iter().enumerate() {
+    tracing::warn!("remaining ({}):", deck_mgr.player_hand.len());
+    for (i, c) in deck_mgr.player_hand.iter().enumerate() {
         tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
     }
 
-    let mut steps = vec![build_refresh_step(selected_cards, player_hand.clone(), player_deck.len() as i32)];
+    let mut steps = vec![build_refresh_step(selected_cards, deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32)];
     for uid in move_ex_uids {
         steps.push(FightStepBuilder::ex_point_change(uid, 1));
     }

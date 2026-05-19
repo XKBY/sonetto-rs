@@ -1,9 +1,9 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, apply_opening_deck, build_enemy_deck,
-    build_player_deck, create_battle, default_max_ap, generate_initial_enemy_hand,
-    generate_initial_hand,
+    ActiveBattle, BattleContext, ConnectionContext, DeckManager, apply_opening_deck,
+    build_enemy_deck, build_player_deck, create_battle, default_max_ap,
+    generate_initial_enemy_hand, generate_initial_hand,
 };
 use config::configs;
 use prost::Message;
@@ -142,12 +142,14 @@ pub async fn on_start_tower_battle(
             current_round: 1,
             act_point: max_ap,
             power: 15,
-            player_hand: final_cards,
-            player_deck,
-            player_ex_deck: vec![],
-            enemy_hand,
-            enemy_deck,
-            enemy_ex_deck: vec![],
+            deck_mgr: DeckManager {
+                player_hand: final_cards,
+                player_deck,
+                player_ex_deck: vec![],
+                enemy_hand,
+                enemy_deck,
+                enemy_ex_deck: vec![],
+            },
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,

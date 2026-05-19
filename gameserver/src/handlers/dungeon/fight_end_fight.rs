@@ -38,13 +38,12 @@ pub async fn on_fight_end_fight(
 
     // Determine fight result: 0 = lose, 1 = win, 2 = turn_exhausted
     let result = if is_abort {
-        0 // Abort counts as lose
+        0
     } else if let Some(mgr) = fight_data_mgr {
-        // Check battle state to determine win/loss
-        let simulator = BattleSimulator::new(mgr);
+        let simulator = BattleSimulator::new(mgr, Default::default());
         simulator.check_battle_result()
     } else {
-        1 // Default to win if no battle data
+        1
     };
 
     tracing::info!("Fight ended with result: {} (0=lose, 1=win, 2=turn_exhausted)", result);

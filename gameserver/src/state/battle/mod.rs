@@ -1,5 +1,7 @@
 mod auto;
 mod card;
+pub mod deck;
+pub(crate) mod operation;
 mod passives;
 
 pub mod context;
@@ -40,8 +42,8 @@ use sonettobuf::FightRound;
 use sqlx::SqlitePool;
 
 pub use auto::generate_auto_opers;
-pub use card::apply_opening_deck;
-pub use card::{build_enemy_deck, build_player_deck, default_max_ap, generate_ai_deck, generate_deck, generate_initial_enemy_hand, generate_initial_hand};
+pub use deck::apply_opening_deck;
+pub use deck::{build_enemy_deck, build_player_deck, default_max_ap, generate_ai_deck, generate_deck, generate_initial_enemy_hand, generate_initial_hand};
 pub use types::{behavior::BehaviorType, condition::ConditionType};
 
 use crate::state::battle::manager::fight_data_mgr::FightDataMgr;

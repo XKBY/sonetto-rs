@@ -32,9 +32,6 @@ pub async fn on_auto_round(
     );
 
     let (
-        player_hand,
-        player_deck,
-        player_ex_deck,
         fight_group,
         chapter_id,
         episode_id,
@@ -42,9 +39,7 @@ pub async fn on_auto_round(
         battle_id,
         round_num,
         multiplication,
-        enemy_hand,
-        enemy_deck,
-        enemy_ex_deck,
+        deck_mgr,
         fight_data_mgr,
     ) = {
         let mut conn = ctx.lock().await;
@@ -59,9 +54,6 @@ pub async fn on_auto_round(
             .ok_or(AppError::InvalidRequest)?;
 
         (
-            battle.player_hand.clone(),
-            battle.player_deck.clone(),
-            battle.player_ex_deck.clone(),
             battle.fight_group.clone(),
             battle.chapter_id,
             battle.episode_id,
@@ -69,9 +61,7 @@ pub async fn on_auto_round(
             battle.fight_id.unwrap_or_default(),
             battle.current_round,
             battle.multiplication.unwrap_or(1),
-            battle.enemy_hand.clone(),
-            battle.enemy_deck.clone(),
-            battle.enemy_ex_deck.clone(),
+            std::mem::take(&mut battle.deck_mgr),
             mgr,
         )
     };
@@ -84,24 +74,18 @@ pub async fn on_auto_round(
         )
     };
 
-    let auto_opers = generate_auto_opers(&player_hand);
+    let auto_opers = generate_auto_opers(&deck_mgr.player_hand);
     tracing::info!("AutoRound server selected {} ops", auto_opers.len());
 
-    let mut simulator = BattleSimulator::new(fight_data_mgr);
+    let mut simulator = BattleSimulator::new(fight_data_mgr, deck_mgr);
 
-    let mut player_hand = player_hand;
-    let mut player_deck = player_deck;
-    let mut player_ex_deck = player_ex_deck;
-    let mut enemy_hand = enemy_hand;
-    let mut enemy_deck = enemy_deck;
-    let mut enemy_ex_deck = enemy_ex_deck;
     let mut round = simulator
-        .process_round(auto_opers.clone(), &mut player_hand, &mut player_deck, &mut player_ex_deck, &mut enemy_hand, &mut enemy_deck, &mut enemy_ex_deck, None)
+        .process_round(auto_opers.clone(), None)
         .await?;
 
     round.is_finish = Some(true);
 
-    let fight_data_mgr = simulator.into_data();
+    let (fight_data_mgr, deck_mgr) = simulator.into_parts();
 
     {
         let mut conn = ctx.lock().await;
@@ -111,12 +95,7 @@ pub async fn on_auto_round(
             .ok_or(AppError::InvalidRequest)?;
 
         battle.fight_data_mgr = Some(fight_data_mgr);
-        battle.player_hand = player_hand;
-        battle.player_deck = player_deck;
-        battle.player_ex_deck = player_ex_deck;
-        battle.enemy_hand = enemy_hand;
-        battle.enemy_deck = enemy_deck;
-        battle.enemy_ex_deck = enemy_ex_deck;
+        battle.deck_mgr = deck_mgr;
     }
 
     let record_round = round.cur_round.unwrap_or(1);

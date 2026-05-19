@@ -22,10 +22,12 @@ use sonettobuf::{ActEffect, FightStep, fight_step};
 use crate::state::battle::{
     context::FightContext,
     event_queue::{self, BattleEvent, HostEventAccumulator, HostLane, HostSide},
-    manager::{card_mgr::FightCardMgr, round_mgr::FightRoundMgr, wave_mgr::WaveMgr},
+    manager::{round_mgr::FightRoundMgr, wave_mgr::WaveMgr},
     mechanics::magic_circle,
     passives::collector::CollectedPassives,
+    phase::ai_turn,
     round::RoundState,
+    skill::SkillExecutor,
     step_walker,
     steps::{ex_gain, trigger_embed},
     trigger::passes::sync_blood_value_baseline,
@@ -35,7 +37,7 @@ pub(crate) async fn run(
     mgr: &FightRoundMgr,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
-    card_mgr: &mut FightCardMgr,
+    executor: &mut SkillExecutor,
     state: &mut RoundState,
     collected: &CollectedPassives,
     steps: &mut Vec<FightStep>,
@@ -44,7 +46,7 @@ pub(crate) async fn run(
     sync_blood_value_baseline(battle_id, 1, ctx.mechanics.bloodtithe.get_value(1));
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
     state.enemy_skill_actors.clear();
-    let ai_steps = card_mgr.execute_ai_turn(rng, ctx, state).await?;
+    let ai_steps = ai_turn::execute_ai_turn(executor, rng, ctx, state).await?;
     let mut previous_negative_skill_host: Option<(i64, i32)> = None;
     for step in ai_steps {
         let current_negative_skill_host =
