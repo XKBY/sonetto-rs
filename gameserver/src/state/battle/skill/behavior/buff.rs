@@ -293,7 +293,7 @@ pub fn apply(
     let is_per_decr_ex_point = matches!(spec.condition, ConditionType::PerDecrExPoint { .. });
     let count = if is_per_decr_ex_point && spec.count <= 0 {
         managers
-            .ex_point_mgr
+            .entity_mgr
             .get_recent_decr_ex_point(spec.caster_uid)
     } else {
         spec.count
@@ -389,7 +389,7 @@ pub fn apply(
                     let mut event_ctx = EventContext {
                         fight: &mut local_fight,
                         buff_mgr: &mut managers.buff_mgr,
-                        ex_point_mgr: &mut managers.ex_point_mgr,
+                        ex_point_mgr: &mut managers.entity_mgr,
                         bloodtithe: &mut local_bloodtithe,
                     };
                     effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -470,7 +470,7 @@ pub fn apply(
                     let mut event_ctx = EventContext {
                         fight: &mut local_fight,
                         buff_mgr: &mut managers.buff_mgr,
-                        ex_point_mgr: &mut managers.ex_point_mgr,
+                        ex_point_mgr: &mut managers.entity_mgr,
                         bloodtithe: &mut local_bloodtithe,
                     };
                     effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -546,7 +546,7 @@ pub fn apply(
                         let mut event_ctx = EventContext {
                             fight: &mut local_fight,
                             buff_mgr: &mut managers.buff_mgr,
-                            ex_point_mgr: &mut managers.ex_point_mgr,
+                            ex_point_mgr: &mut managers.entity_mgr,
                             bloodtithe: &mut local_bloodtithe,
                         };
                         effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -728,7 +728,7 @@ pub fn apply(
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
+                ex_point_mgr: &mut managers.entity_mgr,
                 bloodtithe: &mut local_bloodtithe,
             };
             effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -770,7 +770,7 @@ pub fn replace_buff2(
         let mut event_ctx = EventContext {
             fight: &mut local_fight,
             buff_mgr: &mut managers.buff_mgr,
-            ex_point_mgr: &mut managers.ex_point_mgr,
+            ex_point_mgr: &mut managers.entity_mgr,
             bloodtithe: &mut local_bloodtithe,
         };
         effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -804,7 +804,7 @@ pub fn replace_buff2(
     let mut event_ctx = EventContext {
         fight: &mut local_fight,
         buff_mgr: &mut managers.buff_mgr,
-        ex_point_mgr: &mut managers.ex_point_mgr,
+        ex_point_mgr: &mut managers.entity_mgr,
         bloodtithe: &mut local_bloodtithe,
     };
     effects.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -1017,7 +1017,7 @@ pub fn consume_by_type(
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
+                ex_point_mgr: &mut managers.entity_mgr,
                 bloodtithe: &mut local_bloodtithe,
             };
             out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -1035,7 +1035,7 @@ pub fn consume_by_type(
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
+                ex_point_mgr: &mut managers.entity_mgr,
                 bloodtithe: &mut local_bloodtithe,
             };
             out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));
@@ -1050,7 +1050,7 @@ pub fn consume_by_type(
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut managers.buff_mgr,
-                ex_point_mgr: &mut managers.ex_point_mgr,
+                ex_point_mgr: &mut managers.entity_mgr,
                 bloodtithe: &mut local_bloodtithe,
             };
             out.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));

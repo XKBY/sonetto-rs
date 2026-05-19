@@ -16,7 +16,7 @@ use crate::state::battle::{
     fight::defender::Defender,
     fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::{
-        buff_mgr::observe_explicit_buff_uid_for_target, ex_point_mgr::sync_from_fight,
+        buff_mgr::observe_explicit_buff_uid_for_target, entity_mgr::sync_from_fight,
         round_mgr::seed_entry_max_hp_from_fight,
     },
     skill::SkillExecutor,
@@ -111,7 +111,7 @@ impl WaveMgr {
                 .filter_map(|entity| entity.uid)
                 .collect();
             self.advance_wave_state(ctx)?;
-            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
             for uid in old_defender_uids {
                 ctx.managers.buff_mgr.clear(uid);
             }
@@ -144,7 +144,7 @@ impl WaveMgr {
                 .filter_map(|entity| entity.uid)
                 .collect();
             steps.extend(self.advance_wave(ctx, executor)?);
-            sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+            sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
             for uid in old_defender_uids {
                 ctx.managers.buff_mgr.clear(uid);
             }

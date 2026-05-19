@@ -139,7 +139,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         .max(0);
     let current_ex = ctx
         .managers
-        .ex_point_mgr
+        .entity_mgr
         .get_ex_point(ctx.caster_uid)
         .max(0);
     // Live wrapper semantics: consume from EX-skill cost lane when
@@ -163,7 +163,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         consume
     };
     ctx.managers
-        .ex_point_mgr
+        .entity_mgr
         .set_recent_decr_ex_point(ctx.caster_uid, consume);
 
     // Some wrapper cards first fire a passive-side helper skill before
@@ -214,7 +214,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     }
     if consume != initial_consume {
         ctx.managers
-            .ex_point_mgr
+            .entity_mgr
             .set_recent_decr_ex_point(ctx.caster_uid, consume);
     }
 
@@ -319,7 +319,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
         out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, refund));
     }
     ctx.managers
-        .ex_point_mgr
+        .entity_mgr
         .clear_recent_decr_ex_point(ctx.caster_uid);
 
     Ok(out)

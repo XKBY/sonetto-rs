@@ -12,7 +12,7 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, effect_container_step, wrap_step},
     manager::{
         buff_mgr::BuffMgr,
-        ex_point_mgr::ExPointMgr,
+        entity_mgr::EntityMgr,
         round_mgr::{FightRoundMgr, lookup_entry_max_hp},
     },
     mechanics::{bloodtithe::BloodtitheState, injury_counter, magic_circle},
@@ -170,7 +170,7 @@ pub(crate) fn build_nuodika_channel_steps(
             rewrite_nuodika_channel_body(
                 ctx.fight,
                 &ctx.managers.buff_mgr,
-                &ctx.managers.ex_point_mgr,
+                &ctx.managers.entity_mgr,
                 &mut channel_effects,
                 holder_uid,
                 output_skill_id,
@@ -188,7 +188,7 @@ pub(crate) fn build_nuodika_channel_steps(
             });
             let mut local_fight = Fight::default();
             let mut local_buff_mgr = BuffMgr::new();
-            let mut local_ex_point_mgr = ExPointMgr::new();
+            let mut local_ex_point_mgr = EntityMgr::default();
             let mut local_bloodtithe = BloodtitheState::new();
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
@@ -267,7 +267,7 @@ fn apply_step_to_simulated_hp(step: &FightStep, simulated_hp: &mut HashMap<i64, 
 pub(crate) fn rewrite_nuodika_channel_body(
     fight: &Fight,
     buff_mgr: &BuffMgr,
-    ex_point_mgr: &ExPointMgr,
+    ex_point_mgr: &EntityMgr,
     skill_effects: &mut [ActEffect],
     caster_uid: i64,
     output_skill_id: i32,

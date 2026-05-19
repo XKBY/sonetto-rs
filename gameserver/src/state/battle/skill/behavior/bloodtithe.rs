@@ -10,7 +10,7 @@ use crate::state::battle::types::condition::ConditionType;
 use crate::state::battle::{
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     fight_step::ActEffectBuilder,
-    manager::{buff_mgr::BuffMgr as EventBuffMgr, ex_point_mgr::ExPointMgr as EventExPointMgr},
+    manager::{buff_mgr::BuffMgr as EventBuffMgr, entity_mgr::EntityMgr as EventExPointMgr},
 };
 
 /// BloodPool action — handler for the two `BehaviorType` variants
@@ -229,7 +229,7 @@ pub fn lost_life(
 
         let mut synthetic_fight = Fight::default();
         let mut synthetic_buff_mgr = EventBuffMgr::new();
-        let mut synthetic_ex_point_mgr = EventExPointMgr::new();
+        let mut synthetic_ex_point_mgr = EventExPointMgr::default();
         let drained = {
             let mut event_ctx = EventContext {
                 fight: &mut synthetic_fight,
@@ -283,7 +283,7 @@ pub fn pool_max_change(
     });
     let mut synthetic_fight = Fight::default();
     let mut synthetic_buff_mgr = EventBuffMgr::new();
-    let mut synthetic_ex_point_mgr = EventExPointMgr::new();
+    let mut synthetic_ex_point_mgr = EventExPointMgr::default();
     let drained = {
         let mut event_ctx = EventContext {
             fight: &mut synthetic_fight,

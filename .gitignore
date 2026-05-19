@@ -35,3 +35,4 @@ CLAUDE.md
 # next to "what is the engine actually doing?" without code-grepping.
 !/scripts/skill_walk.py
 !/scripts/generate_default_handlers.py
+/tmp

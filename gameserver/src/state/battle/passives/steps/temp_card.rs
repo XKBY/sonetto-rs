@@ -32,7 +32,7 @@ pub fn build_temp_card_step(ctx: &mut FightContext<'_>, uids: &[i64]) -> Option<
                     .and_then(|a| a.entitys.iter().find(|e| e.uid == Some(uid)))
                     .and_then(|e| e.model_id)
                     .unwrap_or(0);
-                let ex_max = ctx.managers.ex_point_mgr.get_ex_max(uid);
+                let ex_max = ctx.managers.entity_mgr.get_ex_max(uid);
 
                 let inner = FightStep {
                     act_type: Some(fight_step::ActType::Effect.into()),

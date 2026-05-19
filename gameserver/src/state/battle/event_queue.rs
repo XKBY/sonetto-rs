@@ -15,7 +15,7 @@ use crate::state::battle::{
     fight_step::{ActEffectBuilder, effect_container_step, make_skill_step, wrap_step},
     manager::{
         buff_mgr::{BuffMgr, next_buff_uid_for_target},
-        ex_point_mgr::ExPointMgr,
+        entity_mgr::EntityMgr,
     },
     mechanics::bloodtithe::BloodtitheState,
     types::buff::BuffLayerType,
@@ -580,7 +580,7 @@ impl EventQueue {
 pub struct EventContext<'a> {
     pub fight: &'a mut Fight,
     pub buff_mgr: &'a mut BuffMgr,
-    pub ex_point_mgr: &'a mut ExPointMgr,
+    pub ex_point_mgr: &'a mut EntityMgr,
     pub bloodtithe: &'a mut BloodtitheState,
 }
 
@@ -1022,7 +1022,7 @@ pub fn serialize_leaf_event(event: BattleEvent) -> ActEffect {
 
     let mut fight = Fight::default();
     let mut buff_mgr = BuffMgr::new();
-    let mut ex_point_mgr = ExPointMgr::new();
+    let mut ex_point_mgr = EntityMgr::default();
     let mut bloodtithe = BloodtitheState::new();
     let mut ctx = EventContext {
         fight: &mut fight,
@@ -1045,7 +1045,7 @@ mod tests {
     };
     use crate::state::battle::{
         fight_step::{ActEffectBuilder, effect_container_step, make_skill_step, wrap_step},
-        manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+        manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
         mechanics::bloodtithe::BloodtitheState,
     };
     use sonettobuf::{ActEffect, Fight, FightEntityInfo, FightTeam, HeroAttribute};
@@ -1074,7 +1074,7 @@ mod tests {
     fn test_ctx() -> EventContext<'static> {
         let fight = Box::leak(Box::new(Fight::default()));
         let buff_mgr = Box::leak(Box::new(BuffMgr::new()));
-        let ex_point_mgr = Box::leak(Box::new(ExPointMgr::new()));
+        let ex_point_mgr = Box::leak(Box::new(EntityMgr::default()));
         let bloodtithe = Box::leak(Box::new(BloodtitheState::new()));
         EventContext {
             fight,

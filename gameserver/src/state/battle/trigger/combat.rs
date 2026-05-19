@@ -6,7 +6,7 @@ use crate::state::battle::{
     buff_actions::blood_pool_ex::build_blood_pool_gain_ex_point_step,
     context::FightContext,
     event_queue::{EventContext, EventQueue, drain_to_fight_steps, fight_step_to_event},
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     mechanics::bloodtithe::BloodtitheState,
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
@@ -635,7 +635,7 @@ pub(crate) fn expand_trigger_chain_from_root_step(
                 ctx.fight,
                 &mut ctx.mechanics.bloodtithe,
                 &mut ctx.managers.buff_mgr,
-                &mut ctx.managers.ex_point_mgr,
+                &mut ctx.managers.entity_mgr,
             )
             .map_err(anyhow::Error::msg)
             .ok();
@@ -657,7 +657,7 @@ pub(crate) fn expand_trigger_chain_from_root_step(
                             ctx.fight,
                             &mut ctx.mechanics.bloodtithe,
                             &mut ctx.managers.buff_mgr,
-                            &mut ctx.managers.ex_point_mgr,
+                            &mut ctx.managers.entity_mgr,
                         )
                         .map_err(anyhow::Error::msg)
                         .ok();
@@ -673,7 +673,7 @@ pub(crate) fn expand_trigger_chain_from_root_step(
             &ctx.mechanics.bloodtithe,
             ctx.fight,
             &ctx.managers.buff_mgr,
-            &mut ctx.managers.ex_point_mgr,
+            &mut ctx.managers.entity_mgr,
             &gains,
             &ts_event.bloodpool_gain_by_skill_team,
         ) {
@@ -684,7 +684,7 @@ pub(crate) fn expand_trigger_chain_from_root_step(
                     ctx.fight,
                     &mut ctx.mechanics.bloodtithe,
                     &mut ctx.managers.buff_mgr,
-                    &mut ctx.managers.ex_point_mgr,
+                    &mut ctx.managers.entity_mgr,
                 )
                 .map_err(anyhow::Error::msg)
                 .ok();
@@ -702,7 +702,7 @@ pub(crate) fn expand_trigger_chain_from_root_step(
     }
 
     let mut buff_mgr = BuffMgr::new();
-    let mut ex_point_mgr = ExPointMgr::new();
+    let mut ex_point_mgr = EntityMgr::default();
     let mut bloodtithe = BloodtitheState::new();
     let mut event_ctx = EventContext {
         fight: ctx.fight,

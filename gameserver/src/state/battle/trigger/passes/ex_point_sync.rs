@@ -116,7 +116,7 @@ impl TriggerPass for ExPointSyncPass {
                     let mut event_ctx = EventContext {
                         fight: ctx.fight,
                         buff_mgr: &mut ctx.managers.buff_mgr,
-                        ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                        ex_point_mgr: &mut ctx.managers.entity_mgr,
                         bloodtithe: &mut ctx.mechanics.bloodtithe,
                     };
                     act_effect.extend(drain_to_fight_steps(queue.drain(), &mut event_ctx));

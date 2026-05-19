@@ -21,7 +21,7 @@ use crate::state::battle::{
     heroes::rubuska,
     manager::{
         buff_mgr::{LifecycleEventKind, reset_buff_uid_to},
-        ex_point_mgr::sync_from_fight,
+        entity_mgr::sync_from_fight,
         round_mgr::{BattleEndState, FightRoundMgr, seed_entry_max_hp_from_fight},
         traits::Manager,
     },
@@ -336,7 +336,7 @@ pub(crate) async fn run(
         let mut wave_mgr = std::mem::take(&mut ctx.managers.wave_mgr);
         let wave_steps = wave_mgr.advance_wave(ctx, &mut wave_executor)?;
         ctx.managers.wave_mgr = wave_mgr;
-        sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+        sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
         for uid in old_defender_uids {
             ctx.managers.buff_mgr.clear(uid);
         }

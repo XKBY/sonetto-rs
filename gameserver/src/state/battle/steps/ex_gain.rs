@@ -68,7 +68,7 @@ pub(crate) fn pre_operation_ex_gain(
         return None;
     }
 
-    ctx.managers.ex_point_mgr.add_ex_point(caster_uid, 1);
+    ctx.managers.entity_mgr.add_ex_point(caster_uid, 1);
     Some(
         FightStepBuilder::effect()
             .with(ActEffectBuilder::ex_point_change(caster_uid, 1))
@@ -110,7 +110,7 @@ pub(crate) fn standard_action_ex_gain_for_uid(
         return None;
     }
 
-    ctx.managers.ex_point_mgr.add_ex_point(caster_uid, 1);
+    ctx.managers.entity_mgr.add_ex_point(caster_uid, 1);
     Some(
         FightStepBuilder::effect()
             .with(ActEffectBuilder::ex_point_change(caster_uid, 1))

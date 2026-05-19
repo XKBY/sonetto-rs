@@ -100,7 +100,7 @@ impl BehaviorAction for LostLife {
                     let mut event_ctx = EventContext {
                         fight: &mut synthetic_fight,
                         buff_mgr: &mut synthetic_buff_mgr,
-                        ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                        ex_point_mgr: &mut ctx.managers.entity_mgr,
                         bloodtithe: &mut synthetic_bloodtithe,
                     };
                     if let Some(routed) = drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -132,7 +132,7 @@ impl BehaviorAction for LostLife {
                         .shadow_cloak
                         .add(ctx.target, queue_routed_damage);
                 } else if damage > 0 {
-                    ctx.managers.ex_point_mgr.apply_damage(ctx.target, damage);
+                    ctx.managers.entity_mgr.apply_damage(ctx.target, damage);
                     ctx.mechanics.shadow_cloak.add(ctx.target, damage);
                 }
                 // In combat phases the emitted 111 effects are replayed later by
@@ -146,7 +146,7 @@ impl BehaviorAction for LostLife {
                             && let Some(uid) = e.target_id
                         {
                             ctx.managers
-                                .ex_point_mgr
+                                .entity_mgr
                                 .add_ex_point(uid, e.effect_num.unwrap_or(0));
                         }
                     }

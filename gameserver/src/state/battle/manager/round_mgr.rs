@@ -23,7 +23,7 @@ use super::super::{
     heroes::pickles,
     manager::{
         buff_mgr::next_buff_uid_for_target,
-        ex_point_mgr::{sync_from_fight, sync_to_fight},
+        entity_mgr::{sync_from_fight, sync_to_fight},
     },
     skill::SkillExecutor,
     mechanics::{self, injury_counter},
@@ -220,7 +220,7 @@ fn sync_new_change_wave_snapshot(ctx: &mut FightContext<'_>, snapshot: &Fight) {
         ctx.managers.buff_mgr.clear(*uid);
     }
 
-    sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+    sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
     seed_entry_max_hp_from_fight(ctx.fight);
     ctx.sync();
 }
@@ -505,7 +505,7 @@ impl FightRoundMgr {
                 let mut event_ctx = EventContext {
                     fight: ctx.fight,
                     buff_mgr: &mut ctx.managers.buff_mgr,
-                    ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+                    ex_point_mgr: &mut ctx.managers.entity_mgr,
                     bloodtithe: &mut mechanics.bloodtithe,
                 };
                 drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -692,7 +692,7 @@ impl FightRoundMgr {
                 ctx.fight,
                 &mut ctx.mechanics.bloodtithe,
                 &mut ctx.managers.buff_mgr,
-                &mut ctx.managers.ex_point_mgr,
+                &mut ctx.managers.entity_mgr,
             )
             .map_err(anyhow::Error::msg)?;
         ctx.mechanics.sync_from_buff_mgr(&ctx.managers.buff_mgr);
@@ -704,7 +704,7 @@ impl FightRoundMgr {
             }
         }
         if sync_snapshot {
-            sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
+            sync_to_fight(ctx.fight, &ctx.managers.entity_mgr);
         }
         Ok(())
     }

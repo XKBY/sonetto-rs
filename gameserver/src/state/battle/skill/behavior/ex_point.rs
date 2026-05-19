@@ -57,7 +57,7 @@ fn execute_consume_ex_point_add_attr(
 ) -> Result<Vec<ActEffect>> {
     let consumed = ctx
         .managers
-        .ex_point_mgr
+        .entity_mgr
         .get_recent_decr_ex_point(ctx.caster_uid)
         .max(0);
     let usable = consumed.clamp(min_consume, max_consume);

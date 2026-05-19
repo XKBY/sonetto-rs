@@ -17,7 +17,7 @@ use crate::state::battle::{
     buff_actions::{nuodika, round_end},
     event_queue::{BattleEvent, serialize_leaf_event},
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr, round_mgr::FightRoundMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr, round_mgr::FightRoundMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
     utils::{buff_has_bloodpool, find_entity},
@@ -251,7 +251,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     let raspberry_step = ctx.mechanics.on_raspberry(
         ctx.fight,
         &ctx.managers.buff_mgr,
-        &mut ctx.managers.ex_point_mgr,
+        &mut ctx.managers.entity_mgr,
     );
     if let Some(step) = ctx.mechanics.on_pre_raspberry() {
         out.push(step);
@@ -278,7 +278,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
     if let Some(step) = ctx.mechanics.on_post_raspberry(
         ctx.fight,
         &ctx.managers.buff_mgr,
-        &ctx.managers.ex_point_mgr,
+        &ctx.managers.entity_mgr,
     ) {
         out.push(step);
     }
@@ -319,7 +319,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
         &mut ctx.mechanics.bloodtithe,
         ctx.fight,
         &ctx.managers.buff_mgr,
-        &mut ctx.managers.ex_point_mgr,
+        &mut ctx.managers.entity_mgr,
     ) && !step.act_effect.is_empty()
     {
         out.push(step);
@@ -395,7 +395,7 @@ impl BloodtitheState {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
         shadow_cloak: &mut super::shadowcloak::ShadowCloakState,
     ) -> Option<FightStep> {
         if !self.initialized {

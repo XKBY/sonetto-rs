@@ -10,7 +10,7 @@ use super::super::{
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         entity_mgr::{EntityLocation, FightEntityDataMgr, get_entity_mut_by_location},
-        ex_point_mgr::ExPointMgr,
+        entity_mgr::EntityMgr,
     },
     mechanics::bloodtithe::BloodtitheState,
     types::{buff::BuffLayerType, effects::EffectType},
@@ -93,7 +93,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let mut stack: Vec<(&FightStep, usize, bool)> = vec![(step, 0, false)];
         while let Some((current, depth, inherited_bloodtithe_sync)) = stack.pop() {
@@ -144,7 +144,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
         use_accumulator_only_bloodtithe_sync: bool,
     ) -> Result<(), String> {
         let effect_type = EffectType::from(effect.effect_type.unwrap_or(0));
@@ -254,7 +254,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
         use_accumulator_only_bloodtithe_sync: bool,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
@@ -312,7 +312,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let heal = effect.effect_num.ok_or("No heal amount")?;
@@ -565,7 +565,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let max_hp = effect.effect_num.ok_or("No max HP amount")?;
@@ -593,7 +593,7 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let hp = effect.effect_num.ok_or("No HP amount")?;
@@ -619,7 +619,7 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let offset = effect.effect_num.unwrap_or(0);
@@ -668,7 +668,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let amount = effect.effect_num.unwrap_or(0);
@@ -733,7 +733,7 @@ impl FightCalculateDataMgr {
         });
         let mut local_fight = Fight::default();
         let mut local_buff_mgr = BuffMgr::new();
-        let mut local_ex_point_mgr = ExPointMgr::new();
+        let mut local_ex_point_mgr = EntityMgr::default();
         let mut event_ctx = EventContext {
             fight: &mut local_fight,
             buff_mgr: &mut local_buff_mgr,
@@ -765,7 +765,7 @@ impl FightCalculateDataMgr {
             });
             let mut local_fight = Fight::default();
             let mut local_buff_mgr = BuffMgr::new();
-            let mut local_ex_point_mgr = ExPointMgr::new();
+            let mut local_ex_point_mgr = EntityMgr::default();
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut local_buff_mgr,
@@ -836,7 +836,7 @@ impl FightCalculateDataMgr {
         });
 
         let mut local_buff_mgr = BuffMgr::new();
-        let mut local_ex_point_mgr = ExPointMgr::new();
+        let mut local_ex_point_mgr = EntityMgr::default();
         let mut local_bloodtithe = BloodtitheState::new();
         let mut event_ctx = EventContext {
             fight,

@@ -7,7 +7,7 @@ use crate::state::battle::{
     ai,
     deck::DeckManager,
     context::RoundContext,
-    manager::{ex_point_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
+    manager::{entity_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
     fight_step::split_step_by_effect_limit,
 };
 use crate::state::battle::round::steps::transitions::build_next_round_begin_step;
@@ -28,10 +28,10 @@ pub(crate) fn build_round_output(
     }
     open.state.is_finish = mgr.check_battle_end(ctx.fight);
 
-    crate::state::battle::manager::ex_point_mgr::sync_to_fight(ctx.fight, &ctx.managers.ex_point_mgr);
+    crate::state::battle::manager::entity_mgr::sync_to_fight(ctx.fight, &ctx.managers.entity_mgr);
     round_ctx.on_round_end();
     let ctx = &mut *round_ctx.fight_ctx;
-    let ex_point_info = build_ex_point_info(ctx.fight, &ctx.managers.ex_point_mgr);
+    let ex_point_info = build_ex_point_info(ctx.fight, &ctx.managers.entity_mgr);
     tracing::warn!("=== ROUND END ===");
 
     let skill_infos = ctx.managers.calculate_mgr.build_player_skills();
@@ -53,7 +53,7 @@ pub(crate) fn build_round_output(
     let team_a_cards1 = deck_mgr.refill_player_hand(rng, 0, ctx.fight);
 
     // Accumulate EX cards for enemies that have reached max EX points
-    deck_mgr.accumulate_enemy_ex_cards(ctx.fight, &ctx.managers.ex_point_mgr);
+    deck_mgr.accumulate_enemy_ex_cards(ctx.fight, &ctx.managers.entity_mgr);
     // Purge and refill enemy hand after EX accumulation
     deck_mgr.purge_enemy_dead_cards(ctx.fight);
     deck_mgr.refill_enemy_hand(rng, ctx.fight);

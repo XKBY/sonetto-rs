@@ -1,6 +1,6 @@
 use rand::Rng;
 use sonettobuf::{CardInfo, CardInfoPush, Fight};
-use crate::state::battle::manager::ex_point_mgr::ExPointMgr;
+use crate::state::battle::manager::entity_mgr::EntityMgr;
 use crate::state::battle::utils::alive_hero_uids;
 use crate::state::battle::deck::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
 use crate::state::battle::deck::hand::{generate_initial_hand, refill_hand};
@@ -74,7 +74,7 @@ impl DeckManager {
         result
     }
 
-    pub fn accumulate_enemy_ex_cards(&mut self, fight: &Fight, ex_point_mgr: &ExPointMgr) {
+    pub fn accumulate_enemy_ex_cards(&mut self, fight: &Fight, ex_point_mgr: &EntityMgr) {
         crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, ex_point_mgr);
     }
 

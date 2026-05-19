@@ -54,7 +54,7 @@ pub fn execute_skill(
         let mut event_ctx = EventContext {
             fight: ctx.fight,
             buff_mgr: &mut ctx.managers.buff_mgr,
-            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            ex_point_mgr: &mut ctx.managers.entity_mgr,
             bloodtithe: &mut ctx.mechanics.bloodtithe,
         };
         let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -111,7 +111,7 @@ pub fn execute_skill(
                 && let Some(target) = effect.target_id
             {
                 ctx.managers
-                    .ex_point_mgr
+                    .entity_mgr
                     .add_ex_point(target, effect.effect_num.unwrap_or(0));
             }
         }
@@ -178,7 +178,7 @@ fn sync_ex_point_state(ctx: &mut FightContext<'_>, uid: i64, effects: &[ActEffec
         }
         let target = effect.target_id.unwrap_or(uid);
         let amount = effect.effect_num.unwrap_or(0);
-        ctx.managers.ex_point_mgr.add_ex_point(target, amount);
+        ctx.managers.entity_mgr.add_ex_point(target, amount);
     });
 }
 

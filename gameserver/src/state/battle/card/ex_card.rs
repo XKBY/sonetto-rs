@@ -1,14 +1,14 @@
 use sonettobuf::Fight;
 use crate::state::battle::{
     deck::DeckManager,
-    manager::ex_point_mgr::ExPointMgr,
+    manager::entity_mgr::EntityMgr,
 };
 use super::utils::make_card;
 
 pub(crate) fn accumulate_enemy_ex_cards(
     deck_mgr: &mut DeckManager,
     fight: &Fight,
-    ex_point_mgr: &ExPointMgr,
+    ex_point_mgr: &EntityMgr,
 ) {
     let Some(defender) = fight.defender.as_ref() else { return };
     for e in defender.entitys.iter().chain(defender.sub_entitys.iter()) {

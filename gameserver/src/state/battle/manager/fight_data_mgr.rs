@@ -6,8 +6,7 @@ use super::super::{
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         calculate_mgr::FightCalculateDataMgr,
-        entity_mgr::FightEntityDataMgr,
-        ex_point_mgr::{ExPointMgr, build_ex_point_info, sync_to_fight},
+        entity_mgr::{EntityMgr, build_ex_point_info, sync_to_fight},
         wave_mgr::WaveMgr,
     },
     mechanics::Mechanics,
@@ -28,10 +27,9 @@ use crate::state::battle::{
 
 #[derive(Debug, Clone, Default)]
 pub struct Managers {
-    pub entity_mgr: FightEntityDataMgr,
+    pub entity_mgr: EntityMgr,
     pub calculate_mgr: FightCalculateDataMgr,
     pub buff_mgr: BuffMgr,
-    pub ex_point_mgr: ExPointMgr,
     pub wave_mgr: WaveMgr,
     pub deck_mgr: DeckManager,
 }
@@ -39,10 +37,9 @@ pub struct Managers {
 impl Managers {
     pub fn new(fight: &Fight) -> Self {
         Self {
-            entity_mgr: FightEntityDataMgr::new(fight),
+            entity_mgr: EntityMgr::new(fight),
             calculate_mgr: FightCalculateDataMgr::new(fight),
             buff_mgr: BuffMgr::new(),
-            ex_point_mgr: ExPointMgr::new(),
             wave_mgr: WaveMgr::new(),
             deck_mgr: DeckManager::default(),
         }
@@ -98,7 +95,7 @@ impl FightDataMgr {
 
     pub fn build_initial_round(&mut self, battle_id: i32) -> Result<FightRound> {
         // init ex_point_mgr from fight state
-        self.managers.ex_point_mgr.init(&self.fight);
+        self.managers.entity_mgr.init(&self.fight);
 
         let mut steps: Vec<FightStep> = Vec::new();
         let passive_steps = {
@@ -113,11 +110,11 @@ impl FightDataMgr {
             .flat_map(split_step_by_effect_limit)
             .collect();
 
-        for (uid, hp) in &self.managers.ex_point_mgr.current_hp {
+        for (uid, hp) in &self.managers.entity_mgr.current_hp {
             tracing::warn!("post-passive hp: uid={} hp={}", uid, hp);
         }
 
-        sync_to_fight(&mut self.fight, &self.managers.ex_point_mgr);
+        sync_to_fight(&mut self.fight, &self.managers.entity_mgr);
 
         // sync HP into pre_fight so fight.entity.current_hp matches ex_point_info.current_hp
         // other fields (ex_point, moxie) stay at original values for client initialization
@@ -128,7 +125,7 @@ impl FightDataMgr {
             {
                 for e in side.entitys.iter_mut().chain(side.sub_entitys.iter_mut()) {
                     if let Some(uid) = e.uid {
-                        e.current_hp = Some(self.managers.ex_point_mgr.get_hp(uid));
+                        e.current_hp = Some(self.managers.entity_mgr.get_hp(uid));
                     }
                 }
             }
@@ -149,11 +146,11 @@ impl FightDataMgr {
             tracing::warn!(
                 "pre-build uid={} mgr_hp={}",
                 uid,
-                self.managers.ex_point_mgr.get_hp(uid)
+                self.managers.entity_mgr.get_hp(uid)
             );
         }
 
-        let ex_point_info = build_ex_point_info(&self.fight, &self.managers.ex_point_mgr);
+        let ex_point_info = build_ex_point_info(&self.fight, &self.managers.entity_mgr);
 
         let hero_sp_attributes = self
             .managers
@@ -196,7 +193,7 @@ impl FightDataMgr {
         initial_round: &FightRound,
         ex_point_info: &[FightExPointInfo],
     ) -> Result<()> {
-        self.managers.ex_point_mgr.init(&self.fight);
+        self.managers.entity_mgr.init(&self.fight);
         self.mechanics.init(&self.fight);
 
         for step in &initial_round.fight_step {
@@ -207,7 +204,7 @@ impl FightDataMgr {
                     &mut self.fight,
                     &mut self.mechanics.bloodtithe,
                     &mut self.managers.buff_mgr,
-                    &mut self.managers.ex_point_mgr,
+                    &mut self.managers.entity_mgr,
                 )
                 .map_err(anyhow::Error::msg)?;
         }
@@ -230,11 +227,11 @@ impl FightDataMgr {
 
                     let ex_point = info.ex_point.unwrap_or(0);
                     entity.ex_point = Some(ex_point);
-                    self.managers.ex_point_mgr.set_ex_point(uid, ex_point);
+                    self.managers.entity_mgr.set_ex_point(uid, ex_point);
 
                     if let Some(current_hp) = info.current_hp {
                         entity.current_hp = Some(current_hp);
-                        self.managers.ex_point_mgr.set_hp(uid, current_hp);
+                        self.managers.entity_mgr.set_hp(uid, current_hp);
                     }
                 }
             }
@@ -281,7 +278,7 @@ impl FightDataMgr {
                         });
                         let mut local_fight = Fight::default();
                         let mut local_buff_mgr = BuffMgr::new();
-                        let mut local_ex_point_mgr = ExPointMgr::new();
+                        let mut local_ex_point_mgr = EntityMgr::default();
                         let mut event_ctx = EventContext {
                             fight: &mut local_fight,
                             buff_mgr: &mut local_buff_mgr,
@@ -424,7 +421,7 @@ impl FightDataMgr {
                         });
                         let mut local_fight = Fight::default();
                         let mut local_buff_mgr = BuffMgr::new();
-                        let mut local_ex_point_mgr = ExPointMgr::new();
+                        let mut local_ex_point_mgr = EntityMgr::default();
                         let mut event_ctx = EventContext {
                             fight: &mut local_fight,
                             buff_mgr: &mut local_buff_mgr,

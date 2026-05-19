@@ -30,7 +30,7 @@ use crate::state::battle::{
             reset_buff_uid_to, sync_buff_uid_counters_from_mgr,
             sync_from_fight_preserve_runtime as sync_buffs_from_fight,
         },
-        ex_point_mgr::sync_from_fight,
+        entity_mgr::sync_from_fight,
         round_mgr::{
             active_cloth_level, apply_cloth_power_delta, parse_cloth_recover_delta,
             seed_attacker_power_from_cloth, seed_entry_max_hp_from_fight,
@@ -94,7 +94,7 @@ pub(crate) fn run(
     injury_counter::sync_round_injury_index(battle_id, 1, round_ctx.round_index);
     injury_counter::sync_round_injury_index(battle_id, 2, round_ctx.round_index);
     seed_entry_max_hp_from_fight(ctx.fight);
-    sync_from_fight(ctx.fight, &mut ctx.managers.ex_point_mgr);
+    sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
     sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
     sync_buff_uid_counters_from_mgr(&ctx.managers.buff_mgr);
     if let Some(cloth) = active_cloth_level(ctx.fight) {
@@ -187,7 +187,7 @@ pub(crate) fn run(
             if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
                 let uid = deck_mgr.player_hand[from].uid.unwrap_or(0);
                 if uid > 0 {
-                    ctx.managers.ex_point_mgr.add_ex_point(uid, 1);
+                    ctx.managers.entity_mgr.add_ex_point(uid, 1);
                     move_ex_uids.push(uid);
                 }
                 let card = deck_mgr.player_hand.remove(from);

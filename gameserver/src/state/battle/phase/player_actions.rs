@@ -99,8 +99,8 @@ pub(crate) async fn run(
                 .filter_map(|e| {
                     let uid = e.uid.unwrap_or(0);
                     if uid > 0
-                        && ctx.managers.ex_point_mgr.get_ex_point(uid) >= ctx.managers.ex_point_mgr.get_ex_max(uid)
-                        && ctx.managers.ex_point_mgr.get_ex_max(uid) > 0
+                        && ctx.managers.entity_mgr.get_ex_point(uid) >= ctx.managers.entity_mgr.get_ex_max(uid)
+                        && ctx.managers.entity_mgr.get_ex_max(uid) > 0
                     {
                         Some((uid, e.ex_skill, e.model_id))
                     } else {

@@ -14,7 +14,7 @@ pub mod scope;
 use self::action::CONDITION_REGISTRY;
 
 use crate::state::battle::{
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     mechanics::bloodtithe::BloodtitheState,
     skill::{
         cache::{SKILL_CACHE, resolve_skill_effect_id},
@@ -31,7 +31,7 @@ pub use crate::state::battle::types::condition::ConditionType;
 pub struct ConditionEval<'a> {
     pub(super) fight: &'a Fight,
     pub(super) buff_mgr: &'a BuffMgr,
-    pub(super) ex_point_mgr: &'a ExPointMgr,
+    pub(super) ex_point_mgr: &'a EntityMgr,
     pub(super) bloodtithe: &'a BloodtitheState,
     pub(super) caster_uid: i64,
     pub(super) target_uid: i64,
@@ -44,7 +44,7 @@ impl<'a> ConditionEval<'a> {
     pub fn new(
         fight: &'a Fight,
         buff_mgr: &'a BuffMgr,
-        ex_point_mgr: &'a ExPointMgr,
+        ex_point_mgr: &'a EntityMgr,
         bloodtithe: &'a BloodtitheState,
         caster_uid: i64,
     ) -> Self {
@@ -429,7 +429,7 @@ fn skill_is_hurt(skill_id: i32) -> bool {
 pub fn check_condition(
     fight: &Fight,
     buff_mgr: &BuffMgr,
-    ex_point_mgr: &ExPointMgr,
+    ex_point_mgr: &EntityMgr,
     bloodtithe: &BloodtitheState,
     caster_uid: i64,
     target_uid: i64,
@@ -481,7 +481,7 @@ mod tests {
     }
 
     fn assert_false_without_trigger_state(condition: ConditionType) {
-        let mut ex_point_mgr = ExPointMgr::new();
+        let mut ex_point_mgr = EntityMgr::default();
         ex_point_mgr.set_recent_decr_ex_point(1, 3);
         let fight = build_fight();
         let buff_mgr = BuffMgr::new();
@@ -555,7 +555,7 @@ mod tests {
 
     #[test]
     fn trigger_bullet_is_true_with_trigger_state() {
-        let ex_point_mgr = ExPointMgr::new();
+        let ex_point_mgr = EntityMgr::default();
         let fight = build_fight();
         let buff_mgr = BuffMgr::new();
         let bloodtithe = BloodtitheState::new();

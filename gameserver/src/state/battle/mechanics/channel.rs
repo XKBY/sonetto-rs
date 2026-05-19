@@ -810,7 +810,7 @@ fn build_display_only_consume_channel_embeds(
         let mut event_ctx = EventContext {
             fight: ctx.fight,
             buff_mgr: &mut ctx.managers.buff_mgr,
-            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            ex_point_mgr: &mut ctx.managers.entity_mgr,
             bloodtithe: &mut ctx.mechanics.bloodtithe,
         };
         let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -851,7 +851,7 @@ fn build_display_only_consume_channel_embeds(
         let mut event_ctx = EventContext {
             fight: ctx.fight,
             buff_mgr: &mut ctx.managers.buff_mgr,
-            ex_point_mgr: &mut ctx.managers.ex_point_mgr,
+            ex_point_mgr: &mut ctx.managers.entity_mgr,
             bloodtithe: &mut ctx.mechanics.bloodtithe,
         };
         let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx)

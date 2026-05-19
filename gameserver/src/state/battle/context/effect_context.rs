@@ -66,12 +66,12 @@ impl EffectContext<'_> {
 
     #[inline]
     pub fn get_hp(&self, uid: i64) -> i32 {
-        self.managers.ex_point_mgr.get_hp(uid)
+        self.managers.entity_mgr.get_hp(uid)
     }
 
     #[inline]
     pub fn get_max_hp(&self, uid: i64) -> i32 {
-        let tracked = self.managers.ex_point_mgr.get_max_hp(uid);
+        let tracked = self.managers.entity_mgr.get_max_hp(uid);
         if tracked > 0 {
             return tracked;
         }

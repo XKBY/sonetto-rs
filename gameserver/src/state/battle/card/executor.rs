@@ -147,7 +147,7 @@ pub(crate) async fn play_card(
         .unwrap_or(false);
     ctx.mark_round_active_card_cast(exec_caster_uid);
     if used_ex_skill {
-        ctx.managers.ex_point_mgr.set_ex_point(exec_caster_uid, 0);
+        ctx.managers.entity_mgr.set_ex_point(exec_caster_uid, 0);
     }
     let card_cast_record_idx = ctx.mechanics.emission_timeline.record(
         EmissionPhase::CardCast,
@@ -341,7 +341,7 @@ fn build_temp_direct_bigskill_fallback(
         })
         .unwrap_or(max_consume)
         .max(0);
-    let current_ex = ctx.managers.ex_point_mgr.get_ex_point(caster_uid).max(0);
+    let current_ex = ctx.managers.entity_mgr.get_ex_point(caster_uid).max(0);
     let initial_consume = if need_ex > 0 {
         need_ex.min(current_ex)
     } else {
@@ -362,7 +362,7 @@ fn build_temp_direct_bigskill_fallback(
         consume
     };
     ctx.managers
-        .ex_point_mgr
+        .entity_mgr
         .set_recent_decr_ex_point(caster_uid, consume);
 
     for &prep_id in &prep_skill_ids {
@@ -404,7 +404,7 @@ fn build_temp_direct_bigskill_fallback(
     }
 
     ctx.managers
-        .ex_point_mgr
+        .entity_mgr
         .clear_recent_decr_ex_point(caster_uid);
     Ok(out)
 }
@@ -416,10 +416,10 @@ fn build_direct_ex_card_prefix(
     caster_uid: i64,
     skill_id: i32,
 ) -> Result<Vec<ActEffect>> {
-    let current_ex = ctx.managers.ex_point_mgr.get_ex_point(caster_uid).max(0);
+    let current_ex = ctx.managers.entity_mgr.get_ex_point(caster_uid).max(0);
     if current_ex <= 0 {
         ctx.managers
-            .ex_point_mgr
+            .entity_mgr
             .set_recent_decr_ex_point(caster_uid, 0);
         return Ok(vec![]);
     }
@@ -428,7 +428,7 @@ fn build_direct_ex_card_prefix(
     let skill_effect_id = resolve_skill_effect_id_for_entity(ctx.fight, caster_uid, skill_id);
     let Some(skill_row) = cfg.skill_effect.iter().find(|s| s.id == skill_effect_id) else {
         ctx.managers
-            .ex_point_mgr
+            .entity_mgr
             .set_recent_decr_ex_point(caster_uid, 0);
         return Ok(vec![]);
     };
@@ -467,7 +467,7 @@ fn build_direct_ex_card_prefix(
 
     if attr_consume > 0 {
         ctx.managers
-            .ex_point_mgr
+            .entity_mgr
             .set_recent_decr_ex_point(caster_uid, attr_consume);
         for &prep_id in &prep_skill_ids {
             let mut pre = execute_skill_and_apply_pending_summons(
@@ -490,7 +490,7 @@ fn build_direct_ex_card_prefix(
     let point_cost = point_cost.min(current_ex).max(0);
     if point_cost > 0 {
         ctx.managers
-            .ex_point_mgr
+            .entity_mgr
             .set_recent_decr_ex_point(caster_uid, point_cost);
         for &prep_id in &prep_skill_ids {
             let mut pre = execute_skill_and_apply_pending_summons(
@@ -511,7 +511,7 @@ fn build_direct_ex_card_prefix(
     }
 
     ctx.managers
-        .ex_point_mgr
+        .entity_mgr
         .set_recent_decr_ex_point(caster_uid, attr_consume);
     Ok(out)
 }

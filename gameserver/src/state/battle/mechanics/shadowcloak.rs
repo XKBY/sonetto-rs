@@ -1,6 +1,6 @@
 use super::super::{
     fight_step::{ActEffectBuilder, FightStepBuilder},
-    manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     utils::find_entity,
 };
 use sonettobuf::{ActEffect, Fight, FightStep};
@@ -58,7 +58,7 @@ impl ShadowCloakState {
         &self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &ExPointMgr,
+        ex_point_mgr: &EntityMgr,
     ) -> Vec<ActEffect> {
         let gain = self.last_gain_shared;
         tracing::warn!(
@@ -114,7 +114,7 @@ impl ShadowCloakState {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &ExPointMgr,
+        ex_point_mgr: &EntityMgr,
     ) -> Option<FightStep> {
         if !self.is_active() {
             return None;

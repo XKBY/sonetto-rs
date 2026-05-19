@@ -17,7 +17,7 @@ use phase_change::PhaseChangeState;
 use shadowcloak::ShadowCloakState;
 
 use crate::state::battle::emission_timeline::EmissionTimeline;
-use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
+use crate::state::battle::manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr};
 use sonettobuf::{Fight, FightStep};
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -78,7 +78,7 @@ impl Mechanics {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut ExPointMgr,
+        ex_point_mgr: &mut EntityMgr,
     ) -> Option<FightStep> {
         self.bloodtithe
             .raspberry_step(fight, buff_mgr, ex_point_mgr, &mut self.shadow_cloak)
@@ -88,7 +88,7 @@ impl Mechanics {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &ExPointMgr,
+        ex_point_mgr: &EntityMgr,
     ) -> Option<FightStep> {
         self.shadow_cloak.sync_step(fight, buff_mgr, ex_point_mgr)
     }

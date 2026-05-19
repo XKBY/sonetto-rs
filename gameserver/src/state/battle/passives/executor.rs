@@ -212,7 +212,7 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                 if let Some(s) = ctx.mechanics.on_raspberry(
                     ctx.fight,
                     &ctx.managers.buff_mgr,
-                    &mut ctx.managers.ex_point_mgr,
+                    &mut ctx.managers.entity_mgr,
                 ) {
                     steps.push(s);
                 }
@@ -221,7 +221,7 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                 if let Some(s) = ctx.mechanics.on_post_raspberry(
                     ctx.fight,
                     &ctx.managers.buff_mgr,
-                    &ctx.managers.ex_point_mgr,
+                    &ctx.managers.entity_mgr,
                 ) {
                     steps.push(s);
                 }
@@ -249,7 +249,7 @@ pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<Fight
                     &mut ctx.mechanics.bloodtithe,
                     ctx.fight,
                     &ctx.managers.buff_mgr,
-                    &mut ctx.managers.ex_point_mgr,
+                    &mut ctx.managers.entity_mgr,
                 ) {
                     steps.push(s);
                 }

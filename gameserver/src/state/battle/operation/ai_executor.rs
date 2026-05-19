@@ -227,8 +227,8 @@ async fn execute_ai_operations_live(
             .unwrap_or(false);
         if is_ex {
             tracing::info!("enemy uid={} used ex skill {}, resetting ex_point to 0", caster_uid, skill_id);
-            preview_managers.ex_point_mgr.set_ex_point(caster_uid, 0);
-            ctx.managers.ex_point_mgr.set_ex_point(caster_uid, 0);
+            preview_managers.entity_mgr.set_ex_point(caster_uid, 0);
+            ctx.managers.entity_mgr.set_ex_point(caster_uid, 0);
             for fight in [&mut *preview_fight, ctx.fight] {
                 if let Some(e) = fight.defender.as_mut()
                     .and_then(|d| d.entitys.iter_mut().chain(d.sub_entitys.iter_mut()).find(|e| e.uid == Some(caster_uid)))
@@ -426,5 +426,5 @@ fn apply_preview_ex_delta(fight: &mut Fight, managers: &mut Managers, target_id:
     };
 
     entity.ex_point = Some(new);
-    managers.ex_point_mgr.set_ex_point(target_id, new);
+    managers.entity_mgr.set_ex_point(target_id, new);
 }

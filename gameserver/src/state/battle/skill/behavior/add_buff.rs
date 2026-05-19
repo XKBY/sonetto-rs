@@ -26,7 +26,7 @@ use super::random;
 use crate::state::battle::event_queue::{
     BattleEvent, EventContext, EventQueue, drain_to_fight_steps,
 };
-use crate::state::battle::manager::{buff_mgr::BuffMgr, ex_point_mgr::ExPointMgr};
+use crate::state::battle::manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr};
 use crate::state::battle::types::behavior::BehaviorType;
 use crate::state::battle::types::condition::ConditionType;
 
@@ -78,7 +78,7 @@ impl BehaviorAction for AddBuff {
                 });
                 let mut synthetic_fight = Fight::default();
                 let mut synthetic_buff_mgr = BuffMgr::new();
-                let mut synthetic_ex_point_mgr = ExPointMgr::new();
+                let mut synthetic_ex_point_mgr = EntityMgr::default();
                 let mut event_ctx = EventContext {
                     fight: &mut synthetic_fight,
                     buff_mgr: &mut synthetic_buff_mgr,

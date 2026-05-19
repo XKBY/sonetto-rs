@@ -13,7 +13,7 @@ use super::super::{
     fight_step::ActEffectBuilder,
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
-        ex_point_mgr::sync_from_fight,
+        entity_mgr::sync_from_fight,
         fight_data_mgr::Managers,
         round_mgr::seed_entry_max_hp_from_fight,
         wave_mgr::WaveMgr,
@@ -217,7 +217,7 @@ impl SkillExecutor {
             apply_pending_summon(fight, managers, summon)?;
         }
 
-        sync_from_fight(fight, &mut managers.ex_point_mgr);
+        sync_from_fight(fight, &mut managers.entity_mgr);
         seed_entry_max_hp_from_fight(fight);
         managers.entity_mgr.rebuild_cache(fight);
         managers.calculate_mgr.update_cache(fight);
@@ -395,7 +395,7 @@ impl SkillExecutor {
                     let condition_eval = ConditionEval::new(
                         &sim_fight,
                         &sim_buff_mgr,
-                        &managers.ex_point_mgr,
+                        &managers.entity_mgr,
                         &mechanics.bloodtithe,
                         caster_uid,
                     )
@@ -483,7 +483,7 @@ impl SkillExecutor {
                 let condition_eval = ConditionEval::new(
                     &sim_fight,
                     &sim_buff_mgr,
-                    &managers.ex_point_mgr,
+                    &managers.entity_mgr,
                     &mechanics.bloodtithe,
                     caster_uid,
                 )
