@@ -17,7 +17,7 @@ use super::round_mgr::seed_entry_max_hp_from_fight;
 
 use anyhow::Result;
 use rand::{SeedableRng, rngs::StdRng};
-use sonettobuf::{BuffInfo, CardInfo, Fight, FightExPointInfo, FightRound, FightStep};
+use sonettobuf::{BuffInfo, Fight, FightExPointInfo, FightRound, FightStep};
 
 use crate::state::battle::{
     buff_actions::{blood_pool_ex::seed_blood_pool_ex_tracker, raspberry::BUFF_ACT_ID_RASPBERRY},
@@ -96,12 +96,7 @@ impl FightDataMgr {
         self.ctx().with_rng(rng)
     }
 
-    pub fn build_initial_round(
-        &mut self,
-        battle_id: i32,
-        player_deck: Vec<CardInfo>,
-        ai_deck: Vec<CardInfo>,
-    ) -> Result<FightRound> {
+    pub fn build_initial_round(&mut self, battle_id: i32) -> Result<FightRound> {
         // init ex_point_mgr from fight state
         self.managers.ex_point_mgr.init(&self.fight);
 
@@ -172,7 +167,7 @@ impl FightDataMgr {
             .map(|a| a.skill_infos.clone())
             .unwrap_or_default();
 
-        let team_a_cards1 = player_deck;
+        let team_a_cards1 = self.managers.deck_mgr.player_hand.clone();
 
         Ok(FightRound {
             fight_step: steps,
@@ -180,7 +175,7 @@ impl FightDataMgr {
             is_finish: Some(false),
             move_num: Some(0),
             ex_point_info,
-            ai_use_cards: ai_deck,
+            ai_use_cards: self.managers.deck_mgr.enemy_deck.clone(),
             power: Some(20),
             skill_infos,
             before_cards1: vec![],
