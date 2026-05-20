@@ -323,6 +323,7 @@ pub(crate) async fn run(
             .with(ActEffectBuilder::clear_universal_card(None, None, Some(1)))
             .build(),
     );
+    deck_mgr.clear_universal_card();
     // Skip the magic-circle duration tick only when the battle
     // itself is finishing (state.is_finish or check_battle_end true).
     // LIVE keeps ticking the circle through wave-clear rounds — the

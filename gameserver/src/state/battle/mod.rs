@@ -1,6 +1,7 @@
 mod auto;
 pub(crate) mod ai;
 mod card;
+pub mod cloth;
 pub mod deck;
 pub(crate) mod operation;
 mod passives;

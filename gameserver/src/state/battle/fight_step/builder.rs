@@ -1295,6 +1295,14 @@ impl ActEffectBuilder {
         builder.build()
     }
 
+    pub fn after_redeal_card(card_info_list: Vec<CardInfo>) -> ActEffect {
+        tracing::trace!(target: "act_effects", kind = "after_redeal_card", card_count = card_info_list.len());
+        Self::new(BattleEffectType::AfterReDealCard as i32, 0)
+            .card_info_list(card_info_list)
+            .team_type(1)
+            .build()
+    }
+
     pub fn change_round(target: Option<i64>, effect_num: Option<i32>) -> ActEffect {
         tracing::trace!(
             target: "act_effects",

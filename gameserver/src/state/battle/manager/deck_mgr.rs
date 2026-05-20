@@ -1,5 +1,7 @@
 use rand::Rng;
 use sonettobuf::{CardInfo, CardInfoPush, Fight};
+use crate::state::battle::card::{is_ex_card, skills_at_same_rank};
+use crate::state::battle::card::utils::make_card;
 use crate::state::battle::manager::entity_mgr::EntityMgr;
 use crate::state::battle::deck::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
 use crate::state::battle::deck::hand::{generate_initial_hand, refill_hand};
@@ -83,5 +85,27 @@ impl DeckManager {
         let result = refill_hand(rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));
         tracing::info!("enemy refill done: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
         result
+    }
+
+    pub fn clear_universal_card(&mut self) {
+        self.player_hand.retain(|c| c.skill_id != Some(30000001));
+    }
+
+    pub fn redeal_player_hand_keep_rank(&mut self, fight: &Fight, rng: &mut impl Rng) -> Vec<CardInfo> {
+        let entities = fight.attacker.as_ref().map(|a| a.entitys.as_slice()).unwrap_or(&[]);
+        for card in &mut self.player_hand {
+            if is_ex_card(card, entities) { continue; }
+            let skill_id = match card.skill_id { Some(id) => id, None => continue };
+            let uid = card.uid.unwrap_or(0);
+            let Some(entity) = entities.iter().find(|e| e.uid.unwrap_or(0) == uid) else { continue };
+            let options = skills_at_same_rank(entity, skill_id);
+            if !options.is_empty() {
+                let new_skill = options[rng.gen_range(0..options.len())];
+                let hero_id = entity.model_id.unwrap_or(0);
+                let is_trial = uid < 0;
+                *card = make_card(hero_id, new_skill, uid, is_trial);
+            }
+        }
+        self.player_hand.clone()
     }
 }

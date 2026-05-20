@@ -106,6 +106,7 @@ pub async fn dispatch_command(
         CmdId::DungeonInstructionDungeonInfoCmd => dungeon::on_instruction_dungeon_info,
         CmdId::StartDungeonCmd => dungeon::on_start_dungeon,
         CmdId::BeginRoundCmd => dungeon::on_begin_round,
+        CmdId::UseClothSkillCmd => dungeon::on_use_cloth_skill,
         CmdId::AutoRoundCmd => dungeon::on_auto_round,
         CmdId::FightEndFightCmd => dungeon::on_fight_end_fight,
         CmdId::GetFightRecordGroupCmd => dungeon::on_get_fight_record_group,

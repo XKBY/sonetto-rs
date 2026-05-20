@@ -66,7 +66,7 @@ pub async fn on_begin_round(
     let round = simulator
         .process_round(request.opers.clone(), None)
         .await?;
-    let fight_data_mgr = simulator.into_parts();
+    let mut fight_data_mgr = simulator.into_parts();
     let is_finish = round.is_finish.unwrap_or(false);
     let simulator_next_round = round
         .cur_round
@@ -80,6 +80,7 @@ pub async fn on_begin_round(
             .active_battle
             .as_mut()
             .ok_or(AppError::InvalidRequest)?;
+        fight_data_mgr.last_round = Some(round.clone());
         battle.fight_data_mgr = Some(fight_data_mgr);
         battle.current_round = next_round_num;
     }

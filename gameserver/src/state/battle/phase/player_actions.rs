@@ -31,7 +31,8 @@ use crate::state::battle::{
         register_round_host,
     },
     manager::{
-        round_mgr::{FightRoundMgr, active_cloth_level, cloth_power_delta_for_operation},
+        round_mgr::FightRoundMgr,
+        cloth_mgr::{active_cloth_level, cloth_power_delta_for_operation},
     },
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
     passives::collector::CollectedPassives,

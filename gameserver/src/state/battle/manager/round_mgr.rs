@@ -9,7 +9,6 @@ use std::{
 
 use super::super::{
     ConditionType,
-    card::CardOpType,
     deck::make_card,
     context::{FightContext, RoundContext},
     event_queue::{
@@ -225,70 +224,6 @@ fn sync_new_change_wave_snapshot(ctx: &mut FightContext<'_>, snapshot: &Fight) {
     ctx.sync();
 }
 
-pub(crate) fn active_cloth_level(fight: &Fight) -> Option<config::cloth_level::ClothLevel> {
-    let cloth_id = fight
-        .attacker
-        .as_ref()
-        .and_then(|attacker| attacker.cloth_id)?;
-    config::configs::get()
-        .cloth_level
-        .iter()
-        .find(|cloth| cloth.id == cloth_id && cloth.level == 1)
-        .cloned()
-}
-
-pub(crate) fn parse_cloth_recover_delta(recover: &str, round_index: i32) -> i32 {
-    recover
-        .split('|')
-        .filter_map(|entry| {
-            let mut parts = entry.trim().split('#');
-            let start_round = parts.next()?.trim().parse::<i32>().ok()?;
-            let amount = parts.next()?.trim().parse::<i32>().ok()?;
-            if parts.next().is_some() {
-                return None;
-            }
-            Some((start_round, amount))
-        })
-        .filter(|(start_round, _)| *start_round == round_index)
-        .map(|(_, amount)| amount.max(0))
-        .sum()
-}
-
-pub(crate) fn seed_attacker_power_from_cloth(
-    fight: &mut Fight,
-    cloth: &config::cloth_level::ClothLevel,
-) {
-    if let Some(attacker) = fight.attacker.as_mut()
-        && attacker.power.is_none()
-    {
-        attacker.power = Some(cloth.initial.max(0));
-    }
-}
-
-pub(crate) fn apply_cloth_power_delta(
-    fight: &mut Fight,
-    cloth: &config::cloth_level::ClothLevel,
-    delta: i32,
-) {
-    let Some(attacker) = fight.attacker.as_mut() else {
-        return;
-    };
-    let current = attacker.power.unwrap_or(cloth.initial.max(0));
-    let next = (current + delta).clamp(0, cloth.max_power.max(0));
-    attacker.power = Some(next);
-}
-
-pub(crate) fn cloth_power_delta_for_operation(
-    oper: &BeginRoundOper,
-    cloth: &config::cloth_level::ClothLevel,
-) -> i32 {
-    match CardOpType::try_from(oper.oper_type.unwrap_or(0)) {
-        Ok(CardOpType::MoveCard) | Ok(CardOpType::MoveUniversal) => cloth.r#move.max(0),
-        Ok(CardOpType::PlayCard) => cloth.r#use.max(0),
-        Ok(CardOpType::SimulateDissolveCard) => cloth.compose.max(0),
-        _ => 0,
-    }
-}
 
 #[derive(Default, Debug, Clone)]
 pub struct FightRoundMgr;
@@ -542,6 +477,7 @@ impl FightRoundMgr {
         replay_wave_snapshots: Option<&[Fight]>,
     ) -> Result<FightRound> {
         let mut deck_mgr = std::mem::take(&mut round_ctx.fight_ctx.managers.deck_mgr);
+        round_ctx.fight_ctx.managers.cloth_mgr.reset();
         let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
         let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
         let replay_wave_snapshot_target_wave = replay_wave_snapshots

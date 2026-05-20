@@ -30,13 +30,14 @@ pub(crate) fn refill_hand(
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
-    while hand.len() < target_size && !ex_deck.is_empty() {
+    let non_temp = |h: &Vec<CardInfo>| h.iter().filter(|c| !c.temp_card.unwrap_or(false)).count();
+    while non_temp(hand) < target_size && !ex_deck.is_empty() {
         let card = ex_deck.remove(0);
         pulled_raw.push(card.clone());
         hand.push(card);
         apply_card_upgrades(hand, fight);
     }
-    while hand.len() < target_size && !deck.is_empty() {
+    while non_temp(hand) < target_size && !deck.is_empty() {
         let idx = rng.gen_range(0..deck.len());
         let raw = deck.remove(idx);
         pulled_raw.push(raw.clone());

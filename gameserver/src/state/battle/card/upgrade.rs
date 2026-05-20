@@ -1,4 +1,4 @@
-use sonettobuf::{CardInfo, Fight};
+use sonettobuf::{CardInfo, Fight, FightEntityInfo};
 
 fn next_tier(card: &CardInfo, fight: &Fight) -> Option<i32> {
     let skill_id = card.skill_id?;
@@ -22,6 +22,18 @@ fn next_tier(card: &CardInfo, fight: &Fight) -> Option<i32> {
     None
 }
 
+pub fn upgrade_level1(card: &CardInfo, fight: &Fight) -> Option<i32> {
+    let skill_id = card.skill_id?;
+    let uid = card.uid.unwrap_or(0);
+    let entity = fight.attacker.as_ref()?.entitys.iter().find(|e| e.uid.unwrap_or(0) == uid)?;
+    for group in [&entity.skill_group1, &entity.skill_group2] {
+        if group.first().copied() == Some(skill_id) && group.len() > 1 {
+            return Some(group[1]);
+        }
+    }
+    None
+}
+
 pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) {
     let mut i = 0;
     while i + 1 < player_deck.len() {
@@ -34,4 +46,17 @@ pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) {
         }
         i += 1;
     }
+}
+
+/// Returns all skill_ids at the same rank (position) as `skill_id` in `entity`'s skill groups.
+pub fn skills_at_same_rank(entity: &FightEntityInfo, skill_id: i32) -> Vec<i32> {
+    for group in [&entity.skill_group1, &entity.skill_group2] {
+        if let Some(rank) = group.iter().position(|&id| id == skill_id) {
+            return [&entity.skill_group1, &entity.skill_group2]
+                .iter()
+                .filter_map(|g| g.get(rank).copied())
+                .collect();
+        }
+    }
+    vec![]
 }

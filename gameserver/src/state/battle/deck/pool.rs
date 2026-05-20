@@ -7,7 +7,7 @@ fn build_cards(entities: &[FightEntityInfo], copies: usize) -> Vec<CardInfo> {
     for e in entities {
         let uid = e.uid.unwrap_or(0);
         let hero_id = e.model_id.unwrap_or(0);
-        let is_trial = uid < 0;
+        let is_trial = e.trial_id.map_or(false, |t| t > 0);
         for &skill_id in e.skill_group1.iter().take(1).chain(e.skill_group2.iter().take(1)) {
             if skill_id == 0 { continue; }
             for _ in 0..copies {

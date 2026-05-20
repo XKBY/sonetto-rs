@@ -7,7 +7,8 @@ use crate::state::battle::{
     ai,
     deck::DeckManager,
     context::RoundContext,
-    manager::{entity_mgr::build_ex_point_info, round_mgr::{active_cloth_level, apply_cloth_power_delta, FightRoundMgr}},
+    cloth::{active_cloth_level, apply_cloth_power_delta},
+    manager::{entity_mgr::build_ex_point_info, round_mgr::FightRoundMgr},
     fight_step::split_step_by_effect_limit,
 };
 use crate::state::battle::round::steps::transitions::build_next_round_begin_step;

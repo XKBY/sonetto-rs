@@ -31,15 +31,16 @@ use crate::state::battle::{
             sync_from_fight_preserve_runtime as sync_buffs_from_fight,
         },
         entity_mgr::sync_from_fight,
-        round_mgr::{
+        round_mgr::seed_entry_max_hp_from_fight,
+        cloth_mgr::{
             active_cloth_level, apply_cloth_power_delta, parse_cloth_recover_delta,
-            seed_attacker_power_from_cloth, seed_entry_max_hp_from_fight,
+            seed_attacker_power_from_cloth,
         },
     },
     mechanics::injury_counter,
     passives::collector::{CollectedPassives, collect},
     round::{RoundState, steps::refresh::build_refresh_step},
-    card::apply_card_upgrades,
+    card::{apply_card_upgrades, upgrade_level1},
 };
 
 fn ensure_battle_tracing() {
@@ -194,9 +195,6 @@ pub(crate) fn run(
                 deck_mgr.player_hand.insert(to, card);
                 apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
             }
-            for (i, c) in deck_mgr.player_hand.iter().enumerate() {
-                tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-            }
         } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
             tracing::warn!("  pick idx={} from deck of {} cards:", idx, deck_mgr.player_hand.len());
@@ -215,6 +213,19 @@ pub(crate) fn run(
                     deck_mgr.player_hand.len()
                 );
             }
+        } else if op_type == 3 {
+            let universal_idx = (op.param1.unwrap_or(1) - 1) as usize;
+            let target_idx = (op.param2.unwrap_or(1) - 1) as usize;
+            let is_universal = deck_mgr.player_hand.get(universal_idx)
+                .and_then(|c| c.skill_id)
+                .map_or(false, |id| id == 30000001);
+            if is_universal && target_idx < deck_mgr.player_hand.len() {
+                if let Some(next_skill) = upgrade_level1(&deck_mgr.player_hand[target_idx], ctx.fight) {
+                    deck_mgr.player_hand[target_idx].skill_id = Some(next_skill);
+                    deck_mgr.player_hand.remove(universal_idx);
+                }
+            }
+            tracing::warn!("  upgrade idx={} with universal idx={} (is_universal={})", target_idx, universal_idx, is_universal);
         }
     }
 

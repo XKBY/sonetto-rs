@@ -6,6 +6,7 @@ use super::super::{
     manager::{
         buff_mgr::{BuffMgr, observe_explicit_buff_uid_for_target},
         calculate_mgr::FightCalculateDataMgr,
+        cloth_mgr::ClothMgr,
         entity_mgr::{EntityMgr, build_ex_point_info, sync_to_fight},
         wave_mgr::WaveMgr,
     },
@@ -32,6 +33,7 @@ pub struct Managers {
     pub buff_mgr: BuffMgr,
     pub wave_mgr: WaveMgr,
     pub deck_mgr: DeckManager,
+    pub cloth_mgr: ClothMgr,
 }
 
 impl Managers {
@@ -42,6 +44,7 @@ impl Managers {
             buff_mgr: BuffMgr::new(),
             wave_mgr: WaveMgr::new(),
             deck_mgr: DeckManager::default(),
+            cloth_mgr: ClothMgr::default(),
         }
     }
 }
@@ -52,6 +55,7 @@ pub struct FightDataMgr {
     pub pre_fight: Option<Fight>,
     mechanics: Mechanics,
     pub managers: Managers,
+    pub last_round: Option<FightRound>,
 }
 
 impl FightDataMgr {
@@ -64,6 +68,7 @@ impl FightDataMgr {
             pre_fight,
             fight,
             mechanics,
+            last_round: None,
         }
     }
 
@@ -83,6 +88,15 @@ impl FightDataMgr {
     #[inline]
     pub fn fight_mut(&mut self) -> &mut Fight {
         &mut self.fight
+    }
+
+    pub fn execute_cloth_skill(&mut self, skill_id: i32, rng: &mut StdRng) -> anyhow::Result<sonettobuf::FightRound> {
+        let steps = self.managers.cloth_mgr.execute_skill(skill_id, &mut self.fight, &mut self.managers.deck_mgr, rng)?;
+        let mut round = self.last_round.clone().unwrap_or_default();
+        round.fight_step = steps;
+        round.power = self.fight.attacker.as_ref().and_then(|a| a.power);
+        round.team_a_cards1 = self.managers.deck_mgr.player_hand.clone();
+        Ok(round)
     }
 
     pub fn ctx(&mut self) -> FightContext<'_> {

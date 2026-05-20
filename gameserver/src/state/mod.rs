@@ -1,6 +1,6 @@
 mod app;
 
-mod battle;
+pub(crate) mod battle;
 //mod cache;
 mod connection;
 mod gacha;
