@@ -13,7 +13,7 @@ use crate::state::battle::{
     manager::{
         buff_mgr::BuffMgr,
         entity_mgr::EntityMgr,
-        round_mgr::{FightRoundMgr, lookup_entry_max_hp},
+        round_mgr::lookup_entry_max_hp,
     },
     mechanics::{bloodtithe::BloodtitheState, injury_counter, magic_circle},
     passives::{
@@ -26,7 +26,6 @@ use crate::state::battle::{
 };
 
 pub(crate) fn build_nuodika_channel_steps(
-    _mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     prior_steps: &[FightStep],
     collected: &CollectedPassives,

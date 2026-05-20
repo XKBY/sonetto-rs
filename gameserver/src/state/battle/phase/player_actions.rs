@@ -30,9 +30,7 @@ use crate::state::battle::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
         register_round_host,
     },
-    manager::{
-        round_mgr::FightRoundMgr,
-    },
+    manager::round_mgr::{apply_step_and_maybe_sync, check_battle_end, deleted_buff_ids_from_delta, expand_trigger_chain, inject_be_attacked_reactives_onto_player_host},
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
     passives::collector::CollectedPassives,
     round::RoundState,
@@ -60,7 +58,6 @@ fn push_host_accumulator_lane(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn run(
-    mgr: &FightRoundMgr,
     rng: &mut StdRng,
     ctx: &mut FightContext<'_>,
     executor: &mut SkillExecutor,
@@ -81,7 +78,7 @@ pub(crate) async fn run(
             continue;
         }
 
-        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+        apply_step_and_maybe_sync(ctx, &step, true)?;
         // Generate EX cards for heroes that have reached max EX points
         if let Some(attacker) = ctx.fight.attacker.as_ref() {
             let entities: Vec<_> = attacker.entitys.iter().chain(attacker.sub_entitys.iter())
@@ -110,15 +107,15 @@ pub(crate) async fn run(
         }
         let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
         let runtime_deleted_buff_ids =
-            mgr.deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
+            deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
 
         let is_player_skill = step.act_type == Some(fight_step::ActType::Skill as i32)
             && step.from_id.unwrap_or(0) >= 0;
         if !is_player_skill {
             let expanded_steps =
-                mgr.expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
+                expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
             steps.extend(expanded_steps);
-            state.is_finish = mgr.check_battle_end(ctx.fight);
+            state.is_finish = check_battle_end(ctx.fight);
             if state.is_finish {
                 break;
             }
@@ -142,7 +139,7 @@ pub(crate) async fn run(
             &mut accumulator,
         );
         let expanded_steps =
-            mgr.expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
+            expand_trigger_chain(ctx, collected, &host_step, &runtime_deleted_buff_ids);
         // Splice combat triggers as direct children of the host wrapper.
         // LIVE always attaches reactive passives at depth=1 under the host
         // skill wrapper — verified across battle1/2/3 fixtures (every player
@@ -199,7 +196,7 @@ pub(crate) async fn run(
             std::mem::take(&mut host_step.act_effect),
         );
         let be_attacked_offset = accumulator.lane_iter(HostLane::BeAttacked).count();
-        let be_attacked_insert_at = mgr.inject_be_attacked_reactives_onto_player_host(
+        let be_attacked_insert_at = inject_be_attacked_reactives_onto_player_host(
             state,
             &host_step,
             ctx,
@@ -300,7 +297,7 @@ pub(crate) async fn run(
             steps.len(),
         );
         steps.push(host_step);
-        state.is_finish = mgr.check_battle_end(ctx.fight);
+        state.is_finish = check_battle_end(ctx.fight);
         if state.is_finish {
             break;
         }

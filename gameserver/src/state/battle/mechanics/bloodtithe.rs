@@ -17,7 +17,7 @@ use crate::state::battle::{
     buff_actions::{nuodika, round_end},
     event_queue::{BattleEvent, serialize_leaf_event},
     fight_step::{ActEffectBuilder, FightStepBuilder, effect_container_step, wrap_step},
-    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr, round_mgr::FightRoundMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     passives::{collector::CollectedPassives, steps::build_passive_step},
     trigger::{combat::event_from_step, passes::build_belief_gain_step},
     utils::{buff_has_bloodpool, find_entity},
@@ -242,7 +242,6 @@ impl BloodtitheState {
 }
 
 pub(crate) fn build_round_transition_bloodtithe_steps(
-    mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     collected: &CollectedPassives,
 ) -> Vec<FightStep> {
@@ -312,7 +311,7 @@ pub(crate) fn build_round_transition_bloodtithe_steps(
         ctx, collected,
     ));
 
-    let nuodika_steps = nuodika::build_nuodika_channel_steps(mgr, ctx, &out, collected);
+    let nuodika_steps = nuodika::build_nuodika_channel_steps(ctx, &out, collected);
     out.extend(nuodika_steps);
 
     if let Some(step) = build_blood_pool_ex_point_step(

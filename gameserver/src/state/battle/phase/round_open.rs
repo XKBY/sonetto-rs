@@ -162,9 +162,7 @@ pub(crate) fn run(
 
     deck_mgr.player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
     let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
-    let mut move_ex_uids: Vec<i64> = Vec::new();
 
-    tracing::warn!("=== CARD SELECTION ===");
     for op in operations {
         let op_type = op.oper_type.unwrap_or(0);
         let to_id = op.to_id.unwrap_or(0);
@@ -178,13 +176,11 @@ pub(crate) fn run(
                 let uid = deck_mgr.player_hand[from].uid.unwrap_or(0);
                 if uid > 0 {
                     ctx.managers.entity_mgr.add_ex_point(uid, 1);
-                    move_ex_uids.push(uid);
                 }
                 let card = deck_mgr.player_hand.remove(from);
                 deck_mgr.player_hand.insert(to, card);
                 let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
-                ctx.on_move_card();
-                for _ in 0..upgrades { ctx.on_compose_card(); }
+                for _ in 0..upgrades { ctx.on_compose_card(uid); }
             }
         } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
@@ -195,10 +191,10 @@ pub(crate) fn run(
             if idx < deck_mgr.player_hand.len() {
                 let card = deck_mgr.player_hand.remove(idx);
                 tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
+                let card_uid = card.uid.unwrap_or(0);
                 selected_pairs.push((selected_pairs.len(), card));
                 let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
-                ctx.on_use_card();
-                for _ in 0..upgrades { ctx.on_compose_card(); }
+                for _ in 0..upgrades { ctx.on_compose_card(card_uid); }
             } else {
                 tracing::warn!(
                     "  -> idx {} OUT OF RANGE (deck size {})",
@@ -226,43 +222,19 @@ pub(crate) fn run(
 
     let selected_cards: Vec<sonettobuf::CardInfo> =
         selected_pairs.into_iter().map(|(_, c)| c).collect();
-    let selected_temp: Vec<sonettobuf::CardInfo> = selected_cards
-        .iter()
-        .filter(|c| c.temp_card.unwrap_or(false))
-        .cloned()
-        .collect();
-    let selected_non_temp: Vec<sonettobuf::CardInfo> = selected_cards
-        .iter()
-        .filter(|c| !c.temp_card.unwrap_or(false))
-        .cloned()
-        .collect();
-    let mut selected_for_round_end = selected_non_temp.clone();
-    selected_for_round_end.extend(selected_temp);
 
     // set to the deck after simulating all operations
     state.selected_cards = selected_cards.clone();
 
-    tracing::warn!("=== RESULT ===");
-    tracing::warn!("selected ({}):", selected_cards.len());
-    for (i, c) in selected_cards.iter().enumerate() {
-        tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-    }
-    tracing::warn!("remaining ({}):", deck_mgr.player_hand.len());
-    for (i, c) in deck_mgr.player_hand.iter().enumerate() {
-        tracing::warn!("  [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-    }
+    let steps = vec![build_refresh_step(selected_cards.clone(), deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32)];
 
-    let mut steps = vec![build_refresh_step(selected_cards, deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32)];
-    for uid in move_ex_uids {
-        steps.push(FightStepBuilder::ex_point_change(uid, 1));
-    }
     let collected = collect(ctx.fight, ctx.fight.battle_id.unwrap_or(0));
 
     RoundOpenPhaseData {
         state,
         steps,
         collected,
-        selected_for_round_end,
+        selected_for_round_end: selected_cards.clone(),
         defender_uid_checkpoint,
     }
 }

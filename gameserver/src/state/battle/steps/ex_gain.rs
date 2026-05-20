@@ -4,7 +4,6 @@ use crate::state::battle::{
     BehaviorType,
     context::FightContext,
     fight_step::{ActEffectBuilder, FightStepBuilder},
-    manager::round_mgr::FightRoundMgr,
     round::RoundState,
     skill::cache::{SKILL_CACHE, resolve_skill_effect_id},
     types::ex_point::ExPointType,
@@ -91,7 +90,6 @@ pub(crate) fn skill_suppresses_pre_operation_ex(skill_id: i32) -> bool {
 }
 
 pub(crate) fn standard_action_ex_gain_for_uid(
-    _mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     caster_uid: i64,
 ) -> Option<FightStep> {

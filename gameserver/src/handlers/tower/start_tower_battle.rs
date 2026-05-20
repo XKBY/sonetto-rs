@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap, select_enemy_cards,
+    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
 };
 use config::configs;
 use prost::Message;
@@ -77,29 +77,12 @@ pub async fn on_start_tower_battle(
         max_ap,
     };
 
-    let (mut initial_round, mut fight_data_mgr) =
-        create_battle(&pool, battle_ctx, &fight_group).await?;
+    let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
+    let (initial_round, mut fight_data_mgr) =
+        create_battle(&pool, battle_ctx, &fight_group, seed).await?;
 
     let fight_for_battle = fight_data_mgr.fight().clone();
-    let mut card_push = fight_data_mgr.managers.deck_mgr
-        .init_player(&fight_for_battle, max_ap);
-
-    let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
-    fight_data_mgr.managers.deck_mgr.init_enemy(&fight_for_battle);
-
-    {
-        use rand::SeedableRng;
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-        let cards = select_enemy_cards(
-            &mut fight_data_mgr.managers.deck_mgr,
-            &fight_for_battle,
-            &mut rng,
-        );
-        fight_data_mgr.managers.deck_mgr.next_ai_use_cards = cards.clone();
-        initial_round.ai_use_cards = cards;
-    }
-
-    // SP cards already in player_hand from build_initial_round passives
+    let mut card_push = fight_data_mgr.initial_card_push.take().unwrap_or_default();
     card_push.card_group = fight_data_mgr.managers.deck_mgr.player_hand.clone();
 
     let fight_snapshot = fight_data_mgr.pre_fight.clone()
@@ -115,10 +98,6 @@ pub async fn on_start_tower_battle(
             chapter_id,
             difficulty: Some(difficulty),
             talent_plan_id: Some(talent_plan_id),
-            fight: Some(fight_for_battle),
-            current_round: 1,
-            act_point: max_ap,
-            power: 15,
             fight_group: Some(fight_group.clone()),
             is_replay: None,
             replay_episode_id: None,

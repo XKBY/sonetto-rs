@@ -22,7 +22,6 @@ pub mod rewards;
 pub mod round;
 pub mod round_end_emission;
 pub mod round_state;
-pub mod simulator;
 pub mod step_walker;
 pub mod steps;
 
@@ -61,11 +60,10 @@ pub async fn create_battle(
     pool: &SqlitePool,
     ctx: BattleContext,
     fight_group: &sonettobuf::FightGroup,
+    seed: u64,
 ) -> Result<(FightRound, FightDataMgr)> {
-    let built = fight::builder::build_fight(pool, &ctx, fight_group).await?;
-
-    let (initial_round, fight_data_mgr) =
-        round::build_initial_round(built.fight, ctx.battle_id).await?;
-
+    let built_fight = fight::builder::build_fight(pool, &ctx, fight_group).await?;
+    let mut fight_data_mgr = FightDataMgr::new(built_fight.fight, ctx.max_ap);
+    let initial_round = round::build_initial_round(&mut fight_data_mgr, ctx.battle_id, seed)?;
     Ok((initial_round, fight_data_mgr))
 }

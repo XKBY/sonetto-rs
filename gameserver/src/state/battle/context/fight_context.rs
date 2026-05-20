@@ -86,15 +86,15 @@ impl<'a> FightContext<'a> {
         self.managers.cloth_mgr.on_round_end(self.fight);
     }
 
-    pub fn on_use_card(&mut self) {
-        self.managers.cloth_mgr.on_use_card(self.fight);
+    pub fn on_use_card(&mut self, uid: i64, target_id: i64, skill_id: i32) {
+        self.managers.cloth_mgr.on_use_card(self.fight, uid, target_id, skill_id);
     }
 
-    pub fn on_move_card(&mut self) {
-        self.managers.cloth_mgr.on_move_card(self.fight);
+    pub fn on_move_card(&mut self, uid: i64) {
+        self.managers.cloth_mgr.on_move_card(self.fight, uid);
     }
 
-    pub fn on_compose_card(&mut self) {
-        self.managers.cloth_mgr.on_compose_card(self.fight);
+    pub fn on_compose_card(&mut self, uid: i64) {
+        self.managers.cloth_mgr.on_compose_card(self.fight, uid);
     }
 }

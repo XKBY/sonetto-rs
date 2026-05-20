@@ -13,15 +13,15 @@ pub async fn on_entity_info(
 
     let conn = ctx.lock().await;
     let entity_info = request.uid.and_then(|uid| {
-        conn.active_battle.as_ref()?.fight.as_ref().and_then(|fight| {
-            fight.attacker.as_ref()
-                .and_then(|team| team.entitys.iter().find(|e| e.uid == Some(uid)))
-                .or_else(|| {
-                    fight.defender.as_ref()
-                        .and_then(|team| team.entitys.iter().find(|e| e.uid == Some(uid)))
-                })
-                .cloned()
-        })
+        let battle = conn.active_battle.as_ref()?;
+        let fight = battle.fight_data_mgr.as_ref()?.fight();
+        fight.attacker.as_ref()
+            .and_then(|team| team.entitys.iter().find(|e| e.uid == Some(uid)))
+            .or_else(|| {
+                fight.defender.as_ref()
+                    .and_then(|team| team.entitys.iter().find(|e| e.uid == Some(uid)))
+            })
+            .cloned()
     });
 
     drop(conn);

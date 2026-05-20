@@ -20,13 +20,13 @@ use super::collector::collect;
 use super::steps::{build_battle_rule_step, build_passive_step, cards, temp_card};
 use sonettobuf::FightStep;
 
-pub fn run_battle_start(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<FightStep> {
+pub fn execute_battle_start_passives(ctx: &mut FightContext<'_>, battle_id: i32) -> Vec<FightStep> {
     let collected = collect(ctx.fight, battle_id);
     if collected.is_empty() {
         return vec![];
     }
     tracing::info!(
-        "run_battle_start: {} attackers {} defenders",
+        "execute_battle_start_passives: {} attackers {} defenders",
         collected.attacker.len(),
         collected.defender.len()
     );

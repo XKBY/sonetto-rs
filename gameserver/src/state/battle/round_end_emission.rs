@@ -26,7 +26,7 @@ use crate::state::battle::{
     heroes::rubuska,
     manager::{
         buff_mgr::next_buff_uid_for_target,
-        round_mgr::{FightRoundMgr, skill_has_no_act_round_condition},
+        round_mgr::{apply_step_and_maybe_sync, collect_battle_rule_skills, skill_has_no_act_round_condition},
         traits::Manager,
     },
     mechanics::bloodtithe,
@@ -64,14 +64,13 @@ struct BossStateSnapshot {
 /// 4. The round-end broadcast (with synthetic `530000112` fallback
 ///    for `addition_rule`-derived `530000151` battles).
 pub(crate) fn emit_terminal_round_steps(
-    mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     selected_for_round_end: Vec<CardInfo>,
     collected: &CollectedPassives,
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
-    for step in bloodtithe::build_round_transition_bloodtithe_steps(mgr, ctx, collected) {
-        mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
+    for step in bloodtithe::build_round_transition_bloodtithe_steps(ctx, collected) {
+        apply_step_and_maybe_sync(ctx, &step, true)?;
         steps.push(step);
     }
 
@@ -82,12 +81,12 @@ pub(crate) fn emit_terminal_round_steps(
             ))
             .build(),
     );
-    if let Some(raw_step) = build_terminal_attacker_round_end_passive_step(mgr, ctx, collected) {
-        mgr.apply_step_and_maybe_sync(ctx, &raw_step, true)?;
+    if let Some(raw_step) = build_terminal_attacker_round_end_passive_step(ctx, collected) {
+        apply_step_and_maybe_sync(ctx, &raw_step, true)?;
         steps.push(build_effect_step(vec![wrap_step(raw_step)]));
     }
 
-    let broadcast = collect_terminal_round_end_broadcast(mgr, ctx);
+    let broadcast = collect_terminal_round_end_broadcast(ctx);
     if !broadcast.is_empty() {
         steps.push(build_effect_step(broadcast));
     }
@@ -132,7 +131,6 @@ pub(crate) fn collect_attacker_round_end_broadcast(
 /// synthesize one `530000112` BuffUpdate per alive attacker so the
 /// shape matches what the official client emits at battle end.
 pub(crate) fn collect_terminal_round_end_broadcast(
-    mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
 ) -> Vec<ActEffect> {
     let broadcast = collect_attacker_round_end_broadcast(ctx, false, true);
@@ -147,8 +145,7 @@ pub(crate) fn collect_terminal_round_end_broadcast(
         return broadcast;
     }
 
-    if !mgr
-        .collect_battle_rule_skills(ctx.fight)
+    if !collect_battle_rule_skills(ctx.fight)
         .contains(&530000151)
     {
         return broadcast;
@@ -185,13 +182,11 @@ pub(crate) fn collect_terminal_round_end_broadcast(
 /// behavior condition `46301`). Used by the terminal-round emitter
 /// to surface the one ally passive that closes out the round.
 pub(crate) fn build_terminal_attacker_round_end_passive_step(
-    mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     collected: &CollectedPassives,
 ) -> Option<FightStep> {
-    let _ = mgr;
     let passive_phase = ctx.combat_phase();
-    let battle_rule_skills = mgr.collect_battle_rule_skills(ctx.fight);
+    let battle_rule_skills = collect_battle_rule_skills(ctx.fight);
 
     for uid in collected.attacker_uids() {
         for skill_id in collected.merged_for(uid) {
@@ -451,12 +446,10 @@ pub(crate) fn coalesce_late_tail_exclude_battle_rule_passives(steps: &mut Vec<Fi
 /// `530000111` state on defenders that still carry that buff after the
 /// round-end transition. That naturally excludes battle1's `-3`.
 pub(crate) fn repair_boss_state_cycle_second_wave(
-    mgr: &FightRoundMgr,
     ctx: &mut FightContext<'_>,
     steps: &mut Vec<FightStep>,
 ) -> bool {
-    if !mgr
-        .collect_battle_rule_skills(ctx.fight)
+    if !collect_battle_rule_skills(ctx.fight)
         .contains(&BOSS_STATE_CYCLE_SKILL_ID)
     {
         return false;

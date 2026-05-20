@@ -1,5 +1,5 @@
 use crate::network::packet::ClientPacket;
-use crate::state::{BattleSimulator, ConnectionContext, handle_dungeon_end};
+use crate::state::{ConnectionContext, handle_dungeon_end};
 use crate::{error::AppError, state::send_end_fight_push};
 use prost::Message;
 use sonettobuf::{CmdId, EndFightReply, EndFightRequest};
@@ -40,8 +40,7 @@ pub async fn on_fight_end_fight(
     let result = if is_abort {
         0
     } else if let Some(mgr) = fight_data_mgr {
-        let simulator = BattleSimulator::new(mgr);
-        simulator.check_battle_result()
+        mgr.check_battle_result()
     } else {
         1
     };
