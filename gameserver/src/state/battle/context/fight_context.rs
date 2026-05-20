@@ -4,7 +4,7 @@ use crate::state::battle::mechanics::Mechanics;
 use crate::state::battle::skill::{PhaseFilter, TriggerState};
 
 use rand::rngs::StdRng;
-use sonettobuf::Fight;
+use sonettobuf::{CardInfo, Fight, FightStep};
 use std::{collections::HashSet, ptr::NonNull};
 
 #[derive(Copy, Clone)]
@@ -86,15 +86,22 @@ impl<'a> FightContext<'a> {
         self.managers.cloth_mgr.on_round_end(self.fight);
     }
 
-    pub fn on_use_card(&mut self, uid: i64, target_id: i64, skill_id: i32) {
-        self.managers.cloth_mgr.on_use_card(self.fight, uid, target_id, skill_id);
+    pub fn on_use_card(&mut self, card: &CardInfo, target_id: i64) -> Option<FightStep> {
+        let uid = card.uid.unwrap_or(0);
+        let step = self.managers.entity_mgr.on_use_card(uid);
+        self.managers.cloth_mgr.on_use_card(self.fight);
+        step
     }
 
-    pub fn on_move_card(&mut self, uid: i64) {
-        self.managers.cloth_mgr.on_move_card(self.fight, uid);
+    pub fn on_move_card(&mut self, card: &CardInfo) -> Option<FightStep> {
+        let uid = card.uid.unwrap_or(0);
+        let step = self.managers.entity_mgr.on_move_card(uid);
+        self.managers.cloth_mgr.on_move_card(self.fight);
+        step
     }
 
-    pub fn on_compose_card(&mut self, uid: i64) {
-        self.managers.cloth_mgr.on_compose_card(self.fight, uid);
+    pub fn on_compose_card(&mut self, card: &CardInfo) -> Option<FightStep> {
+        self.managers.cloth_mgr.on_compose_card(self.fight);
+        None
     }
 }

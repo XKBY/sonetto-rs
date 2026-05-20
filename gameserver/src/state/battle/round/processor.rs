@@ -75,7 +75,6 @@ pub async fn process_round(
         executor,
         &mut open.state,
         &mut deck_mgr,
-        operations,
         &open.collected,
         &mut open.steps,
     )

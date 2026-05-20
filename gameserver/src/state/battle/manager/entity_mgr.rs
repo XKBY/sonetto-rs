@@ -1,7 +1,10 @@
-use sonettobuf::{Fight, FightEntityInfo, FightExPointInfo};
+use sonettobuf::{Fight, FightEntityInfo, FightExPointInfo, FightStep};
 use std::collections::{HashMap, HashSet};
 
-use super::super::types::ex_point::ExPointType;
+use super::super::{
+    fight_step::{ActEffectBuilder, FightStepBuilder},
+    types::ex_point::ExPointType,
+};
 use super::traits::Manager;
 
 #[derive(Debug, Clone, Copy)]
@@ -132,6 +135,16 @@ impl EntityMgr {
     pub fn add_ex_point(&mut self, uid: i64, amount: i32) {
         let v = self.ex_points.entry(uid).or_insert(0);
         *v = (*v + amount).max(0);
+    }
+
+    pub fn on_use_card(&mut self, uid: i64) -> Option<FightStep> {
+        self.add_ex_point(uid, 1);
+        Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
+    }
+
+    pub fn on_move_card(&mut self, uid: i64) -> Option<FightStep> {
+        self.add_ex_point(uid, 1);
+        Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
     }
 
     pub fn set_recent_decr_ex_point(&mut self, uid: i64, amount: i32) {

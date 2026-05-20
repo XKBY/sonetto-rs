@@ -21,9 +21,10 @@
 
 use anyhow::Result;
 use rand::rngs::StdRng;
-use sonettobuf::{ActEffect, BeginRoundOper, FightStep, fight_step};
+use sonettobuf::{ActEffect, FightStep, fight_step};
 
 use crate::state::battle::{
+    card::executor::play_card,
     deck::{DeckManager, make_card},
     context::FightContext,
     event_queue::{
@@ -32,6 +33,7 @@ use crate::state::battle::{
     },
     manager::round_mgr::{apply_step_and_maybe_sync, check_battle_end, deleted_buff_ids_from_delta, expand_trigger_chain, inject_be_attacked_reactives_onto_player_host},
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
+    operation::parser::PlayerEvent,
     passives::collector::CollectedPassives,
     round::RoundState,
     skill::SkillExecutor,
@@ -63,22 +65,72 @@ pub(crate) async fn run(
     executor: &mut SkillExecutor,
     state: &mut RoundState,
     deck_mgr: &mut DeckManager,
-    operations: Vec<BeginRoundOper>,
     collected: &CollectedPassives,
     steps: &mut Vec<FightStep>,
 ) -> Result<()> {
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
     sync_blood_value_baseline(battle_id, 1, ctx.mechanics.bloodtithe.get_value(1));
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
-    for oper in operations {
+    for evt in std::mem::take(&mut state.player_events) {
+        let oper = match &evt {
+            PlayerEvent::Used { card, oper } => {
+                if let Some(step) = ctx.on_use_card(card, oper.to_id.unwrap_or(0)) {
+                    steps.push(step);
+                }
+                oper.clone()
+            }
+            PlayerEvent::Moved { card } => {
+                if let Some(step) = ctx.on_move_card(card) { steps.push(step); }
+                continue;
+            }
+            PlayerEvent::Composed { card } => {
+                if let Some(step) = ctx.on_compose_card(card) { steps.push(step); }
+                continue;
+            }
+            PlayerEvent::SimulateDissolveCard { oper } => {
+                let dissolve_index = (oper.param1.unwrap_or(1) - 1) as usize;
+                if dissolve_index < state.selected_cards.len() {
+                    state.selected_cards.remove(dissolve_index);
+                }
+                steps.push(FightStep {
+                    act_type: Some(fight_step::ActType::Effect.into()),
+                    act_effect: vec![crate::state::battle::fight_step::ActEffectBuilder::cards_push(state.selected_cards.clone(), Some(1))],
+                    ..Default::default()
+                });
+                continue;
+            }
+        };
+
+        // Only PLAY_CARD/AssistBoss/PlayerFinisherSkill/BloodPool continue
+        ctx.managers.buff_mgr.clear_step_deleted_buff_ids();
         let ex_step_after_op = ex_gain::pre_operation_ex_gain(ctx, state, &oper);
         let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
-        let step = crate::state::battle::operation::executor::execute_operation(executor, rng, ctx, state, oper).await?;
+        let step = play_card(executor, rng, ctx, state, oper).await?;
         if step.act_type.unwrap_or(0) == 0 {
             continue;
         }
 
         apply_step_and_maybe_sync(ctx, &step, true)?;
+        
+        let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
+        let runtime_deleted_buff_ids =
+            deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
+
+        let is_player_skill = step.act_type == Some(fight_step::ActType::Skill as i32)
+            && step.from_id.unwrap_or(0) >= 0;
+        if !is_player_skill {
+            let expanded_steps =
+                expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
+            steps.extend(expanded_steps);
+            state.is_finish = check_battle_end(ctx.fight);
+            if state.is_finish {
+                break;
+            }
+            continue;
+        }
+
+        let suppress_pre_op_ex =
+            ex_gain::skill_suppresses_pre_operation_ex(step.act_id.unwrap_or(0));
         // Generate EX cards for heroes that have reached max EX points
         if let Some(attacker) = ctx.fight.attacker.as_ref() {
             let entities: Vec<_> = attacker.entitys.iter().chain(attacker.sub_entitys.iter())
@@ -105,25 +157,6 @@ pub(crate) async fn run(
                 }
             }
         }
-        let buff_snapshot_after = ctx.managers.buff_mgr.all_instances();
-        let runtime_deleted_buff_ids =
-            deleted_buff_ids_from_delta(&buff_snapshot_before, &buff_snapshot_after);
-
-        let is_player_skill = step.act_type == Some(fight_step::ActType::Skill as i32)
-            && step.from_id.unwrap_or(0) >= 0;
-        if !is_player_skill {
-            let expanded_steps =
-                expand_trigger_chain(ctx, collected, &step, &runtime_deleted_buff_ids);
-            steps.extend(expanded_steps);
-            state.is_finish = check_battle_end(ctx.fight);
-            if state.is_finish {
-                break;
-            }
-            continue;
-        }
-
-        let suppress_pre_op_ex =
-            ex_gain::skill_suppresses_pre_operation_ex(step.act_id.unwrap_or(0));
         if !suppress_pre_op_ex && let Some(ex_step) = ex_step_after_op.clone() {
             steps.push(ex_step);
         }
@@ -305,7 +338,7 @@ pub(crate) async fn run(
 
     state.before_cards2 = deck_mgr.player_hand.clone();
     let (cards2, upgrades2) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
-    for _ in 0..upgrades2 { ctx.on_compose_card(); }
+    for _ in 0..upgrades2 { ctx.on_compose_card(&sonettobuf::CardInfo::default()); }
     state.team_a_cards2 = cards2;
 
     Ok(())

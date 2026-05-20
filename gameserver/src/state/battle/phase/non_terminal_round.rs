@@ -22,7 +22,12 @@ use crate::state::battle::{
     manager::{
         buff_mgr::{LifecycleEventKind, reset_buff_uid_to},
         entity_mgr::sync_from_fight,
-        round_mgr::{BattleEndState, apply_passive_phase, apply_step_and_maybe_sync, check_battle_end, check_battle_state, collect_round_tied_defender_passive_steps, deleted_buff_ids_from_delta, expand_trigger_chain, first_alive_defender_uid, get_max_wave, seed_entry_max_hp_from_fight},
+        round_mgr::{
+            BattleEndState, apply_passive_phase, apply_step_and_maybe_sync, check_battle_end,
+            check_battle_state, collect_round_tied_defender_passive_steps,
+            deleted_buff_ids_from_delta, expand_trigger_chain, first_alive_defender_uid,
+            get_max_wave, seed_entry_max_hp_from_fight,
+        },
         traits::Manager,
     },
     mechanics::{advanced_cure, bloodtithe, channel as channel_mechanics},
@@ -92,11 +97,15 @@ pub(crate) async fn run(
         true,
         steps,
     )?;
-    steps.extend(build_pre_enemy_transition_steps(deck_mgr.player_deck.len() as i32));
+    steps.extend(build_pre_enemy_transition_steps(
+        deck_mgr.player_deck.len() as i32
+    ));
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
         steps.push(
             FightStepBuilder::effect()
-                .with(ActEffectBuilder::change_hero(dead_uid, sub_entity, position))
+                .with(ActEffectBuilder::change_hero(
+                    dead_uid, sub_entity, position,
+                ))
                 .build(),
         );
     }
@@ -163,7 +172,7 @@ pub(crate) async fn run(
 
     // Enemy actions
     phase::enemy_actions::run(rng, ctx, executor, state, collected, steps).await?;
-    
+
     let injected_channel_buffs =
         channel_mechanics::inject_channel_followup_buffs_if_missing(ctx, collected, steps);
 
@@ -304,7 +313,9 @@ pub(crate) async fn run(
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
         steps.push(
             FightStepBuilder::effect()
-                .with(ActEffectBuilder::change_hero(dead_uid, sub_entity, position))
+                .with(ActEffectBuilder::change_hero(
+                    dead_uid, sub_entity, position,
+                ))
                 .build(),
         );
     }
@@ -366,7 +377,13 @@ pub(crate) async fn run(
     // post-round-start passive sweeps execute.
     ctx.managers.buff_mgr.reset_skill_slot_round_usage();
     let round_start_tail_start = steps.len();
-    run_post_change_round_tail(ctx, collected, steps, deck_mgr.player_deck.len() as i32, injected_channel_buffs)?;
+    run_post_change_round_tail(
+        ctx,
+        collected,
+        steps,
+        deck_mgr.player_deck.len() as i32,
+        injected_channel_buffs,
+    )?;
 
     // LIVE still applies the downstream Shadow Cloak / bloodpool state updates
     // on terminal transitions, but it does not surface the visible

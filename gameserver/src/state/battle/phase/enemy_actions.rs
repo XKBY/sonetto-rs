@@ -29,7 +29,7 @@ use crate::state::battle::{
     round::RoundState,
     skill::SkillExecutor,
     step_walker,
-    steps::{ex_gain, trigger_embed},
+    steps::{trigger_embed},
     trigger::passes::sync_blood_value_baseline,
 };
 
@@ -75,7 +75,7 @@ pub(crate) async fn run(
             && (previous_negative_skill_host != current_negative_skill_host || act_id != 114300811)
         {
             state.enemy_skill_actors.insert(caster_uid);
-            ex_gain::standard_action_ex_gain_for_uid(ctx, caster_uid)
+            ctx.managers.entity_mgr.on_use_card(caster_uid)
         } else {
             None
         };

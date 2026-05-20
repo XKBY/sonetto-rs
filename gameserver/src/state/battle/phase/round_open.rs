@@ -34,9 +34,10 @@ use crate::state::battle::{
         round_mgr::seed_entry_max_hp_from_fight,
     },
     mechanics::injury_counter,
+    operation::parser::parse_round_open_ops,
     passives::collector::{CollectedPassives, collect},
     round::{RoundState, steps::refresh::build_refresh_step},
-    card::{apply_card_upgrades, upgrade_level1},
+    card::apply_card_upgrades,
 };
 
 fn ensure_battle_tracing() {
@@ -125,106 +126,13 @@ pub(crate) fn run(
         }
     }
 
-    tracing::warn!("=== ROUND START ===");
-    tracing::warn!("player_hand ({} cards):", deck_mgr.player_hand.len());
-    for (i, c) in deck_mgr.player_hand.iter().enumerate() {
-        tracing::warn!(
-            "  [{}] uid={:?} hero={:?} skill={:?}",
-            i,
-            c.uid,
-            c.hero_id,
-            c.skill_id
-        );
-    }
-    tracing::warn!(
-        "player_hand after filter ({} cards):",
-        deck_mgr.player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).count()
-    );
-    for (i, c) in deck_mgr.player_hand.iter().filter(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false)).enumerate() {
-        tracing::warn!(
-            "  [{}] uid={:?} hero={:?} skill={:?}",
-            i,
-            c.uid,
-            c.hero_id,
-            c.skill_id
-        );
-    }
-    tracing::warn!("operations ({}):", operations.len());
-    for (i, o) in operations.iter().enumerate() {
-        tracing::warn!(
-            "  [{}] type={:?} param1={:?} to_id={:?}",
-            i,
-            o.oper_type,
-            o.param1,
-            o.to_id
-        );
-    }
-
     deck_mgr.player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
-    let mut selected_pairs: Vec<(usize, sonettobuf::CardInfo)> = Vec::new();
 
-    for op in operations {
-        let op_type = op.oper_type.unwrap_or(0);
-        let to_id = op.to_id.unwrap_or(0);
-        let is_play = op_type == 2 || (op_type == 1 && to_id != 0);
-        let is_move = op_type == 1 && to_id == 0;
-        if is_move {
-            let from = (op.param1.unwrap_or(1) - 1) as usize;
-            let to = (op.param2.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, deck_mgr.player_hand.len());
-            if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
-                let uid = deck_mgr.player_hand[from].uid.unwrap_or(0);
-                if uid > 0 {
-                    ctx.managers.entity_mgr.add_ex_point(uid, 1);
-                }
-                let card = deck_mgr.player_hand.remove(from);
-                deck_mgr.player_hand.insert(to, card);
-                let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
-                for _ in 0..upgrades { ctx.on_compose_card(uid); }
-            }
-        } else if is_play {
-            let idx = (op.param1.unwrap_or(1) - 1) as usize;
-            tracing::warn!("  pick idx={} from deck of {} cards:", idx, deck_mgr.player_hand.len());
-            for (i, c) in deck_mgr.player_hand.iter().enumerate() {
-                tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
-            }
-            if idx < deck_mgr.player_hand.len() {
-                let card = deck_mgr.player_hand.remove(idx);
-                tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
-                let card_uid = card.uid.unwrap_or(0);
-                selected_pairs.push((selected_pairs.len(), card));
-                let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
-                for _ in 0..upgrades { ctx.on_compose_card(card_uid); }
-            } else {
-                tracing::warn!(
-                    "  -> idx {} OUT OF RANGE (deck size {})",
-                    idx,
-                    deck_mgr.player_hand.len()
-                );
-            }
-        } else if op_type == 3 {
-            let universal_idx = (op.param1.unwrap_or(1) - 1) as usize;
-            let target_idx = (op.param2.unwrap_or(1) - 1) as usize;
-            let is_universal = deck_mgr.player_hand.get(universal_idx)
-                .and_then(|c| c.skill_id)
-                .map_or(false, |id| id == 30000001);
-            if is_universal && target_idx < deck_mgr.player_hand.len() {
-                if let Some(next_skill) = upgrade_level1(&deck_mgr.player_hand[target_idx], ctx.fight) {
-                    deck_mgr.player_hand[target_idx].skill_id = Some(next_skill);
-                    deck_mgr.player_hand.remove(universal_idx);
-                }
-            }
-            tracing::warn!("  upgrade idx={} with universal idx={} (is_universal={})", target_idx, universal_idx, is_universal);
-        }
-    }
+    let parsed = parse_round_open_ops(operations, deck_mgr, ctx.fight);
+    state.selected_cards = parsed.selected_cards.clone();
+    state.player_events = parsed.player_events;
 
-    
-
-    let selected_cards: Vec<sonettobuf::CardInfo> =
-        selected_pairs.into_iter().map(|(_, c)| c).collect();
-
-    // set to the deck after simulating all operations
-    state.selected_cards = selected_cards.clone();
+    let selected_cards = parsed.selected_cards;
 
     let steps = vec![build_refresh_step(selected_cards.clone(), deck_mgr.player_hand.clone(), deck_mgr.player_deck.len() as i32)];
 
