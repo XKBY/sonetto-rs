@@ -34,18 +34,21 @@ pub fn upgrade_level1(card: &CardInfo, fight: &Fight) -> Option<i32> {
     None
 }
 
-pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) {
+pub fn apply_card_upgrades(player_deck: &mut Vec<CardInfo>, fight: &Fight) -> usize {
     let mut i = 0;
+    let mut count = 0;
     while i + 1 < player_deck.len() {
         if player_deck[i].skill_id == player_deck[i + 1].skill_id {
             if let Some(next_id) = next_tier(&player_deck[i], fight) {
                 player_deck[i].skill_id = Some(next_id);
                 player_deck.remove(i + 1);
+                count += 1;
                 continue;
             }
         }
         i += 1;
     }
+    count
 }
 
 /// Returns all skill_ids at the same rank (position) as `skill_id` in `entity`'s skill groups.

@@ -108,8 +108,8 @@ impl FightDataMgr {
     }
 
     pub fn build_initial_round(&mut self, battle_id: i32) -> Result<FightRound> {
-        // init ex_point_mgr from fight state
         self.managers.entity_mgr.init(&self.fight);
+        self.managers.cloth_mgr.on_battle_start(&mut self.fight);
 
         let mut steps: Vec<FightStep> = Vec::new();
         let passive_steps = {

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::collections::HashSet;
 use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::FightRound;
 
@@ -7,7 +6,6 @@ use crate::state::battle::{
     ai,
     deck::DeckManager,
     context::RoundContext,
-    cloth::{active_cloth_level, apply_cloth_power_delta},
     manager::{entity_mgr::build_ex_point_info, round_mgr::FightRoundMgr},
     fight_step::split_step_by_effect_limit,
 };
@@ -22,11 +20,6 @@ pub(crate) fn build_round_output(
     rng: &mut StdRng,
 ) -> Result<FightRound> {
     let ctx = &mut *round_ctx.fight_ctx;
-    if open.state.pending_cloth_power_delta != 0
-        && let Some(cloth) = active_cloth_level(ctx.fight)
-    {
-        apply_cloth_power_delta(ctx.fight, &cloth, open.state.pending_cloth_power_delta);
-    }
     open.state.is_finish = mgr.check_battle_end(ctx.fight);
 
     crate::state::battle::manager::entity_mgr::sync_to_fight(ctx.fight, &ctx.managers.entity_mgr);
@@ -51,7 +44,8 @@ pub(crate) fn build_round_output(
     deck_mgr.purge_player_dead_cards(ctx.fight, &ctx.managers.entity_mgr);
 
     let before_cards1 = deck_mgr.player_hand.clone();
-    let team_a_cards1 = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
+    let (team_a_cards1, upgrades1) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
+    for _ in 0..upgrades1 { ctx.on_compose_card(); }
 
     // Accumulate EX cards for enemies that have reached max EX points
     deck_mgr.accumulate_enemy_ex_cards(ctx.fight, &ctx.managers.entity_mgr);

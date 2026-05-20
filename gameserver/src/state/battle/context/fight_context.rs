@@ -83,5 +83,18 @@ impl<'a> FightContext<'a> {
         self.managers.calculate_mgr.on_round_end();
         self.clear_round_active_card_casts();
         self.sync();
+        self.managers.cloth_mgr.on_round_end(self.fight);
+    }
+
+    pub fn on_use_card(&mut self) {
+        self.managers.cloth_mgr.on_use_card(self.fight);
+    }
+
+    pub fn on_move_card(&mut self) {
+        self.managers.cloth_mgr.on_move_card(self.fight);
+    }
+
+    pub fn on_compose_card(&mut self) {
+        self.managers.cloth_mgr.on_compose_card(self.fight);
     }
 }

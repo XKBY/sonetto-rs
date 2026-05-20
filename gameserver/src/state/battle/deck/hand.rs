@@ -24,28 +24,29 @@ pub(crate) fn refill_hand(
     extra: usize,
     fight: &Fight,
     mut rebuild_deck: impl FnMut() -> Vec<CardInfo>,
-) -> Vec<CardInfo> {
+) -> (Vec<CardInfo>, usize) {
     let has_support = fight.attacker.as_ref().map_or(false, |a| {
         a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
+    let mut upgrades: usize = 0;
     let non_temp = |h: &Vec<CardInfo>| h.iter().filter(|c| !c.temp_card.unwrap_or(false)).count();
     while non_temp(hand) < target_size && !ex_deck.is_empty() {
         let card = ex_deck.remove(0);
         pulled_raw.push(card.clone());
         hand.push(card);
-        apply_card_upgrades(hand, fight);
+        upgrades += apply_card_upgrades(hand, fight);
     }
     while non_temp(hand) < target_size && !deck.is_empty() {
         let idx = rng.gen_range(0..deck.len());
         let raw = deck.remove(idx);
         pulled_raw.push(raw.clone());
         hand.push(raw);
-        apply_card_upgrades(hand, fight);
+        upgrades += apply_card_upgrades(hand, fight);
         if deck.is_empty() {
             *deck = rebuild_deck();
         }
     }
-    pulled_raw
+    (pulled_raw, upgrades)
 }

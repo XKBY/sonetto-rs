@@ -32,10 +32,6 @@ use crate::state::battle::{
         },
         entity_mgr::sync_from_fight,
         round_mgr::seed_entry_max_hp_from_fight,
-        cloth_mgr::{
-            active_cloth_level, apply_cloth_power_delta, parse_cloth_recover_delta,
-            seed_attacker_power_from_cloth,
-        },
     },
     mechanics::injury_counter,
     passives::collector::{CollectedPassives, collect},
@@ -98,13 +94,6 @@ pub(crate) fn run(
     sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
     sync_buffs_from_fight(ctx.fight, &mut ctx.managers.buff_mgr);
     sync_buff_uid_counters_from_mgr(&ctx.managers.buff_mgr);
-    if let Some(cloth) = active_cloth_level(ctx.fight) {
-        seed_attacker_power_from_cloth(ctx.fight, &cloth);
-        let recover_delta = parse_cloth_recover_delta(&cloth.recover, round_ctx.round_index);
-        if recover_delta != 0 {
-            apply_cloth_power_delta(ctx.fight, &cloth, recover_delta);
-        }
-    }
 
     if let Some(a) = &ctx.fight.attacker {
         for e in &a.entitys {
@@ -193,7 +182,9 @@ pub(crate) fn run(
                 }
                 let card = deck_mgr.player_hand.remove(from);
                 deck_mgr.player_hand.insert(to, card);
-                apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
+                let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
+                ctx.on_move_card();
+                for _ in 0..upgrades { ctx.on_compose_card(); }
             }
         } else if is_play {
             let idx = (op.param1.unwrap_or(1) - 1) as usize;
@@ -205,7 +196,9 @@ pub(crate) fn run(
                 let card = deck_mgr.player_hand.remove(idx);
                 tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                 selected_pairs.push((selected_pairs.len(), card));
-                apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
+                let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, ctx.fight);
+                ctx.on_use_card();
+                for _ in 0..upgrades { ctx.on_compose_card(); }
             } else {
                 tracing::warn!(
                     "  -> idx {} OUT OF RANGE (deck size {})",

@@ -32,7 +32,6 @@ use crate::state::battle::{
     },
     manager::{
         round_mgr::FightRoundMgr,
-        cloth_mgr::{active_cloth_level, cloth_power_delta_for_operation},
     },
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
     passives::collector::CollectedPassives,
@@ -74,22 +73,12 @@ pub(crate) async fn run(
     let battle_id = ctx.fight.battle_id.unwrap_or(0);
     sync_blood_value_baseline(battle_id, 1, ctx.mechanics.bloodtithe.get_value(1));
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
-    let cloth = active_cloth_level(ctx.fight);
     for oper in operations {
-        let cloth_power_delta = cloth
-            .as_ref()
-            .map(|cloth| cloth_power_delta_for_operation(&oper, cloth))
-            .unwrap_or(0);
         let ex_step_after_op = ex_gain::pre_operation_ex_gain(ctx, state, &oper);
         let buff_snapshot_before = ctx.managers.buff_mgr.all_instances();
         let step = crate::state::battle::operation::executor::execute_operation(executor, rng, ctx, state, oper).await?;
         if step.act_type.unwrap_or(0) == 0 {
             continue;
-        }
-        if cloth_power_delta != 0 {
-            state.pending_cloth_power_delta = state
-                .pending_cloth_power_delta
-                .saturating_add(cloth_power_delta);
         }
 
         mgr.apply_step_and_maybe_sync(ctx, &step, true)?;
@@ -318,7 +307,9 @@ pub(crate) async fn run(
     }
 
     state.before_cards2 = deck_mgr.player_hand.clone();
-    state.team_a_cards2 = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
+    let (cards2, upgrades2) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
+    for _ in 0..upgrades2 { ctx.on_compose_card(); }
+    state.team_a_cards2 = cards2;
 
     Ok(())
 }

@@ -1,15 +1,10 @@
 use crate::state::battle::{
-    cloth::{self, first_melody},
+    cloth::{active_cloth_level, first_melody, parse_cloth_recover_delta},
     deck::DeckManager,
 };
 use rand::rngs::StdRng;
 use sonettobuf::{Fight, FightStep};
 use std::collections::HashMap;
-
-pub use cloth::{
-    active_cloth_level, apply_cloth_power_delta, cloth_power_delta_for_operation,
-    parse_cloth_recover_delta, seed_attacker_power_from_cloth,
-};
 
 #[derive(Debug, Clone, Default)]
 pub struct ClothMgr {
@@ -17,6 +12,54 @@ pub struct ClothMgr {
 }
 
 impl ClothMgr {
+    fn apply_power(&self, fight: &mut Fight, delta: i32) {
+        let Some(cloth) = active_cloth_level(fight) else { return };
+        let Some(attacker) = fight.attacker.as_mut() else { return };
+        let current = attacker.power.unwrap_or(cloth.initial.max(0));
+        let next = (current + delta).clamp(0, cloth.max_power.max(0));
+        tracing::info!("[cloth] power {} -> {} (delta={})", current, next, delta);
+        attacker.power = Some(next);
+    }
+
+    pub fn on_battle_start(&self, fight: &mut Fight) {
+        let Some(cloth) = active_cloth_level(fight) else { return };
+        if let Some(attacker) = fight.attacker.as_mut() {
+            if attacker.power.is_none() {
+                let initial = cloth.initial.max(0);
+                tracing::info!("[cloth] battle_start power={}", initial);
+                attacker.power = Some(initial);
+            }
+        }
+    }
+
+    pub fn on_round_end(&self, fight: &mut Fight) {
+        let Some(cloth) = active_cloth_level(fight) else { return };
+        let round_index = fight.cur_round.unwrap_or(1);
+        let delta = parse_cloth_recover_delta(&cloth.recover, round_index);
+        tracing::info!("[cloth] round_end round={} recover_delta={}", round_index, delta);
+        if delta != 0 {
+            self.apply_power(fight, delta);
+        }
+    }
+
+    pub fn on_use_card(&self, fight: &mut Fight) {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.r#use.max(0));
+        tracing::info!("[cloth] on_use_card delta={}", delta);
+        if delta != 0 { self.apply_power(fight, delta); }
+    }
+
+    pub fn on_move_card(&self, fight: &mut Fight) {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.r#move.max(0));
+        tracing::info!("[cloth] on_move_card delta={}", delta);
+        if delta != 0 { self.apply_power(fight, delta); }
+    }
+
+    pub fn on_compose_card(&self, fight: &mut Fight) {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.compose.max(0));
+        tracing::info!("[cloth] on_compose_card delta={}", delta);
+        if delta != 0 { self.apply_power(fight, delta); }
+    }
+
     pub fn reset(&mut self) {
         self.use_counts.clear();
     }
@@ -42,7 +85,7 @@ impl ClothMgr {
         let cost = cost_vec.get(*count).copied().unwrap_or_else(|| cost_vec.last().copied().unwrap_or(0));
         *count += 1;
 
-        cloth::apply_cloth_power_delta(fight, &cloth, -(cost as i32));
+        self.apply_power(fight, -(cost as i32));
 
         let steps = match skill_id {
             30010201 => first_melody::universal_card(skill_id, deck_mgr),
