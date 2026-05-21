@@ -2,19 +2,12 @@ use sonettobuf::{BeginRoundOper, CardInfo, Fight};
 use crate::state::battle::{
     card::{CardOpType, apply_card_upgrades, upgrade_level1},
     deck::DeckManager,
+    event::Event,
 };
-
-#[derive(Debug, Clone)]
-pub enum PlayerEvent {
-    Used                { card: CardInfo, oper: BeginRoundOper },
-    Moved               { card: CardInfo },
-    Composed            { card: CardInfo },
-    SimulateDissolveCard { oper: BeginRoundOper },
-}
 
 pub struct ParsedOps {
     pub selected_cards: Vec<CardInfo>,
-    pub player_events: Vec<PlayerEvent>,
+    pub player_events: Vec<Event>,
 }
 
 pub fn parse_round_open_ops(
@@ -23,7 +16,7 @@ pub fn parse_round_open_ops(
     fight: &Fight,
 ) -> ParsedOps {
     let mut selected_pairs: Vec<(usize, CardInfo)> = Vec::new();
-    let mut player_events: Vec<PlayerEvent> = Vec::new();
+    let mut player_events: Vec<Event> = Vec::new();
 
     for op in operations {
         match CardOpType::try_from(op.oper_type.unwrap_or(0)) {
@@ -33,12 +26,12 @@ pub fn parse_round_open_ops(
                 tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, deck_mgr.player_hand.len());
                 if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
                     let card = deck_mgr.player_hand[from].clone();
-                    player_events.push(PlayerEvent::Moved { card: card.clone() });
+                    player_events.push(Event::CardMoved { card: card.clone() });
                     let moved = deck_mgr.player_hand.remove(from);
                     deck_mgr.player_hand.insert(to, moved);
                     let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
                     for _ in 0..upgrades {
-                        player_events.push(PlayerEvent::Composed { card: card.clone() });
+                        player_events.push(Event::CardComposed { card: card.clone() });
                     }
                 }
             }
@@ -55,11 +48,11 @@ pub fn parse_round_open_ops(
                 if idx < deck_mgr.player_hand.len() {
                     let card = deck_mgr.player_hand.remove(idx);
                     tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
-                    player_events.push(PlayerEvent::Used { card: card.clone(), oper: op.clone() });
+                    player_events.push(Event::CardPlayed { card: card.clone(), oper: op.clone() });
                     selected_pairs.push((selected_pairs.len(), card.clone()));
                     let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
                     for _ in 0..upgrades {
-                        player_events.push(PlayerEvent::Composed { card: card.clone() });
+                        player_events.push(Event::CardComposed { card: card.clone() });
                     }
                 } else {
                     tracing::warn!("  -> idx {} OUT OF RANGE (deck size {})", idx, deck_mgr.player_hand.len());
@@ -80,7 +73,7 @@ pub fn parse_round_open_ops(
                 tracing::warn!("  upgrade idx={} with universal idx={} (is_universal={})", target_idx, universal_idx, is_universal);
             }
             Ok(CardOpType::SimulateDissolveCard) => {
-                player_events.push(PlayerEvent::SimulateDissolveCard { oper: op.clone() });
+                player_events.push(Event::SimulateDissolveCard { oper: op.clone() });
             }
             _ => {}
         }

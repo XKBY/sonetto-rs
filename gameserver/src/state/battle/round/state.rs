@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use sonettobuf::{CardInfo, Fight, FightStep};
 
-use crate::state::battle::operation::parser::PlayerEvent;
+use crate::state::battle::event::Event;
 
 #[derive(Default, Debug, Clone)]
 pub struct RoundState {
@@ -28,7 +28,7 @@ pub struct RoundState {
     /// Cards selected this round in play order, populated by round_open.
     pub selected_cards: Vec<CardInfo>,
     /// Player events emitted by round_open parser, consumed by player_actions.
-    pub player_events: Vec<PlayerEvent>,
+    pub player_events: Vec<Event>,
 }
 
 impl RoundState {
