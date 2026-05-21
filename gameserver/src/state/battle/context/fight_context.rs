@@ -1,10 +1,11 @@
+use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
 use crate::state::battle::manager::traits::Manager;
 use crate::state::battle::mechanics::Mechanics;
 use crate::state::battle::skill::{PhaseFilter, TriggerState};
 
 use rand::rngs::StdRng;
-use sonettobuf::{CardInfo, Fight, FightStep};
+use sonettobuf::Fight;
 use std::{collections::HashSet, ptr::NonNull};
 
 #[derive(Copy, Clone)]
@@ -86,22 +87,24 @@ impl<'a> FightContext<'a> {
         self.managers.cloth_mgr.on_round_end(self.fight);
     }
 
-    pub fn on_use_card(&mut self, card: &CardInfo, target_id: i64) -> Option<FightStep> {
+    pub fn on_use_card(&mut self, event: &Event) -> Vec<Event> {
+        let Event::CardPlayed { card, .. } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let step = self.managers.entity_mgr.on_use_card(uid);
-        self.managers.cloth_mgr.on_use_card(self.fight);
-        step
+        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
+        self.managers.cloth_mgr.on_use_card(self.fight, events)
     }
 
-    pub fn on_move_card(&mut self, card: &CardInfo) -> Option<FightStep> {
+    pub fn on_move_card(&mut self, event: &Event) -> Vec<Event> {
+        let Event::CardMoved { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let step = self.managers.entity_mgr.on_move_card(uid);
-        self.managers.cloth_mgr.on_move_card(self.fight);
-        step
+        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
+        self.managers.cloth_mgr.on_move_card(self.fight, events)
     }
 
-    pub fn on_compose_card(&mut self, card: &CardInfo) -> Option<FightStep> {
-        self.managers.cloth_mgr.on_compose_card(self.fight);
-        None
+    pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
+        let Event::CardComposed { card } = event else { return vec![]; };
+        let uid = card.uid.unwrap_or(0);
+        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
+        self.managers.cloth_mgr.on_compose_card(self.fight, events)
     }
 }
