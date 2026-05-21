@@ -1,6 +1,7 @@
 use crate::state::battle::{
     cloth::{active_cloth_level, first_melody, parse_cloth_recover_delta},
     deck::DeckManager,
+    event::Event,
 };
 use rand::rngs::StdRng;
 use sonettobuf::{Fight, FightStep};
@@ -42,22 +43,22 @@ impl ClothMgr {
         }
     }
 
-    pub fn on_use_card(&self, fight: &mut Fight) {
+    pub fn on_use_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
         let delta = active_cloth_level(fight).map_or(0, |c| c.r#use.max(0));
-        tracing::info!("[cloth] on_use_card delta={}", delta);
-        if delta != 0 { self.apply_power(fight, delta); }
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
     }
 
-    pub fn on_move_card(&self, fight: &mut Fight) {
+    pub fn on_move_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
         let delta = active_cloth_level(fight).map_or(0, |c| c.r#move.max(0));
-        tracing::info!("[cloth] on_move_card delta={}", delta);
-        if delta != 0 { self.apply_power(fight, delta); }
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
     }
 
-    pub fn on_compose_card(&self, fight: &mut Fight) {
+    pub fn on_compose_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
         let delta = active_cloth_level(fight).map_or(0, |c| c.compose.max(0));
-        tracing::info!("[cloth] on_compose_card delta={}", delta);
-        if delta != 0 { self.apply_power(fight, delta); }
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
     }
 
     pub fn reset(&mut self) {
