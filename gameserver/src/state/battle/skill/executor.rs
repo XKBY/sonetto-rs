@@ -23,7 +23,7 @@ use super::super::{
 use super::{
     behavior::execute_behavior,
     cache::{SKILL_CACHE, resolve_skill_effect_id},
-    condition::{self, ConditionEval},
+    condition::{self, ConditionEval, eval::{BehaviorConditionCtx, eval_behavior_condition}},
     damage::{calculate_damage, should_crit_hit},
     euphoria,
     phase::{PhaseFilter, TriggerState},
@@ -286,182 +286,19 @@ impl SkillExecutor {
                 continue;
             }
 
-            let cond_pass = if let PhaseFilter::Combat(event) = phase {
-                let combat_raw = condition::eval_trigger_state_condition(
-                    &b.condition,
-                    condition::TriggerStateConditionContext {
-                        event,
-                        owner_uid: caster_uid,
-                    },
-                    condition::TriggerStateConditionOptions {
-                        include_none: true,
-                        include_combat_none: true,
-                        ..Default::default()
-                    },
-                );
-                if let Some(raw) = combat_raw {
-                    if b.negated { !raw } else { raw }
-                } else {
-                    let condition_uid = if matches!(
-                        b.condition,
-                        ConditionType::TargetIsSelf | ConditionType::TargetIsTeamNoMe
-                    ) {
-                        if target_uid != 0 {
-                            target_uid
-                        } else {
-                            caster_uid
-                        }
-                    } else if b.condition_target != 0 {
-                        TargetResolver::new(&sim_fight, caster_uid, target_uid)
-                            .behavior(b.condition_target)
-                            .logic(b.logic_target)
-                            .resolve()
-                            .into_iter()
-                            .next()
-                            .unwrap_or(caster_uid)
-                    } else {
-                        caster_uid
-                    };
-                    let condition_eval = ConditionEval::new(
-                        &sim_fight,
-                        &sim_buff_mgr,
-                        &managers.entity_mgr,
-                        &mechanics.bloodtithe,
-                        caster_uid,
-                    )
-                    .with_trigger_state(has_trigger_state)
-                    .with_condition_target(b.condition_target);
-                    let condition_eval = if let PhaseFilter::Combat(event) = phase {
-                        condition_eval.with_active_card_cast_uids(&event.active_card_cast_uids)
-                    } else {
-                        condition_eval
-                    };
-                    let raw = if has_trigger_state
-                        && b.condition_target == 103
-                        && target_uid != 0
-                        && target_uid.signum() != caster_uid.signum()
-                        && condition_has_trigger_bullet_and_random(&b.condition)
-                    {
-                        condition_eval
-                            .for_target(condition_uid)
-                            .check_with_random_target(target_uid, &b.condition)
-                    } else {
-                        condition_eval.for_target(condition_uid).check(&b.condition)
-                    };
-                    let raw = apply_no_act_seed_hint(
-                        &sim_fight,
-                        caster_uid,
-                        condition_uid,
-                        &b.condition,
-                        raw,
-                    );
-                    let raw =
-                        if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
-                            match &b.condition {
-                                ConditionType::HasBuffId { .. } => {
-                                    raw || condition_eval.for_target(target_uid).check(&b.condition)
-                                }
-                                ConditionType::NoBuffId { .. } => {
-                                    raw && condition_eval.for_target(target_uid).check(&b.condition)
-                                }
-                                _ => raw,
-                            }
-                        } else {
-                            raw
-                        };
-                    // HasBuffGroup / NoBuffGroup are always evaluated against
-                    // the behavior's target (e.g. Tuesday's `In Mother's Arms`
-                    // 30980121 condition3 `77208#7` checks the enemy receiving
-                    // the buff, not Tuesday). condition_target=0 + logic_target=999
-                    // alone resolves to caster_uid, which would always evaluate
-                    // FALSE here. Override when target_uid is set.
-                    let raw = if target_uid != 0 && target_uid != condition_uid {
-                        match &b.condition {
-                            ConditionType::HasBuffGroup { .. }
-                            | ConditionType::NoBuffGroup { .. } => condition_eval
-                                .for_target(target_uid)
-                                .with_condition_target(0)
-                                .check(&b.condition),
-                            _ => raw,
-                        }
-                    } else {
-                        raw
-                    };
-                    if b.negated { !raw } else { raw }
-                }
-            } else {
-                let condition_uid = if matches!(
-                    b.condition,
-                    ConditionType::TargetIsSelf | ConditionType::TargetIsTeamNoMe
-                ) {
-                    if target_uid != 0 {
-                        target_uid
-                    } else {
-                        caster_uid
-                    }
-                } else if b.condition_target != 0 {
-                    TargetResolver::new(&sim_fight, caster_uid, target_uid)
-                        .behavior(b.condition_target)
-                        .logic(b.logic_target)
-                        .resolve()
-                        .into_iter()
-                        .next()
-                        .unwrap_or(caster_uid)
-                } else {
-                    caster_uid
-                };
-                let condition_eval = ConditionEval::new(
-                    &sim_fight,
-                    &sim_buff_mgr,
-                    &managers.entity_mgr,
-                    &mechanics.bloodtithe,
+            let cond_pass = eval_behavior_condition(
+                &BehaviorConditionCtx {
+                    fight: &sim_fight,
+                    buff_mgr: &sim_buff_mgr,
+                    entity_mgr: &managers.entity_mgr,
+                    bloodtithe: &mechanics.bloodtithe,
                     caster_uid,
-                )
-                .with_trigger_state(has_trigger_state)
-                .with_condition_target(b.condition_target);
-                let condition_eval = if let PhaseFilter::Combat(event) = phase {
-                    condition_eval.with_active_card_cast_uids(&event.active_card_cast_uids)
-                } else {
-                    condition_eval
-                };
-                let raw = condition_eval.for_target(condition_uid).check(&b.condition);
-                let raw = apply_no_act_seed_hint(
-                    &sim_fight,
-                    caster_uid,
-                    condition_uid,
-                    &b.condition,
-                    raw,
-                );
-                let raw = if b.condition_target == 103 && b.logic_target == 201 && target_uid != 0 {
-                    match &b.condition {
-                        ConditionType::HasBuffId { .. } => {
-                            raw || condition_eval.for_target(target_uid).check(&b.condition)
-                        }
-                        ConditionType::NoBuffId { .. } => {
-                            raw && condition_eval.for_target(target_uid).check(&b.condition)
-                        }
-                        _ => raw,
-                    }
-                } else {
-                    raw
-                };
-                // HasBuffGroup / NoBuffGroup are always evaluated against the
-                // behavior's target — see combat-path block above.
-                let raw = if target_uid != 0 && target_uid != condition_uid {
-                    match &b.condition {
-                        ConditionType::HasBuffGroup { .. } | ConditionType::NoBuffGroup { .. } => {
-                            condition_eval
-                                .for_target(target_uid)
-                                .with_condition_target(0)
-                                .check(&b.condition)
-                        }
-                        _ => raw,
-                    }
-                } else {
-                    raw
-                };
-                if b.negated { !raw } else { raw }
-            };
+                    target_uid,
+                    has_trigger_state,
+                    phase,
+                },
+                b,
+            );
 
             tracing::debug!(
                 "    -> condition check: {}{}",
@@ -1171,91 +1008,6 @@ fn condition_has_combat_event(condition: &ConditionType) -> bool {
         condition,
         condition::CombatEventConditionOptions::default(),
     )
-}
-
-fn condition_has_trigger_bullet_and_random(condition: &ConditionType) -> bool {
-    match condition {
-        ConditionType::EnterFightAnd(conds) | ConditionType::EnterFightOr(conds) => {
-            let mut saw_trigger_bullet = false;
-            let mut saw_random = false;
-            for cond in conds {
-                saw_trigger_bullet |= matches!(cond, ConditionType::TriggerBullet);
-                saw_random |= matches!(cond, ConditionType::Random { .. });
-            }
-            saw_trigger_bullet && saw_random
-        }
-        _ => false,
-    }
-}
-
-fn apply_no_act_seed_hint(
-    fight: &Fight,
-    caster_uid: i64,
-    condition_uid: i64,
-    condition: &ConditionType,
-    raw: bool,
-) -> bool {
-    if condition_uid != caster_uid {
-        return raw;
-    }
-
-    match condition {
-        ConditionType::HasBuffId { buff_ids } => {
-            if raw {
-                return true;
-            }
-            raw || has_no_act_seed_buff(fight, caster_uid, buff_ids)
-        }
-        ConditionType::NoBuffId { buff_ids } => {
-            if !raw {
-                return false;
-            }
-            !has_no_act_seed_buff(fight, caster_uid, buff_ids)
-        }
-        _ => raw,
-    }
-}
-
-fn has_no_act_seed_buff(fight: &Fight, caster_uid: i64, wanted_ids: &[i32]) -> bool {
-    if wanted_ids.is_empty() {
-        return false;
-    }
-    let cfg = config::configs::get();
-    let Some(entity) = get_entity(fight, caster_uid) else {
-        return false;
-    };
-
-    for passive_sid in &entity.passive_skill {
-        if *passive_sid <= 0 {
-            continue;
-        }
-        let effect_id = resolve_skill_effect_id(*passive_sid);
-        let Some(rows) = SKILL_CACHE.get(&effect_id) else {
-            continue;
-        };
-        for row in rows {
-            if !matches!(row.condition, ConditionType::NoActRound) {
-                continue;
-            }
-            let BehaviorType::AddBuff { buff_id, .. } = row.behavior else {
-                continue;
-            };
-            if wanted_ids.contains(&buff_id) {
-                return true;
-            }
-            let type_id = cfg
-                .skill_buff
-                .iter()
-                .find(|b| b.id == buff_id)
-                .map(|b| b.type_id)
-                .unwrap_or(0);
-            if type_id > 0 && wanted_ids.contains(&type_id) {
-                return true;
-            }
-        }
-    }
-
-    false
 }
 
 fn apply_preview_effects_to_sim_fight(fight: &mut Fight, effects: &[ActEffect]) {

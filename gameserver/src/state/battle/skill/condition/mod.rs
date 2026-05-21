@@ -1,5 +1,6 @@
 mod action;
 mod bloodtithe;
+pub mod eval;
 pub mod buff;
 mod career;
 mod combat;
