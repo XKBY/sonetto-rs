@@ -8,6 +8,7 @@ pub mod euphoria;
 pub mod source_kind;
 
 pub mod damage;
+mod execution_guards;
 mod executor;
 mod phase;
 pub mod sibling_coalesce;

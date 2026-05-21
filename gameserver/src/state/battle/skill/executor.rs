@@ -1,12 +1,10 @@
 use anyhow::Result;
 use rand::{SeedableRng, rngs::StdRng};
 use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
+use super::execution_guards::{DepthGuard, ReentryGuard, SkillContextGuard};
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
     fight::defender::Defender,
@@ -76,74 +74,6 @@ pub(crate) struct PendingSummon {
 pub(crate) struct PendingMonsterChange {
     pub target_uid: i64,
     pub new_monster_id: i32,
-}
-
-struct DepthGuard {
-    depth: *mut usize,
-}
-
-impl Drop for DepthGuard {
-    fn drop(&mut self) {
-        // SAFETY: `depth` points to `self.call_depth` for the lifetime of execute_skill.
-        unsafe {
-            *self.depth = (*self.depth).saturating_sub(1);
-        }
-    }
-}
-
-struct SkillContextGuard {
-    current: *mut Option<(i32, i64)>,
-    previous: Option<(i32, i64)>,
-}
-
-impl Drop for SkillContextGuard {
-    fn drop(&mut self) {
-        // SAFETY: `current` points to `self.current_skill_context` for the
-        // lifetime of `execute_skill`.
-        unsafe {
-            *self.current = self.previous;
-        }
-    }
-}
-
-thread_local! {
-    static EXEC_SKILL_STACK: RefCell<Vec<(i64, i64, i32)>> = const { RefCell::new(Vec::new()) };
-}
-
-struct ReentryGuard {
-    active: bool,
-}
-
-impl ReentryGuard {
-    fn enter(caster_uid: i64, target_uid: i64, skill_id: i32) -> Option<Self> {
-        let mut entered = false;
-        EXEC_SKILL_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            let key = (caster_uid, target_uid, skill_id);
-            if stack.contains(&key) {
-                return;
-            }
-            stack.push(key);
-            entered = true;
-        });
-        if entered {
-            Some(Self { active: true })
-        } else {
-            None
-        }
-    }
-}
-
-impl Drop for ReentryGuard {
-    fn drop(&mut self) {
-        if !self.active {
-            return;
-        }
-        EXEC_SKILL_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            stack.pop();
-        });
-    }
 }
 
 impl SkillExecutor {
