@@ -23,6 +23,7 @@ use anyhow::Result;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
+use crate::state::battle::event::{Event, apply::apply_event};
 use crate::state::battle::{
     card::executor::play_card,
     deck::{DeckManager, make_card},
@@ -33,7 +34,6 @@ use crate::state::battle::{
     },
     manager::round_mgr::{apply_step_and_maybe_sync, check_battle_end, deleted_buff_ids_from_delta, expand_trigger_chain, inject_be_attacked_reactives_onto_player_host},
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
-    operation::parser::PlayerEvent,
     passives::collector::CollectedPassives,
     round::RoundState,
     skill::SkillExecutor,
@@ -73,21 +73,25 @@ pub(crate) async fn run(
     sync_blood_value_baseline(battle_id, 2, ctx.mechanics.bloodtithe.get_value(2));
     for evt in std::mem::take(&mut state.player_events) {
         let oper = match &evt {
-            PlayerEvent::Used { card, oper } => {
-                if let Some(step) = ctx.on_use_card(card, oper.to_id.unwrap_or(0)) {
-                    steps.push(step);
+            Event::CardPlayed { card: _, oper } => {
+                for e in ctx.on_use_card(&evt) {
+                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
                 }
                 oper.clone()
             }
-            PlayerEvent::Moved { card } => {
-                if let Some(step) = ctx.on_move_card(card) { steps.push(step); }
+            Event::CardMoved { .. } => {
+                for e in ctx.on_move_card(&evt) {
+                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
+                }
                 continue;
             }
-            PlayerEvent::Composed { card } => {
-                if let Some(step) = ctx.on_compose_card(card) { steps.push(step); }
+            Event::CardComposed { .. } => {
+                for e in ctx.on_compose_card(&evt) {
+                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
+                }
                 continue;
             }
-            PlayerEvent::SimulateDissolveCard { oper } => {
+            Event::SimulateDissolveCard { oper } => {
                 let dissolve_index = (oper.param1.unwrap_or(1) - 1) as usize;
                 if dissolve_index < state.selected_cards.len() {
                     state.selected_cards.remove(dissolve_index);
@@ -99,6 +103,7 @@ pub(crate) async fn run(
                 });
                 continue;
             }
+            _ => continue,
         };
 
         // Only PLAY_CARD/AssistBoss/PlayerFinisherSkill/BloodPool continue
@@ -338,7 +343,12 @@ pub(crate) async fn run(
 
     state.before_cards2 = deck_mgr.player_hand.clone();
     let (cards2, upgrades2) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
-    for _ in 0..upgrades2 { ctx.on_compose_card(&sonettobuf::CardInfo::default()); }
+    for _ in 0..upgrades2 {
+        let evt = crate::state::battle::event::Event::CardComposed { card: sonettobuf::CardInfo::default() };
+        for e in ctx.on_compose_card(&evt) {
+            if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
+        }
+    }
     state.team_a_cards2 = cards2;
 
     Ok(())
