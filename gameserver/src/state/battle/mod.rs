@@ -13,6 +13,7 @@ pub mod emission_timeline;
 pub mod end_fight;
 pub mod equipment;
 pub mod event_queue;
+pub mod event;
 pub mod types;
 
 pub mod manager;
