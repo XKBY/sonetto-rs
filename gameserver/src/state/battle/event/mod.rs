@@ -1,3 +1,5 @@
+pub mod apply;
+
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightHurtInfo as HurtInfo};
 use crate::state::battle::event_queue::SkillEmitKind;
 

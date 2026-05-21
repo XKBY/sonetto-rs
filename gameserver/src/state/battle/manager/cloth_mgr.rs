@@ -12,7 +12,7 @@ pub struct ClothMgr {
 }
 
 impl ClothMgr {
-    fn apply_power(&self, fight: &mut Fight, delta: i32) {
+    pub(crate) fn apply_power(&self, fight: &mut Fight, delta: i32) {
         let Some(cloth) = active_cloth_level(fight) else { return };
         let Some(attacker) = fight.attacker.as_mut() else { return };
         let current = attacker.power.unwrap_or(cloth.initial.max(0));
