@@ -115,6 +115,7 @@ pub async fn dispatch_command(
         CmdId::DungeonEndDungeonCmd => dungeon::on_dungeon_end_dungeon,
         CmdId::ReconnectFightCmd => fight::on_reconnect_fight,
         CmdId::EntityInfoCmd => fight::on_entity_info,
+        CmdId::GetFightCardDeckInfoCmd => fight::on_get_fight_card_deck_info,
 
         // === Tower ===
         CmdId::GetTowerInfoCmd => tower::on_get_tower_info,
