@@ -27,6 +27,10 @@ use super::{
     damage::{calculate_damage, should_crit_hit},
     euphoria,
     phase::{PhaseFilter, TriggerState},
+    post_process::{
+        consume_attr_only_damage_buffs, inject_sotheby_consume, is_bonus_damage_config_effect,
+        is_damage_effect_type, normalize_nested_steps,
+    },
     targets::{
         TargetResolver, alive_enemies, alive_enemies_by_position, get_ally_uids, get_entity,
     },
@@ -485,11 +489,7 @@ impl SkillExecutor {
             let mut consume_targets = vec![caster_uid];
             for target in all_effects.iter().filter_map(|e| {
                 let et = e.effect_type.unwrap_or(0);
-                if is_damage_effect_type(et) {
-                    e.target_id
-                } else {
-                    None
-                }
+                if is_damage_effect_type(et) { e.target_id } else { None }
             }) {
                 if !consume_targets.contains(&target) {
                     consume_targets.push(target);
@@ -497,87 +497,14 @@ impl SkillExecutor {
             }
             let mut consume_steps = Vec::new();
             for uid in consume_targets {
-                consume_steps.extend(self.consume_attr_only_damage_buffs(managers, uid));
+                consume_steps.extend(consume_attr_only_damage_buffs(managers, uid));
             }
             all_effects.extend(consume_steps);
         }
 
-        // Sotheby Duality Potion (`30091120`) holder-consume for the
-        // basic (`30090111`) and upgraded-basic (`30090112`) lanes.
-        // Detonate (`300901321`) keeps its existing inline consume
-        // in `damage.rs::execute_sotheby_detonate2`. Per
-        // `_30091120_design.md`: 1 fanout wrapper containing all
-        // stack sequences flattened + 1 sibling delete wrapper. The
-        // shared helper `build_sotheby_holder_consume_steps` produces
-        // both and emits Cure as `Add (uid X) + Update (uid X, layer
-        // climb)` so runtime BuffMgr ends with one Cure instance per
-        // ally at layer=stack_count, matching LIVE r5. Eligibility
-        // intentionally narrow — only basic + upgraded-basic skill
-        // ids — to avoid the wide-eligibility regression documented
-        // in `_30091120_findings.md` attempts 1+2.
-        if matches!(skill_id, 30090111 | 30090112)
-            && all_effects
-                .iter()
-                .any(|e| e.effect_type.map(is_damage_effect_type).unwrap_or(false))
-            && let Some(holder) = managers
-                .buff_mgr
-                .find_instance_by_buff_id(
-                    caster_uid,
-                    crate::state::battle::skill::behavior::damage::DUALITY_POTION_BUFF_ID,
-                )
-                .cloned()
-        {
-            let mut hostile_targets: Vec<i64> = Vec::new();
-            for effect in &all_effects {
-                let et = effect.effect_type.unwrap_or(0);
-                if !is_damage_effect_type(et) {
-                    continue;
-                }
-                if let Some(ti) = effect.target_id
-                    && ti.signum() != caster_uid.signum()
-                    && !hostile_targets.contains(&ti)
-                {
-                    hostile_targets.push(ti);
-                }
-            }
-            if !hostile_targets.is_empty() {
-                let stack_count = holder.layer.max(1);
-                let consume_steps =
-                    crate::state::battle::skill::behavior::damage::build_sotheby_holder_consume_steps(
-                        &sim_fight,
-                        caster_uid,
-                        &hostile_targets,
-                        crate::state::battle::skill::behavior::damage::CURE_TYPE_ID,
-                        &holder,
-                        stack_count,
-                        false,
-                    );
-                all_effects.extend(consume_steps);
-                managers.buff_mgr.remove_by_uid(caster_uid, holder.uid);
-            }
-        }
+        inject_sotheby_consume(&mut all_effects, &sim_fight, managers, caster_uid, skill_id);
 
-        // Prevent self-nested skill emission: if behavior output already includes a
-        // same-act_id FightStep carrying damage, lift its payload into this skill step.
-        let mut normalized_effects = Vec::with_capacity(all_effects.len());
-        for mut effect in all_effects.drain(..) {
-            if effect.effect_type == Some(EffectType::FightStep as i32)
-                && let Some(step) = effect.fight_step.take()
-            {
-                if step.act_id == Some(skill_id)
-                    && step
-                        .act_effect
-                        .iter()
-                        .any(|e| e.effect_type.is_some_and(is_damage_effect_type))
-                {
-                    normalized_effects.extend(step.act_effect);
-                    continue;
-                }
-                effect.fight_step = Some(step);
-            }
-            normalized_effects.push(effect);
-        }
-        all_effects = normalized_effects;
+        all_effects = normalize_nested_steps(all_effects, skill_id);
 
         if all_effects.is_empty()
             && self.pending_monitor_triggers.is_empty()
@@ -732,63 +659,6 @@ impl SkillExecutor {
             mechanics.emission_timeline.mark_produced(exec_record_idx);
         }
         Ok(result)
-    }
-
-    fn consume_attr_only_damage_buffs(
-        &mut self,
-        managers: &mut Managers,
-        caster_uid: i64,
-    ) -> Vec<ActEffect> {
-        let cfg = config::configs::get();
-        let mut out = Vec::new();
-
-        let to_consume: Vec<(i64, i32, i64)> = managers
-            .buff_mgr
-            .get(caster_uid)
-            .iter()
-            .filter_map(|b| {
-                let buff_cfg = cfg.skill_buff.get(b.buff_id)?;
-                let has_attr_only = buff_cfg.features.split('|').any(|entry| {
-                    let act_id = entry
-                        .split('#')
-                        .next()
-                        .and_then(|v| v.trim().parse::<i32>().ok())
-                        .unwrap_or(0);
-                    cfg.buff_act
-                        .get(act_id)
-                        .map(|a| a.r#type == "AttrOnlyCalDamageAttack")
-                        .unwrap_or(false)
-                });
-                if has_attr_only {
-                    Some((b.uid, b.buff_id, b.from_uid))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for (buff_uid, buff_id, from_uid) in to_consume {
-            managers.buff_mgr.remove_by_uid(caster_uid, buff_uid);
-            let inner = FightStep {
-                act_type: Some(fight_step::ActType::Effect.into()),
-                from_id: Some(from_uid),
-                to_id: Some(caster_uid),
-                act_id: Some(buff_id),
-                act_effect: vec![
-                    crate::state::battle::fight_step::ActEffectBuilder::buff_del(
-                        caster_uid, buff_uid, buff_id, from_uid,
-                    ),
-                ],
-                card_index: Some(0),
-                support_hero_id: Some(0),
-                fake_timeline: Some(false),
-                real_skill_type: Some(0),
-                real_skin_id: Some(0),
-            };
-            out.push(ActEffectBuilder::skill_wrapper(inner));
-        }
-
-        out
     }
 
     /// Execute a trigger skill and wrap as a 162 inline step.
@@ -1074,34 +944,6 @@ fn apply_preview_effects_to_sim_fight(fight: &mut Fight, effects: &[ActEffect]) 
             _ => {}
         }
     }
-}
-
-fn is_damage_effect_type(effect_type: i32) -> bool {
-    effect_type == EffectType::Damage as i32
-        || effect_type == EffectType::Crit as i32
-        || effect_type == EffectType::DamageExtra as i32
-        || effect_type == EffectType::OriginDamage as i32
-        || effect_type == EffectType::OriginCrit as i32
-        || effect_type == EffectType::AdditionalDamage as i32
-        || effect_type == EffectType::AdditionalDamageCrit as i32
-        || effect_type == EffectType::FixedDamage as i32
-        || effect_type == EffectType::DamageFromAbsorb as i32
-        || effect_type == EffectType::DamageFromLostHp as i32
-        || effect_type == EffectType::EnchantBurnDamage as i32
-        || effect_type == EffectType::EnchantDepresseDamage as i32
-        || effect_type == EffectType::DeadlyPoisonOriginDamage as i32
-        || effect_type == EffectType::DeadlyPoisonOriginCrit as i32
-}
-
-/// Returns true for damage effects whose `configEffect` marks them as
-/// a "bonus" emission that runs alongside the primary `damageRate`
-/// damage (Kakania's Subconscious Empathy bonus uses 60038, Solace
-/// self-loss uses 60039, EX consume-and-bonus uses 60040). The
-/// fallback damage path uses these markers to know it should still
-/// emit the primary damage rate even when one of these bonus
-/// emissions has already fired.
-fn is_bonus_damage_config_effect(config_effect: i32) -> bool {
-    matches!(config_effect, 60038 | 60039 | 60040)
 }
 
 fn inject_empathy_storage_injuries(
