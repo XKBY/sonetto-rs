@@ -8,7 +8,6 @@ use super::super::{
         cloth_mgr::ClothMgr,
         entity_mgr::EntityMgr,
         rule_mgr::RuleMgr,
-        traits::Manager,
         wave_mgr::WaveMgr,
     },
     mechanics::Mechanics,
@@ -24,7 +23,6 @@ use sonettobuf::{BeginRoundOper, BuffInfo, CardInfoPush, Fight, FightExPointInfo
 
 use crate::state::battle::{
     buff_actions::{blood_pool_ex::seed_blood_pool_ex_tracker, raspberry::BUFF_ACT_ID_RASPBERRY},
-    event::Event,
     heroes::rubuska,
     mechanics::bloodtithe::BloodtitheState,
     types::effects::EffectType,
@@ -54,49 +52,6 @@ impl Managers {
             rule_mgr: RuleMgr::new(fight),
         }
     }
-
-    pub fn on_battle_start(&mut self, fight: &mut Fight) {
-        self.cloth_mgr.on_battle_start(fight);
-        self.rule_mgr.on_battle_start(fight);
-    }
-
-    pub fn on_round_end(&mut self, fight: &mut Fight) {
-        self.buff_mgr.on_round_end(fight);
-        self.calculate_mgr.on_round_end();
-        self.cloth_mgr.on_round_end(fight);
-        self.rule_mgr.on_round_end(fight);
-    }
-
-    pub fn on_enter_fight(&mut self, fight: &Fight, entity_uid: i64) -> Vec<Event> {
-        let mut events = self.cloth_mgr.on_enter_fight(fight, entity_uid);
-        events.extend(self.rule_mgr.on_enter_fight(fight, entity_uid));
-        events
-    }
-
-    pub fn on_use_card(&mut self, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-        let events = self.cloth_mgr.on_use_card(fight, events);
-        self.rule_mgr.on_use_card(fight, events)
-    }
-
-    pub fn on_move_card(&mut self, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-        let events = self.cloth_mgr.on_move_card(fight, events);
-        self.rule_mgr.on_move_card(fight, events)
-    }
-
-    pub fn on_compose_card(&mut self, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-        let events = self.cloth_mgr.on_compose_card(fight, events);
-        self.rule_mgr.on_compose_card(fight, events)
-    }
-
-    pub fn on_dead(&mut self, fight: &Fight, entity_uid: i64) -> Vec<Event> {
-        let mut events = vec![
-            Event::Dead { entity_uid },
-            Event::RemoveEntityCards { entity_uid },
-        ];
-        events.extend(self.cloth_mgr.on_dead(fight, entity_uid));
-        events.extend(self.rule_mgr.on_dead(fight, entity_uid));
-        events
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -124,7 +79,7 @@ impl FightDataMgr {
             initial_card_push: None,
         };
         fight_mgr.managers.entity_mgr.init(&fight_mgr.fight);
-        fight_mgr.managers.on_battle_start(&mut fight_mgr.fight);
+        crate::state::battle::context::hook_call::on_battle_start(&mut fight_mgr.managers, &mut fight_mgr.fight);
         let card_push = fight_mgr.managers.deck_mgr.init_player(&fight_mgr.fight, max_ap);
         fight_mgr.managers.deck_mgr.init_enemy(&fight_mgr.fight);
         fight_mgr.initial_card_push = Some(card_push);
