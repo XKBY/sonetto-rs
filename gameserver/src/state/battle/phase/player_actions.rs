@@ -23,7 +23,7 @@ use anyhow::Result;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, FightStep, fight_step};
 
-use crate::state::battle::event::{Event, apply::apply_event};
+use crate::state::battle::event::{Event, apply::events_to_steps};
 use crate::state::battle::{
     card::executor::play_card,
     deck::{DeckManager, make_card},
@@ -74,21 +74,15 @@ pub(crate) async fn run(
     for evt in std::mem::take(&mut state.player_events) {
         let oper = match &evt {
             Event::CardPlayed { card: _, oper } => {
-                for e in ctx.on_use_card(&evt) {
-                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
-                }
+                steps.extend(events_to_steps(&ctx.on_use_card(&evt)));
                 oper.clone()
             }
             Event::CardMoved { .. } => {
-                for e in ctx.on_move_card(&evt) {
-                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
-                }
+                steps.extend(events_to_steps(&ctx.on_move_card(&evt)));
                 continue;
             }
             Event::CardComposed { .. } => {
-                for e in ctx.on_compose_card(&evt) {
-                    if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
-                }
+                steps.extend(events_to_steps(&ctx.on_compose_card(&evt)));
                 continue;
             }
             Event::SimulateDissolveCard { oper } => {
@@ -345,9 +339,7 @@ pub(crate) async fn run(
     let (cards2, upgrades2) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
     for _ in 0..upgrades2 {
         let evt = crate::state::battle::event::Event::CardComposed { card: sonettobuf::CardInfo::default() };
-        for e in ctx.on_compose_card(&evt) {
-            if let Some(step) = apply_event(&e, ctx) { steps.push(step); }
-        }
+        steps.extend(events_to_steps(&ctx.on_compose_card(&evt)));
     }
     state.team_a_cards2 = cards2;
 

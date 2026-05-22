@@ -16,7 +16,7 @@ pub enum BuffHook {
     BuffAdd,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuffAction {
     pub act_type: BuffActType,
     pub hook: BuffHook,

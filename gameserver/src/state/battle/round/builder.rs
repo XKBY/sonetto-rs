@@ -1,6 +1,6 @@
 use super::super::{
     ai::select_enemy_cards,
-    event::apply::apply_event,
+    event::apply::events_to_steps,
     manager::{
         entity_mgr::{build_ex_point_info, sync_to_fight},
         fight_data_mgr::FightDataMgr,
@@ -25,11 +25,7 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
             .collect();
         for uid in initial_uids {
             let events = ctx.on_enter_fight(uid);
-            for e in &events {
-                if let Some(step) = apply_event(e, &mut ctx) {
-                    steps.push(step);
-                }
-            }
+            steps.extend(events_to_steps(&events));
         }
         steps
     };

@@ -44,6 +44,8 @@ pub enum Event {
     EnterBattle          { entity_uid: i64 },
     Dead                 { entity_uid: i64 },
     RemoveEntityCards    { entity_uid: i64 },
+    BuffAdd              { target_uid: i64, buff_id: i32 },
+    RemoveBuff           { target_uid: i64, buff_id: i32 },
 }
 
 pub fn events_to_act_effects(events: Vec<Event>) -> Vec<ActEffect> {

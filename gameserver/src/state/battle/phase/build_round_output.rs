@@ -46,9 +46,7 @@ pub(crate) fn build_round_output(
     let (team_a_cards1, upgrades1) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
     for _ in 0..upgrades1 {
         let evt = crate::state::battle::event::Event::CardComposed { card: sonettobuf::CardInfo::default() };
-        for e in ctx.on_compose_card(&evt) {
-            crate::state::battle::event::apply::apply_event(&e, ctx);
-        }
+        ctx.on_compose_card(&evt);
     }
 
     // Accumulate EX cards for enemies that have reached max EX points

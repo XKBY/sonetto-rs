@@ -1,7 +1,7 @@
 use sonettobuf::Fight;
-use crate::state::battle::{event::Event, manager::fight_data_mgr::Managers};
+use crate::state::battle::{context::hook_call, event::Event, manager::fight_data_mgr::Managers};
 
-pub fn execute(_fight: &Fight, managers: &mut Managers, entity_uid: i64, params: &str, carrier_buff_id: i32) -> Vec<Event> {
+pub fn execute(fight: &Fight, managers: &mut Managers, entity_uid: i64, params: &str, carrier_buff_id: i32) -> Vec<Event> {
     // params format: "act_id#threshold#target_buff_id"
     let mut parts = params.split('#');
     let _act_id = parts.next();
@@ -30,7 +30,8 @@ pub fn execute(_fight: &Fight, managers: &mut Managers, entity_uid: i64, params:
     if has_target {
         managers.buff_mgr.extend_buff_duration(entity_uid, target_buff_id, 1);
     } else {
-        events.push(Event::BuffAdd { target_uid: entity_uid, buff_id: target_buff_id });
+        managers.buff_mgr.add_buff(entity_uid, target_buff_id);
+        events.extend(hook_call::on_buff_add(managers, fight, entity_uid));
     }
 
     events

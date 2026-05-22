@@ -1,8 +1,13 @@
 use crate::state::battle::event::Event;
+use crate::state::battle::manager::fight_data_mgr::Managers;
 
-pub fn execute(targets: Vec<i64>, delta: i32) -> Vec<Event> {
+pub fn execute(managers: &mut Managers, targets: Vec<i64>, raw: &str) -> Vec<Event> {
+    let delta: i32 = raw.split('#').nth(1).and_then(|v| v.parse().ok()).unwrap_or(0);
     targets
         .into_iter()
-        .map(|target| Event::ExPointChange { target, delta, emit_step: true })
+        .map(|target| {
+            managers.entity_mgr.add_ex_point(target, delta);
+            Event::ExPointChange { target, delta, emit_step: true }
+        })
         .collect()
 }

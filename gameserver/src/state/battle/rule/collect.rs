@@ -1,10 +1,10 @@
 use sonettobuf::Fight;
 
 pub(crate) fn collect_battle_rule_skills(fight: &Fight) -> Vec<i32> {
-    collect_rules(fight).into_iter().map(|(_, _, effect_id)| effect_id).collect()
+    collect_rules(fight).into_iter().map(|(_, effect_id)| effect_id).collect()
 }
 
-pub(crate) fn collect_rules(fight: &Fight) -> Vec<(i32, i32, i32)> {
+pub(crate) fn collect_rules(fight: &Fight) -> Vec<(i32, i32)> {
     let cfg = config::configs::get();
     let battle_id = fight.battle_id.unwrap_or(0);
     let Some(battle) = cfg.battle.iter().find(|b| b.id == battle_id) else {
@@ -27,7 +27,7 @@ pub(crate) fn collect_rules(fight: &Fight) -> Vec<(i32, i32, i32)> {
             };
             let effect_id = rule.effect.parse::<i32>().ok().unwrap_or(0);
             if effect_id != 0 {
-                out.push((prefix, rule.r#type, effect_id));
+                out.push((prefix, effect_id));
             }
         }
     }

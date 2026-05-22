@@ -20,6 +20,7 @@ pub struct EntityMgr {
     entity_cache: HashMap<i64, EntityLocation>,
     ex_points: HashMap<i64, i32>,
     ex_max: HashMap<i64, i32>,
+    ex_point_required: HashMap<i64, i32>,
     pub current_hp: HashMap<i64, i32>,
     pub max_hp: HashMap<i64, i32>,
     recent_decr_ex_point: HashMap<i64, i32>,
@@ -116,6 +117,7 @@ impl EntityMgr {
     }
 
     pub fn init(&mut self, fight: &Fight) {
+        let cfg = config::configs::get();
         let iter = fight
             .attacker
             .iter()
@@ -125,6 +127,11 @@ impl EntityMgr {
             let Some(uid) = e.uid else { continue };
             self.ex_points.insert(uid, e.ex_point.unwrap_or(0));
             self.ex_max.insert(uid, if e.ex_point_type == Some(1) { 8 } else { 5 });
+            let required = e.model_id
+                .and_then(|mid| cfg.monster_skill_template.iter().find(|t| t.id == mid))
+                .map(|t| t.unique_skill_point)
+                .unwrap_or(0);
+            self.ex_point_required.insert(uid, required);
             let hp = e.current_hp.unwrap_or(0);
             self.current_hp.insert(uid, hp);
             let mhp = e.attr.as_ref().and_then(|a| a.hp).unwrap_or(hp);
@@ -172,6 +179,10 @@ impl EntityMgr {
 
     pub fn get_ex_max(&self, uid: i64) -> i32 {
         self.ex_max.get(&uid).copied().unwrap_or(0)
+    }
+
+    pub fn get_ex_point_required(&self, uid: i64) -> i32 {
+        self.ex_point_required.get(&uid).copied().unwrap_or(0)
     }
 
     #[allow(dead_code)]
@@ -308,5 +319,22 @@ pub fn sync_from_fight(fight: &Fight, mgr: &mut EntityMgr) {
         if let Some(max) = e.attr.as_ref().and_then(|a| a.hp) {
             mgr.set_max_hp(uid, max);
         }
+    }
+}
+
+pub fn seed_ex_point_required_from_fight(fight: &Fight, mgr: &mut EntityMgr) {
+    let cfg = config::configs::get();
+    for e in fight
+        .attacker
+        .iter()
+        .chain(fight.defender.iter())
+        .flat_map(|t| t.entitys.iter().chain(t.sub_entitys.iter()))
+    {
+        let Some(uid) = e.uid else { continue };
+        let required = e.model_id
+            .and_then(|mid| cfg.monster_skill_template.iter().find(|t| t.id == mid))
+            .map(|t| t.unique_skill_point)
+            .unwrap_or(0);
+        mgr.ex_point_required.insert(uid, required);
     }
 }

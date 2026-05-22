@@ -1,5 +1,5 @@
 use super::traits::Manager;
-use crate::state::battle::buff::Buff;
+use crate::state::battle::buff::{utils, Buff, RefreshPolicy};
 use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
 use sonettobuf::Fight;
@@ -11,23 +11,6 @@ use std::{
     collections::HashMap,
     sync::atomic::{AtomicBool, AtomicI64, Ordering},
 };
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RefreshPolicy {
-    /// Re-applying this buff removes an active sibling selected through
-    /// bufftype.exclude_types, then emits a fresh add.
-    ReplaceOnExcludedOverlap,
-
-    /// Re-applying this buff removes the same buff_id, then emits a fresh
-    /// add.
-    ReplaceOnSelfRefresh,
-
-    /// Re-applying this buff keeps the existing uid and emits update
-    /// semantics.
-    #[default]
-    UpdateInPlace,
-}
 
 #[allow(dead_code)]
 #[derive(Default, Debug, Clone)]
@@ -42,24 +25,6 @@ pub struct BuffInstance {
     pub layer: i32,    // maps to buff.layer in packets
     pub act_common_params: String,
     pub refresh_policy: RefreshPolicy,
-}
-
-fn derive_refresh_policy(bt: Option<&config::skill_bufftype::SkillBufftype>) -> RefreshPolicy {
-    let Some(bt) = bt else {
-        return RefreshPolicy::UpdateInPlace;
-    };
-    let has_include_type_10 = bt
-        .include_types
-        .split('#')
-        .next()
-        .map(|s| s == "10")
-        .unwrap_or(false);
-    let has_exclude_types = !bt.exclude_types.is_empty();
-    if has_include_type_10 && has_exclude_types {
-        RefreshPolicy::ReplaceOnExcludedOverlap
-    } else {
-        RefreshPolicy::UpdateInPlace
-    }
 }
 
 impl BuffInstance {
@@ -77,7 +42,7 @@ impl BuffInstance {
             stacks: cfg.map(|b| b.effect_count).unwrap_or(0),
             layer: 0,
             act_common_params: String::new(),
-            refresh_policy: derive_refresh_policy(buff_type),
+            refresh_policy: utils::derive_refresh_policy(buff_type),
         }
     }
 }
@@ -103,7 +68,7 @@ impl Clone for BuffMgr {
     fn clone(&self) -> Self {
         Self {
             active: self.active.clone(),
-            active_buff: HashMap::default(),
+            active_buff: self.active_buff.clone(),
             step_deleted_buff_ids: self.step_deleted_buff_ids.clone(),
             teammate_injury_not_reset: self.teammate_injury_not_reset.clone(),
             skill_slot_round_usage: self.skill_slot_round_usage.clone(),
@@ -138,41 +103,43 @@ impl BuffMgr {
         }
     }
 
-    fn uses_single_uid_layer_refresh(buff_id: i32) -> bool {
-        buff_id == 30091120
-    }
-
-    pub(crate) fn uses_distinct_dot_carrier_instances(buff_id: i32) -> bool {
-        matches!(buff_id, 30980111 | 30980132)
-    }
-
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn add_buff(&mut self, target_uid: i64, buff_id: i32) -> Vec<Event> {
-        use crate::state::battle::buff::{buff_act_type::BuffActType, buff_action::BuffAction};
+        use crate::state::battle::buff::buff_action::BuffAction;
+        use sonettobuf::BuffInfo;
         let cfg = config::configs::get();
-        let buff_cfg: Option<&config::skill_buff::SkillBuff> = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+        let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
         let duration = buff_cfg.map(|b| b.during_time).unwrap_or(0);
+        let stacks = buff_cfg.map(|b| b.effect_count).unwrap_or(0).max(1);
+        let type_id = buff_cfg.map(|b| b.type_id).unwrap_or(0);
+        let buff_type = cfg.skill_bufftype.iter().find(|t| t.id == type_id).cloned();
+        let refresh_policy: RefreshPolicy = utils::derive_refresh_policy(buff_type.as_ref());
 
         let actions: Vec<BuffAction> = buff_cfg.map(|b| {
             b.features.split('|').filter_map(|entry| {
                 let act_id: i32 = entry.split('#').next()?.trim().parse().ok()?;
-                if BuffActType::from_id(act_id) != Some(BuffActType::_702BuffReplace) {
-                    return None;
-                }
                 let mut action = BuffAction::new(act_id)?;
                 action.params = entry.trim().to_string();
                 Some(action)
             }).collect()
         }).unwrap_or_default();
 
+        let proto_buff = BuffInfo {
+            buff_id: Some(buff_id),
+            duration: Some(duration),
+            count: Some(1),
+            r#type: Some(type_id),
+            ..Default::default()
+        };
+
         let buffs = self.active_buff.entry(target_uid).or_default();
         if let Some(existing) = buffs.iter_mut().find(|b| b.buff_id == buff_id) {
             existing.stacks += 1;
         } else {
-            buffs.push(Buff { buff_id, duration, stacks: 1, actions });
+            buffs.push(Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy });
         }
         vec![]
     }
@@ -180,76 +147,6 @@ impl BuffMgr {
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.active.is_empty()
-    }
-
-    fn is_stacked_include_type(buff_id: i32) -> bool {
-        let cfg = config::configs::get();
-        let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
-            return false;
-        };
-        let Some(buff_type_cfg) = cfg.skill_bufftype.iter().find(|t| t.id == buff_cfg.type_id)
-        else {
-            return false;
-        };
-        let include_type = buff_type_cfg
-            .include_types
-            .split('#')
-            .next()
-            .unwrap_or_default()
-            .trim();
-        matches!(include_type, "10" | "12" | "14" | "15")
-    }
-
-    fn is_poison_family(buff_id: i32) -> bool {
-        let cfg = config::configs::get();
-        let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
-            return false;
-        };
-        buff_cfg.features.split('|').any(|entry| {
-            entry
-                .split('#')
-                .next()
-                .and_then(|v| v.trim().parse::<i32>().ok())
-                .is_some_and(|act_id| matches!(act_id, 803 | 844))
-        })
-    }
-
-    #[allow(dead_code)]
-    fn is_drop_dmg_attr_buff(buff_id: i32) -> bool {
-        let cfg = config::configs::get();
-        let Some(buff_cfg) = cfg.skill_buff.iter().find(|b| b.id == buff_id) else {
-            return false;
-        };
-        for entry in buff_cfg.features.split('|') {
-            let parts: Vec<&str> = entry.split('#').collect();
-            let Some(act_id) = parts.first().and_then(|v| v.trim().parse::<i32>().ok()) else {
-                continue;
-            };
-            let act_type = cfg
-                .buff_act
-                .iter()
-                .find(|a| a.id == act_id)
-                .map(|a| a.r#type.as_str())
-                .unwrap_or_default();
-            let is_attr_like = matches!(
-                act_type,
-                "Attr"
-                    | "AttrOnlyCalDamageAttack"
-                    | "AttrOnlyCalDamageBeAttacked"
-                    | "AttrOnlyCalDamageAttackType"
-                    | "AttrOnlyCalDamageBeAttackedType"
-            );
-            if !is_attr_like {
-                continue;
-            }
-            let Some(attr_id) = parts.get(1).and_then(|v| v.trim().parse::<i32>().ok()) else {
-                continue;
-            };
-            if attr_id == 206 {
-                return true;
-            }
-        }
-        false
     }
 
     pub fn add(
@@ -268,9 +165,9 @@ impl BuffMgr {
         instance.stacks = if count > 0 { count } else { instance.stacks };
         instance.layer = layer;
 
-        if Self::uses_distinct_dot_carrier_instances(buff_id) {
+        if utils::uses_distinct_dot_carrier_instances(buff_id) {
             entry.push(instance);
-        } else if Self::uses_single_uid_layer_refresh(buff_id) {
+        } else if utils::uses_single_uid_layer_refresh(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.duration = existing.duration.max(instance.duration);
                 existing.stacks = instance.stacks;
@@ -280,9 +177,9 @@ impl BuffMgr {
             } else {
                 entry.push(instance);
             }
-        } else if Self::is_stacked_include_type(buff_id) {
+        } else if utils::is_stacked_include_type(buff_id) {
             entry.push(instance);
-        } else if Self::is_poison_family(buff_id) {
+        } else if utils::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.duration = existing.duration.max(instance.duration);
                 existing.layer = existing.layer.max(1).saturating_add(instance.layer.max(1));
@@ -579,8 +476,8 @@ impl BuffMgr {
                 .iter()
                 .enumerate()
                 .filter(|(_, b)| {
-                    Self::is_stacked_include_type(b.buff_id)
-                        && Self::is_drop_dmg_attr_buff(b.buff_id)
+                    utils::is_stacked_include_type(b.buff_id)
+                        && utils::is_drop_dmg_attr_buff(b.buff_id)
                 })
                 .min_by_key(|(_, b)| b.uid)
                 .map(|(i, _)| i)?;
@@ -643,7 +540,7 @@ impl BuffMgr {
             },
             layer,
             act_common_params: String::new(),
-            refresh_policy: derive_refresh_policy(buff_type),
+            refresh_policy: utils::derive_refresh_policy(buff_type),
         };
 
         if let Some(existing) = entry.iter_mut().find(|b| b.uid == buff_uid) {
@@ -658,9 +555,9 @@ impl BuffMgr {
             return;
         }
 
-        if Self::uses_distinct_dot_carrier_instances(buff_id) {
+        if utils::uses_distinct_dot_carrier_instances(buff_id) {
             entry.push(instance);
-        } else if Self::uses_single_uid_layer_refresh(buff_id) {
+        } else if utils::uses_single_uid_layer_refresh(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.from_uid = instance.from_uid;
                 Self::merge_from_skill_id(existing, from_skill_id);
@@ -671,9 +568,9 @@ impl BuffMgr {
             } else {
                 entry.push(instance);
             }
-        } else if Self::is_stacked_include_type(buff_id) {
+        } else if utils::is_stacked_include_type(buff_id) {
             entry.push(instance);
-        } else if Self::is_poison_family(buff_id) {
+        } else if utils::is_poison_family(buff_id) {
             if let Some(existing) = entry.iter_mut().find(|b| b.buff_id == buff_id) {
                 existing.uid = buff_uid;
                 Self::merge_from_skill_id(existing, from_skill_id);

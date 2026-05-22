@@ -5,11 +5,11 @@ use crate::state::battle::buff_actions::ban_lost_life::buff_get_ban_lost_life_fl
 use sonettobuf::{ActEffect, Fight};
 
 use super::super::super::{
-    buff::{apply_buff_effects, pre_buff_effects},
+    buff::{apply_buff_effects, pre_buff_effects, utils as buff_utils, RefreshPolicy},
     context::buff_context::BuffContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
     manager::{
-        buff_mgr::{BuffMgr, RefreshPolicy, next_buff_uid_for_target},
+        buff_mgr::{BuffMgr, next_buff_uid_for_target},
         fight_data_mgr::Managers,
     },
     mechanics::{Mechanics, bloodtithe::BloodtitheState},
@@ -307,7 +307,7 @@ pub fn apply(
 
     // If the buff already exists on target, prefer BUFFUPDATE regardless of count/effect_count.
     // This matches live behavior for stacking/re-applying passives like 30630171 -> 30631.
-    let existing_same = if BuffMgr::uses_distinct_dot_carrier_instances(spec.buff_id) {
+    let existing_same = if buff_utils::uses_distinct_dot_carrier_instances(spec.buff_id) {
         None
     } else {
         with_buff_ctx(fight, managers, |buff_ctx| {

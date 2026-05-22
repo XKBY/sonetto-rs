@@ -1,4 +1,5 @@
 use crate::state::battle::event::Event;
+use crate::state::battle::event::apply::apply_event;
 use crate::state::battle::manager::{fight_data_mgr::Managers, traits::Manager};
 use crate::state::battle::mechanics::Mechanics;
 use super::hook_call;
@@ -89,29 +90,34 @@ impl<'a> FightContext<'a> {
     pub fn on_use_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardPlayed { card, .. } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_use_card(self.managers, self.fight, events, uid)
+        let events = hook_call::on_use_card(self.managers, self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        events
     }
 
     pub fn on_move_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardMoved { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_move_card(self.managers, self.fight, events, uid)
+        let events = hook_call::on_move_card(self.managers, self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        events
     }
 
     pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardComposed { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_compose_card(self.managers, self.fight, events, uid)
+        let events = hook_call::on_compose_card(self.managers, self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        events
     }
 
     pub fn on_enter_fight(&mut self, entity_uid: i64) -> Vec<Event> {
-        hook_call::on_enter_fight(self.managers, self.fight, entity_uid)
+        let events = hook_call::on_enter_fight(self.managers, self.fight, entity_uid);
+        events
     }
 
     pub fn on_dead(&mut self, entity_uid: i64) -> Vec<Event> {
-        hook_call::on_dead(self.managers, self.fight, entity_uid)
+        let events = hook_call::on_dead(self.managers, self.fight, entity_uid);
+        events
     }
 }

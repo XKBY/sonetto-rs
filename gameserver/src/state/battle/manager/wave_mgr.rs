@@ -16,7 +16,8 @@ use crate::state::battle::{
     fight::defender::Defender,
     fight_step::{ActEffectBuilder, FightStepBuilder},
     manager::{
-        buff_mgr::observe_explicit_buff_uid_for_target, entity_mgr::sync_from_fight,
+        buff_mgr::observe_explicit_buff_uid_for_target,
+        entity_mgr::{sync_from_fight, seed_ex_point_required_from_fight},
         round_mgr::seed_entry_max_hp_from_fight,
     },
     skill::SkillExecutor,
@@ -92,11 +93,6 @@ impl WaveMgr {
 
         for uid in new_entity_uids {
             let events = ctx.on_enter_fight(uid);
-            for e in &events {
-                if let Some(step) = crate::state::battle::event::apply::apply_event(e, ctx) {
-                    steps.push(step);
-                }
-            }
         }
 
         if let Some(step) = build_active_circle_enemy_buff_step(&fight, ctx, executor) {
@@ -129,6 +125,7 @@ impl WaveMgr {
                 .collect();
             self.advance_wave_state(ctx)?;
             sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
+            seed_ex_point_required_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
             for uid in old_defender_uids {
                 ctx.managers.buff_mgr.clear(uid);
             }
@@ -162,6 +159,7 @@ impl WaveMgr {
                 .collect();
             steps.extend(self.advance_wave(ctx, executor)?);
             sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
+            seed_ex_point_required_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
             for uid in old_defender_uids {
                 ctx.managers.buff_mgr.clear(uid);
             }

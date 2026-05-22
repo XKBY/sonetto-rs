@@ -8,18 +8,28 @@ pub mod target;
 
 use condition_eval::ConditionEval;
 use crate::state::battle::{
-    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
+    manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr, fight_data_mgr::Managers},
     mechanics::bloodtithe::BloodtitheState,
 };
 use sonettobuf::Fight;
 use crate::state::battle::event::Event;
 
 pub struct SkillEffect {
-    behaviours: Vec<(condition::Condition, String, i32)>,
+    pub(crate) behaviours: Vec<(condition::Condition, String, i32)>,
+}
+
+impl std::fmt::Debug for SkillEffect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SkillEffect({})", self.behaviours.len())
+    }
+}
+
+impl Clone for SkillEffect {
+    fn clone(&self) -> Self { Self { behaviours: vec![] } }
 }
 
 impl SkillEffect {
-    pub fn on_enter_fight(&self, fight: &Fight, entity_uid: i64) -> Vec<Event> {
+    pub fn on_enter_fight(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         let buff_mgr = BuffMgr::default();
         let ex_point_mgr = EntityMgr::default();
         let bloodtithe = BloodtitheState::default();
@@ -39,11 +49,11 @@ impl SkillEffect {
                         active_card_cast_uids: None,
                     })
             })
-            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, entity_uid, beh, *beh_target))
+            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, managers, entity_uid, beh, *beh_target))
             .collect()
     }
 
-    pub fn on_dead(&self, fight: &Fight, entity_uid: i64) -> Vec<Event> {
+    pub fn on_dead(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         let buff_mgr = BuffMgr::default();
         let ex_point_mgr = EntityMgr::default();
         let bloodtithe = BloodtitheState::default();
@@ -63,7 +73,7 @@ impl SkillEffect {
                         active_card_cast_uids: None,
                     })
             })
-            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, entity_uid, beh, *beh_target))
+            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, managers, entity_uid, beh, *beh_target))
             .collect()
     }
 }

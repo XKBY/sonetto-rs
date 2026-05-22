@@ -16,8 +16,8 @@ pub(crate) fn accumulate_enemy_ex_cards(
         if uid >= 0 { continue; }
         let ex_skill = e.ex_skill.unwrap_or(0);
         if ex_skill == 0 { continue; }
-        let ex_max = ex_point_mgr.get_ex_max(uid);
-        if ex_max > 0 && ex_point_mgr.get_ex_point(uid) >= ex_max
+        let required = ex_point_mgr.get_ex_point_required(uid);
+        if required > 0 && ex_point_mgr.get_ex_point(uid) >= required
             && !deck_mgr.enemy_ex_deck.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
             && !deck_mgr.enemy_hand.iter().any(|c| c.uid == Some(uid) && c.skill_id == Some(ex_skill))
         {
