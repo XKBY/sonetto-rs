@@ -7,6 +7,9 @@ pub fn execute(_fight: &Fight, managers: &mut Managers, entity_uid: i64, params:
     let _act_id = parts.next();
     let threshold: i32 = parts.next().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
     let target_buff_id: i32 = parts.next().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+    if target_buff_id == 0 {
+        return vec![];
+    }
 
     let stacks = managers.buff_mgr.active_buff
         .get(&entity_uid)
