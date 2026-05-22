@@ -4,12 +4,14 @@ use crate::state::battle::manager::{buff_mgr::BuffMgr, fight_data_mgr::Managers,
 
 pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight) {
     managers.cloth_mgr.on_battle_start(fight);
+    BuffMgr::on_battle_start(fight, managers);
 }
 
 pub fn on_round_end(managers: &mut Managers, fight: &mut Fight) {
     managers.buff_mgr.on_round_end(fight);
     managers.calculate_mgr.on_round_end();
     managers.cloth_mgr.on_round_end(fight);
+    BuffMgr::on_round_end_hooks(fight, managers);
 }
 
 pub fn on_enter_fight(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
@@ -25,16 +27,28 @@ pub fn on_enter_fight(managers: &mut Managers, fight: &Fight, entity_uid: i64) -
     events
 }
 
-pub fn on_use_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-    managers.cloth_mgr.on_use_card(fight, events)
+pub fn on_use_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
+    let mut events = managers.cloth_mgr.on_use_card(fight, events);
+    let buffs = managers.buff_mgr.active_buff.remove(&entity_uid).unwrap_or_default();
+    events.extend(BuffMgr::on_use_card(&buffs, fight, managers, entity_uid));
+    managers.buff_mgr.active_buff.insert(entity_uid, buffs);
+    events
 }
 
-pub fn on_move_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-    managers.cloth_mgr.on_move_card(fight, events)
+pub fn on_move_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
+    let mut events = managers.cloth_mgr.on_move_card(fight, events);
+    let buffs = managers.buff_mgr.active_buff.remove(&entity_uid).unwrap_or_default();
+    events.extend(BuffMgr::on_move_card(&buffs, fight, managers, entity_uid));
+    managers.buff_mgr.active_buff.insert(entity_uid, buffs);
+    events
 }
 
-pub fn on_compose_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>) -> Vec<Event> {
-    managers.cloth_mgr.on_compose_card(fight, events)
+pub fn on_compose_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
+    let mut events = managers.cloth_mgr.on_compose_card(fight, events);
+    let buffs = managers.buff_mgr.active_buff.remove(&entity_uid).unwrap_or_default();
+    events.extend(BuffMgr::on_compose_card(&buffs, fight, managers, entity_uid));
+    managers.buff_mgr.active_buff.insert(entity_uid, buffs);
+    events
 }
 
 pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
@@ -54,7 +68,9 @@ pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<E
     events
 }
 
-pub fn on_buff_add(managers: &mut Managers) -> Vec<Event> {
-    let _ = managers;
-    vec![]
+pub fn on_buff_add(managers: &mut Managers, fight: &Fight, target_uid: i64) -> Vec<Event> {
+    let buffs = managers.buff_mgr.active_buff.remove(&target_uid).unwrap_or_default();
+    let events = BuffMgr::on_buff_add(&buffs, fight, managers, target_uid);
+    managers.buff_mgr.active_buff.insert(target_uid, buffs);
+    events
 }

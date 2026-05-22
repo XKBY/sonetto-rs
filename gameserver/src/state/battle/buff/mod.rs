@@ -31,4 +31,46 @@ impl Buff {
             .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
             .collect()
     }
+
+    pub fn on_battle_start(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::BattleStart))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
+
+    pub fn on_round_end(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::RoundEnd))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
+
+    pub fn on_use_card(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::UseCard))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
+
+    pub fn on_move_card(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::MoveCard))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
+
+    pub fn on_compose_card(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::ComposeCard))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
+
+    pub fn on_buff_add(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.actions.iter()
+            .filter(|a| matches!(a.hook, BuffHook::BuffAdd))
+            .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
+            .collect()
+    }
 }

@@ -153,7 +153,7 @@ impl BuffMgr {
     pub fn add_buff(&mut self, target_uid: i64, buff_id: i32) -> Vec<Event> {
         use crate::state::battle::buff::{buff_act_type::BuffActType, buff_action::BuffAction};
         let cfg = config::configs::get();
-        let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+        let buff_cfg: Option<&config::skill_buff::SkillBuff> = cfg.skill_buff.iter().find(|b| b.id == buff_id);
         let duration = buff_cfg.map(|b| b.during_time).unwrap_or(0);
 
         let actions: Vec<BuffAction> = buff_cfg.map(|b| {
@@ -721,6 +721,44 @@ impl BuffMgr {
 
     pub fn on_dead(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         buffs.iter().flat_map(|b| b.on_dead(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_battle_start(fight: &Fight, managers: &mut Managers) -> Vec<Event> {
+        let uids: Vec<i64> = managers.buff_mgr.active_buff.keys().copied().collect();
+        let mut events = vec![];
+        for uid in uids {
+            let buffs = managers.buff_mgr.active_buff.remove(&uid).unwrap_or_default();
+            events.extend(buffs.iter().flat_map(|b| b.on_battle_start(fight, managers, uid)));
+            managers.buff_mgr.active_buff.insert(uid, buffs);
+        }
+        events
+    }
+
+    pub fn on_round_end_hooks(fight: &Fight, managers: &mut Managers) -> Vec<Event> {
+        let uids: Vec<i64> = managers.buff_mgr.active_buff.keys().copied().collect();
+        let mut events = vec![];
+        for uid in uids {
+            let buffs = managers.buff_mgr.active_buff.remove(&uid).unwrap_or_default();
+            events.extend(buffs.iter().flat_map(|b| b.on_round_end(fight, managers, uid)));
+            managers.buff_mgr.active_buff.insert(uid, buffs);
+        }
+        events
+    }
+
+    pub fn on_use_card(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_use_card(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_move_card(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_move_card(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_compose_card(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_compose_card(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_buff_add(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_buff_add(fight, managers, entity_uid)).collect()
     }
 
     pub fn tick_round_end(&mut self) {

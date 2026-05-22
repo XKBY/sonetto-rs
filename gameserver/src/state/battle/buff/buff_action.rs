@@ -8,6 +8,12 @@ pub enum BuffHook {
     #[default]
     EnterFight,
     Dead,
+    BattleStart,
+    RoundEnd,
+    UseCard,
+    MoveCard,
+    ComposeCard,
+    BuffAdd,
 }
 
 #[derive(Debug)]

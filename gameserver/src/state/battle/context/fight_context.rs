@@ -90,21 +90,21 @@ impl<'a> FightContext<'a> {
         let Event::CardPlayed { card, .. } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
         let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_use_card(self.managers, self.fight, events)
+        hook_call::on_use_card(self.managers, self.fight, events, uid)
     }
 
     pub fn on_move_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardMoved { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
         let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_move_card(self.managers, self.fight, events)
+        hook_call::on_move_card(self.managers, self.fight, events, uid)
     }
 
     pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardComposed { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
         let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
-        hook_call::on_compose_card(self.managers, self.fight, events)
+        hook_call::on_compose_card(self.managers, self.fight, events, uid)
     }
 
     pub fn on_enter_fight(&mut self, entity_uid: i64) -> Vec<Event> {
