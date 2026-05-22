@@ -1,4 +1,6 @@
 use super::traits::Manager;
+use crate::state::battle::buff::Buff;
+use crate::state::battle::event::Event;
 use sonettobuf::Fight;
 #[cfg(test)]
 use std::cell::Cell;
@@ -79,9 +81,10 @@ impl BuffInstance {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct BuffMgr {
     active: HashMap<i64, Vec<BuffInstance>>,
+    pub active_buff: HashMap<i64, Vec<Buff>>,
     /// Buff ids (and their type ids) deleted during the currently-executing
     /// step. Reset by the round manager at each step boundary. Read by
     /// `BuffIdDel` trigger conditions firing from mid-step passive chains that
@@ -93,6 +96,18 @@ pub struct BuffMgr {
     /// Per-round behavior slot usage tracker keyed by
     /// `(caster_uid, skill_effect_id, slot_index)`.
     skill_slot_round_usage: HashMap<(i64, i32, u8), i32>,
+}
+
+impl Clone for BuffMgr {
+    fn clone(&self) -> Self {
+        Self {
+            active: self.active.clone(),
+            active_buff: HashMap::default(),
+            step_deleted_buff_ids: self.step_deleted_buff_ids.clone(),
+            teammate_injury_not_reset: self.teammate_injury_not_reset.clone(),
+            skill_slot_round_usage: self.skill_slot_round_usage.clone(),
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -132,6 +147,33 @@ impl BuffMgr {
 
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn add_buff(&mut self, target_uid: i64, buff_id: i32) -> Vec<Event> {
+        use crate::state::battle::buff::{buff_act_type::BuffActType, buff_action::BuffAction};
+        let cfg = config::configs::get();
+        let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);
+        let duration = buff_cfg.map(|b| b.during_time).unwrap_or(0);
+
+        let actions: Vec<BuffAction> = buff_cfg.map(|b| {
+            b.features.split('|').filter_map(|entry| {
+                let act_id: i32 = entry.split('#').next()?.trim().parse().ok()?;
+                if BuffActType::from_id(act_id) != Some(BuffActType::_702BuffReplace) {
+                    return None;
+                }
+                let mut action = BuffAction::new(act_id)?;
+                action.params = entry.trim().to_string();
+                Some(action)
+            }).collect()
+        }).unwrap_or_default();
+
+        let buffs = self.active_buff.entry(target_uid).or_default();
+        if let Some(existing) = buffs.iter_mut().find(|b| b.buff_id == buff_id) {
+            existing.stacks += 1;
+        } else {
+            buffs.push(Buff { buff_id, duration, stacks: 1, actions });
+        }
+        vec![]
     }
 
     #[allow(dead_code)]
@@ -331,6 +373,16 @@ impl BuffMgr {
         false
     }
 
+    pub fn extend_buff_duration(&mut self, target_uid: i64, buff_id: i32, delta: i32) -> bool {
+        if let Some(buffs) = self.active.get_mut(&target_uid)
+            && let Some(buff) = buffs.iter_mut().find(|b| b.buff_id == buff_id)
+        {
+            if buff.duration > 0 { buff.duration += delta; }
+            return true;
+        }
+        false
+    }
+
     #[allow(dead_code)]
     pub fn set_instance_layer(&mut self, target_uid: i64, buff_uid: i64, layer: i32) -> bool {
         if let Some(buffs) = self.active.get_mut(&target_uid)
@@ -501,6 +553,21 @@ impl BuffMgr {
         }
     }
 
+    pub fn remove_buff(&mut self, target_uid: i64, buff_id: i32) {
+        if let Some(buffs) = self.active.get_mut(&target_uid) {
+            let mut step_deleted = std::mem::take(&mut self.step_deleted_buff_ids);
+            buffs.retain(|b| {
+                if b.buff_id == buff_id {
+                    Self::record_deleted(&mut step_deleted, b);
+                    false
+                } else {
+                    true
+                }
+            });
+            self.step_deleted_buff_ids = step_deleted;
+        }
+    }
+
     #[allow(dead_code)]
     pub fn consume_one_stacked_drop_dmg(&mut self, target_uid: i64) -> Option<StackConsumeResult> {
         let mut should_remove_bucket = false;
@@ -628,14 +695,24 @@ impl BuffMgr {
 }
 
 impl Manager for BuffMgr {
+    fn on_enter_fight(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
+    fn on_dead(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
+
     fn on_round_end(&mut self, _fight: &mut Fight) {
         self.tick_round_end();
+        for buffs in self.active_buff.values_mut() {
+            buffs.retain(|b| b.duration != 1);
+            for b in buffs.iter_mut() {
+                if b.duration > 0 { b.duration -= 1; }
+            }
+        }
     }
 
     fn on_battle_end(&mut self) {
         self.active.clear();
         self.teammate_injury_not_reset.clear();
         self.skill_slot_round_usage.clear();
+        self.active_buff.clear();
     }
 }
 
@@ -670,7 +747,7 @@ impl BuffMgr {
                 !was_timed || b.duration != 0
             });
         }
-    }
+        }
 }
 
 pub static ATTACKER_BUFF_UID_COUNTER: AtomicI64 = AtomicI64::new(0);
