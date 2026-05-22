@@ -1,7 +1,6 @@
 use sonettobuf::Fight;
 use crate::state::battle::event::Event;
 use crate::state::battle::manager::{fight_data_mgr::Managers, rule_mgr::RuleMgr};
-use crate::state::battle::manager::traits::Manager;
 
 pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight) {
     managers.cloth_mgr.on_battle_start(fight);
