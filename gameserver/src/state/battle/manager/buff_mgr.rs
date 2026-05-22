@@ -1,6 +1,7 @@
 use super::traits::Manager;
 use crate::state::battle::buff::Buff;
 use crate::state::battle::event::Event;
+use crate::state::battle::manager::fight_data_mgr::Managers;
 use sonettobuf::Fight;
 #[cfg(test)]
 use std::cell::Cell;
@@ -695,9 +696,6 @@ impl BuffMgr {
 }
 
 impl Manager for BuffMgr {
-    fn on_enter_fight(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
-    fn on_dead(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
-
     fn on_round_end(&mut self, _fight: &mut Fight) {
         self.tick_round_end();
         for buffs in self.active_buff.values_mut() {
@@ -717,6 +715,14 @@ impl Manager for BuffMgr {
 }
 
 impl BuffMgr {
+    pub fn on_enter_fight(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_enter_fight(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_dead(buffs: &[Buff], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        buffs.iter().flat_map(|b| b.on_dead(fight, managers, entity_uid)).collect()
+    }
+
     pub fn tick_round_end(&mut self) {
         let cfg = config::configs::get();
         for buffs in self.active.values_mut() {

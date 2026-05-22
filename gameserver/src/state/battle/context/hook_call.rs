@@ -1,6 +1,6 @@
 use sonettobuf::Fight;
 use crate::state::battle::event::Event;
-use crate::state::battle::manager::{fight_data_mgr::Managers, rule_mgr::RuleMgr};
+use crate::state::battle::manager::{buff_mgr::BuffMgr, fight_data_mgr::Managers, rule_mgr::RuleMgr, traits::Manager};
 
 pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight) {
     managers.cloth_mgr.on_battle_start(fight);
@@ -14,7 +14,9 @@ pub fn on_round_end(managers: &mut Managers, fight: &mut Fight) {
 
 pub fn on_enter_fight(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
     let mut events = managers.cloth_mgr.on_enter_fight(fight, entity_uid);
-    events.extend(managers.buff_mgr.on_enter_fight(fight, entity_uid));
+    let buffs = managers.buff_mgr.active_buff.remove(&entity_uid).unwrap_or_default();
+    events.extend(BuffMgr::on_enter_fight(&buffs, fight, managers, entity_uid));
+    managers.buff_mgr.active_buff.insert(entity_uid, buffs);
     // Rules are snapshotted before execution. If a rule adds another rule mid-flight,
     // the new rule won't fire this event — ordering of dynamically-added rules is unresolved.
     let rule_effects = std::mem::take(&mut managers.rule_mgr.effects);
@@ -41,7 +43,9 @@ pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<E
         Event::RemoveEntityCards { entity_uid },
     ];
     events.extend(managers.cloth_mgr.on_dead(fight, entity_uid));
-    events.extend(managers.buff_mgr.on_dead(fight, entity_uid));
+    let buffs = managers.buff_mgr.active_buff.remove(&entity_uid).unwrap_or_default();
+    events.extend(BuffMgr::on_dead(&buffs, fight, managers, entity_uid));
+    managers.buff_mgr.active_buff.insert(entity_uid, buffs);
     // Rules are snapshotted before execution. If a rule adds another rule mid-flight,
     // the new rule won't fire this event — ordering of dynamically-added rules is unresolved.
     let rule_effects = std::mem::take(&mut managers.rule_mgr.effects);
