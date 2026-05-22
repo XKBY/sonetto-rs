@@ -1,5 +1,6 @@
 use super::super::{
     ai::select_enemy_cards,
+    event::apply::apply_event,
     manager::{
         entity_mgr::{build_ex_point_info, sync_to_fight},
         fight_data_mgr::FightDataMgr,
@@ -16,7 +17,21 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
         let seed = fight_mgr.fight.cur_round.unwrap_or(0) as u64;
         let mut rng = StdRng::seed_from_u64(seed);
         let mut ctx = fight_mgr.ctx_with_rng(&mut rng);
-        execute_battle_start_passives(&mut ctx, battle_id)
+        let mut steps = execute_battle_start_passives(&mut ctx, battle_id);
+        let initial_uids: Vec<i64> = ctx.fight
+            .attacker.iter().chain(ctx.fight.defender.iter())
+            .flat_map(|t| t.entitys.iter().chain(t.sub_entitys.iter()))
+            .filter_map(|e| e.uid)
+            .collect();
+        for uid in initial_uids {
+            let events = ctx.on_enter_fight(uid);
+            for e in &events {
+                if let Some(step) = apply_event(e, &mut ctx) {
+                    steps.push(step);
+                }
+            }
+        }
+        steps
     };
     steps = steps.into_iter().flat_map(split_step_by_effect_limit).collect();
 

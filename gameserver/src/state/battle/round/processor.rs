@@ -28,6 +28,7 @@ pub async fn process_round(
 ) -> Result<FightRound> {
     let mut deck_mgr = std::mem::take(&mut round_ctx.fight_ctx.managers.deck_mgr);
     round_ctx.fight_ctx.managers.cloth_mgr.reset();
+
     let replay_wave_snapshots = replay_wave_snapshots.unwrap_or(&[]);
     let replay_wave_snapshot_applied = !replay_wave_snapshots.is_empty();
     let replay_wave_snapshot_target_wave = replay_wave_snapshots

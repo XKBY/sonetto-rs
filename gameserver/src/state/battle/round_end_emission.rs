@@ -26,7 +26,7 @@ use crate::state::battle::{
     heroes::rubuska,
     manager::{
         buff_mgr::next_buff_uid_for_target,
-        round_mgr::{apply_step_and_maybe_sync, collect_battle_rule_skills, skill_has_no_act_round_condition},
+        round_mgr::{apply_step_and_maybe_sync, skill_has_no_act_round_condition},
         traits::Manager,
     },
     mechanics::bloodtithe,
@@ -34,6 +34,7 @@ use crate::state::battle::{
         collector::CollectedPassives, steps::skill::execute_skill as execute_passive_skill,
     },
     round::step_shape::build_effect_step,
+    rule::collect::collect_battle_rule_skills,
     step_walker,
     steps::broadcast,
 };
@@ -110,7 +111,7 @@ pub(crate) fn collect_attacker_round_end_broadcast(
 ) -> Vec<ActEffect> {
     let mut broadcast = if preview_round_end_tick || ctx.fight.cur_round.unwrap_or(1) == 1 {
         let buff_snapshot = ctx.managers.buff_mgr.clone();
-        ctx.managers.buff_mgr.on_round_end();
+        ctx.managers.buff_mgr.tick_round_end();
         let out = broadcast::collect_buff_tick_broadcast(ctx, true);
         ctx.managers.buff_mgr = buff_snapshot;
         out

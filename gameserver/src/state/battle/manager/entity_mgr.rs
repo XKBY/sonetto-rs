@@ -147,6 +147,11 @@ impl EntityMgr {
         Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
     }
 
+    pub fn on_compose_card(&mut self, uid: i64) -> Option<FightStep> {
+        self.add_ex_point(uid, 1);
+        Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
+    }
+
     pub fn set_recent_decr_ex_point(&mut self, uid: i64, amount: i32) {
         self.recent_decr_ex_point.insert(uid, amount.max(0));
     }
@@ -218,7 +223,7 @@ impl EntityMgr {
 }
 
 impl Manager for EntityMgr {
-    fn on_round_end(&mut self) {
+    fn on_round_end(&mut self, _fight: &mut Fight) {
         self.recent_decr_ex_point.clear();
     }
 

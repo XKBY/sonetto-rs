@@ -40,8 +40,9 @@ pub async fn build_fight(
         progress_list: vec![],
     };
 
-    let passives = collect_battle_passives(ctx.battle_id);
-    inject_battle_passives(&mut fight, &passives);
+    //Use rule_mgr to manage battle passives
+    //let passives = collect_battle_passives(ctx.battle_id);
+    //inject_battle_passives(&mut fight, &passives);
 
     Ok(BuiltFight { fight })
 }

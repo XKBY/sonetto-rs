@@ -3,6 +3,7 @@ use crate::state::battle::{
     deck::DeckManager,
     event::Event,
 };
+use super::traits::Manager;
 use rand::rngs::StdRng;
 use sonettobuf::{Fight, FightStep};
 use std::collections::HashMap;
@@ -20,45 +21,6 @@ impl ClothMgr {
         let next = (current + delta).clamp(0, cloth.max_power.max(0));
         tracing::info!("[cloth] power {} -> {} (delta={})", current, next, delta);
         attacker.power = Some(next);
-    }
-
-    pub fn on_battle_start(&self, fight: &mut Fight) {
-        let Some(cloth) = active_cloth_level(fight) else { return };
-        if let Some(attacker) = fight.attacker.as_mut() {
-            if attacker.power.is_none() {
-                let initial = cloth.initial.max(0);
-                tracing::info!("[cloth] battle_start power={}", initial);
-                attacker.power = Some(initial);
-            }
-        }
-    }
-
-    pub fn on_round_end(&self, fight: &mut Fight) {
-        let Some(cloth) = active_cloth_level(fight) else { return };
-        let round_index = fight.cur_round.unwrap_or(1);
-        let delta = parse_cloth_recover_delta(&cloth.recover, round_index);
-        tracing::info!("[cloth] round_end round={} recover_delta={}", round_index, delta);
-        if delta != 0 {
-            self.apply_power(fight, delta);
-        }
-    }
-
-    pub fn on_use_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
-        let delta = active_cloth_level(fight).map_or(0, |c| c.r#use.max(0));
-        if delta != 0 { events.push(Event::PowerChange { delta }); }
-        events
-    }
-
-    pub fn on_move_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
-        let delta = active_cloth_level(fight).map_or(0, |c| c.r#move.max(0));
-        if delta != 0 { events.push(Event::PowerChange { delta }); }
-        events
-    }
-
-    pub fn on_compose_card(&self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
-        let delta = active_cloth_level(fight).map_or(0, |c| c.compose.max(0));
-        if delta != 0 { events.push(Event::PowerChange { delta }); }
-        events
     }
 
     pub fn reset(&mut self) {
@@ -95,5 +57,46 @@ impl ClothMgr {
         };
 
         Ok(steps)
+    }
+}
+
+impl Manager for ClothMgr {
+    fn on_battle_start(&mut self, fight: &mut Fight) {
+        let Some(cloth) = active_cloth_level(fight) else { return };
+        if let Some(attacker) = fight.attacker.as_mut() {
+            if attacker.power.is_none() {
+                let initial = cloth.initial.max(0);
+                tracing::info!("[cloth] battle_start power={}", initial);
+                attacker.power = Some(initial);
+            }
+        }
+    }
+
+    fn on_round_end(&mut self, fight: &mut Fight) {
+        let Some(cloth) = active_cloth_level(fight) else { return };
+        let round_index = fight.cur_round.unwrap_or(1);
+        let delta = parse_cloth_recover_delta(&cloth.recover, round_index);
+        tracing::info!("[cloth] round_end round={} recover_delta={}", round_index, delta);
+        if delta != 0 {
+            self.apply_power(fight, delta);
+        }
+    }
+
+    fn on_use_card(&mut self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.r#use.max(0));
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
+    }
+
+    fn on_move_card(&mut self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.r#move.max(0));
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
+    }
+
+    fn on_compose_card(&mut self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
+        let delta = active_cloth_level(fight).map_or(0, |c| c.compose.max(0));
+        if delta != 0 { events.push(Event::PowerChange { delta }); }
+        events
     }
 }

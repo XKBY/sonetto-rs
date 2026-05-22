@@ -7,11 +7,15 @@ use crate::state::battle::{
 
 pub fn apply_event(event: &Event, ctx: &mut FightContext) -> Option<FightStep> {
     match event {
-        Event::ExPointChange { target, delta } => {
+        Event::ExPointChange { target, delta, emit_step } => {
             ctx.managers.entity_mgr.add_ex_point(*target, *delta);
-            Some(FightStepBuilder::effect()
-                .with(ActEffectBuilder::ex_point_change(*target, *delta))
-                .build())
+            if *emit_step {
+                Some(FightStepBuilder::effect()
+                    .with(ActEffectBuilder::ex_point_change(*target, *delta))
+                    .build())
+            } else {
+                None
+            }
         }
         Event::PowerChange { delta } => {
             ctx.managers.cloth_mgr.apply_power(ctx.fight, *delta);

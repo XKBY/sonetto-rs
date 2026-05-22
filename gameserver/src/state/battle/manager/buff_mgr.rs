@@ -628,7 +628,19 @@ impl BuffMgr {
 }
 
 impl Manager for BuffMgr {
-    fn on_round_end(&mut self) {
+    fn on_round_end(&mut self, _fight: &mut Fight) {
+        self.tick_round_end();
+    }
+
+    fn on_battle_end(&mut self) {
+        self.active.clear();
+        self.teammate_injury_not_reset.clear();
+        self.skill_slot_round_usage.clear();
+    }
+}
+
+impl BuffMgr {
+    pub fn tick_round_end(&mut self) {
         let cfg = config::configs::get();
         for buffs in self.active.values_mut() {
             for b in buffs.iter_mut() {
@@ -658,12 +670,6 @@ impl Manager for BuffMgr {
                 !was_timed || b.duration != 0
             });
         }
-    }
-
-    fn on_battle_end(&mut self) {
-        self.active.clear();
-        self.teammate_injury_not_reset.clear();
-        self.skill_slot_round_usage.clear();
     }
 }
 

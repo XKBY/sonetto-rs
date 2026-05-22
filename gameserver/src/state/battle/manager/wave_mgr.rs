@@ -76,11 +76,28 @@ impl WaveMgr {
         self.advance_wave_state(ctx)?;
 
         let fight = ctx.fight.clone();
+        let new_entity_uids: Vec<i64> = fight
+            .defender
+            .as_ref()
+            .into_iter()
+            .flat_map(|d| d.entitys.iter())
+            .filter_map(|e| e.uid)
+            .collect();
+
         let mut steps = vec![
             FightStepBuilder::effect()
                 .with(ActEffectBuilder::new_change_wave(fight.clone()))
                 .build(),
         ];
+
+        for uid in new_entity_uids {
+            let events = ctx.on_enter_fight(uid);
+            for e in &events {
+                if let Some(step) = crate::state::battle::event::apply::apply_event(e, ctx) {
+                    steps.push(step);
+                }
+            }
+        }
 
         if let Some(step) = build_active_circle_enemy_buff_step(&fight, ctx, executor) {
             steps.push(step);

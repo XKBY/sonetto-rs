@@ -34,6 +34,7 @@ use super::super::{
         },
     },
     round_end_emission,
+    rule::collect::collect_battle_rule_skills,
     skill::SkillExecutor,
     skill::{
         cache::resolve_skill_effect_id,
@@ -824,6 +825,7 @@ where
                 })
                 .unwrap_or_default();
 
+            /* Use rule_mgr to manage battle passives
             // Skills with addition_rule prefix=3 are defender-side rules
             // (e.g. boss state cycle 530000151). Even though attackers
             // carry them in passive_skill (LIVE-supplied), LIVE engine
@@ -898,6 +900,7 @@ where
                     out.push(build_effect_step(wrapped));
                 }
             }
+            */
 
             out
         }
@@ -1009,48 +1012,6 @@ fn uid_on_attacker_side(fight: &Fight, uid: i64) -> bool {
                 .any(|e| e.uid == Some(uid))
         })
         .unwrap_or(false)
-}
-
-pub(crate) fn collect_battle_rule_skills(fight: &Fight) -> std::collections::HashSet<i32> {
-    let mut out = std::collections::HashSet::new();
-    let episode_id = fight.episode_id.unwrap_or(0);
-    let cfg = config::configs::get();
-    let Some(battle_id) = cfg
-        .episode
-        .iter()
-        .find(|e| e.id == episode_id)
-        .map(|e| e.battle_id)
-    else {
-        return out;
-    };
-    let Some(battle) = cfg.battle.iter().find(|b| b.id == battle_id) else {
-        return out;
-    };
-    if battle.addition_rule.is_empty() {
-        return out;
-    }
-
-    for entry in battle.addition_rule.split('|') {
-        let mut parts = entry.split('#');
-        let Some(prefix) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
-            continue;
-        };
-        let Some(id) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
-            continue;
-        };
-        if !(1..=3).contains(&prefix) {
-            continue;
-        }
-        let Some(rule) = cfg.rule.iter().find(|r| r.id == id) else {
-            continue;
-        };
-        let sid = rule.effect.parse::<i32>().ok().unwrap_or(0);
-        if sid != 0 {
-            out.insert(sid);
-        }
-    }
-
-    out
 }
 
 pub(crate) fn first_alive_defender_uid(fight: &Fight) -> Option<i64> {

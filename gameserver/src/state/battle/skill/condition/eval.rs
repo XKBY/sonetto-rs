@@ -5,7 +5,8 @@ use super::super::{
     phase::PhaseFilter,
     targets::TargetResolver,
 };
-use super::{self as condition, ConditionEval};
+use super::ConditionEval;
+use super::{eval_trigger_state_condition, TriggerStateConditionContext, TriggerStateConditionOptions};
 use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     mechanics::bloodtithe::BloodtitheState,
@@ -26,13 +27,13 @@ pub struct BehaviorConditionCtx<'a> {
 /// Returns whether behavior slot `b` passes its condition given the current fight state.
 pub fn eval_behavior_condition(ctx: &BehaviorConditionCtx<'_>, b: &ResolvedBehavior) -> bool {
     if let PhaseFilter::Combat(event) = ctx.phase {
-        let combat_raw = condition::eval_trigger_state_condition(
+        let combat_raw = eval_trigger_state_condition(
             &b.condition,
-            condition::TriggerStateConditionContext {
+            TriggerStateConditionContext {
                 event,
                 owner_uid: ctx.caster_uid,
             },
-            condition::TriggerStateConditionOptions {
+            TriggerStateConditionOptions {
                 include_none: true,
                 include_combat_none: true,
                 ..Default::default()

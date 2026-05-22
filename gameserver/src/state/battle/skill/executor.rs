@@ -7,6 +7,7 @@ use std::time::Instant;
 use super::execution_guards::{DepthGuard, ReentryGuard, SkillContextGuard};
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext},
+    event::events_to_act_effects,
     fight::defender::Defender,
     fight_step::ActEffectBuilder,
     manager::{
@@ -475,7 +476,7 @@ impl SkillExecutor {
             }
         }
 
-        let dead_effects = collect_dead_effects_after_damage(&sim_fight, &all_effects);
+        let dead_effects = collect_dead_effects_after_damage(&sim_fight, managers, &all_effects);
         if !dead_effects.is_empty() {
             all_effects.extend(dead_effects);
         }
@@ -1017,7 +1018,7 @@ fn inject_empathy_storage_injuries(
     )
 }
 
-fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Vec<ActEffect> {
+fn collect_dead_effects_after_damage(fight: &Fight, managers: &mut Managers, effects: &[ActEffect]) -> Vec<ActEffect> {
     let mut states: HashMap<i64, (i32, i32)> = HashMap::new();
     let mut dead_targets: HashSet<i64> = effects
         .iter()
@@ -1068,12 +1069,7 @@ fn collect_dead_effects_after_damage(fight: &Fight, effects: &[ActEffect]) -> Ve
 
     killed_in_order
         .into_iter()
-        .flat_map(|target_id| {
-            [
-                ActEffectBuilder::dead(target_id),
-                ActEffectBuilder::remove_entity_cards(target_id, Some(1)),
-            ]
-        })
+        .flat_map(|target_id| events_to_act_effects(managers.on_dead(fight, target_id)))
         .collect()
 }
 

@@ -80,31 +80,38 @@ impl<'a> FightContext<'a> {
     }
 
     pub fn on_round_end(&mut self) {
-        self.managers.buff_mgr.on_round_end();
-        self.managers.calculate_mgr.on_round_end();
+        self.managers.entity_mgr.on_round_end(self.fight);
         self.clear_round_active_card_casts();
         self.sync();
-        self.managers.cloth_mgr.on_round_end(self.fight);
+        self.managers.on_round_end(self.fight);
     }
 
     pub fn on_use_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardPlayed { card, .. } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
-        self.managers.cloth_mgr.on_use_card(self.fight, events)
+        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
+        self.managers.on_use_card(self.fight, events)
     }
 
     pub fn on_move_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardMoved { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
-        self.managers.cloth_mgr.on_move_card(self.fight, events)
+        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
+        self.managers.on_move_card(self.fight, events)
     }
 
     pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardComposed { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = vec![Event::ExPointChange { target: uid, delta: 1 }];
-        self.managers.cloth_mgr.on_compose_card(self.fight, events)
+        let events = vec![Event::ExPointChange { target: uid, delta: 1, emit_step: true }];
+        self.managers.on_compose_card(self.fight, events)
+    }
+
+    pub fn on_enter_fight(&mut self, entity_uid: i64) -> Vec<Event> {
+        self.managers.on_enter_fight(self.fight, entity_uid)
+    }
+
+    pub fn on_dead(&mut self, entity_uid: i64) -> Vec<Event> {
+        self.managers.on_dead(self.fight, entity_uid)
     }
 }

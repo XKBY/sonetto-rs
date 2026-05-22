@@ -101,6 +101,7 @@ pub(crate) async fn run(
         deck_mgr.player_deck.len() as i32
     ));
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
+        let sub_uid = sub_entity.uid.unwrap_or(0);
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffectBuilder::change_hero(
@@ -108,6 +109,14 @@ pub(crate) async fn run(
                 ))
                 .build(),
         );
+        if sub_uid != 0 {
+            let events = ctx.on_enter_fight(sub_uid);
+            for e in &events {
+                if let Some(step) = crate::state::battle::event::apply::apply_event(e, ctx) {
+                    steps.push(step);
+                }
+            }
+        }
     }
     let defender_bootstrap_start = steps.len();
     apply_passive_phase(
@@ -208,7 +217,7 @@ pub(crate) async fn run(
         // without committing buff_mgr state.
         let mut broadcast = if ctx.fight.cur_round.unwrap_or(1) == 1 {
             let buff_snapshot = ctx.managers.buff_mgr.clone();
-            ctx.managers.buff_mgr.on_round_end();
+            ctx.managers.buff_mgr.tick_round_end();
             let out = broadcast::collect_buff_tick_broadcast(ctx, false);
             ctx.managers.buff_mgr = buff_snapshot;
             out
@@ -311,6 +320,7 @@ pub(crate) async fn run(
             .build(),
     );
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
+        let sub_uid = sub_entity.uid.unwrap_or(0);
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffectBuilder::change_hero(
@@ -318,6 +328,14 @@ pub(crate) async fn run(
                 ))
                 .build(),
         );
+        if sub_uid != 0 {
+            let events = ctx.on_enter_fight(sub_uid);
+            for e in &events {
+                if let Some(step) = crate::state::battle::event::apply::apply_event(e, ctx) {
+                    steps.push(step);
+                }
+            }
+        }
     }
     if let Some(caster_uid) = first_alive_defender_uid(ctx.fight)
         && state.enemy_skill_actors.contains(&caster_uid)

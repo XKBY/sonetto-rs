@@ -1,7 +1,7 @@
 pub mod apply;
 
 use sonettobuf::{ActEffect, BeginRoundOper, CardInfo, FightHurtInfo as HurtInfo};
-use crate::state::battle::event_queue::SkillEmitKind;
+use crate::state::battle::{event_queue::SkillEmitKind, fight_step::ActEffectBuilder};
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -26,7 +26,7 @@ pub enum Event {
     },
     Heal     { target: i64, amount: i32, from: i64 },
     HealCrit { target: i64, amount: i32, from: i64 },
-    ExPointChange { target: i64, delta: i32 },
+    ExPointChange { target: i64, delta: i32, emit_step: bool },
     PowerChange   { delta: i32 },
     BloodpoolValueChange { team_type: i32, target: i64, delta: i32 },
     BloodpoolMaxChange   { team_type: i32, max: i32 },
@@ -41,4 +41,15 @@ pub enum Event {
     CardMoved            { card: CardInfo },
     CardComposed         { card: CardInfo },
     SimulateDissolveCard { oper: BeginRoundOper },
+    EnterBattle          { entity_uid: i64 },
+    Dead                 { entity_uid: i64 },
+    RemoveEntityCards    { entity_uid: i64 },
+}
+
+pub fn events_to_act_effects(events: Vec<Event>) -> Vec<ActEffect> {
+    events.into_iter().filter_map(|e| match e {
+        Event::Dead { entity_uid } => Some(ActEffectBuilder::dead(entity_uid)),
+        Event::RemoveEntityCards { entity_uid } => Some(ActEffectBuilder::remove_entity_cards(entity_uid, Some(1))),
+        _ => None,
+    }).collect()
 }

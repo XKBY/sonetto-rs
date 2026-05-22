@@ -11,6 +11,7 @@ use crate::state::battle::{
     passives::collector::CollectedPassives,
     passives::steps::skill::execute_skill,
     round::step_shape::build_effect_step,
+    rule::collect::collect_battle_rule_skills,
     skill::cache::resolve_skill_effect_id,
     skill::classification::{
         CombatPassiveScanMode, has_combat_reactive_condition, has_injury_reactive_condition,
@@ -936,47 +937,6 @@ pub(crate) fn run_combat_passives_pass(
     }
 
     steps
-}
-
-fn collect_battle_rule_skills(fight: &Fight) -> Vec<i32> {
-    let cfg = config::configs::get();
-    let episode_id = fight.episode_id.unwrap_or(0);
-    let Some(battle_id) = cfg
-        .episode
-        .iter()
-        .find(|e| e.id == episode_id)
-        .map(|e| e.battle_id)
-    else {
-        return vec![];
-    };
-    let Some(battle) = cfg.battle.iter().find(|b| b.id == battle_id) else {
-        return vec![];
-    };
-    if battle.addition_rule.is_empty() {
-        return vec![];
-    }
-
-    let mut out = Vec::new();
-    for entry in battle.addition_rule.split('|') {
-        let mut parts = entry.split('#');
-        let Some(prefix) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
-            continue;
-        };
-        if !(1..=3).contains(&prefix) {
-            continue;
-        }
-        let Some(rule_id) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
-            continue;
-        };
-        let Some(rule) = cfg.rule.iter().find(|r| r.id == rule_id) else {
-            continue;
-        };
-        let sid = rule.effect.parse::<i32>().ok().unwrap_or(0);
-        if sid > 0 && !out.contains(&sid) {
-            out.push(sid);
-        }
-    }
-    out
 }
 
 fn skill_has_has_buff_id_condition(skill_id: i32) -> bool {
