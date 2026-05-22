@@ -7,6 +7,7 @@ use super::action::{BuffActCtx, BuffStage, DispatchCtx, run_registered_handler};
 use crate::state::battle::event::{events_to_act_effects};
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::{buff_mgr::BuffInstance, fight_data_mgr::Managers};
+use crate::state::battle::context::hook_call;
 use crate::state::battle::skill::get_entity;
 use crate::state::battle::types::effects::EffectType;
 
@@ -242,7 +243,7 @@ fn append_round_end_dot_dead_effects(fight: &Fight, managers: &mut Managers, eff
     }
 
     effects.extend(killed_in_order.into_iter().flat_map(|target_id| {
-        events_to_act_effects(managers.on_dead(fight, target_id))
+        events_to_act_effects(hook_call::on_dead(managers, fight, target_id))
     }));
 }
 

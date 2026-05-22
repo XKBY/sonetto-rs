@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use super::execution_guards::{DepthGuard, ReentryGuard, SkillContextGuard};
 use super::super::{
-    context::{FightContext, behavior_context::BehaviorContext},
+    context::{FightContext, behavior_context::BehaviorContext, hook_call},
     event::events_to_act_effects,
     fight::defender::Defender,
     fight_step::ActEffectBuilder,
@@ -1069,7 +1069,7 @@ fn collect_dead_effects_after_damage(fight: &Fight, managers: &mut Managers, eff
 
     killed_in_order
         .into_iter()
-        .flat_map(|target_id| events_to_act_effects(managers.on_dead(fight, target_id)))
+        .flat_map(|target_id| events_to_act_effects(hook_call::on_dead(managers, fight, target_id)))
         .collect()
 }
 

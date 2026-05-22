@@ -1,5 +1,5 @@
 use crate::state::battle::event::Event;
-use crate::state::battle::manager::fight_data_mgr::Managers;
+use crate::state::battle::manager::{fight_data_mgr::Managers, traits::Manager};
 use crate::state::battle::mechanics::Mechanics;
 use super::hook_call;
 use crate::state::battle::skill::{PhaseFilter, TriggerState};
