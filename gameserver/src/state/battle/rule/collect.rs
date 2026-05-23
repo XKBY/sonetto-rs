@@ -35,10 +35,18 @@ pub(crate) fn collect_rules(fight: &Fight) -> Vec<(i32, i32)> {
             if !(1..=3).contains(&prefix) {
                 continue;
             }
-            let Some(skill_id) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
+            let Some(rule_id) = parts.next().and_then(|v| v.parse::<i32>().ok()) else {
                 continue;
             };
-            let effect_id = resolve_skill_effect_id(skill_id);
+            let Some(rule) = cfg.rule.iter().find(|r| r.id == rule_id) else {
+                tracing::info!("collect_rules: no rule found for id={}", rule_id);
+                continue;
+            };
+            let effect_raw = rule.effect.parse::<i32>().ok().unwrap_or(0);
+            if effect_raw == 0 {
+                continue;
+            }
+            let effect_id = resolve_skill_effect_id(effect_raw);
             out.push((prefix, effect_id));
         }
     }
