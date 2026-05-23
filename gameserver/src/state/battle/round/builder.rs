@@ -18,6 +18,8 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
         let mut rng = StdRng::seed_from_u64(seed);
         let mut ctx = fight_mgr.ctx_with_rng(&mut rng);
         let mut steps = execute_battle_start_passives(&mut ctx, battle_id);
+
+        // ENTER_FIGHT hook
         let initial_uids: Vec<i64> = ctx.fight
             .attacker.iter().chain(ctx.fight.defender.iter())
             .flat_map(|t| t.entitys.iter().chain(t.sub_entitys.iter()))
@@ -30,10 +32,6 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
         steps
     };
     steps = steps.into_iter().flat_map(split_step_by_effect_limit).collect();
-
-    for (uid, hp) in &fight_mgr.managers.entity_mgr.current_hp {
-        tracing::warn!("post-passive hp: uid={} hp={}", uid, hp);
-    }
 
     sync_to_fight(&mut fight_mgr.fight, &fight_mgr.managers.entity_mgr);
 
@@ -71,7 +69,12 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
 
     let ai_use_cards = {
         let mut rng = StdRng::seed_from_u64(seed);
-        let cards = select_enemy_cards(&mut fight_mgr.managers.deck_mgr, &fight_mgr.fight, &mut rng);
+        let cards = select_enemy_cards(
+            &mut fight_mgr.managers.deck_mgr,
+            &fight_mgr.fight,
+            &fight_mgr.managers.entity_mgr,
+            &mut rng,
+        );
         fight_mgr.managers.deck_mgr.next_ai_use_cards = cards.clone();
         cards
     };

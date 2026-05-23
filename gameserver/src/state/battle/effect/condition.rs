@@ -1,83 +1,72 @@
-use super::condition_eval::ConditionEval;
-use super::condition_type::ConditionType;
-use super::target::Target;
-
 mod dead;
 mod enter_fight;
 mod teammate_dead;
 
-pub use dead::Checker;
+use super::condition_eval::ConditionEval;
+use super::condition_type::{ConditionType, condition_type};
+use super::target::Target;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Hook {
     Dead,
     EnterFight,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConditionOp {
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone)]
 pub struct Condition {
     pub hook: Hook,
-    pub ids: Vec<Vec<i32>>,
-    check: Checker,
+    pub cond_type: ConditionType,
+    pub target: Target,
 }
 
 impl Condition {
-    pub fn check(&self, eval: ConditionEval<'_>) -> bool {
-        (self.check)(eval)
+    pub fn check(&self, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
+        eval_condition(self.cond_type, self.target, owner_uid, eval)
     }
 }
 
-fn parse_ids(raw: &str) -> (Vec<Vec<i32>>, bool) {
-    let is_and = raw.contains('&');
-    let sep = if is_and { '&' } else { '|' };
-    let ids = raw.split(sep)
-        .map(|seg| seg.split('#').filter_map(|v| v.parse().ok()).collect())
-        .filter(|v: &Vec<i32>| !v.is_empty())
-        .collect();
-    (ids, is_and)
-}
-
-fn resolve(cond_type: ConditionType, target: Target, owner_uid: i64) -> Option<(Hook, Checker)> {
+fn eval_condition(cond_type: ConditionType, target: Target, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
     match cond_type {
-        ConditionType::_8Dead => Some(dead::resolve(target, owner_uid)),
-        ConditionType::_17TeammateDead => Some(teammate_dead::resolve(owner_uid)),
-        ConditionType::_5EnterFight => Some(enter_fight::resolve(target, owner_uid)),
+        ConditionType::_8Dead => dead::check(target, owner_uid, eval),
+        ConditionType::_17TeammateDead => teammate_dead::check(owner_uid, eval),
+        ConditionType::_5EnterFight => enter_fight::check(target, owner_uid, eval),
         other => {
             tracing::warn!("unimplemented condition type: {:?}", other);
-            None
+            false
         }
     }
 }
 
-pub fn parse(raw: &str, cond_target: i32, owner_uid: i64) -> Option<Condition> {
-    let (ids, is_and) = parse_ids(raw);
-    if ids.is_empty() { return None; }
+fn hook_for_type(cond_type: ConditionType) -> Option<Hook> {
+    match cond_type {
+        ConditionType::_8Dead => Some(dead::HOOK),
+        ConditionType::_17TeammateDead => Some(teammate_dead::HOOK),
+        ConditionType::_5EnterFight => Some(enter_fight::HOOK),
+        _ => None,
+    }
+}
 
+/// Parses a condition raw string into individual `Condition`s and the combining op.
+/// Returns `None` if no known condition types are found.
+pub fn parse(raw: &str, cond_target: i32, _owner_uid: i64) -> Option<(Vec<Condition>, ConditionOp)> {
+    if raw.is_empty() { return None; }
+    let op = if raw.contains('&') { ConditionOp::And } else { ConditionOp::Or };
+    let sep = if op == ConditionOp::And { '&' } else { '|' };
     let target = Target::from_id(cond_target);
-
-    let resolved: Vec<(Hook, Checker)> = ids
-        .iter()
+    let conditions: Vec<Condition> = raw.split(sep)
         .filter_map(|seg| {
-            let cond_type = super::condition_type::condition_type(*seg.first()?)?;
-            resolve(cond_type, target, owner_uid)
+            let id: i32 = seg.split('#').next()?.parse().ok()?;
+            let cond_type = condition_type(id)?;
+            let hook = hook_for_type(cond_type)?;
+            Some(Condition { hook, cond_type, target })
         })
         .collect();
-
-    if resolved.is_empty() { return None; }
-
-    let hook = resolved.into_iter().fold(
-        (None::<Hook>, Vec::<Checker>::new()),
-        |(hook, mut checkers), (h, c)| {
-            checkers.push(c);
-            (hook.or(Some(h)), checkers)
-        },
-    );
-    let (hook, checkers) = (hook.0?, hook.1);
-
-    let check: Checker = if is_and {
-        Box::new(move |eval| checkers.iter().all(|f| f(eval)))
-    } else {
-        Box::new(move |eval| checkers.iter().any(|f| f(eval)))
-    };
-
-    Some(Condition { hook, ids, check })
+    if conditions.is_empty() { return None; }
+    Some((conditions, op))
 }

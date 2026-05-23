@@ -46,6 +46,7 @@ pub enum Event {
     RemoveEntityCards    { entity_uid: i64 },
     BuffAdd              { target_uid: i64, buff_id: i32 },
     RemoveBuff           { target_uid: i64, buff_id: i32 },
+    AddActionPoint       { entity_uid: i64, delta: i32 },
 }
 
 pub fn events_to_act_effects(events: Vec<Event>) -> Vec<ActEffect> {

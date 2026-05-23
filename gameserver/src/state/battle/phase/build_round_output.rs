@@ -65,7 +65,12 @@ pub(crate) fn build_round_output(
     let attacker_ac = ctx.managers.entity_mgr.get_ac_point(true);
 
     let mut rng_for_ai = StdRng::from_entropy();
-    deck_mgr.next_ai_use_cards = ai::select_enemy_cards(deck_mgr, ctx.fight, &mut rng_for_ai);
+    deck_mgr.next_ai_use_cards = ai::select_enemy_cards(
+        deck_mgr,
+        ctx.fight,
+        &ctx.managers.entity_mgr,
+        &mut rng_for_ai,
+    );
     let next_ai_use_cards = deck_mgr.next_ai_use_cards.clone();
 
     let result = FightRound {

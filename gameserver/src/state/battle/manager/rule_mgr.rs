@@ -5,7 +5,7 @@ use super::traits::Manager;
 use super::fight_data_mgr::Managers;
 use crate::state::battle::{effect, event::Event};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RuleMgr {
     pub effects: Vec<effect::SkillEffect>,
 }
@@ -14,10 +14,6 @@ impl std::fmt::Debug for RuleMgr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuleMgr").field("effects_count", &self.effects.len()).finish()
     }
-}
-
-impl Clone for RuleMgr {
-    fn clone(&self) -> Self { Self::default() }
 }
 
 fn all_entity_uids(fight: &Fight) -> Vec<i64> {
@@ -50,16 +46,18 @@ impl RuleMgr {
         Self { effects }
     }
 
-    pub fn on_enter_fight(effects: &[effect::SkillEffect], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        effects.iter().flat_map(|e| {
+    pub fn on_enter_fight(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.rule_mgr.effects.clone();
+        effects.into_iter().flat_map(|mut e| {
             let evs = e.on_enter_fight(fight, managers, entity_uid);
             for ev in &evs { tracing::info!("rule_mgr entity={} event={:?}", entity_uid, ev); }
             evs
         }).collect()
     }
 
-    pub fn on_dead(effects: &[effect::SkillEffect], fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        effects.iter().flat_map(|e| e.on_dead(fight, managers, entity_uid)).collect()
+    pub fn on_dead(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.rule_mgr.effects.clone();
+        effects.into_iter().flat_map(|mut e| e.on_dead(fight, managers, entity_uid)).collect()
     }
 }
 

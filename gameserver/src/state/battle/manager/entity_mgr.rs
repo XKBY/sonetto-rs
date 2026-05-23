@@ -2,6 +2,7 @@ use sonettobuf::{Fight, FightEntityInfo, FightExPointInfo, FightStep};
 use std::collections::{HashMap, HashSet};
 
 use super::super::{
+    event::Event,
     fight_step::{ActEffectBuilder, FightStepBuilder},
     types::ex_point::ExPointType,
 };
@@ -217,9 +218,10 @@ impl EntityMgr {
         self.action_points.insert(uid, val);
     }
 
-    pub fn add_action_point(&mut self, uid: i64, delta: i32) {
+    pub fn add_action_point(&mut self, uid: i64, delta: i32) -> Event {
         let v = self.action_points.entry(uid).or_insert(0);
         *v += delta;
+        Event::AddActionPoint { entity_uid: uid, delta }
     }
 
     #[allow(dead_code)]
@@ -252,6 +254,11 @@ impl EntityMgr {
 }
 
 impl Manager for EntityMgr {
+    fn on_enter_fight(&mut self, _fight: &Fight, entity_uid: i64) -> Vec<crate::state::battle::event::Event> {
+        self.set_action_point(entity_uid, 1);
+        vec![]
+    }
+
     fn on_round_end(&mut self, _fight: &mut Fight) {
         self.recent_decr_ex_point.clear();
     }

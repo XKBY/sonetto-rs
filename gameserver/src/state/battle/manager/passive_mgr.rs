@@ -47,15 +47,21 @@ impl PassiveMgr {
         self.map.get(&uid).map(Vec::as_slice).unwrap_or(&[])
     }
 
-    pub fn on_enter_fight(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.get(entity_uid).iter().flat_map(|e| {
+    pub fn get_mut(&mut self, uid: i64) -> &mut [SkillEffect] {
+        self.map.get_mut(&uid).map(Vec::as_mut_slice).unwrap_or(&mut [])
+    }
+
+    pub fn on_enter_fight(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
+        effects.into_iter().flat_map(|mut e| {
             let evs = e.on_enter_fight(fight, managers, entity_uid);
             for ev in &evs { tracing::info!("passive_mgr entity={} event={:?}", entity_uid, ev); }
             evs
         }).collect()
     }
 
-    pub fn on_dead(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.get(entity_uid).iter().flat_map(|e| e.on_dead(fight, managers, entity_uid)).collect()
+    pub fn on_dead(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
+        effects.into_iter().flat_map(|mut e| e.on_dead(fight, managers, entity_uid)).collect()
     }
 }

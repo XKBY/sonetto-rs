@@ -5,11 +5,13 @@ use sonettobuf::{CardInfo, Fight};
 use crate::state::battle::{
     card::{apply_card_upgrades, skill_level},
     deck::DeckManager,
+    manager::entity_mgr::EntityMgr,
 };
 
 pub(crate) fn select_enemy_cards(
     deck_mgr: &mut DeckManager,
     fight: &Fight,
+    entity_mgr: &EntityMgr,
     rng: &mut StdRng,
 ) -> Vec<CardInfo> {
     let mut ai_use_cards: Vec<CardInfo> = Vec::new();
@@ -22,7 +24,7 @@ pub(crate) fn select_enemy_cards(
             .filter_map(|e| e.ex_skill)
             .filter(|&id| id != 0)
             .collect();
-        let enemy_ap = entities.len();
+        let enemy_ap = entity_mgr.get_ac_point(false).max(0) as usize;
         for _ in 0..enemy_ap {
             if deck_mgr.enemy_hand.is_empty() { break; }
             let best_pos = deck_mgr.enemy_hand.iter().enumerate()
