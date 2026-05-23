@@ -377,7 +377,7 @@ pub fn parse_behavior(raw: &str) -> BehaviorType {
         },
         _ => {
             if !behavior_type.is_empty() {
-                tracing::warn!("Unhandled behavior type: {} (id={})", behavior_type, id);
+                //tracing::warn!("Unhandled behavior type: {} (id={})", behavior_type, id);
             }
             BehaviorType::Unknown {
                 raw: raw.to_string(),

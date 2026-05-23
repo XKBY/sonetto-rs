@@ -6,6 +6,9 @@ mod dead;
 mod enter_fight;
 mod teammate_dead;
 
+pub use dead::Checker;
+
+#[derive(Debug)]
 pub enum Hook {
     Dead,
     EnterFight,
@@ -14,7 +17,7 @@ pub enum Hook {
 pub struct Condition {
     pub hook: Hook,
     pub ids: Vec<Vec<i32>>,
-    check: Box<dyn Fn(ConditionEval<'_>) -> bool + Send + Sync>,
+    check: Checker,
 }
 
 impl Condition {
@@ -23,7 +26,6 @@ impl Condition {
     }
 }
 
-// Assumption: No mixed & and | in any condition string
 fn parse_ids(raw: &str) -> (Vec<Vec<i32>>, bool) {
     let is_and = raw.contains('&');
     let sep = if is_and { '&' } else { '|' };
@@ -34,19 +36,14 @@ fn parse_ids(raw: &str) -> (Vec<Vec<i32>>, bool) {
     (ids, is_and)
 }
 
-fn make_checker(
-    cond_type: ConditionType,
-    params: Vec<i32>,
-    target: Target,
-    owner_uid: i64,
-) -> Box<dyn Fn(ConditionEval<'_>) -> bool + Send + Sync> {
+fn resolve(cond_type: ConditionType, target: Target, owner_uid: i64) -> Option<(Hook, Checker)> {
     match cond_type {
-        ConditionType::Dead => dead::make_checker(target, owner_uid),
-        ConditionType::TeammateDead => teammate_dead::make_checker(owner_uid),
-        ConditionType::EnterFight => enter_fight::make_checker(target, owner_uid),
-        _ => {
-            let _ = (params, target, owner_uid);
-            Box::new(|_| false)
+        ConditionType::_8Dead => Some(dead::resolve(target, owner_uid)),
+        ConditionType::_17TeammateDead => Some(teammate_dead::resolve(owner_uid)),
+        ConditionType::_5EnterFight => Some(enter_fight::resolve(target, owner_uid)),
+        other => {
+            tracing::warn!("unimplemented condition type: {:?}", other);
+            None
         }
     }
 }
@@ -57,24 +54,26 @@ pub fn parse(raw: &str, cond_target: i32, owner_uid: i64) -> Option<Condition> {
 
     let target = Target::from_id(cond_target);
 
-    let hook = ids.iter().find_map(|seg| {
-        let cond_type = super::condition_type::condition_type(*seg.first()?)?;
-        match cond_type {
-            ConditionType::Dead | ConditionType::TeammateDead => Some(Hook::Dead),
-            ConditionType::EnterFight => Some(Hook::EnterFight),
-            _ => None,
-        }
-    })?;
-
-    let checkers: Vec<Box<dyn Fn(ConditionEval<'_>) -> bool + Send + Sync>> = ids
+    let resolved: Vec<(Hook, Checker)> = ids
         .iter()
         .filter_map(|seg| {
             let cond_type = super::condition_type::condition_type(*seg.first()?)?;
-            Some(make_checker(cond_type, seg[1..].to_vec(), target, owner_uid))
+            resolve(cond_type, target, owner_uid)
         })
         .collect();
 
-    let check: Box<dyn Fn(ConditionEval<'_>) -> bool + Send + Sync> = if is_and {
+    if resolved.is_empty() { return None; }
+
+    let hook = resolved.into_iter().fold(
+        (None::<Hook>, Vec::<Checker>::new()),
+        |(hook, mut checkers), (h, c)| {
+            checkers.push(c);
+            (hook.or(Some(h)), checkers)
+        },
+    );
+    let (hook, checkers) = (hook.0?, hook.1);
+
+    let check: Checker = if is_and {
         Box::new(move |eval| checkers.iter().all(|f| f(eval)))
     } else {
         Box::new(move |eval| checkers.iter().any(|f| f(eval)))

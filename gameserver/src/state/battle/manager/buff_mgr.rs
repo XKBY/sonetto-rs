@@ -135,11 +135,32 @@ impl BuffMgr {
             ..Default::default()
         };
 
+        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy };
         let buffs = self.active_buff.entry(target_uid).or_default();
-        if let Some(existing) = buffs.iter_mut().find(|b| b.buff_id == buff_id) {
-            existing.stacks += 1;
-        } else {
-            buffs.push(Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy });
+        //TODO: correct refresh logic
+        match refresh_policy {
+            RefreshPolicy::UpdateInPlace => {
+                if let Some(existing) = buffs.iter_mut().find(|b| b.buff_id == buff_id) {
+                    existing.stacks += 1;
+                } else {
+                    buffs.push(new_buff);
+                }
+            }
+            RefreshPolicy::ReplaceOnSelfRefresh => {
+                buffs.retain(|b| b.buff_id != buff_id);
+                buffs.push(new_buff);
+            }
+            RefreshPolicy::ReplaceOnExcludedOverlap => {
+                if let Some(bt) = new_buff.buff_type.as_ref() {
+                    let excluded: Vec<i32> = bt.exclude_types
+                        .trim_start_matches("2#")
+                        .split(['，', ','])
+                        .filter_map(|v| v.trim().parse().ok())
+                        .collect();
+                    buffs.retain(|b| !excluded.contains(&b.buff_type.as_ref().map(|t| t.id).unwrap_or(0)));
+                }
+                buffs.push(new_buff);
+            }
         }
         vec![]
     }

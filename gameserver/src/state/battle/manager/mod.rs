@@ -1,4 +1,5 @@
 pub mod buff_mgr;
+pub mod passive_mgr;
 pub mod calculate_mgr;
 pub mod cloth_mgr;
 pub mod deck_mgr;

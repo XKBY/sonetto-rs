@@ -6,9 +6,9 @@
 //!   bloodtithe-aware self-life loss path. Routed through
 //!   `bloodtithe::lost_life` so the pool gain bookkeeping stays
 //!   coupled with the HP delta. Mirrors damage emissions to
-//!   `ex_point_mgr` and `shadow_cloak` (both runtime mechanics) and,
+//!   `entity_mgr` and `shadow_cloak` (both runtime mechanics) and,
 //!   in non-combat phases, also mirrors emitted ExPointAdd effects
-//!   to `ex_point_mgr` because `play_step_data` doesn't replay them
+//!   to `entity_mgr` because `play_step_data` doesn't replay them
 //!   off the combat path.
 //! * `LostAllLifeByAttr { caster_attr, caster_amount, target_attr,
 //!    target_amount }` — drop the target to a configured permille of
@@ -100,7 +100,7 @@ impl BehaviorAction for LostLife {
                     let mut event_ctx = EventContext {
                         fight: &mut synthetic_fight,
                         buff_mgr: &mut synthetic_buff_mgr,
-                        ex_point_mgr: &mut ctx.managers.entity_mgr,
+                        entity_mgr: &mut ctx.managers.entity_mgr,
                         bloodtithe: &mut synthetic_bloodtithe,
                     };
                     if let Some(routed) = drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -137,7 +137,7 @@ impl BehaviorAction for LostLife {
                 }
                 // In combat phases the emitted 111 effects are replayed later by
                 // calculate_mgr::play_effect_add_ex_point via play_step_data, so
-                // mutating ex_point_mgr here would double-apply. Battle-start /
+                // mutating entity_mgr here would double-apply. Battle-start /
                 // non-combat passive phases never hit play_step_data for LostLife,
                 // so we still need the direct mirror there.
                 if !ctx.behavior_ctx.phase.is_combat() {

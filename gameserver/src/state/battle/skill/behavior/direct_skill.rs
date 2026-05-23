@@ -219,7 +219,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     }
 
     if consume > 0 {
-        // Don't mutate ex_point_mgr directly — the ExPointChange effect
+        // Don't mutate entity_mgr directly — the ExPointChange effect
         // below is applied by calculate_mgr::play_effect_add_ex_point
         // during play_step_data. Direct mutation + replay = double-apply.
         out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, -consume));
@@ -314,7 +314,7 @@ fn execute_direct_use_big_skill(ctx: &mut ActionCtx<'_, '_>) -> Result<Vec<ActEf
     out.append(&mut ex);
 
     if refund > 0 {
-        // Don't mutate ex_point_mgr directly — calculate_mgr replays
+        // Don't mutate entity_mgr directly — calculate_mgr replays
         // the ExPointChange below. See note above on consume.
         out.push(ActEffectBuilder::ex_point_change(ctx.caster_uid, refund));
     }

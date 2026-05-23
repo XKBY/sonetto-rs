@@ -9,7 +9,7 @@ use crate::state::battle::{
 pub struct ConditionEval<'a> {
     pub fight: &'a Fight,
     pub buff_mgr: &'a BuffMgr,
-    pub ex_point_mgr: &'a EntityMgr,
+    pub entity_mgr: &'a EntityMgr,
     pub bloodtithe: &'a BloodtitheState,
     pub caster_uid: i64,
     pub target_uid: i64,

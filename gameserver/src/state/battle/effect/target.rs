@@ -22,7 +22,10 @@ impl Target {
             Target::AllAlly => ally,
             Target::Self_ => vec![owner_uid],
             Target::AllAllyNoSelf => ally.into_iter().filter(|&uid| uid != owner_uid).collect(),
-            _ => vec![],
+            other => {
+                tracing::warn!("unimplemented target variant: {:?}", other);
+                vec![]
+            }
         }
     }
 

@@ -78,11 +78,11 @@ impl BehaviorAction for AddBuff {
                 });
                 let mut synthetic_fight = Fight::default();
                 let mut synthetic_buff_mgr = BuffMgr::new();
-                let mut synthetic_ex_point_mgr = EntityMgr::default();
+                let mut synthetic_entity_mgr = EntityMgr::default();
                 let mut event_ctx = EventContext {
                     fight: &mut synthetic_fight,
                     buff_mgr: &mut synthetic_buff_mgr,
-                    ex_point_mgr: &mut synthetic_ex_point_mgr,
+                    entity_mgr: &mut synthetic_entity_mgr,
                     bloodtithe: &mut ctx.mechanics.bloodtithe,
                 };
                 // Emit BloodPoolValueChange as a side-effect sibling of the skill 162.

@@ -87,7 +87,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let mut stack: Vec<(&FightStep, usize, bool)> = vec![(step, 0, false)];
         while let Some((current, depth, inherited_bloodtithe_sync)) = stack.pop() {
@@ -123,7 +123,7 @@ impl FightCalculateDataMgr {
                     fight,
                     bloodtithe,
                     buff_mgr,
-                    ex_point_mgr,
+                    entity_mgr,
                     use_accumulator_only_bloodtithe_sync,
                 )?;
                 let _ = pre_pool;
@@ -138,7 +138,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
         use_accumulator_only_bloodtithe_sync: bool,
     ) -> Result<(), String> {
         let effect_type = EffectType::from(effect.effect_type.unwrap_or(0));
@@ -175,14 +175,14 @@ impl FightCalculateDataMgr {
                 fight,
                 bloodtithe,
                 buff_mgr,
-                ex_point_mgr,
+                entity_mgr,
                 use_accumulator_only_bloodtithe_sync,
             ),
 
             EffectType::Heal
             | EffectType::Bloodlust
             | EffectType::InjuryBankHeal
-            | EffectType::SubHeroLifeChange => self.play_effect_heal(effect, fight, ex_point_mgr),
+            | EffectType::SubHeroLifeChange => self.play_effect_heal(effect, fight, entity_mgr),
 
             EffectType::BuffAdd => self.play_effect_add_buff(effect, buff_mgr),
 
@@ -193,16 +193,16 @@ impl FightCalculateDataMgr {
             EffectType::ShieldDel => self.play_effect_shield_del(effect, fight),
 
             EffectType::AverageLife => self.play_effect_set_hp(effect, fight),
-            EffectType::MaxHpChange => self.play_effect_set_max_hp(effect, fight, ex_point_mgr),
+            EffectType::MaxHpChange => self.play_effect_set_max_hp(effect, fight, entity_mgr),
             EffectType::CurrentHpChange => {
-                self.play_effect_set_current_hp(effect, fight, bloodtithe, ex_point_mgr)
+                self.play_effect_set_current_hp(effect, fight, bloodtithe, entity_mgr)
             }
 
             EffectType::AddExPoint | EffectType::ExPointChange => {
-                self.play_effect_add_ex_point(effect, fight, buff_mgr, ex_point_mgr)
+                self.play_effect_add_ex_point(effect, fight, buff_mgr, entity_mgr)
             }
 
-            EffectType::ExPointDel => self.play_effect_del_ex_point(effect, fight, ex_point_mgr),
+            EffectType::ExPointDel => self.play_effect_del_ex_point(effect, fight, entity_mgr),
 
             EffectType::BloodPoolMaxCreate => {
                 self.play_effect_bloodtithe_enable(effect, bloodtithe)
@@ -248,7 +248,7 @@ impl FightCalculateDataMgr {
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
         buff_mgr: &mut BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
         use_accumulator_only_bloodtithe_sync: bool,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
@@ -269,8 +269,8 @@ impl FightCalculateDataMgr {
         let current_hp = entity.current_hp.unwrap_or(0);
         entity.current_hp = Some((current_hp - hp_damage).max(0));
 
-        // sync to ex_point_mgr
-        ex_point_mgr.apply_damage(target_id, hp_damage);
+        // sync to entity_mgr
+        entity_mgr.apply_damage(target_id, hp_damage);
 
         if hp_damage > 0
             && bloodtithe.initialized
@@ -306,7 +306,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let heal = effect.effect_num.ok_or("No heal amount")?;
@@ -327,8 +327,8 @@ impl FightCalculateDataMgr {
         let new_hp = (current_hp + heal).min(max_hp);
         entity.current_hp = Some(new_hp);
 
-        // sync to ex_point_mgr
-        ex_point_mgr.set_hp(target_id, new_hp);
+        // sync to entity_mgr
+        entity_mgr.set_hp(target_id, new_hp);
 
         tracing::trace!(
             "Heal applied: target={}, heal={}, new_hp={}",
@@ -556,7 +556,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let max_hp = effect.effect_num.ok_or("No max HP amount")?;
@@ -575,7 +575,7 @@ impl FightCalculateDataMgr {
             base.hp = Some(max_hp);
         }
 
-        ex_point_mgr.set_max_hp(target_id, max_hp);
+        entity_mgr.set_max_hp(target_id, max_hp);
         Ok(())
     }
 
@@ -584,7 +584,7 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
         bloodtithe: &mut BloodtitheState,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let hp = effect.effect_num.ok_or("No HP amount")?;
@@ -595,7 +595,7 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
         let current_hp = entity.current_hp.unwrap_or(0);
         entity.current_hp = Some(hp);
-        ex_point_mgr.set_hp(target_id, hp);
+        entity_mgr.set_hp(target_id, hp);
         if bloodtithe.initialized
             && hp < current_hp
             && let Some(team_type) = entity.team_type
@@ -610,7 +610,7 @@ impl FightCalculateDataMgr {
         effect: &ActEffect,
         fight: &mut Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let offset = effect.effect_num.unwrap_or(0);
@@ -641,8 +641,8 @@ impl FightCalculateDataMgr {
         };
         entity.ex_point = Some(new);
 
-        // sync to ex_point_mgr
-        ex_point_mgr.add_ex_point(target_id, new - old);
+        // sync to entity_mgr
+        entity_mgr.add_ex_point(target_id, new - old);
 
         tracing::info!(
             "EX changed: uid={} {} -> {} (offset={} max={})",
@@ -659,7 +659,7 @@ impl FightCalculateDataMgr {
         &mut self,
         effect: &ActEffect,
         fight: &mut Fight,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Result<(), String> {
         let target_id = effect.target_id.ok_or("No target ID")?;
         let amount = effect.effect_num.unwrap_or(0);
@@ -674,7 +674,7 @@ impl FightCalculateDataMgr {
         let new = (old - amount).max(0);
         entity.ex_point = Some(new);
 
-        ex_point_mgr.set_ex_point(target_id, new);
+        entity_mgr.set_ex_point(target_id, new);
 
         tracing::info!(
             "EX consumed: uid={} {} -> {} (amount={})",
@@ -724,11 +724,11 @@ impl FightCalculateDataMgr {
         });
         let mut local_fight = Fight::default();
         let mut local_buff_mgr = BuffMgr::new();
-        let mut local_ex_point_mgr = EntityMgr::default();
+        let mut local_entity_mgr = EntityMgr::default();
         let mut event_ctx = EventContext {
             fight: &mut local_fight,
             buff_mgr: &mut local_buff_mgr,
-            ex_point_mgr: &mut local_ex_point_mgr,
+            entity_mgr: &mut local_entity_mgr,
             bloodtithe,
         };
         let _ = drain_to_fight_steps(events.drain(), &mut event_ctx);
@@ -756,11 +756,11 @@ impl FightCalculateDataMgr {
             });
             let mut local_fight = Fight::default();
             let mut local_buff_mgr = BuffMgr::new();
-            let mut local_ex_point_mgr = EntityMgr::default();
+            let mut local_entity_mgr = EntityMgr::default();
             let mut event_ctx = EventContext {
                 fight: &mut local_fight,
                 buff_mgr: &mut local_buff_mgr,
-                ex_point_mgr: &mut local_ex_point_mgr,
+                entity_mgr: &mut local_entity_mgr,
                 bloodtithe,
             };
             let _ = drain_to_fight_steps(events.drain(), &mut event_ctx);
@@ -827,12 +827,12 @@ impl FightCalculateDataMgr {
         });
 
         let mut local_buff_mgr = BuffMgr::new();
-        let mut local_ex_point_mgr = EntityMgr::default();
+        let mut local_entity_mgr = EntityMgr::default();
         let mut local_bloodtithe = BloodtitheState::new();
         let mut event_ctx = EventContext {
             fight,
             buff_mgr: &mut local_buff_mgr,
-            ex_point_mgr: &mut local_ex_point_mgr,
+            entity_mgr: &mut local_entity_mgr,
             bloodtithe: &mut local_bloodtithe,
         };
         let amount = drain_to_fight_steps(events.drain(), &mut event_ctx)

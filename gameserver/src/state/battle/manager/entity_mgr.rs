@@ -24,6 +24,7 @@ pub struct EntityMgr {
     pub current_hp: HashMap<i64, i32>,
     pub max_hp: HashMap<i64, i32>,
     recent_decr_ex_point: HashMap<i64, i32>,
+    pub action_points: HashMap<i64, i32>,
 }
 
 impl EntityMgr {
@@ -202,6 +203,23 @@ impl EntityMgr {
 
     pub fn get_ex_point(&self, uid: i64) -> i32 {
         self.ex_points.get(&uid).copied().unwrap_or(0)
+    }
+
+    pub fn get_ac_point(&self, is_attacker: bool) -> i32 {
+        self.entity_cache
+            .iter()
+            .filter(|(_, loc)| loc.is_attacker == is_attacker)
+            .map(|(uid, _)| self.action_points.get(uid).copied().unwrap_or(0))
+            .sum()
+    }
+
+    pub fn set_action_point(&mut self, uid: i64, val: i32) {
+        self.action_points.insert(uid, val);
+    }
+
+    pub fn add_action_point(&mut self, uid: i64, delta: i32) {
+        let v = self.action_points.entry(uid).or_insert(0);
+        *v += delta;
     }
 
     #[allow(dead_code)]

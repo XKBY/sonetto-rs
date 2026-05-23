@@ -112,12 +112,12 @@ impl<'a> FightContext<'a> {
     }
 
     pub fn on_enter_fight(&mut self, entity_uid: i64) -> Vec<Event> {
-        let events = hook_call::on_enter_fight(self.managers, self.fight, entity_uid);
-        events
+        tracing::info!(entity_uid, "hook: on_enter_fight");
+        hook_call::on_enter_fight(self.managers, self.fight, entity_uid)
     }
 
     pub fn on_dead(&mut self, entity_uid: i64) -> Vec<Event> {
-        let events = hook_call::on_dead(self.managers, self.fight, entity_uid);
-        events
+        tracing::info!(entity_uid, "hook: on_dead");
+        hook_call::on_dead(self.managers, self.fight, entity_uid)
     }
 }

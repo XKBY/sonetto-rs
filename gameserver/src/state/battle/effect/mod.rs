@@ -30,17 +30,17 @@ impl Clone for SkillEffect {
 
 impl SkillEffect {
     pub fn on_enter_fight(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let buff_mgr = BuffMgr::default();
-        let ex_point_mgr = EntityMgr::default();
         let bloodtithe = BloodtitheState::default();
-        self.behaviours
+        let buff_mgr = managers.buff_mgr.clone();
+        let entity_mgr = managers.entity_mgr.clone();
+        let matching: Vec<_> = self.behaviours
             .iter()
             .filter(|(cond, _, _)| {
                 matches!(cond.hook, condition::Hook::EnterFight)
                     && cond.check(ConditionEval {
                         fight,
                         buff_mgr: &buff_mgr,
-                        ex_point_mgr: &ex_point_mgr,
+                        entity_mgr: &entity_mgr,
                         bloodtithe: &bloodtithe,
                         caster_uid: entity_uid,
                         target_uid: entity_uid,
@@ -49,22 +49,25 @@ impl SkillEffect {
                         active_card_cast_uids: None,
                     })
             })
-            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, managers, entity_uid, beh, *beh_target))
+            .map(|(_, beh, beh_target)| (beh.clone(), *beh_target))
+            .collect();
+        matching.into_iter()
+            .flat_map(|(beh, beh_target)| behavior::execute(fight, managers, entity_uid, &beh, beh_target))
             .collect()
     }
 
     pub fn on_dead(&self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let buff_mgr = BuffMgr::default();
-        let ex_point_mgr = EntityMgr::default();
         let bloodtithe = BloodtitheState::default();
-        self.behaviours
+        let buff_mgr = managers.buff_mgr.clone();
+        let entity_mgr = managers.entity_mgr.clone();
+        let matching: Vec<_> = self.behaviours
             .iter()
             .filter(|(cond, _, _)| {
                 matches!(cond.hook, condition::Hook::Dead)
                     && cond.check(ConditionEval {
                         fight,
                         buff_mgr: &buff_mgr,
-                        ex_point_mgr: &ex_point_mgr,
+                        entity_mgr: &entity_mgr,
                         bloodtithe: &bloodtithe,
                         caster_uid: entity_uid,
                         target_uid: entity_uid,
@@ -73,7 +76,10 @@ impl SkillEffect {
                         active_card_cast_uids: None,
                     })
             })
-            .flat_map(|(_, beh, beh_target)| behavior::execute(fight, managers, entity_uid, beh, *beh_target))
+            .map(|(_, beh, beh_target)| (beh.clone(), *beh_target))
+            .collect();
+        matching.into_iter()
+            .flat_map(|(beh, beh_target)| behavior::execute(fight, managers, entity_uid, &beh, beh_target))
             .collect()
     }
 }

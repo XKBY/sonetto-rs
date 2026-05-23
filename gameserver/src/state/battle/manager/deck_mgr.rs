@@ -74,8 +74,8 @@ impl DeckManager {
         result
     }
 
-    pub fn accumulate_enemy_ex_cards(&mut self, fight: &Fight, ex_point_mgr: &EntityMgr) {
-        crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, ex_point_mgr);
+    pub fn accumulate_enemy_ex_cards(&mut self, fight: &Fight, entity_mgr: &EntityMgr) {
+        crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, entity_mgr);
     }
 
     pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, fight: &Fight, entity_mgr: &EntityMgr) -> Vec<CardInfo> {

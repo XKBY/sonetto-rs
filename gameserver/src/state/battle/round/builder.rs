@@ -53,7 +53,7 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
     fight_mgr.managers.entity_mgr.rebuild_cache(&fight_mgr.fight);
     fight_mgr.managers.calculate_mgr.update_cache(&fight_mgr.fight);
 
-    let act_point = fight_mgr.fight.attacker.as_ref().map_or(3, |a| a.entitys.len() as i32);
+    let act_point = fight_mgr.managers.entity_mgr.get_ac_point(true);
 
     for e in fight_mgr.fight.attacker.iter().flat_map(|t| t.entitys.iter()) {
         let uid = e.uid.unwrap_or(0);

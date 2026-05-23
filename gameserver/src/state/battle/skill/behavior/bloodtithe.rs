@@ -229,12 +229,12 @@ pub fn lost_life(
 
         let mut synthetic_fight = Fight::default();
         let mut synthetic_buff_mgr = EventBuffMgr::new();
-        let mut synthetic_ex_point_mgr = EventExPointMgr::default();
+        let mut synthetic_entity_mgr = EventExPointMgr::default();
         let drained = {
             let mut event_ctx = EventContext {
                 fight: &mut synthetic_fight,
                 buff_mgr: &mut synthetic_buff_mgr,
-                ex_point_mgr: &mut synthetic_ex_point_mgr,
+                entity_mgr: &mut synthetic_entity_mgr,
                 bloodtithe,
             };
             drain_to_fight_steps(queue.drain(), &mut event_ctx)
@@ -283,12 +283,12 @@ pub fn pool_max_change(
     });
     let mut synthetic_fight = Fight::default();
     let mut synthetic_buff_mgr = EventBuffMgr::new();
-    let mut synthetic_ex_point_mgr = EventExPointMgr::default();
+    let mut synthetic_entity_mgr = EventExPointMgr::default();
     let drained = {
         let mut event_ctx = EventContext {
             fight: &mut synthetic_fight,
             buff_mgr: &mut synthetic_buff_mgr,
-            ex_point_mgr: &mut synthetic_ex_point_mgr,
+            entity_mgr: &mut synthetic_entity_mgr,
             bloodtithe,
         };
         drain_to_fight_steps(queue.drain(), &mut event_ctx)

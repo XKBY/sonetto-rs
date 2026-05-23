@@ -6,7 +6,6 @@ use crate::state::battle::event::Event;
 
 #[derive(Default, Debug, Clone)]
 pub struct RoundState {
-    pub act_point: i32,
     pub ai_use_cards: Vec<CardInfo>,
     pub ai_override_steps: Option<Vec<FightStep>>,
     pub used_cards: Vec<i32>,
@@ -33,10 +32,6 @@ pub struct RoundState {
 
 impl RoundState {
     pub fn new(_fight: &Fight) -> Self {
-        Self {
-            // AP is the playable card count budget (not team power).
-            act_point: 3,
-            ..Default::default()
-        }
+        Self::default()
     }
 }

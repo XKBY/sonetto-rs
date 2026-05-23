@@ -78,18 +78,18 @@ impl Mechanics {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
     ) -> Option<FightStep> {
         self.bloodtithe
-            .raspberry_step(fight, buff_mgr, ex_point_mgr, &mut self.shadow_cloak)
+            .raspberry_step(fight, buff_mgr, entity_mgr, &mut self.shadow_cloak)
     }
 
     pub fn on_post_raspberry(
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &EntityMgr,
+        entity_mgr: &EntityMgr,
     ) -> Option<FightStep> {
-        self.shadow_cloak.sync_step(fight, buff_mgr, ex_point_mgr)
+        self.shadow_cloak.sync_step(fight, buff_mgr, entity_mgr)
     }
 }

@@ -426,7 +426,7 @@ pub(crate) fn inject_be_attacked_reactives_onto_player_host(
             let mut event_ctx = EventContext {
                 fight: ctx.fight,
                 buff_mgr: &mut ctx.managers.buff_mgr,
-                ex_point_mgr: &mut ctx.managers.entity_mgr,
+                entity_mgr: &mut ctx.managers.entity_mgr,
                 bloodtithe: &mut mechanics.bloodtithe,
             };
             drain_to_fight_steps(queue.drain(), &mut event_ctx)

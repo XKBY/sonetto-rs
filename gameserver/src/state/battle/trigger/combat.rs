@@ -703,12 +703,12 @@ pub(crate) fn expand_trigger_chain_from_root_step(
     }
 
     let mut buff_mgr = BuffMgr::new();
-    let mut ex_point_mgr = EntityMgr::default();
+    let mut entity_mgr = EntityMgr::default();
     let mut bloodtithe = BloodtitheState::new();
     let mut event_ctx = EventContext {
         fight: ctx.fight,
         buff_mgr: &mut buff_mgr,
-        ex_point_mgr: &mut ex_point_mgr,
+        entity_mgr: &mut entity_mgr,
         bloodtithe: &mut bloodtithe,
     };
     let drained = drain_to_fight_steps(queue.drain(), &mut event_ctx);

@@ -59,3 +59,50 @@ pub mod stack_type {
 /// Source: FightEnum.BuffTypeList
 pub const GOOD_BUFF_TYPES: &[i32] = &[1, 3, 5];
 pub const BAD_BUFF_TYPES: &[i32] = &[2, 4, 6];
+
+/// Buff category — maps skill_bufftype.type field.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub enum BuffCategory {
+    StatsUp    = 1,
+    StatsDown  = 2,
+    Counter    = 3,
+    Control    = 4,
+    PosStatus  = 5,
+    NegStatus  = 6,
+    Shield     = 7,
+    Special    = 8,
+    Passive    = 9,
+    ForceField = 10,
+    /// Passive (alternate)
+    Passive2   = 11,
+    /// Passive (alternate)
+    Passive3   = 12,
+    /// Psychube
+    Psychube   = 13,
+    Channel    = 14,
+}
+
+#[allow(dead_code)]
+impl BuffCategory {
+    pub fn from(val: i32) -> Option<Self> {
+        match val {
+            1  => Some(Self::StatsUp),
+            2  => Some(Self::StatsDown),
+            3  => Some(Self::Counter),
+            4  => Some(Self::Control),
+            5  => Some(Self::PosStatus),
+            6  => Some(Self::NegStatus),
+            7  => Some(Self::Shield),
+            8  => Some(Self::Special),
+            9  => Some(Self::Passive),
+            10 => Some(Self::ForceField),
+            11 => Some(Self::Passive2),
+            12 => Some(Self::Passive3),
+            13 => Some(Self::Psychube),
+            14 => Some(Self::Channel),
+            _  => None,
+        }
+    }
+}

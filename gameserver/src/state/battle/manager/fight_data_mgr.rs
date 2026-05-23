@@ -7,6 +7,7 @@ use super::super::{
         calculate_mgr::FightCalculateDataMgr,
         cloth_mgr::ClothMgr,
         entity_mgr::EntityMgr,
+        passive_mgr::PassiveMgr,
         rule_mgr::RuleMgr,
         wave_mgr::WaveMgr,
     },
@@ -37,6 +38,7 @@ pub struct Managers {
     pub deck_mgr: DeckManager,
     pub cloth_mgr: ClothMgr,
     pub rule_mgr: RuleMgr,
+    pub passive_mgr: PassiveMgr,
 }
 
 impl Managers {
@@ -50,6 +52,7 @@ impl Managers {
             deck_mgr: DeckManager::default(),
             cloth_mgr: ClothMgr::default(),
             rule_mgr: RuleMgr::new(fight),
+            passive_mgr: PassiveMgr::new(fight),
         }
     }
 }
@@ -246,11 +249,11 @@ impl FightDataMgr {
                         });
                         let mut local_fight = Fight::default();
                         let mut local_buff_mgr = BuffMgr::new();
-                        let mut local_ex_point_mgr = EntityMgr::default();
+                        let mut local_entity_mgr = EntityMgr::default();
                         let mut event_ctx = EventContext {
                             fight: &mut local_fight,
                             buff_mgr: &mut local_buff_mgr,
-                            ex_point_mgr: &mut local_ex_point_mgr,
+                            entity_mgr: &mut local_entity_mgr,
                             bloodtithe: &mut rebuilt,
                         };
                         let _ = drain_to_fight_steps(queue.drain(), &mut event_ctx);
@@ -389,11 +392,11 @@ impl FightDataMgr {
                         });
                         let mut local_fight = Fight::default();
                         let mut local_buff_mgr = BuffMgr::new();
-                        let mut local_ex_point_mgr = EntityMgr::default();
+                        let mut local_entity_mgr = EntityMgr::default();
                         let mut event_ctx = EventContext {
                             fight: &mut local_fight,
                             buff_mgr: &mut local_buff_mgr,
-                            ex_point_mgr: &mut local_ex_point_mgr,
+                            entity_mgr: &mut local_entity_mgr,
                             bloodtithe: &mut rebuilt,
                         };
                         let _ = drain_to_fight_steps(queue.drain(), &mut event_ctx);

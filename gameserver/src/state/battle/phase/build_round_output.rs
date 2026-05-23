@@ -62,12 +62,7 @@ pub(crate) fn build_round_output(
         .flat_map(split_step_by_effect_limit)
         .collect();
 
-    let attacker_main_count = ctx
-        .fight
-        .attacker
-        .as_ref()
-        .map(|a| a.entitys.len() as i32)
-        .unwrap_or(3);
+    let attacker_ac = ctx.managers.entity_mgr.get_ac_point(true);
 
     let mut rng_for_ai = StdRng::from_entropy();
     deck_mgr.next_ai_use_cards = ai::select_enemy_cards(deck_mgr, ctx.fight, &mut rng_for_ai);
@@ -75,7 +70,7 @@ pub(crate) fn build_round_output(
 
     let result = FightRound {
             fight_step: open.steps,
-            act_point: Some(if open.state.is_finish { 0 } else { attacker_main_count }),
+            act_point: Some(if open.state.is_finish { 0 } else { attacker_ac }),
             is_finish: Some(open.state.is_finish),
             move_num: Some(open.state.move_num),
             ex_point_info,

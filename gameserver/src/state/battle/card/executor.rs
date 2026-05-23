@@ -286,9 +286,6 @@ pub(crate) async fn play_card(
     }
 
     state.used_cards.push(op_index as i32);
-    if !is_temp_card {
-        state.act_point = (state.act_point - 1).max(0);
-    }
 
     Ok(make_skill_step(
         display_caster_uid,

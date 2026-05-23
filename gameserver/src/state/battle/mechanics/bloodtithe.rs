@@ -394,7 +394,7 @@ impl BloodtitheState {
         &mut self,
         fight: &Fight,
         buff_mgr: &BuffMgr,
-        ex_point_mgr: &mut EntityMgr,
+        entity_mgr: &mut EntityMgr,
         shadow_cloak: &mut super::shadowcloak::ShadowCloakState,
     ) -> Option<FightStep> {
         if !self.initialized {
@@ -422,7 +422,7 @@ impl BloodtitheState {
                 else {
                     continue;
                 };
-                let current_hp = ex_point_mgr.get_hp(uid);
+                let current_hp = entity_mgr.get_hp(uid);
                 let caster_uid = instance.from_uid;
                 let damage = current_hp * rate_permille / 1000;
                 if damage == 0 {
@@ -448,7 +448,7 @@ impl BloodtitheState {
                     && let Some(gained) = self.on_hp_lost(uid, team_type, damage)
                 {
                     if let Some(nautika_uid) = nautika::find_uid(fight, team_type) {
-                        ex_point_mgr.add_ex_point(nautika_uid, gained);
+                        entity_mgr.add_ex_point(nautika_uid, gained);
                         effects.push(nautika::faith_gain_amount(nautika_uid, gained));
                     }
                     effects.push(bloodtithe_add_to_pool(uid, gained));
