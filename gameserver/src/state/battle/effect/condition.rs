@@ -1,15 +1,20 @@
 mod dead;
 mod enter_fight;
+mod none;
 mod teammate_dead;
 
 use super::condition_eval::ConditionEval;
-use super::condition_type::{ConditionType, condition_type};
+use super::condition_type::{ConditionType, condition_type, is_none_condition};
 use super::target::Target;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Hook {
+    None,
     Dead,
     EnterFight,
+    RoundStart,
+    RoundEnd,
+    BattleStart,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +37,7 @@ impl Condition {
 }
 
 fn eval_condition(cond_type: ConditionType, target: Target, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
+    if is_none_condition(cond_type) { return none::check(target, owner_uid, eval); }
     match cond_type {
         ConditionType::_8Dead => dead::check(target, owner_uid, eval),
         ConditionType::_17TeammateDead => teammate_dead::check(owner_uid, eval),
@@ -43,12 +49,15 @@ fn eval_condition(cond_type: ConditionType, target: Target, owner_uid: i64, eval
     }
 }
 
-fn hook_for_type(cond_type: ConditionType) -> Option<Hook> {
+fn hooks_for_type(cond_type: ConditionType) -> &'static [Hook] {
+    if is_none_condition(cond_type) {
+        return &[Hook::RoundStart, Hook::BattleStart];
+    }
     match cond_type {
-        ConditionType::_8Dead => Some(dead::HOOK),
-        ConditionType::_17TeammateDead => Some(teammate_dead::HOOK),
-        ConditionType::_5EnterFight => Some(enter_fight::HOOK),
-        _ => None,
+        ConditionType::_8Dead => &[dead::HOOK],
+        ConditionType::_17TeammateDead => &[teammate_dead::HOOK],
+        ConditionType::_5EnterFight => &[enter_fight::HOOK],
+        _ => &[],
     }
 }
 
@@ -63,8 +72,10 @@ pub fn parse(raw: &str, cond_target: i32, _owner_uid: i64) -> Option<(Vec<Condit
         .filter_map(|seg| {
             let id: i32 = seg.split('#').next()?.parse().ok()?;
             let cond_type = condition_type(id)?;
-            let hook = hook_for_type(cond_type)?;
-            Some(Condition { hook, cond_type, target })
+            Some((cond_type, target))
+        })
+        .flat_map(|(cond_type, target)| {
+            hooks_for_type(cond_type).iter().map(move |&hook| Condition { hook, cond_type, target })
         })
         .collect();
     if conditions.is_empty() { return None; }

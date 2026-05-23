@@ -54,7 +54,7 @@ impl PassiveMgr {
     pub fn on_enter_fight(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
         effects.into_iter().flat_map(|mut e| {
-            let evs = e.on_enter_fight(fight, managers, entity_uid);
+            let mut evs = e.on_enter_fight(fight, managers, entity_uid);
             for ev in &evs { tracing::info!("passive_mgr entity={} event={:?}", entity_uid, ev); }
             evs
         }).collect()
@@ -63,5 +63,20 @@ impl PassiveMgr {
     pub fn on_dead(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
         effects.into_iter().flat_map(|mut e| e.on_dead(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_round_start(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
+        effects.into_iter().flat_map(|mut e| e.on_round_start(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_round_end(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
+        effects.into_iter().flat_map(|mut e| e.on_round_end(fight, managers, entity_uid)).collect()
+    }
+
+    pub fn on_battle_start(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        let effects = managers.passive_mgr.map.get(&entity_uid).cloned().unwrap_or_default();
+        effects.into_iter().flat_map(|mut e| e.on_battle_start(fight, managers, entity_uid)).collect()
     }
 }

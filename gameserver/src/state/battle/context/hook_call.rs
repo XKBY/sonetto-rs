@@ -12,16 +12,28 @@ where
     events
 }
 
-pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight) {
+pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight, entity_uid: i64) -> Vec<Event> {
     managers.cloth_mgr.on_battle_start(fight);
     BuffMgr::on_battle_start(fight, managers);
+    let mut events = with_snapshot(managers, |s| PassiveMgr::on_battle_start(fight, s, entity_uid));
+    events.extend(with_snapshot(managers, |s| RuleMgr::on_battle_start(fight, s, entity_uid)));
+    events
 }
 
-pub fn on_round_end(managers: &mut Managers, fight: &mut Fight) {
+pub fn on_round_start(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
+    let mut events = with_snapshot(managers, |s| PassiveMgr::on_round_start(fight, s, entity_uid));
+    events.extend(with_snapshot(managers, |s| RuleMgr::on_round_start(fight, s, entity_uid)));
+    events
+}
+
+pub fn on_round_end(managers: &mut Managers, fight: &mut Fight, entity_uid: i64) -> Vec<Event> {
     managers.buff_mgr.on_round_end(fight);
     managers.calculate_mgr.on_round_end();
     managers.cloth_mgr.on_round_end(fight);
     BuffMgr::on_round_end_hooks(fight, managers);
+    let mut events = with_snapshot(managers, |s| PassiveMgr::on_round_end(fight, s, entity_uid));
+    events.extend(with_snapshot(managers, |s| RuleMgr::on_round_end(fight, s, entity_uid)));
+    events
 }
 
 pub fn on_enter_fight(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {

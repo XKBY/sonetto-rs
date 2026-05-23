@@ -91,12 +91,23 @@ impl SkillEffect {
             .flat_map(|(raw, target)| behavior::execute(fight, managers, owner_uid, &raw, target))
             .collect()
     }
-
     pub fn on_enter_fight(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         self.fire_hook(condition::Hook::EnterFight, fight, managers, entity_uid)
     }
 
     pub fn on_dead(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
         self.fire_hook(condition::Hook::Dead, fight, managers, entity_uid)
+    }
+
+    pub fn on_round_start(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.fire_hook(condition::Hook::RoundStart, fight, managers, entity_uid)
+    }
+
+    pub fn on_round_end(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.fire_hook(condition::Hook::RoundEnd, fight, managers, entity_uid)
+    }
+
+    pub fn on_battle_start(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
+        self.fire_hook(condition::Hook::BattleStart, fight, managers, entity_uid)
     }
 }

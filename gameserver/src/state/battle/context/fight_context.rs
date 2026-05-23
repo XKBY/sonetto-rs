@@ -80,11 +80,19 @@ impl<'a> FightContext<'a> {
             .with_round_active_card_cast_uids(&self.active_card_cast_uids)
     }
 
-    pub fn on_round_end(&mut self) {
+    pub fn on_round_end(&mut self, entity_uid: i64) -> Vec<Event> {
         self.managers.entity_mgr.on_round_end(self.fight);
         self.clear_round_active_card_casts();
         self.sync();
-        hook_call::on_round_end(self.managers, self.fight);
+        hook_call::on_round_end(self.managers, self.fight, entity_uid)
+    }
+
+    pub fn on_round_start(&mut self, entity_uid: i64) -> Vec<Event> {
+        hook_call::on_round_start(self.managers, self.fight, entity_uid)
+    }
+
+    pub fn on_battle_start(&mut self, entity_uid: i64) -> Vec<Event> {
+        hook_call::on_battle_start(self.managers, self.fight, entity_uid)
     }
 
     pub fn on_use_card(&mut self, event: &Event) -> Vec<Event> {

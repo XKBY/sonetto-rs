@@ -6,9 +6,10 @@ use crate::state::battle::{
     ai,
     deck::DeckManager,
     context::RoundContext,
-    manager::{entity_mgr::build_ex_point_info, round_mgr::check_battle_end},
+    manager::{entity_mgr::{EntityMgr, build_ex_point_info}, round_mgr::check_battle_end},
     fight_step::split_step_by_effect_limit,
 };
+use crate::state::battle::event::apply::events_to_steps;
 use crate::state::battle::round::steps::transitions::build_next_round_begin_step;
 use super::round_open::RoundOpenPhaseData;
 
@@ -22,7 +23,16 @@ pub(crate) fn build_round_output(
     open.state.is_finish = check_battle_end(ctx.fight);
 
     crate::state::battle::manager::entity_mgr::sync_to_fight(ctx.fight, &ctx.managers.entity_mgr);
-    round_ctx.on_round_end();
+    let uids = EntityMgr::all_positioned_uids(ctx.fight);
+    for uid in &uids {
+        let evs = ctx.on_round_end(*uid);
+        open.steps.extend(events_to_steps(&evs));
+    }
+    for uid in &uids {
+        let evs = ctx.on_round_start(*uid);
+        open.steps.extend(events_to_steps(&evs));
+    }
+    round_ctx.fight_ctx.on_round_end(0);
     let ctx = &mut *round_ctx.fight_ctx;
     let ex_point_info = build_ex_point_info(ctx.fight, &ctx.managers.entity_mgr);
     tracing::warn!("=== ROUND END ===");

@@ -13,8 +13,4 @@ impl<'a, 'ctx> RoundContext<'a, 'ctx> {
     pub fn sync(&mut self) {
         self.fight_ctx.sync();
     }
-
-    pub fn on_round_end(&mut self) {
-        self.fight_ctx.on_round_end();
-    }
 }

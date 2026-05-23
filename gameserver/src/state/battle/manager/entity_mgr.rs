@@ -26,6 +26,7 @@ pub struct EntityMgr {
     pub max_hp: HashMap<i64, i32>,
     recent_decr_ex_point: HashMap<i64, i32>,
     pub action_points: HashMap<i64, i32>,
+    initial_action_points: HashMap<i64, i32>,
 }
 
 impl EntityMgr {
@@ -65,6 +66,15 @@ impl EntityMgr {
 
     pub fn get_location(&self, entity_id: i64) -> Option<EntityLocation> {
         self.entity_cache.get(&entity_id).copied()
+    }
+
+    pub fn all_positioned_uids(fight: &Fight) -> Vec<i64> {
+        [fight.attacker.as_ref(), fight.defender.as_ref()]
+            .into_iter()
+            .flatten()
+            .flat_map(|s| s.entitys.iter().chain(s.sub_entitys.iter()))
+            .filter_map(|e| e.uid.filter(|_| e.position.unwrap_or(-1) > 0))
+            .collect()
     }
 
     pub fn alive_hero_uids(&self) -> HashSet<i64> {
@@ -138,7 +148,9 @@ impl EntityMgr {
             self.current_hp.insert(uid, hp);
             let mhp = e.attr.as_ref().and_then(|a| a.hp).unwrap_or(hp);
             self.max_hp.insert(uid, mhp);
+            self.action_points.insert(uid, 1);
         }
+        self.initial_action_points = self.action_points.clone();
     }
 
     pub fn add_ex_point(&mut self, uid: i64, amount: i32) {
@@ -261,6 +273,7 @@ impl Manager for EntityMgr {
 
     fn on_round_end(&mut self, _fight: &mut Fight) {
         self.recent_decr_ex_point.clear();
+        self.action_points = self.initial_action_points.clone();
     }
 
     fn on_battle_end(&mut self) {

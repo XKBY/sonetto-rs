@@ -82,7 +82,6 @@ impl FightDataMgr {
             initial_card_push: None,
         };
         fight_mgr.managers.entity_mgr.init(&fight_mgr.fight);
-        crate::state::battle::context::hook_call::on_battle_start(&mut fight_mgr.managers, &mut fight_mgr.fight);
         let card_push = fight_mgr.managers.deck_mgr.init_player(&fight_mgr.fight, max_ap);
         fight_mgr.managers.deck_mgr.init_enemy(&fight_mgr.fight);
         fight_mgr.initial_card_push = Some(card_push);
