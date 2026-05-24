@@ -46,30 +46,44 @@ pub struct Condition {
 }
 
 impl Condition {
-    pub fn check(&self, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
+    pub fn check(&self, owner_uid: i64, eval: ConditionEval<'_>) -> Option<i32> {
         eval_condition(self.cond_type, self.target, &self.params, owner_uid, eval)
     }
 }
 
-fn eval_condition(cond_type: ConditionType, target: Target, params: &[i32], owner_uid: i64, eval: ConditionEval<'_>) -> bool {
-    if is_none_condition(cond_type) { return none::check(target, owner_uid, eval); }
+fn eval_condition(cond_type: ConditionType, target: Target, params: &[i32], owner_uid: i64, eval: ConditionEval<'_>) -> Option<i32> {
+    if is_none_condition(cond_type) { return if none::check(target, owner_uid, eval) { Some(1) } else { None }; }
     match cond_type {
-        ConditionType::_22209BeAttacked => be_attacked::check(target, owner_uid, eval),
-        ConditionType::_8Dead => dead::check(target, owner_uid, eval),
-        ConditionType::_812Dead => dead::check(target, owner_uid, eval),
-        ConditionType::_17TeammateDead => teammate_dead::check(owner_uid, eval),
-        ConditionType::_5EnterFight | ConditionType::_5021EnterFight => enter_fight::check(target, owner_uid, eval),
-        ConditionType::_25210UseExSkill => use_ex_skill::check(target, owner_uid, eval),
-        ConditionType::_49BuffIdDel => buff_id_del::check(target, params, owner_uid, eval),
+        ConditionType::_22209BeAttacked => if be_attacked::check(target, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_8Dead => if dead::check(target, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_812Dead => if dead::check(target, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_17TeammateDead => if teammate_dead::check(owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_5EnterFight | ConditionType::_5021EnterFight => if enter_fight::check(target, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_25210UseExSkill => if use_ex_skill::check(target, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_49BuffIdDel => if buff_id_del::check(target, params, owner_uid, eval) { Some(1) } else { None },
         | ConditionType::_19201HasBuffId
         | ConditionType::_19208HasBuffId
         | ConditionType::_19202HasBuffId
         | ConditionType::_19209HasBuffId
         | ConditionType::_19210HasBuffId
-        | ConditionType::_19203HasBuffId => has_buff_id::check(target, params, owner_uid, eval),
+        | ConditionType::_19203HasBuffId => if has_buff_id::check(target, params, owner_uid, eval) { Some(1) } else { None },
+        ConditionType::_61003PerBuffIdCount | ConditionType::_61004PerBuffIdCount |
+        ConditionType::_61010PerBuffIdCount | ConditionType::_61012PerBuffIdCount |
+        ConditionType::_61100PerBuffIdCount | ConditionType::_61102PerBuffIdCount |
+        ConditionType::_61103PerBuffIdCount | ConditionType::_61104PerBuffIdCount |
+        ConditionType::_61106PerBuffIdCount | ConditionType::_61201PerBuffIdCount |
+        ConditionType::_61202PerBuffIdCount | ConditionType::_61203PerBuffIdCount |
+        ConditionType::_61204PerBuffIdCount | ConditionType::_61208PerBuffIdCount |
+        ConditionType::_61209PerBuffIdCount | ConditionType::_61210PerBuffIdCount |
+        ConditionType::_61212PerBuffIdCount | ConditionType::_61213PerBuffIdCount |
+        ConditionType::_61214PerBuffIdCount | ConditionType::_61215PerBuffIdCount |
+        ConditionType::_61301PerBuffIdCount | ConditionType::_61302PerBuffIdCount |
+        ConditionType::_61303PerBuffIdCount | ConditionType::_61304PerBuffIdCount |
+        ConditionType::_61307PerBuffIdCount | ConditionType::_61401PerBuffIdCount |
+        ConditionType::_612081PerBuffIdCount => per_buff_id_count::check(target, params, owner_uid, eval),
         other => {
             tracing::warn!("unimplemented condition type: {:?}", other);
-            false
+            None
         }
     }
 }
@@ -89,6 +103,32 @@ fn hooks_for_type(cond_type: ConditionType, cond_target: i32) -> &'static [Hook]
         ConditionType::_49BuffIdDel => &[buff_id_del::HOOK],
         ConditionType::_19202HasBuffId | ConditionType::_19209HasBuffId => &[Hook::EvalBeingAttacked],
         ConditionType::_19210HasBuffId => &[Hook::AfterAction],
+
+        // Round start triggers:
+        ConditionType::_61100PerBuffIdCount | ConditionType::_61102PerBuffIdCount |
+        ConditionType::_61103PerBuffIdCount | ConditionType::_61104PerBuffIdCount |
+        ConditionType::_61106PerBuffIdCount => &[Hook::RoundStart],
+
+        // Being attacked triggers:
+        ConditionType::_61204PerBuffIdCount => &[Hook::EvalBeingAttacked],
+
+        // Skill evaluation triggers:
+        ConditionType::_61201PerBuffIdCount | ConditionType::_61202PerBuffIdCount |
+        ConditionType::_61203PerBuffIdCount | ConditionType::_61208PerBuffIdCount |
+        ConditionType::_61209PerBuffIdCount | ConditionType::_61210PerBuffIdCount |
+        ConditionType::_61212PerBuffIdCount | ConditionType::_61213PerBuffIdCount |
+        ConditionType::_61214PerBuffIdCount | ConditionType::_61215PerBuffIdCount |
+        ConditionType::_612081PerBuffIdCount => &[Hook::EvalActiveSkill],
+
+        // Round end triggers:
+        ConditionType::_61301PerBuffIdCount | ConditionType::_61302PerBuffIdCount |
+        ConditionType::_61303PerBuffIdCount | ConditionType::_61304PerBuffIdCount |
+        ConditionType::_61307PerBuffIdCount | ConditionType::_61401PerBuffIdCount => &[Hook::RoundEnd],
+
+        // Battle start & round end triggers:
+        ConditionType::_61003PerBuffIdCount | ConditionType::_61004PerBuffIdCount |
+        ConditionType::_61010PerBuffIdCount | ConditionType::_61012PerBuffIdCount => &[Hook::RoundEnd, Hook::BattleStart, Hook::EnterFight],
+
         _ => &[],
     }
 }

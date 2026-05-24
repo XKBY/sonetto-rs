@@ -32,8 +32,8 @@ impl EffectSlot {
 
     fn check_conditions(&self, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
         match self.op {
-            ConditionOp::And => self.conditions.iter().all(|c| c.check(owner_uid, eval)),
-            ConditionOp::Or => self.conditions.iter().any(|c| c.check(owner_uid, eval)),
+            ConditionOp::And => self.conditions.iter().all(|c| c.check(owner_uid, eval).is_some()),
+            ConditionOp::Or => self.conditions.iter().any(|c| c.check(owner_uid, eval).is_some()),
         }
     }
 
