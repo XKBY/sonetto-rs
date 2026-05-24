@@ -13739,3 +13739,54 @@ pub fn is_none_condition(ct: ConditionType) -> bool {
         | ConditionType::_655038None
     )
 }
+
+pub fn is_has_buff_id_condition(ct: ConditionType) -> bool {
+    matches!(ct,
+        | ConditionType::_19HasBuffId
+        | ConditionType::_19002HasBuffId
+        | ConditionType::_19003HasBuffId
+        | ConditionType::_19004HasBuffId
+        | ConditionType::_19005HasBuffId
+        | ConditionType::_19010HasBuffId
+        | ConditionType::_19012HasBuffId
+        | ConditionType::_19016HasBuffId
+        | ConditionType::_19021HasBuffId
+        | ConditionType::_19100HasBuffId
+        | ConditionType::_19101HasBuffId
+        | ConditionType::_19102HasBuffId
+        | ConditionType::_19103HasBuffId
+        | ConditionType::_19104HasBuffId
+        | ConditionType::_19105HasBuffId
+        | ConditionType::_19106HasBuffId
+        | ConditionType::_19107HasBuffId
+        | ConditionType::_19201HasBuffId
+        | ConditionType::_19202HasBuffId
+        | ConditionType::_19203HasBuffId
+        | ConditionType::_19204HasBuffId
+        | ConditionType::_19205HasBuffId
+        | ConditionType::_19208HasBuffId
+        | ConditionType::_19209HasBuffId
+        | ConditionType::_19210HasBuffId
+        | ConditionType::_19211HasBuffId
+        | ConditionType::_19212HasBuffId
+        | ConditionType::_19213HasBuffId
+        | ConditionType::_19214HasBuffId
+        | ConditionType::_19215HasBuffId
+        | ConditionType::_19301HasBuffId
+        | ConditionType::_19302HasBuffId
+        | ConditionType::_19303HasBuffId
+        | ConditionType::_19304HasBuffId
+        | ConditionType::_19307HasBuffId
+        | ConditionType::_19401HasBuffId
+        | ConditionType::_19402HasBuffId
+        | ConditionType::_19901HasBuffId
+        | ConditionType::_19931HasBuffId
+        | ConditionType::_191041HasBuffId
+        | ConditionType::_191061HasBuffId
+        | ConditionType::_191062HasBuffId
+        | ConditionType::_191901HasBuffId
+        | ConditionType::_192032HasBuffId
+        | ConditionType::_192081HasBuffId
+        | ConditionType::_192101HasBuffId
+    )
+}

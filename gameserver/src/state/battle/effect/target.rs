@@ -4,24 +4,38 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
     AllAlly,       // 101
-    AllEnemy,      // 102
-    Self_,         // 103
+    AllEnemy,      // 102, 202
+    Self_,         // 103, 234
     AllAllyNoSelf, // 104
     RandomAlly,    // 105
     RandomEnemy,   // 106
+    Attacker,      // 203
+    Target_,       // 204, 205, 207
     Other(i32),
 }
 
 impl Target {
     pub fn entities(self, fight: &sonettobuf::Fight, owner_uid: i64) -> Vec<i64> {
+        self.entities_with_skill_target(fight, owner_uid, 0)
+    }
+
+    pub fn entities_with_skill_target(self, fight: &sonettobuf::Fight, owner_uid: i64, skill_target_uid: i64) -> Vec<i64> {
         let side = if owner_uid >= 0 { fight.attacker.as_ref() } else { fight.defender.as_ref() };
+        let enemy_side = if owner_uid >= 0 { fight.defender.as_ref() } else { fight.attacker.as_ref() };
         let ally: Vec<i64> = side.map_or(vec![], |s| {
+            s.entitys.iter().chain(s.sub_entitys.iter()).filter_map(|e| e.uid).collect()
+        });
+        let enemies: Vec<i64> = enemy_side.map_or(vec![], |s| {
             s.entitys.iter().chain(s.sub_entitys.iter()).filter_map(|e| e.uid).collect()
         });
         match self {
             Target::AllAlly => ally,
+            Target::AllEnemy => enemies,
             Target::Self_ => vec![owner_uid],
             Target::AllAllyNoSelf => ally.into_iter().filter(|&uid| uid != owner_uid).collect(),
+            Target::Attacker | Target::Target_ => {
+                if skill_target_uid != 0 { vec![skill_target_uid] } else { vec![] }
+            }
             other => {
                 tracing::warn!("unimplemented target variant: {:?}", other);
                 vec![]
@@ -32,11 +46,13 @@ impl Target {
     pub fn from_id(id: i32) -> Self {
         match id {
             101 => Target::AllAlly,
-            102 => Target::AllEnemy,
-            103 => Target::Self_,
+            102 | 202 => Target::AllEnemy,
+            103 | 234 => Target::Self_,
             104 => Target::AllAllyNoSelf,
             105 => Target::RandomAlly,
             106 => Target::RandomEnemy,
+            203 => Target::Attacker,
+            0 | 204 | 205 | 207 => Target::Target_,
             v   => Target::Other(v),
         }
     }

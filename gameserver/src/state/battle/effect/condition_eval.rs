@@ -16,4 +16,5 @@ pub struct ConditionEval<'a> {
     pub condition_target: i32,
     pub has_trigger_state: bool,
     pub active_card_cast_uids: Option<&'a HashSet<i64>>,
+    pub lost_buff_id: Option<i32>,
 }

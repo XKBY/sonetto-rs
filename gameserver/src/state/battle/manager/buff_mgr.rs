@@ -352,6 +352,13 @@ impl BuffMgr {
             .unwrap_or(false)
     }
 
+    pub fn has_buff(&self, uid: i64, buff_id: i32) -> bool {
+        self.active_buff
+            .get(&uid)
+            .map(|b| b.iter().any(|x| x.buff_id == buff_id))
+            .unwrap_or(false)
+    }
+
     #[allow(dead_code)]
     pub fn has_type(&self, uid: i64, type_id: i32) -> bool {
         self.active

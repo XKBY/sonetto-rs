@@ -240,7 +240,7 @@ impl SkillExecutor {
         let mut all_effects: Vec<ActEffect> = Vec::new();
 
         if let Some(mut skill_effect) = effect_parser::parse(skill_effect_id, caster_uid) {
-            all_effects.extend(events_to_act_effects(skill_effect.fire_all(fight, managers, target_uid)));
+            all_effects.extend(events_to_act_effects(skill_effect.on_eval_active_skill(fight, managers, target_uid)));
         }
         let force_effect_step = false;
         let setup_done: Instant = Instant::now();

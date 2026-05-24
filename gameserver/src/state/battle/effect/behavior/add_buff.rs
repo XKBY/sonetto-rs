@@ -13,3 +13,15 @@ pub fn execute(fight: &Fight, managers: &mut Managers, targets: Vec<i64>, raw: &
         })
         .collect()
 }
+
+pub fn execute_reversed(managers: &mut Managers, targets: Vec<i64>, raw: &str) -> Vec<Event> {
+    let buff_id: i32 = raw.split('#').nth(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+    for &t in &targets {
+        if let Some(buff) = managers.buff_mgr.active_buff.get_mut(&t)
+            .and_then(|bs| bs.iter_mut().find(|b| b.buff_id == buff_id))
+        {
+            buff.stacks = (buff.stacks - 1).max(0);
+        }
+    }
+    vec![]
+}
