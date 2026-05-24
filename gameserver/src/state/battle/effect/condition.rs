@@ -4,6 +4,7 @@ mod dead;
 mod enter_fight;
 mod has_buff_id;
 mod none;
+mod per_buff_id_count;
 mod teammate_dead;
 mod use_ex_skill;
 
@@ -27,6 +28,7 @@ pub enum Hook {
     EvalActiveSkill,
     EvalBeingAttacked,
     UseExSkill,
+    AfterAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,13 +58,14 @@ fn eval_condition(cond_type: ConditionType, target: Target, params: &[i32], owne
         ConditionType::_8Dead => dead::check(target, owner_uid, eval),
         ConditionType::_812Dead => dead::check(target, owner_uid, eval),
         ConditionType::_17TeammateDead => teammate_dead::check(owner_uid, eval),
-        ConditionType::_5EnterFight => enter_fight::check(target, owner_uid, eval),
+        ConditionType::_5EnterFight | ConditionType::_5021EnterFight => enter_fight::check(target, owner_uid, eval),
         ConditionType::_25210UseExSkill => use_ex_skill::check(target, owner_uid, eval),
         ConditionType::_49BuffIdDel => buff_id_del::check(target, params, owner_uid, eval),
         | ConditionType::_19201HasBuffId
         | ConditionType::_19208HasBuffId
         | ConditionType::_19202HasBuffId
         | ConditionType::_19209HasBuffId
+        | ConditionType::_19210HasBuffId
         | ConditionType::_19203HasBuffId => has_buff_id::check(target, params, owner_uid, eval),
         other => {
             tracing::warn!("unimplemented condition type: {:?}", other);
@@ -80,11 +83,12 @@ fn hooks_for_type(cond_type: ConditionType, cond_target: i32) -> &'static [Hook]
         ConditionType::_8Dead => &[dead::HOOK],
         ConditionType::_812Dead => &[dead::HOOK],
         ConditionType::_17TeammateDead => &[teammate_dead::HOOK],
-        ConditionType::_5EnterFight => &[enter_fight::HOOK],
+        ConditionType::_5EnterFight | ConditionType::_5021EnterFight => &[enter_fight::HOOK],
         ConditionType::_19201HasBuffId | ConditionType::_19208HasBuffId | ConditionType::_19203HasBuffId => &[Hook::EvalActiveSkill],
         ConditionType::_25210UseExSkill => &[Hook::UseExSkill],
         ConditionType::_49BuffIdDel => &[buff_id_del::HOOK],
         ConditionType::_19202HasBuffId | ConditionType::_19209HasBuffId => &[Hook::EvalBeingAttacked],
+        ConditionType::_19210HasBuffId => &[Hook::AfterAction],
         _ => &[],
     }
 }
