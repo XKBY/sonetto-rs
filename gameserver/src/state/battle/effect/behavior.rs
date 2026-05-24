@@ -8,7 +8,7 @@ mod ex_point;
 mod add_buff;
 mod add_act;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Behaviour {
     pub raw: String,
     pub target: i32,

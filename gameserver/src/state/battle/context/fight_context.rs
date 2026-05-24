@@ -1,3 +1,4 @@
+use crate::state::battle::effect::condition::Hook;
 use crate::state::battle::event::Event;
 use crate::state::battle::event::apply::apply_event;
 use crate::state::battle::manager::{fight_data_mgr::Managers, traits::Manager};
@@ -82,50 +83,72 @@ impl<'a> FightContext<'a> {
 
     pub fn on_round_end(&mut self, entity_uid: i64) -> Vec<Event> {
         self.managers.entity_mgr.on_round_end(self.fight);
+        self.managers.buff_mgr.on_round_end(self.fight);
+        self.managers.calculate_mgr.on_round_end();
+        self.managers.cloth_mgr.on_round_end(self.fight);
         self.clear_round_active_card_casts();
         self.sync();
-        hook_call::on_round_end(self.managers, self.fight, entity_uid)
+        hook_call::fire_hook(self.managers, self.fight, Hook::RoundEnd, entity_uid)
     }
 
     pub fn on_round_start(&mut self, entity_uid: i64) -> Vec<Event> {
-        hook_call::on_round_start(self.managers, self.fight, entity_uid)
+        tracing::info!(entity_uid, "hook: on_round_start");
+        hook_call::fire_hook(self.managers, self.fight, Hook::RoundStart, entity_uid)
     }
 
     pub fn on_battle_start(&mut self, entity_uid: i64) -> Vec<Event> {
-        hook_call::on_battle_start(self.managers, self.fight, entity_uid)
+        tracing::info!(entity_uid, "hook: on_battle_start");
+        self.managers.cloth_mgr.on_battle_start(self.fight);
+        hook_call::fire_hook(self.managers, self.fight, Hook::BattleStart, entity_uid)
     }
 
     pub fn on_use_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardPlayed { card, .. } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = hook_call::on_use_card(self.managers, self.fight,
-            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        let mut events = self.managers.cloth_mgr.on_use_card(self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }]);
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::UseCard, uid));
         events
     }
 
     pub fn on_move_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardMoved { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = hook_call::on_move_card(self.managers, self.fight,
-            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        let mut events = self.managers.cloth_mgr.on_move_card(self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }]);
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::MoveCard, uid));
         events
     }
 
     pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
         let Event::CardComposed { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let events = hook_call::on_compose_card(self.managers, self.fight,
-            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }], uid);
+        let mut events = self.managers.cloth_mgr.on_compose_card(self.fight,
+            vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }]);
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::ComposeCard, uid));
         events
     }
 
     pub fn on_enter_fight(&mut self, entity_uid: i64) -> Vec<Event> {
         tracing::info!(entity_uid, "hook: on_enter_fight");
-        hook_call::on_enter_fight(self.managers, self.fight, entity_uid)
+        let mut events = self.managers.cloth_mgr.on_enter_fight(self.fight, entity_uid);
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::EnterFight, entity_uid));
+        events
     }
 
     pub fn on_dead(&mut self, entity_uid: i64) -> Vec<Event> {
         tracing::info!(entity_uid, "hook: on_dead");
-        hook_call::on_dead(self.managers, self.fight, entity_uid)
+        let mut events = vec![
+            Event::Dead { entity_uid },
+            Event::RemoveEntityCards { entity_uid },
+        ];
+        events.extend(self.managers.cloth_mgr.on_dead(self.fight, entity_uid));
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::Dead, entity_uid));
+        self.managers.entity_mgr.action_points.remove(&entity_uid);
+        events
+    }
+
+    pub fn on_buff_add(&mut self, target_uid: i64) -> Vec<Event> {
+        hook_call::fire_hook(self.managers, self.fight, Hook::BuffAdd, target_uid)
     }
 }

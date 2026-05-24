@@ -1,87 +1,87 @@
 use sonettobuf::Fight;
-use crate::state::battle::event::Event;
-use crate::state::battle::manager::{buff_mgr::BuffMgr, fight_data_mgr::Managers, rule_mgr::RuleMgr, passive_mgr::PassiveMgr, traits::Manager};
+use crate::state::battle::{
+    buff::Buff,
+    effect::{SkillEffect, condition::Hook},
+    event::Event,
+    manager::fight_data_mgr::Managers,
+};
 
-fn with_snapshot<F>(managers: &mut Managers, f: F) -> Vec<Event>
-where
-    F: FnOnce(&mut Managers) -> Vec<Event>,
-{
-    let mut snapshot = managers.clone();
-    let events = f(&mut snapshot);
-    *managers = snapshot;
-    events
+enum HookPayload {
+    Effect(SkillEffect, i64),
+    Buff(Buff, i64),
 }
 
-pub fn on_battle_start(managers: &mut Managers, fight: &mut Fight, entity_uid: i64) -> Vec<Event> {
-    managers.cloth_mgr.on_battle_start(fight);
-    BuffMgr::on_battle_start(fight, managers);
-    let mut events = with_snapshot(managers, |s| PassiveMgr::on_battle_start(fight, s, entity_uid));
-    events.extend(with_snapshot(managers, |s| RuleMgr::on_battle_start(fight, s, entity_uid)));
-    events
+struct HookEntry {
+    priority: i32, // TODO: derive from effect/condition config
+    payload: HookPayload,
 }
 
-pub fn on_round_start(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
-    let mut events = with_snapshot(managers, |s| PassiveMgr::on_round_start(fight, s, entity_uid));
-    events.extend(with_snapshot(managers, |s| RuleMgr::on_round_start(fight, s, entity_uid)));
-    events
+impl HookEntry {
+    fn fire(self, hook: Hook, fight: &Fight, managers: &mut Managers) -> Vec<Event> {
+        match self.payload {
+            HookPayload::Effect(mut e, owner_uid) => e.fire_hook(hook, fight, managers, owner_uid),
+            HookPayload::Buff(b, entity_uid) => b.fire_hook(hook, fight, managers, entity_uid),
+        }
+    }
 }
 
-pub fn on_round_end(managers: &mut Managers, fight: &mut Fight, entity_uid: i64) -> Vec<Event> {
-    managers.buff_mgr.on_round_end(fight);
-    managers.calculate_mgr.on_round_end();
-    managers.cloth_mgr.on_round_end(fight);
-    BuffMgr::on_round_end_hooks(fight, managers);
-    let mut events = with_snapshot(managers, |s| PassiveMgr::on_round_end(fight, s, entity_uid));
-    events.extend(with_snapshot(managers, |s| RuleMgr::on_round_end(fight, s, entity_uid)));
-    events
+fn sort_entries(entries: &mut Vec<HookEntry>) {
+    // TODO: sort by priority once priority field is populated from config
+    let _ = entries;
 }
 
-pub fn on_enter_fight(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
-    managers.entity_mgr.set_action_point(entity_uid, 1);
-    let buffs = managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default();
-    let mut events = managers.cloth_mgr.on_enter_fight(fight, entity_uid);
-    events.extend(with_snapshot(managers, |s| BuffMgr::on_enter_fight(&buffs, fight, s, entity_uid)));
-    events.extend(with_snapshot(managers, |s| RuleMgr::on_enter_fight(fight, s, entity_uid)));
-    events.extend(with_snapshot(managers, |s| PassiveMgr::on_enter_fight(fight, s, entity_uid)));
-    events
+fn collect_passive(managers: &Managers, entity_uid: i64) -> Vec<HookEntry> {
+    managers.passive_mgr.get(entity_uid).iter().cloned()
+        .map(|e| HookEntry { priority: 0, payload: HookPayload::Effect(e, entity_uid) })
+        .collect()
 }
 
-pub fn on_use_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
-    let buffs = managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default();
-    let mut events = managers.cloth_mgr.on_use_card(fight, events);
-    events.extend(with_snapshot(managers, |s| BuffMgr::on_use_card(&buffs, fight, s, entity_uid)));
-    events
+fn collect_rule(managers: &Managers, entity_uid: i64) -> Vec<HookEntry> {
+    managers.rule_mgr.effects.iter().cloned()
+        .map(|e| HookEntry { priority: 0, payload: HookPayload::Effect(e, entity_uid) })
+        .collect()
 }
 
-pub fn on_move_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
-    let buffs = managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default();
-    let mut events = managers.cloth_mgr.on_move_card(fight, events);
-    events.extend(with_snapshot(managers, |s| BuffMgr::on_move_card(&buffs, fight, s, entity_uid)));
-    events
+fn collect_buff(managers: &Managers, entity_uid: i64) -> Vec<HookEntry> {
+    managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default()
+        .into_iter()
+        .map(|b| HookEntry { priority: 0, payload: HookPayload::Buff(b, entity_uid) })
+        .collect()
 }
 
-pub fn on_compose_card(managers: &mut Managers, fight: &Fight, events: Vec<Event>, entity_uid: i64) -> Vec<Event> {
-    let buffs = managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default();
-    let mut events = managers.cloth_mgr.on_compose_card(fight, events);
-    events.extend(with_snapshot(managers, |s| BuffMgr::on_compose_card(&buffs, fight, s, entity_uid)));
-    events
-}
-
-pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
-    let buffs = managers.buff_mgr.active_buff.get(&entity_uid).cloned().unwrap_or_default();
-    let mut events = vec![
-        Event::Dead { entity_uid },
-        Event::RemoveEntityCards { entity_uid },
-    ];
-    events.extend(managers.cloth_mgr.on_dead(fight, entity_uid));
-    events.extend(with_snapshot(managers, |s| BuffMgr::on_dead(&buffs, fight, s, entity_uid)));
-    events.extend(with_snapshot(managers, |s| RuleMgr::on_dead(fight, s, entity_uid)));
-    events.extend(with_snapshot(managers, |s| PassiveMgr::on_dead(fight, s, entity_uid)));
-    managers.entity_mgr.action_points.remove(&entity_uid);
-    events
+fn collect_active(managers: &Managers) -> Vec<HookEntry> {
+    managers.active_effect_mgr.map.values()
+        .flat_map(|effects| effects.iter().cloned().map(|e| {
+            let owner = e.owner_uid;
+            HookEntry { priority: 0, payload: HookPayload::Effect(e, owner) }
+        }))
+        .collect()
 }
 
 pub fn on_buff_add(managers: &mut Managers, fight: &Fight, target_uid: i64) -> Vec<Event> {
-    let buffs = managers.buff_mgr.active_buff.get(&target_uid).cloned().unwrap_or_default();
-    with_snapshot(managers, |s| BuffMgr::on_buff_add(&buffs, fight, s, target_uid))
+    fire_hook(managers, fight, Hook::BuffAdd, target_uid)
+}
+
+pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
+    fire_hook(managers, fight, Hook::Dead, entity_uid)
+}
+
+pub fn fire_hook(
+    managers: &mut Managers,
+    fight: &Fight,
+    hook: Hook,
+    entity_uid: i64,
+) -> Vec<Event> {
+    let mut entries = collect_buff(managers, entity_uid);
+    entries.extend(collect_rule(managers, entity_uid));
+    entries.extend(collect_passive(managers, entity_uid));
+    entries.extend(collect_active(managers));
+    sort_entries(&mut entries);
+    let mut events = Vec::new();
+    for entry in entries {
+        let mut snapshot = managers.clone();
+        events.extend(entry.fire(hook, fight, &mut snapshot));
+        *managers = snapshot;
+    }
+    events
 }

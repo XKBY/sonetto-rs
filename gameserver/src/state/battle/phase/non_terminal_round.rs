@@ -102,6 +102,11 @@ pub(crate) async fn run(
     ));
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
         let sub_uid = sub_entity.uid.unwrap_or(0);
+        ctx.managers.passive_mgr.seed_entity(&sub_entity);
+        if sub_uid != 0 {
+            let fight = &*ctx.fight;
+            ctx.managers.rule_mgr.seed_entity_uid(sub_uid, fight);
+        }
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffectBuilder::change_hero(
@@ -316,6 +321,11 @@ pub(crate) async fn run(
     );
     if let Some((dead_uid, sub_entity, position)) = ctx.managers.entity_mgr.sub_hero(ctx.fight) {
         let sub_uid = sub_entity.uid.unwrap_or(0);
+        ctx.managers.passive_mgr.seed_entity(&sub_entity);
+        if sub_uid != 0 {
+            let fight = &*ctx.fight;
+            ctx.managers.rule_mgr.seed_entity_uid(sub_uid, fight);
+        }
         steps.push(
             FightStepBuilder::effect()
                 .with(ActEffectBuilder::change_hero(

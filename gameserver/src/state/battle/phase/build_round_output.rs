@@ -72,7 +72,7 @@ pub(crate) fn build_round_output(
         .flat_map(split_step_by_effect_limit)
         .collect();
 
-    let attacker_ac = ctx.managers.entity_mgr.get_ac_point(true);
+    let attacker_ac = ctx.managers.entity_mgr.get_ac_point(ctx.fight, true);
 
     let mut rng_for_ai = StdRng::from_entropy();
     deck_mgr.next_ai_use_cards = ai::select_enemy_cards(

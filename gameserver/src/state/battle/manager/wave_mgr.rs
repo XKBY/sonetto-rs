@@ -214,6 +214,20 @@ impl WaveMgr {
             )?;
         }
 
+        let new_entities: Vec<_> = ctx
+            .fight
+            .defender
+            .as_ref()
+            .into_iter()
+            .flat_map(|d| d.entitys.iter())
+            .collect();
+        for entity in new_entities {
+            ctx.managers.passive_mgr.seed_entity(entity);
+            if let Some(uid) = entity.uid {
+                ctx.managers.rule_mgr.seed_entity_uid(uid, ctx.fight);
+            }
+        }
+
         Ok(())
     }
 }

@@ -26,7 +26,6 @@ pub struct EntityMgr {
     pub max_hp: HashMap<i64, i32>,
     recent_decr_ex_point: HashMap<i64, i32>,
     pub action_points: HashMap<i64, i32>,
-    initial_action_points: HashMap<i64, i32>,
 }
 
 impl EntityMgr {
@@ -150,7 +149,6 @@ impl EntityMgr {
             self.max_hp.insert(uid, mhp);
             self.action_points.insert(uid, 1);
         }
-        self.initial_action_points = self.action_points.clone();
     }
 
     pub fn add_ex_point(&mut self, uid: i64, amount: i32) {
@@ -218,11 +216,18 @@ impl EntityMgr {
         self.ex_points.get(&uid).copied().unwrap_or(0)
     }
 
-    pub fn get_ac_point(&self, is_attacker: bool) -> i32 {
-        self.entity_cache
-            .iter()
-            .filter(|(_, loc)| loc.is_attacker == is_attacker)
-            .map(|(uid, _)| self.action_points.get(uid).copied().unwrap_or(0))
+    pub fn get_ac_point(&self, fight: &Fight, is_attacker: bool) -> i32 {
+        tracing::info!(" action point hashmap: {:?}", self.action_points);
+        let side = if is_attacker {
+            fight.attacker.as_ref()
+        } else {
+            fight.defender.as_ref()
+        };
+
+        side.into_iter()
+            .flat_map(|team| team.entitys.iter())
+            .filter_map(|entity| entity.uid)
+            .map(|uid| self.action_points.get(&uid).copied().unwrap_or(0))
             .sum()
     }
 
@@ -273,7 +278,7 @@ impl Manager for EntityMgr {
 
     fn on_round_end(&mut self, _fight: &mut Fight) {
         self.recent_decr_ex_point.clear();
-        self.action_points = self.initial_action_points.clone();
+        self.action_points.values_mut().for_each(|ap| *ap = 1);
     }
 
     fn on_battle_end(&mut self) {

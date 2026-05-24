@@ -3,7 +3,7 @@ use sonettobuf::Fight;
 use super::super::rule::collect::collect_rules;
 use super::traits::Manager;
 use super::fight_data_mgr::Managers;
-use crate::state::battle::{effect, event::Event};
+use crate::state::battle::effect;
 
 #[derive(Default, Clone)]
 pub struct RuleMgr {
@@ -18,62 +18,44 @@ impl std::fmt::Debug for RuleMgr {
 
 fn all_entity_uids(fight: &Fight) -> Vec<i64> {
     let attacker = fight.attacker.as_ref().into_iter()
-        .flat_map(|a| a.entitys.iter().chain(a.sub_entitys.iter()));
+        .flat_map(|a| a.entitys.iter());
     let defender = fight.defender.as_ref().into_iter()
-        .flat_map(|d| d.entitys.iter().chain(d.sub_entitys.iter()));
+        .flat_map(|d| d.entitys.iter());
     attacker.chain(defender).filter_map(|e| e.uid).collect()
 }
 
 impl RuleMgr {
     pub fn new(fight: &Fight) -> Self {
-        let uids = all_entity_uids(fight);
-        let effects = collect_rules(fight)
-            .into_iter()
-            .flat_map(|(prefix, effect_id)| {
-                uids.iter().filter_map(move |&uid| {
-                    let matched = match prefix {
-                        // 1: player, 2: enemy, 3: all
-                        1 => uid >= 0,
-                        2 => uid < 0,
-                        _ => true,
-                    };
-                    if !matched { return None; }
-                    tracing::info!(prefix, effect_id, uid, "rule_mgr: parsing rule for matched uid");
-                    effect::parser::parse(effect_id, uid)
-                })
+        let mut mgr = Self::default();
+        let rules = collect_rules(fight);
+        for uid in all_entity_uids(fight) {
+            mgr.seed_entity_uid_with_rules(uid, &rules);
+        }
+        mgr
+    }
+
+    pub fn seed_entity_uid(&mut self, uid: i64, fight: &Fight) {
+        let rules = collect_rules(fight);
+        self.seed_entity_uid_with_rules(uid, &rules);
+    }
+
+    fn seed_entity_uid_with_rules(&mut self, uid: i64, rules: &[(i32, i32)]) {
+        let new_effects: Vec<effect::SkillEffect> = rules
+            .iter()
+            .filter_map(|&(prefix, effect_id)| {
+                let matched = match prefix {
+                    1 => uid >= 0,
+                    2 => uid < 0,
+                    _ => true,
+                };
+                if !matched { return None; }
+                tracing::info!(prefix, effect_id, uid, "rule_mgr: parsing rule for matched uid");
+                effect::parser::parse(effect_id, uid)
             })
             .collect();
-        Self { effects }
+        self.effects.extend(new_effects);
     }
 
-    pub fn on_enter_fight(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let effects = managers.rule_mgr.effects.clone();
-        effects.into_iter().flat_map(|mut e| {
-            let mut evs = e.on_enter_fight(fight, managers, entity_uid);
-            for ev in &evs { tracing::info!("rule_mgr entity={} event={:?}", entity_uid, ev); }
-            evs
-        }).collect()
-    }
-
-    pub fn on_dead(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let effects = managers.rule_mgr.effects.clone();
-        effects.into_iter().flat_map(|mut e| e.on_dead(fight, managers, entity_uid)).collect()
-    }
-
-    pub fn on_round_start(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let effects = managers.rule_mgr.effects.clone();
-        effects.into_iter().flat_map(|mut e| e.on_round_start(fight, managers, entity_uid)).collect()
-    }
-
-    pub fn on_round_end(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let effects = managers.rule_mgr.effects.clone();
-        effects.into_iter().flat_map(|mut e| e.on_round_end(fight, managers, entity_uid)).collect()
-    }
-
-    pub fn on_battle_start(fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        let effects = managers.rule_mgr.effects.clone();
-        effects.into_iter().flat_map(|mut e| e.on_battle_start(fight, managers, entity_uid)).collect()
-    }
 }
 
 impl Manager for RuleMgr {}

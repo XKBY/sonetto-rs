@@ -22,7 +22,7 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
         // ENTER_FIGHT hook
         let initial_uids: Vec<i64> = ctx.fight
             .attacker.iter().chain(ctx.fight.defender.iter())
-            .flat_map(|t| t.entitys.iter().chain(t.sub_entitys.iter()))
+            .flat_map(|t| t.entitys.iter())
             .filter_map(|e| e.uid)
             .collect();
         for uid in initial_uids {
@@ -53,7 +53,7 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
     fight_mgr.managers.entity_mgr.rebuild_cache(&fight_mgr.fight);
     fight_mgr.managers.calculate_mgr.update_cache(&fight_mgr.fight);
 
-    let act_point = fight_mgr.managers.entity_mgr.get_ac_point(true);
+    let act_point = fight_mgr.managers.entity_mgr.get_ac_point(&fight_mgr.fight, true);
 
     for e in fight_mgr.fight.attacker.iter().flat_map(|t| t.entitys.iter()) {
         let uid = e.uid.unwrap_or(0);

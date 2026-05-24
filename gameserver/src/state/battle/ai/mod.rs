@@ -24,7 +24,7 @@ pub(crate) fn select_enemy_cards(
             .filter_map(|e| e.ex_skill)
             .filter(|&id| id != 0)
             .collect();
-        let enemy_ap = entity_mgr.get_ac_point(false).max(0) as usize;
+        let enemy_ap = entity_mgr.get_ac_point(fight, false).max(0) as usize;
         for _ in 0..enemy_ap {
             if deck_mgr.enemy_hand.is_empty() { break; }
             let best_pos = deck_mgr.enemy_hand.iter().enumerate()

@@ -15,6 +15,10 @@ pub enum Hook {
     RoundStart,
     RoundEnd,
     BattleStart,
+    UseCard,
+    MoveCard,
+    ComposeCard,
+    BuffAdd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

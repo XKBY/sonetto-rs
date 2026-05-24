@@ -1,3 +1,4 @@
+pub mod active_effect_mgr;
 pub mod buff_mgr;
 pub mod passive_mgr;
 pub mod calculate_mgr;

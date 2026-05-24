@@ -8,6 +8,7 @@ use super::super::{
         cloth_mgr::ClothMgr,
         entity_mgr::EntityMgr,
         passive_mgr::PassiveMgr,
+        active_effect_mgr::ActiveEffectMgr,
         rule_mgr::RuleMgr,
         wave_mgr::WaveMgr,
     },
@@ -39,6 +40,7 @@ pub struct Managers {
     pub cloth_mgr: ClothMgr,
     pub rule_mgr: RuleMgr,
     pub passive_mgr: PassiveMgr,
+    pub active_effect_mgr: ActiveEffectMgr,
 }
 
 impl Managers {
@@ -53,6 +55,7 @@ impl Managers {
             cloth_mgr: ClothMgr::default(),
             rule_mgr: RuleMgr::new(fight),
             passive_mgr: PassiveMgr::new(fight),
+            active_effect_mgr: ActiveEffectMgr::default(),
         }
     }
 }

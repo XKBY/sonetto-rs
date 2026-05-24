@@ -7,6 +7,7 @@ use std::time::Instant;
 use super::execution_guards::{DepthGuard, ReentryGuard, SkillContextGuard};
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext, hook_call},
+    effect::{condition::Hook, parser as effect_parser},
     event::events_to_act_effects,
     fight::defender::Defender,
     fight_step::ActEffectBuilder,
@@ -172,7 +173,8 @@ impl SkillExecutor {
         phase: &PhaseFilter,
     ) -> Result<Vec<ActEffect>> {
         let exec_start = Instant::now();
-        let skill_id = euphoria::resolve_with_euphoria(fight, caster_uid, skill_id);
+        let skill_id = // euphoria::resolve_with_euphoria(fight, caster_uid, skill_id);
+            skill_id;
         // Catch-all timeline record: every emission funnels through here.
         // Higher-level call sites (CardCast, TriggerCombatPassive, etc.)
         // record their own entries too — appearing twice in the timeline
@@ -236,310 +238,52 @@ impl SkillExecutor {
             behaviors.len()
         );
         let mut all_effects: Vec<ActEffect> = Vec::new();
-        let mut force_effect_step = false;
-        let setup_done = Instant::now();
-        let mut sim_fight = fight.clone();
-        let mut sim_buff_mgr = managers.buff_mgr.clone();
+
+        if let Some(mut skill_effect) = effect_parser::parse(skill_effect_id, caster_uid) {
+            all_effects.extend(events_to_act_effects(skill_effect.fire_all(fight, managers, target_uid)));
+        }
+        let force_effect_step = false;
+        let setup_done: Instant = Instant::now();
+        // let mut sim_fight = fight.clone();
+        // let mut sim_buff_mgr = managers.buff_mgr.clone();
         let clones_done = Instant::now();
 
-        // Conditions should see evolving buff state produced by prior behavior slots.
-        let has_trigger_state = matches!(phase, PhaseFilter::Combat(_));
-        let execution_order = behavior_execution_order(behaviors);
-
-        // Preserve config slot order; each slot condition still evaluates against skill-entry snapshot.
-        for &behavior_idx in &execution_order {
-            let b = &behaviors[behavior_idx];
-            let slot_index = (behavior_idx + 1) as u8;
-            tracing::debug!(
-                "  [behavior {}] condition={:?} behavior={:?} behavior_target={} condition_target={} logic_target={}",
-                behavior_idx + 1,
-                b.condition,
-                b.behavior,
-                b.behavior_target,
-                b.condition_target,
-                b.logic_target
-            );
-            if let PhaseFilter::Combat(event) = phase
-                && event.event_driven_only
-                && !condition_has_combat_event(&b.condition)
-            {
-                continue;
-            }
-
-            if b.round_limit > 0 {
-                let used = managers.buff_mgr.skill_slot_round_usage(
-                    caster_uid,
-                    skill_effect_id,
-                    slot_index,
-                );
-                if used >= b.round_limit {
-                    tracing::debug!(
-                        "  [behavior {}] skipped by round_limit={} used={}",
-                        behavior_idx + 1,
-                        b.round_limit,
-                        used
-                    );
-                    continue;
-                }
-            }
-
-            if !phase.check(&b.condition, b.behavior_target, caster_uid) {
-                continue;
-            }
-
-            if !phase.allows_behavior(&b.behavior) {
-                continue;
-            }
-
-            let cond_pass = eval_behavior_condition(
-                &BehaviorConditionCtx {
-                    fight: &sim_fight,
-                    buff_mgr: &sim_buff_mgr,
-                    entity_mgr: &managers.entity_mgr,
-                    bloodtithe: &mechanics.bloodtithe,
-                    caster_uid,
-                    target_uid,
-                    has_trigger_state,
-                    phase,
-                },
-                b,
-            );
-
-            tracing::debug!(
-                "    -> condition check: {}{}",
-                if b.negated { "!" } else { "" },
-                if cond_pass { "PASS" } else { "FAIL" }
-            );
-            if !cond_pass {
-                continue;
-            }
-
-            if std::env::var_os("SONETTO_TRACE_BEHAVIOR_FIRE").is_some() {
-                let trace_filter = std::env::var("SONETTO_TRACE_BEHAVIOR_FIRE")
-                    .ok()
-                    .and_then(|v| v.parse::<i32>().ok())
-                    .unwrap_or(0);
-                if trace_filter == 0 || trace_filter == skill_id {
-                    eprintln!(
-                        "[behavior_fire] round={} skill={} caster={} target={} slot={} condition={:?}",
-                        crate::state::battle::round_state::simulated_round(),
-                        skill_id,
-                        caster_uid,
-                        target_uid,
-                        slot_index,
-                        b.condition,
-                    );
-                }
-            }
-
-            if matches!(&b.behavior, BehaviorType::LostLife { mode: 1, .. }) {
-                force_effect_step = true;
-            }
-
-            let behavior_ctx = BehaviorContext::new(
-                &sim_fight,
-                caster_uid,
-                target_uid,
-                skill_id,
-                slot_index,
-                b.behavior_target,
-                b.condition_target,
-                b.logic_target,
-                phase,
-            );
-            let preview_summon_start = self.pending_summons.len();
-            let behavior_effects = execute_behavior(
-                self,
-                rng,
-                managers,
-                mechanics,
-                &behavior_ctx,
-                &b.behavior,
-                b.condition_id,
-                &b.condition,
-            )?;
-            for summon in self.pending_summons[preview_summon_start..].iter().copied() {
-                preview_pending_summon(&mut sim_fight, summon)?;
-            }
-            let behavior_effects = inject_empathy_storage_injuries(
-                mechanics,
-                &mut sim_buff_mgr,
-                &mut managers.buff_mgr,
-                &sim_fight,
-                caster_uid,
-                behavior_effects,
-            );
-            managers.buff_mgr.increment_skill_slot_round_usage(
-                caster_uid,
-                skill_effect_id,
-                slot_index,
-            );
-
-            tracing::debug!("    -> effects built: {}", behavior_effects.len());
-            for e in &behavior_effects {
-                tracing::trace!(
-                    "       effect_type={:?} target={:?} num={:?}",
-                    e.effect_type,
-                    e.target_id,
-                    e.effect_num
-                );
-            }
-            apply_preview_effects_to_sim_fight(&mut sim_fight, &behavior_effects);
-            apply_preview_effects_to_sim_buffs(
-                &mut sim_buff_mgr,
-                &behavior_effects,
-                skill_effect_id,
-            );
-            // Nested DirectUseSkill execution reads managers.buff_mgr directly.
-            // Keep managers in lockstep with previewed buff deltas so recursive
-            // behavior slots see the same buff state as this skill chain.
-            apply_preview_effects_to_sim_buffs(
-                &mut managers.buff_mgr,
-                &behavior_effects,
-                skill_effect_id,
-            );
-            all_effects.extend(behavior_effects);
-        }
-        let behaviors_done = Instant::now();
-
-        // fallback: damage_rate should still fire if no Damage effect was emitted,
-        // unless explicitly disabled by IgnoreSkillConfigDamageRate behavior.
+        // fallback damage_rate
         if let Some(skill) = skill_cfg
             && skill.damage_rate > 0
+            && !all_effects.iter().any(|e| e.effect_type.map(is_damage_effect_type).unwrap_or(false))
         {
-            // The fallback `damageRate` damage path should still fire
-            // even when behaviors emit "bonus" damage effects that
-            // ride alongside the primary damage (e.g. Kakania's
-            // Subconscious Empathy bonus, marked with
-            // `config_effect = 60038`). Standard primary-damage
-            // emissions from `lost_life::apply` carry
-            // `config_effect = -1` (and the fallback path itself
-            // emits the same value), so the bonus-only marker we
-            // need to ignore is specifically the positive
-            // bonus-config-effect family.
-            let has_damage_effect = all_effects.iter().any(|e| {
-                e.effect_type.map(is_damage_effect_type).unwrap_or(false)
-                    && !is_bonus_damage_config_effect(e.config_effect.unwrap_or(0))
-            });
-            let ignore_config_damage = behaviors.iter().any(|b| {
-                matches!(
-                    b.behavior,
-                    super::super::types::behavior::BehaviorType::IgnoreSkillConfigDamageRate
-                )
-            });
-
-            if !has_damage_effect && !ignore_config_damage {
-                let mut damage_effects = Vec::new();
-                for dmg_target in fallback_damage_targets(
-                    &sim_fight,
-                    caster_uid,
-                    target_uid,
-                    skill.logic_target.trim().parse::<i32>().unwrap_or(0),
-                    override_damage_targets.as_deref(),
-                ) {
-                    let bonus = self.pending_global_rate_bonus
-                        + self
-                            .pending_target_rate_bonus
-                            .get(&dmg_target)
-                            .copied()
-                            .unwrap_or(0);
-                    let final_rate = (skill.damage_rate + bonus).max(0);
-                    let is_crit = should_crit_hit(
-                        &sim_fight,
-                        &managers.buff_mgr,
-                        Some(&self.pending_attr_bonus),
-                        caster_uid,
-                        dmg_target,
-                        skill_id,
-                    );
-                    damage_effects.extend(calculate_damage(
-                        &sim_fight,
-                        &managers.buff_mgr,
-                        Some(&self.pending_attr_bonus),
-                        caster_uid,
-                        dmg_target,
-                        final_rate,
-                        skill_id,
-                        is_crit,
-                    ));
-                }
-                let mut damage_effects = inject_empathy_storage_injuries(
-                    mechanics,
-                    &mut sim_buff_mgr,
-                    &mut managers.buff_mgr,
-                    &sim_fight,
-                    caster_uid,
-                    damage_effects,
-                );
-                damage_effects.extend(all_effects);
-                all_effects = damage_effects;
+            for dmg_target in fallback_damage_targets(
+                fight,
+                caster_uid,
+                target_uid,
+                skill.logic_target.trim().parse::<i32>().unwrap_or(0),
+                override_damage_targets.as_deref(),
+            ) {
+                let is_crit = should_crit_hit(fight, &managers.buff_mgr, None, caster_uid, dmg_target, skill_id);
+                all_effects.extend(calculate_damage(fight, &managers.buff_mgr, None, caster_uid, dmg_target, skill.damage_rate, skill_id, is_crit));
             }
         }
 
-        let dead_effects = collect_dead_effects_after_damage(&sim_fight, managers, &all_effects);
+        let behaviors_done = Instant::now();
+
+        let dead_effects = collect_dead_effects_after_damage(fight, managers, &all_effects);
         if !dead_effects.is_empty() {
             all_effects.extend(dead_effects);
         }
 
-        // Some temporary offense buffs are consumed when the owner deals damage
-        // (e.g. buff 301 / AttrOnlyCalDamageAttack), emitted as inline 162 steps.
-        if all_effects
-            .iter()
-            .any(|e| e.effect_type.map(is_damage_effect_type).unwrap_or(false))
-        {
-            let mut consume_targets = vec![caster_uid];
-            for target in all_effects.iter().filter_map(|e| {
-                let et = e.effect_type.unwrap_or(0);
-                if is_damage_effect_type(et) { e.target_id } else { None }
-            }) {
-                if !consume_targets.contains(&target) {
-                    consume_targets.push(target);
-                }
-            }
-            let mut consume_steps = Vec::new();
-            for uid in consume_targets {
-                consume_steps.extend(consume_attr_only_damage_buffs(managers, uid));
-            }
-            all_effects.extend(consume_steps);
-        }
-
-        inject_sotheby_consume(&mut all_effects, &sim_fight, managers, caster_uid, skill_id);
-
-        all_effects = normalize_nested_steps(all_effects, skill_id);
-
-        if all_effects.is_empty()
-            && self.pending_monitor_triggers.is_empty()
-            && self.side_effects.is_empty()
-        {
+        if all_effects.is_empty() && self.side_effects.is_empty() {
             tracing::info!("[execute_skill] skill={} no effects fired", skill_id);
-            return Ok(vec![]);
-        }
-
-        // If the skill's only emitted effects are Attr-update markers with
-        // effect_num == 0 (e.g. AttrFix-only passives like 71004), the state
-        // change is already applied to the executor's pending_attr_bonus and
-        // LIVE does not emit a visible 162 wrapper. Suppress the container
-        // so these passives don't over-fire in the skill-count walker.
-        let all_attr_only = !all_effects.is_empty()
-            && all_effects.iter().all(|e| {
-                e.effect_type == Some(EffectType::Attr as i32) && e.effect_num.unwrap_or(0) == 0
-            });
-        if all_attr_only && self.pending_monitor_triggers.is_empty() && self.side_effects.is_empty()
-        {
             return Ok(vec![]);
         }
 
         let logic_to_id = skill_cfg
             .and_then(|s| {
                 let lt = s.logic_target.trim();
-                if lt.is_empty() {
-                    None
-                } else {
-                    lt.parse::<i32>().ok()
-                }
+                if lt.is_empty() { None } else { lt.parse::<i32>().ok() }
             })
             .and_then(|target_type| {
-                TargetResolver::new(&sim_fight, caster_uid, target_uid)
+                TargetResolver::new(fight, caster_uid, target_uid)
                     .behavior(target_type)
                     .resolve()
                     .into_iter()
@@ -573,52 +317,12 @@ impl SkillExecutor {
 
         let mut result = Vec::new();
 
-        // Fire pending monitor triggers (CreateMaxHpAdditionalDamageAndRemove) as
-        // inline 162 steps BEFORE the main skill step, matching live order.
-        let triggers: Vec<(i64, i32)> = self.pending_monitor_triggers.drain(..).collect();
-        for (trigger_uid, trigger_skill_id) in triggers {
-            match Self::execute_trigger_skill(
-                rng,
-                &sim_fight,
-                managers,
-                mechanics,
-                trigger_uid,
-                trigger_skill_id,
-                phase,
-            ) {
-                Ok((trigger_162, buff_dels)) => {
-                    result.push(trigger_162);
-                    // BuffDels from AttrFromEntity self-deletes go to outer side_effects
-                    for (del_target, del_buff_id) in buff_dels {
-                        let uid = managers
-                            .buff_mgr
-                            .get(del_target)
-                            .iter()
-                            .find(|b| b.buff_id == del_buff_id)
-                            .map(|b| b.uid)
-                            .unwrap_or(0);
-                        self.side_effects
-                            .push(ActEffectBuilder::buff_del_with_snapshot(
-                                del_target,
-                                uid,
-                                del_buff_id,
-                                del_target,
-                                0,
-                                0,
-                                String::new(),
-                                0,
-                                0,
-                            ));
-                    }
-                }
-                Err(e) => tracing::warn!(
-                    "monitor trigger skill={} uid={}: {}",
-                    trigger_skill_id,
-                    trigger_uid,
-                    e
-                ),
-            }
-        }
+        // // Fire pending monitor triggers — commented out
+        // let triggers: Vec<(i64, i32)> = self.pending_monitor_triggers.drain(..).collect();
+        // for (trigger_uid, trigger_skill_id) in triggers { ... }
+
+        // // Fire pending buff deletes — commented out
+        // for (del_target, del_buff_id) in self.pending_buff_dels.drain(..) { ... }
 
         if self.call_depth > 1 {
             if let Some(step) = skill_act_effect.fight_step.as_mut() {
@@ -1284,6 +988,16 @@ fn apply_pending_summon(
 ) -> Result<()> {
     let new_uid = spawn_summoned_entity(fight, summon)?;
     managers.buff_mgr.clear(new_uid);
+
+    if let Some(entity) = fight
+        .defender
+        .as_ref()
+        .and_then(|d| d.sub_entitys.iter().find(|e| e.uid == Some(new_uid)))
+        .cloned()
+    {
+        managers.passive_mgr.seed_entity(&entity);
+        managers.rule_mgr.seed_entity_uid(new_uid, fight);
+    }
 
     tracing::info!(
         "applied summon caster={} monster={} uid={}",
