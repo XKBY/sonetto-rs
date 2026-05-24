@@ -30,10 +30,30 @@ impl EffectSlot {
         self.conditions.iter().any(|c| c.hook == hook)
     }
 
-    fn check_conditions(&self, owner_uid: i64, eval: ConditionEval<'_>) -> bool {
+    fn check_conditions(&self, owner_uid: i64, eval: ConditionEval<'_>) -> Option<i32> {
         match self.op {
-            ConditionOp::And => self.conditions.iter().all(|c| c.check(owner_uid, eval).is_some()),
-            ConditionOp::Or => self.conditions.iter().any(|c| c.check(owner_uid, eval).is_some()),
+            ConditionOp::And => {
+                let mut min_count = i32::MAX;
+                for c in &self.conditions {
+                    if let Some(count) = c.check(owner_uid, eval) {
+                        min_count = min_count.min(count);
+                    } else {
+                        return None;
+                    }
+                }
+                if min_count == i32::MAX { Some(1) } else { Some(min_count) }
+            }
+            ConditionOp::Or => {
+                let mut max_count = 0;
+                let mut matched = false;
+                for c in &self.conditions {
+                    if let Some(count) = c.check(owner_uid, eval) {
+                        max_count = max_count.max(count);
+                        matched = true;
+                    }
+                }
+                if matched { Some(max_count) } else { None }
+            }
         }
     }
 
@@ -89,7 +109,8 @@ impl SkillEffect {
         for (slot_idx, slot) in self.slots.iter_mut().enumerate() {
             if !slot.matches_hook(hook) { continue; }
             let within_limits = slot.within_limits();
-            let cond_eval_pass = slot.check_conditions(owner_uid, eval);
+            let cond_count = slot.check_conditions(owner_uid, eval);
+            let cond_eval_pass = cond_count.is_some();
             tracing::info!(
                 "effect hooked: hook={:?} owner_uid={} target_uid={} slot_idx={} cond_eval_pass={} within_limits={} behaviours={} use_count={} round_use_count={}",
                 hook, owner_uid, target_uid, slot_idx, cond_eval_pass, within_limits,
@@ -97,13 +118,14 @@ impl SkillEffect {
             );
             tracing::info!("effect slot detail: slot_idx={} slot={:?}", slot_idx, slot);
             if !within_limits || !cond_eval_pass { continue; }
+            let count = cond_count.unwrap();
             slot.use_count += 1;
             slot.round_use_count += 1;
-            matching.extend(slot.behaviours.iter().map(|b| (b.raw.clone(), b.target)));
+            matching.extend(slot.behaviours.iter().map(|b| (b.raw.clone(), b.target, count)));
         }
         matching
             .into_iter()
-            .flat_map(|(raw, target)| behavior::execute(fight, managers, owner_uid, &raw, target))
+            .flat_map(|(raw, target, count)| behavior::execute(fight, managers, owner_uid, &raw, target, count))
             .collect()
     }
 
