@@ -27,7 +27,7 @@ pub struct EffectSlot {
 
 impl EffectSlot {
     fn matches_hook(&self, hook: condition::Hook) -> bool {
-        self.conditions.iter().any(|c| c.hook == hook)
+        self.conditions.first().is_some_and(|c| c.hooks.contains(&hook))
     }
 
     fn check_conditions(&self, owner_uid: i64, eval: ConditionEval<'_>) -> Option<i32> {
@@ -128,32 +128,8 @@ impl SkillEffect {
             .flat_map(|(raw, target, count)| behavior::execute(fight, managers, owner_uid, &raw, target, count))
             .collect()
     }
-
-    pub fn on_enter_fight(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::EnterFight, fight, managers, entity_uid)
-    }
-
-    pub fn on_dead(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::Dead, fight, managers, entity_uid)
-    }
-
-    pub fn on_round_start(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::RoundStart, fight, managers, entity_uid)
-    }
-
-    pub fn on_round_end(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::RoundEnd, fight, managers, entity_uid)
-    }
-
-    pub fn on_battle_start(&mut self, fight: &Fight, managers: &mut Managers, entity_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::BattleStart, fight, managers, entity_uid)
-    }
-
+    
     pub fn on_eval_active_skill(&mut self, fight: &Fight, managers: &mut Managers, skill_target_uid: i64) -> Vec<Event> {
         self.fire_hook(condition::Hook::EvalActiveSkill, fight, managers, skill_target_uid)
-    }
-
-    pub fn on_eval_being_attacked(&mut self, fight: &Fight, managers: &mut Managers, attacker_uid: i64) -> Vec<Event> {
-        self.fire_hook(condition::Hook::EvalBeingAttacked, fight, managers, attacker_uid)
     }
 }
