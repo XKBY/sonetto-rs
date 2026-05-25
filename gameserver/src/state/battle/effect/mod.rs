@@ -129,8 +129,56 @@ impl SkillEffect {
         }
         matching
             .into_iter()
+            .filter(|(raw, _, _)| !behavior::is_attr_fix(raw))
             .flat_map(|(raw, target, count)| behavior::execute(fight, managers, owner_uid, &raw, target, count))
             .collect()
+    }
+
+    pub fn fire_hook_attr_fix(
+        &mut self,
+        hook: condition::Hook,
+        fight: &Fight,
+        managers: &Managers,
+        target_uid: i64,
+    ) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+        let bloodtithe = BloodtitheState::default();
+        let buff_mgr = managers.buff_mgr.clone();
+        let entity_mgr = managers.entity_mgr.clone();
+        let eval = ConditionEval {
+            fight,
+            buff_mgr: &buff_mgr,
+            entity_mgr: &entity_mgr,
+            bloodtithe: &bloodtithe,
+            caster_uid: self.owner_uid,
+            target_uid,
+            condition_target: 0,
+            has_trigger_state: false,
+            active_card_cast_uids: None,
+            lost_buff_id: None,
+        };
+        let owner_uid = self.owner_uid;
+        let mut acc: std::collections::HashMap<(i64, i32), Vec<i32>> = std::collections::HashMap::new();
+        for (slot_idx, slot) in self.slots.iter_mut().enumerate() {
+            if !slot.matches_hook(hook) { continue; }
+            let within_limits = slot.within_limits();
+            let cond_count = slot.check_conditions(owner_uid, eval.clone());
+            let cond_eval_pass = cond_count.is_some();
+            if !within_limits || !cond_eval_pass { continue; }
+            let count = cond_count.unwrap();
+            // NB: this pass does NOT increment `use_count` / `round_use_count`.
+            // The non-attr-fix companion `fire_hook` (which the caller invokes
+            // immediately after) is the bookkeeping authority. Slot limits are
+            // shared between the two passes; the same slot fires once.
+            for b in &slot.behaviours {
+                if !behavior::is_attr_fix(&b.raw) { continue; }
+                let map = behavior::calculate_bonus(fight, managers, owner_uid, &b.raw, b.target, count);
+                for (k, v) in map {
+                    if v == 0 { continue; }
+                    acc.entry(k).or_default().push(v);
+                }
+            }
+        }
+        acc
     }
     
     pub fn on_eval_active_skill(&mut self, fight: &Fight, managers: &mut Managers, skill_target_uid: i64) -> Vec<Event> {
