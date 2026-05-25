@@ -154,6 +154,8 @@ impl<'a> FightContext<'a> {
 
     pub fn on_eval_active_skill(&mut self, caster_uid: i64) -> Vec<Event> {
         tracing::info!(caster_uid, "hook: on_eval_active_skill");
+        let attr_map = hook_call::on_eval_active_skill_attr_fix(self.managers, self.fight, caster_uid);
+        self.managers.entity_mgr.merge_attr_bonus(attr_map);
         hook_call::on_eval_active_skill(self.managers, self.fight, caster_uid)
     }
 
@@ -164,6 +166,8 @@ impl<'a> FightContext<'a> {
 
     pub fn on_eval_being_attacked(&mut self, defender_uid: i64) -> Vec<Event> {
         tracing::info!(defender_uid, "hook: on_eval_being_attacked");
+        let attr_map = hook_call::on_eval_being_attacked_attr_fix(self.managers, self.fight, defender_uid);
+        self.managers.entity_mgr.merge_attr_bonus(attr_map);
         hook_call::on_eval_being_attacked(self.managers, self.fight, defender_uid)
     }
 
