@@ -50,7 +50,11 @@ fn collect_buff(managers: &Managers, entity_uid: i64) -> Vec<HookEntry> {
 }
 
 fn collect_active(managers: &Managers) -> Vec<HookEntry> {
-    managers.active_effect_mgr.map.values()
+    let Some(idx) = managers.active_effect_mgr.active_idx else {
+        return Vec::new();
+    };
+    managers.active_effect_mgr.map.get(&idx)
+        .into_iter()
         .flat_map(|effects| effects.iter().cloned().map(|e| {
             let owner = e.owner_uid;
             HookEntry { priority: 0, payload: HookPayload::Effect(e, owner) }
@@ -64,6 +68,22 @@ pub fn on_buff_add(managers: &mut Managers, fight: &Fight, target_uid: i64) -> V
 
 pub fn on_dead(managers: &mut Managers, fight: &Fight, entity_uid: i64) -> Vec<Event> {
     fire_hook(managers, fight, Hook::Dead, entity_uid)
+}
+
+pub fn on_eval_active_skill(managers: &mut Managers, fight: &Fight, caster_uid: i64) -> Vec<Event> {
+    fire_hook(managers, fight, Hook::EvalActiveSkill, caster_uid)
+}
+
+pub fn on_use_ex_skill(managers: &mut Managers, fight: &Fight, caster_uid: i64) -> Vec<Event> {
+    fire_hook(managers, fight, Hook::UseExSkill, caster_uid)
+}
+
+pub fn on_eval_being_attacked(managers: &mut Managers, fight: &Fight, defender_uid: i64) -> Vec<Event> {
+    fire_hook(managers, fight, Hook::EvalBeingAttacked, defender_uid)
+}
+
+pub fn on_after_action(managers: &mut Managers, fight: &Fight, caster_uid: i64) -> Vec<Event> {
+    fire_hook(managers, fight, Hook::AfterAction, caster_uid)
 }
 
 pub fn fire_hook(
