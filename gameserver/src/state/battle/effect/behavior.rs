@@ -14,6 +14,16 @@ pub struct Behaviour {
     pub target: i32,
 }
 
+pub fn is_attr_fix(raw: &str) -> bool {
+    let id: i32 = raw.split('#').next().and_then(|v| v.parse().ok()).unwrap_or(0);
+    matches!(
+        behaviour_type(id),
+        Some(BehaviourType::_10004AttrFix)
+            | Some(BehaviourType::_10011AttrFixBuff)
+            | Some(BehaviourType::_60033AttrFixByLoseHp)
+    )
+}
+
 pub fn parse(raw: &str, beh_target: i32) -> Vec<Behaviour> {
     raw.split('|')
         .filter(|s| !s.is_empty())
@@ -42,3 +52,30 @@ pub fn execute_reversed(fight: &Fight, managers: &mut Managers, entity_uid: i64,
         _ => vec![],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_attr_fix_recognizes_attr_fix_family() {
+        assert!(is_attr_fix("10004#102#50"));         // _10004AttrFix
+        assert!(is_attr_fix("10011#102#50#1"));        // _10011AttrFixBuff
+        assert!(is_attr_fix("60033#100#205#75#8"));    // _60033AttrFixByLoseHp
+    }
+
+    #[test]
+    fn is_attr_fix_rejects_non_attr_fix() {
+        assert!(!is_attr_fix("1#100"));        // _1AddBuff
+        assert!(!is_attr_fix("20002#10"));     // _20002AddExPoint
+        assert!(!is_attr_fix("10006#1000"));   // _10006Damage
+    }
+
+    #[test]
+    fn is_attr_fix_handles_malformed_input() {
+        assert!(!is_attr_fix(""));
+        assert!(!is_attr_fix("abc"));
+        assert!(!is_attr_fix("999999999"));
+    }
+}
+
