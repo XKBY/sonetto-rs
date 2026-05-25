@@ -7,6 +7,7 @@ use super::target::Target;
 mod ex_point;
 mod add_buff;
 mod add_act;
+pub mod attr_modify;
 
 #[derive(Debug, Clone)]
 pub struct Behaviour {
