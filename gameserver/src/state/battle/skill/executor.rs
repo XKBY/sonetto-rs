@@ -282,8 +282,8 @@ impl SkillExecutor {
                 skill.logic_target.trim().parse::<i32>().unwrap_or(0),
                 override_damage_targets.as_deref(),
             ) {
-                let is_crit = should_crit_hit(fight, &managers.buff_mgr, None, caster_uid, dmg_target, skill_id);
-                all_effects.extend(calculate_damage(fight, &managers.buff_mgr, None, caster_uid, dmg_target, skill.damage_rate, skill_id, is_crit));
+                let is_crit = should_crit_hit(fight, &managers.buff_mgr, &managers.entity_mgr, caster_uid, dmg_target, skill_id);
+                all_effects.extend(calculate_damage(fight, &managers.buff_mgr, &managers.entity_mgr, caster_uid, dmg_target, skill.damage_rate, skill_id, is_crit));
             }
         }
 

@@ -123,7 +123,7 @@ pub fn lost_life(
         let burn_rate = if burn_rate > 0 { burn_rate } else { permille };
 
         let from_damage = calculate_damage(
-            fight, buff_mgr, None, caster_uid, target, burn_rate, skill_id, false,
+            fight, buff_mgr, &crate::state::battle::manager::entity_mgr::EntityMgr::default(), caster_uid, target, burn_rate, skill_id, false,
         )
         .into_iter()
         .find(|e| {

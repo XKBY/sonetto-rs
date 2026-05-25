@@ -99,4 +99,9 @@ impl EffectContext<'_> {
     pub fn buff_mgr_mut(&mut self) -> &mut BuffMgr {
         &mut self.managers.buff_mgr
     }
+
+    #[inline]
+    pub fn entity_mgr(&self) -> &crate::state::battle::manager::entity_mgr::EntityMgr {
+        &self.managers.entity_mgr
+    }
 }
