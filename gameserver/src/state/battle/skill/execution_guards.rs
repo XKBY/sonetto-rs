@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use crate::state::battle::manager::active_effect_mgr::ActiveEffectMgr;
 
 pub(super) struct DepthGuard {
     pub depth: *mut usize,
@@ -23,6 +24,24 @@ impl Drop for SkillContextGuard {
         // SAFETY: `current` points to `SkillExecutor::current_skill_context` for the lifetime of `execute_skill`.
         unsafe {
             *self.current = self.previous;
+        }
+    }
+}
+
+pub(super) struct ActiveEffectGuard {
+    pub mgr: *mut ActiveEffectMgr,
+    pub idx: usize,
+    pub prev_active_idx: Option<usize>,
+}
+
+impl Drop for ActiveEffectGuard {
+    fn drop(&mut self) {
+        // SAFETY: `mgr` points to `Managers::active_effect_mgr` for the
+        // duration of the enclosing `execute_skill` call. The guard does
+        // not outlive the borrow.
+        unsafe {
+            (*self.mgr).active_idx = self.prev_active_idx;
+            (*self.mgr).void(self.idx);
         }
     }
 }
