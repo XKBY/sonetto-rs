@@ -37,4 +37,17 @@ impl Buff {
             .flat_map(|a| a.execute(fight, managers, entity_uid, self.buff_id))
             .collect()
     }
+
+    pub fn fire_hook_attr_fix(
+        &self,
+        _hook: Hook,
+        _fight: &Fight,
+        _managers: &Managers,
+        _entity_uid: i64,
+    ) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+        // Buff actions are not attr-fix behaviours. The eval pass returns an
+        // empty map; this exists so the HookEntry dispatch shape is uniform
+        // across Buff and SkillEffect payloads.
+        std::collections::HashMap::new()
+    }
 }
