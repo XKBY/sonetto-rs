@@ -26,6 +26,7 @@ pub struct EntityMgr {
     pub max_hp: HashMap<i64, i32>,
     recent_decr_ex_point: HashMap<i64, i32>,
     pub action_points: HashMap<i64, i32>,
+    pub attr_bonus: HashMap<(i64, i32), Vec<i32>>,
 }
 
 impl EntityMgr {
@@ -268,6 +269,29 @@ impl EntityMgr {
         let hp = self.current_hp.entry(uid).or_insert(0);
         *hp = (*hp + amount).min(max_hp);
     }
+
+    pub fn merge_attr_bonus(&mut self, contributions: HashMap<(i64, i32), Vec<i32>>) {
+        for (key, values) in contributions {
+            let entry = self.attr_bonus.entry(key).or_default();
+            for v in values {
+                if v == 0 {
+                    continue;
+                }
+                entry.push(v);
+            }
+        }
+    }
+
+    pub fn sum_attr_bonus(&self, uid: i64, attr_id: i32) -> i32 {
+        self.attr_bonus
+            .get(&(uid, attr_id))
+            .map(|v| v.iter().copied().fold(0i32, i32::saturating_add))
+            .unwrap_or(0)
+    }
+
+    pub fn clear_attr_bonus(&mut self) {
+        self.attr_bonus.clear();
+    }
 }
 
 impl Manager for EntityMgr {
@@ -381,3 +405,59 @@ pub fn seed_ex_point_required_from_fight(fight: &Fight, mgr: &mut EntityMgr) {
         mgr.ex_point_required.insert(uid, required);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn merge_attr_bonus_appends_each_value_individually() {
+        let mut mgr = EntityMgr::default();
+        let mut first = HashMap::new();
+        first.insert((1i64, 102i32), vec![50]);
+        mgr.merge_attr_bonus(first);
+
+        let mut second = HashMap::new();
+        second.insert((1i64, 102i32), vec![30]);
+        mgr.merge_attr_bonus(second);
+
+        assert_eq!(mgr.attr_bonus.get(&(1, 102)).unwrap(), &vec![50, 30]);
+    }
+
+    #[test]
+    fn merge_attr_bonus_drops_zero_amounts() {
+        let mut mgr = EntityMgr::default();
+        let mut m = HashMap::new();
+        m.insert((1i64, 102i32), vec![0, 25, 0]);
+        mgr.merge_attr_bonus(m);
+        assert_eq!(mgr.attr_bonus.get(&(1, 102)).unwrap(), &vec![25]);
+    }
+
+    #[test]
+    fn sum_attr_bonus_sums_vec_with_saturation() {
+        let mut mgr = EntityMgr::default();
+        let mut m = HashMap::new();
+        m.insert((1i64, 102i32), vec![i32::MAX, 100]);
+        mgr.merge_attr_bonus(m);
+        assert_eq!(mgr.sum_attr_bonus(1, 102), i32::MAX);
+    }
+
+    #[test]
+    fn sum_attr_bonus_returns_zero_for_absent_key() {
+        let mgr = EntityMgr::default();
+        assert_eq!(mgr.sum_attr_bonus(99, 102), 0);
+    }
+
+    #[test]
+    fn clear_attr_bonus_empties_the_map() {
+        let mut mgr = EntityMgr::default();
+        let mut m = HashMap::new();
+        m.insert((1i64, 102i32), vec![50]);
+        mgr.merge_attr_bonus(m);
+        assert!(!mgr.attr_bonus.is_empty());
+        mgr.clear_attr_bonus();
+        assert!(mgr.attr_bonus.is_empty());
+    }
+}
+
