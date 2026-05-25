@@ -4,7 +4,7 @@ use sonettobuf::{ActEffect, Fight, FightStep, fight_step};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
-use super::execution_guards::{DepthGuard, ReentryGuard, SkillContextGuard};
+use super::execution_guards::{ActiveEffectGuard, DepthGuard, ReentryGuard, SkillContextGuard};
 use super::super::{
     context::{FightContext, behavior_context::BehaviorContext, hook_call},
     effect::{condition::Hook, parser as effect_parser},
@@ -239,8 +239,29 @@ impl SkillExecutor {
         );
         let mut all_effects: Vec<ActEffect> = Vec::new();
 
-        if let Some(mut skill_effect) = effect_parser::parse(skill_effect_id, caster_uid) {
-            all_effects.extend(events_to_act_effects(skill_effect.on_eval_active_skill(fight, managers, target_uid)));
+        let parsed_effect = effect_parser::parse(skill_effect_id, caster_uid)
+            .unwrap_or_else(|| crate::state::battle::effect::SkillEffect::empty(caster_uid));
+        let mgr_ptr: *mut crate::state::battle::manager::active_effect_mgr::ActiveEffectMgr =
+            &mut managers.active_effect_mgr;
+        let prev_active_idx = managers.active_effect_mgr.active_idx;
+        let active_idx = managers.active_effect_mgr.push(vec![parsed_effect]);
+        managers.active_effect_mgr.active_idx = Some(active_idx);
+        let _active_guard = ActiveEffectGuard {
+            mgr: mgr_ptr,
+            idx: active_idx,
+            prev_active_idx,
+        };
+
+        tracing::info!(caster_uid, skill_id, "[execute_skill] hook: eval_active_skill");
+        all_effects.extend(events_to_act_effects(
+            hook_call::on_eval_active_skill(managers, fight, caster_uid),
+        ));
+
+        if is_ex_skill(skill_id) {
+            tracing::info!(caster_uid, skill_id, "[execute_skill] hook: use_ex_skill");
+            all_effects.extend(events_to_act_effects(
+                hook_call::on_use_ex_skill(managers, fight, caster_uid),
+            ));
         }
         let force_effect_step = false;
         let setup_done: Instant = Instant::now();
@@ -266,6 +287,16 @@ impl SkillExecutor {
         }
 
         let behaviors_done = Instant::now();
+
+        let defender_uids = damage_targets_in(&all_effects);
+        if !defender_uids.is_empty() {
+            tracing::info!(caster_uid, ?defender_uids, "[execute_skill] hook: eval_being_attacked");
+        }
+        for uid in defender_uids {
+            all_effects.extend(events_to_act_effects(
+                hook_call::on_eval_being_attacked(managers, fight, uid),
+            ));
+        }
 
         let dead_effects = collect_dead_effects_after_damage(fight, managers, &all_effects);
         if !dead_effects.is_empty() {
@@ -333,6 +364,11 @@ impl SkillExecutor {
             result.push(skill_act_effect);
             result.extend(self.side_effects.drain(..));
         }
+
+        tracing::info!(caster_uid, skill_id, "[execute_skill] hook: after_action");
+        result.extend(events_to_act_effects(
+            hook_call::on_after_action(managers, fight, caster_uid),
+        ));
 
         let result_done = Instant::now();
         let setup_ms = setup_done.duration_since(exec_start).as_millis();
@@ -1057,4 +1093,25 @@ fn spawn_summoned_entity(fight: &mut Fight, summon: PendingSummon) -> Result<i64
         .ok_or_else(|| anyhow::anyhow!("Fight missing defender team"))?;
     defender.sub_entitys.push(entity);
     Ok(new_uid)
+}
+
+fn is_ex_skill(skill_id: i32) -> bool {
+    matches!(
+        super::source_kind::classify(skill_id),
+        super::source_kind::SkillSource::ExIncantation { .. }
+    )
+}
+
+fn damage_targets_in(effects: &[ActEffect]) -> Vec<i64> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for e in effects {
+        let Some(t) = e.effect_type else { continue };
+        if !is_damage_effect_type(t) { continue }
+        let Some(uid) = e.target_id else { continue };
+        if uid != 0 && seen.insert(uid) {
+            out.push(uid);
+        }
+    }
+    out
 }
