@@ -47,6 +47,7 @@ impl BehaviorAction for Damage {
                 );
                 let mut effects = lost_life::apply(
                     &mut effect_ctx,
+                    // TODO: drop dead pending_attr arg, fully migrate this path to entity_mgr
                     Some(&ctx.executor.pending_attr_bonus),
                     *rate,
                     ctx.skill_id,
@@ -77,6 +78,7 @@ impl BehaviorAction for Damage {
                     );
                     lost_life::apply(
                         &mut effect_ctx,
+                        // TODO: drop dead pending_attr arg, fully migrate this path to entity_mgr
                         Some(&ctx.executor.pending_attr_bonus),
                         *rate,
                         ctx.skill_id,
@@ -135,6 +137,7 @@ fn execute_sotheby_detonate2(
     );
     let damage_effects = lost_life::apply(
         &mut effect_ctx,
+        // TODO: drop dead pending_attr arg, fully migrate this path to entity_mgr
         Some(&ctx.executor.pending_attr_bonus),
         scaled_rate.max(0),
         ctx.skill_id,
