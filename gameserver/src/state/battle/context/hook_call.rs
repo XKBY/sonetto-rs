@@ -23,6 +23,22 @@ impl HookEntry {
             HookPayload::Buff(b, entity_uid) => b.fire_hook(hook, fight, managers, entity_uid),
         }
     }
+
+    fn fire_attr_fix(
+        self,
+        hook: Hook,
+        fight: &Fight,
+        managers: &Managers,
+    ) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+        match self.payload {
+            HookPayload::Effect(mut e, owner_uid) => {
+                e.fire_hook_attr_fix(hook, fight, managers, owner_uid)
+            }
+            HookPayload::Buff(b, entity_uid) => {
+                b.fire_hook_attr_fix(hook, fight, managers, entity_uid)
+            }
+        }
+    }
 }
 
 fn sort_entries(entries: &mut Vec<HookEntry>) {
@@ -74,12 +90,28 @@ pub fn on_eval_active_skill(managers: &mut Managers, fight: &Fight, caster_uid: 
     fire_hook(managers, fight, Hook::EvalActiveSkill, caster_uid)
 }
 
+pub fn on_eval_active_skill_attr_fix(
+    managers: &mut Managers,
+    fight: &Fight,
+    caster_uid: i64,
+) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+    fire_hook_attr_fix(managers, fight, Hook::EvalActiveSkill, caster_uid)
+}
+
 pub fn on_use_ex_skill(managers: &mut Managers, fight: &Fight, caster_uid: i64) -> Vec<Event> {
     fire_hook(managers, fight, Hook::UseExSkill, caster_uid)
 }
 
 pub fn on_eval_being_attacked(managers: &mut Managers, fight: &Fight, defender_uid: i64) -> Vec<Event> {
     fire_hook(managers, fight, Hook::EvalBeingAttacked, defender_uid)
+}
+
+pub fn on_eval_being_attacked_attr_fix(
+    managers: &mut Managers,
+    fight: &Fight,
+    defender_uid: i64,
+) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+    fire_hook_attr_fix(managers, fight, Hook::EvalBeingAttacked, defender_uid)
 }
 
 pub fn on_after_action(managers: &mut Managers, fight: &Fight, caster_uid: i64) -> Vec<Event> {
@@ -104,6 +136,27 @@ pub fn fire_hook(
         *managers = snapshot;
     }
     events
+}
+
+pub fn fire_hook_attr_fix(
+    managers: &mut Managers,
+    fight: &Fight,
+    hook: Hook,
+    entity_uid: i64,
+) -> std::collections::HashMap<(i64, i32), Vec<i32>> {
+    let mut entries = collect_buff(managers, entity_uid);
+    entries.extend(collect_rule(managers, entity_uid));
+    entries.extend(collect_passive(managers, entity_uid));
+    entries.extend(collect_active(managers));
+    sort_entries(&mut entries);
+    let mut acc: std::collections::HashMap<(i64, i32), Vec<i32>> = std::collections::HashMap::new();
+    for entry in entries {
+        let map = entry.fire_attr_fix(hook, fight, managers);
+        for (k, mut v) in map {
+            acc.entry(k).or_default().append(&mut v);
+        }
+    }
+    acc
 }
 
 #[cfg(test)]
