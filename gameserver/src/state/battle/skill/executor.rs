@@ -224,6 +224,7 @@ impl SkillExecutor {
         self.pending_target_rate_bonus.clear();
         self.pending_global_rate_bonus = 0;
         self.pending_attr_bonus.clear();
+        managers.entity_mgr.clear_attr_bonus();
         let behaviors = SKILL_CACHE
             .get(&skill_effect_id)
             .map(|v| v.as_slice())
