@@ -151,4 +151,24 @@ impl<'a> FightContext<'a> {
     pub fn on_buff_add(&mut self, target_uid: i64) -> Vec<Event> {
         hook_call::fire_hook(self.managers, self.fight, Hook::BuffAdd, target_uid)
     }
+
+    pub fn on_eval_active_skill(&mut self, caster_uid: i64) -> Vec<Event> {
+        tracing::info!(caster_uid, "hook: on_eval_active_skill");
+        hook_call::on_eval_active_skill(self.managers, self.fight, caster_uid)
+    }
+
+    pub fn on_use_ex_skill(&mut self, caster_uid: i64) -> Vec<Event> {
+        tracing::info!(caster_uid, "hook: on_use_ex_skill");
+        hook_call::on_use_ex_skill(self.managers, self.fight, caster_uid)
+    }
+
+    pub fn on_eval_being_attacked(&mut self, defender_uid: i64) -> Vec<Event> {
+        tracing::info!(defender_uid, "hook: on_eval_being_attacked");
+        hook_call::on_eval_being_attacked(self.managers, self.fight, defender_uid)
+    }
+
+    pub fn on_after_action(&mut self, caster_uid: i64) -> Vec<Event> {
+        tracing::info!(caster_uid, "hook: on_after_action");
+        hook_call::on_after_action(self.managers, self.fight, caster_uid)
+    }
 }
