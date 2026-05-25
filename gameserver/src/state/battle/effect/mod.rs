@@ -76,6 +76,10 @@ impl std::fmt::Debug for SkillEffect {
 }
 
 impl SkillEffect {
+    pub fn empty(owner_uid: i64) -> Self {
+        Self { owner_uid, slots: Vec::new() }
+    }
+
     pub fn reset_round_counts(&mut self) {
         for slot in &mut self.slots {
             slot.round_use_count = 0;
