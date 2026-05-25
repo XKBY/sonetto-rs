@@ -55,6 +55,9 @@ pub struct SkillExecutor {
     current_skill_context: Option<(i32, i64)>,
     /// Per-entity temporary attribute bonuses for this skill execution.
     /// Key: (entity_uid, attr_id)
+    /// TODO: remove with skill/behavior/damage.rs migration. After Task 14
+    /// nothing writes to this map; surviving readers (skill/behavior/damage.rs)
+    /// pass it through to lost_life::apply, which now ignores it.
     pub pending_attr_bonus: HashMap<(i64, i32), i32>,
     /// Per-team preview of bloodtithe `(value, accumulator)` for this skill execution.
     /// This lets combat damage emit live-like positive 335 packets without mutating
@@ -552,16 +555,7 @@ impl SkillExecutor {
         *entry = entry.saturating_add(amount);
     }
 
-    pub fn add_attr_bonus(&mut self, entity_uid: i64, attr_id: i32, amount: i32) {
-        if amount == 0 {
-            return;
-        }
-        let entry = self
-            .pending_attr_bonus
-            .entry((entity_uid, attr_id))
-            .or_insert(0);
-        *entry = entry.saturating_add(amount);
-    }
+
 }
 
 fn behavior_execution_order(behaviors: &[super::cache::ResolvedBehavior]) -> Vec<usize> {
