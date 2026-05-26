@@ -4,7 +4,7 @@ use crate::state::battle::{
     event::Event,
     manager::fight_data_mgr::Managers,
     mechanics::Mechanics,
-    skill::{SkillExecutor, cache::resolve_skill_effect_id, targets::{TargetResolver, get_entity}},
+    skill::{SkillExecutor, targets::{TargetResolver, get_entity}},
     buff_actions::attr_replace::buff_get_attr_replace_permille,
     fight_step::ActEffectBuilder,
 };
@@ -40,12 +40,13 @@ pub fn execute(
     let self_loss = current_hp.saturating_mul((self_loss_param / 5).max(0)) / 100;
 
     let cfg = config::configs::get();
+    // TODO: skill_id unavailable in effect path; logic_target defaults to 204
     let logic_target = cfg
         .skill_effect
         .iter()
-        .find(|s| s.id == resolve_skill_effect_id(0)) // TODO: skill_id unavailable in effect path; logic_target defaults to 0
+        .find(|s| s.id == resolve_skill_effect_id(0)) 
         .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
-        .unwrap_or(0);
+        .unwrap_or(204);
     let damage_targets = TargetResolver::new(fight, entity_uid, target)
         .behavior(logic_target)
         .resolve();
