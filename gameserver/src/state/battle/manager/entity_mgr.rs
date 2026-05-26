@@ -292,6 +292,17 @@ impl EntityMgr {
     pub fn clear_attr_bonus(&mut self) {
         self.attr_bonus.clear();
     }
+
+    pub fn remove_attr_bonus(&mut self, uid: i64, attr_id: i32, amount: i32) {
+        if let Some(vec) = self.attr_bonus.get_mut(&(uid, attr_id)) {
+            if let Some(pos) = vec.iter().position(|&v| v == amount) {
+                vec.swap_remove(pos);
+            }
+            if vec.is_empty() {
+                self.attr_bonus.remove(&(uid, attr_id));
+            }
+        }
+    }
 }
 
 impl Manager for EntityMgr {

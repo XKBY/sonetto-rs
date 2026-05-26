@@ -80,8 +80,7 @@ pub async fn on_start_tower_battle(
     let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
     let (initial_round, mut fight_data_mgr) =
         create_battle(&pool, battle_ctx, &fight_group, seed).await?;
-
-    let fight_for_battle = fight_data_mgr.fight().clone();
+        
     let mut card_push = fight_data_mgr.initial_card_push.take().unwrap_or_default();
     card_push.card_group = fight_data_mgr.managers.deck_mgr.player_hand.clone();
 

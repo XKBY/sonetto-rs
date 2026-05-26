@@ -135,7 +135,7 @@ impl BuffMgr {
             ..Default::default()
         };
 
-        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy };
+        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy, attr_bonus_refs: Vec::new() };
         let buffs = self.active_buff.entry(target_uid).or_default();
         //TODO: correct refresh logic
         match refresh_policy {
@@ -620,15 +620,27 @@ impl BuffMgr {
     }
 }
 
-impl Manager for BuffMgr {
-    fn on_round_end(&mut self, _fight: &mut Fight) {
-        self.tick_round_end();
+impl BuffMgr {
+    pub fn expire_active_buff(&mut self, entity_mgr: &mut crate::state::battle::manager::entity_mgr::EntityMgr) {
         for buffs in self.active_buff.values_mut() {
+            for b in buffs.iter().filter(|b| b.duration == 1) {
+                for &(uid, attr_id, amount) in &b.attr_bonus_refs {
+                    entity_mgr.remove_attr_bonus(uid, attr_id, amount);
+                }
+            }
             buffs.retain(|b| b.duration != 1);
             for b in buffs.iter_mut() {
                 if b.duration > 0 { b.duration -= 1; }
             }
         }
+    }
+}
+
+impl Manager for BuffMgr {
+
+    fn on_round_end(&mut self, _fight: &mut Fight) {
+        self.tick_round_end();
+        // active_buff expiry is handled by expire_active_buff called from FightContext
     }
 
     fn on_battle_end(&mut self) {

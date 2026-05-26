@@ -20,7 +20,17 @@ impl HookEntry {
     fn fire(self, hook: Hook, fight: &Fight, managers: &mut Managers) -> Vec<Event> {
         match self.payload {
             HookPayload::Effect(mut e, owner_uid) => e.fire_hook(hook, fight, managers, owner_uid),
-            HookPayload::Buff(b, entity_uid) => b.fire_hook(hook, fight, managers, entity_uid),
+            HookPayload::Buff(mut b, entity_uid) => {
+                let events = b.fire_hook(hook, fight, managers, entity_uid);
+                if !b.attr_bonus_refs.is_empty() {
+                    if let Some(buffs) = managers.buff_mgr.active_buff.get_mut(&entity_uid) {
+                        if let Some(existing) = buffs.iter_mut().find(|x| x.buff_id == b.buff_id) {
+                            existing.attr_bonus_refs.extend(b.attr_bonus_refs);
+                        }
+                    }
+                }
+                events
+            }
         }
     }
 
@@ -35,7 +45,8 @@ impl HookEntry {
                 e.fire_hook_attr_fix(hook, fight, managers, owner_uid)
             }
             HookPayload::Buff(b, entity_uid) => {
-                b.fire_hook_attr_fix(hook, fight, managers, entity_uid)
+                // b.fire_hook_attr_fix(hook, fight, managers, entity_uid)
+                std::collections::HashMap::new()
             }
         }
     }
