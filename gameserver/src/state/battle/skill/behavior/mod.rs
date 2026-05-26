@@ -16,7 +16,7 @@ mod magic_circle;
 mod misc;
 mod nuodika_damage;
 mod poison_priority;
-mod random;
+pub(crate) mod random;
 mod skill_rate;
 mod stats;
 pub(crate) use stats::{average_life, bloodlust, change_power};

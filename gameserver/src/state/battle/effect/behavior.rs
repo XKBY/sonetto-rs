@@ -12,6 +12,10 @@ mod stats;
 mod disperse;
 mod skill_rate;
 mod misc;
+mod catapult;
+mod random;
+mod magic_circle;
+mod nuodika_damage;
 
 #[derive(Debug, Clone)]
 pub struct Behaviour {
@@ -116,6 +120,18 @@ pub fn execute(
         | BehaviourType::_20018HealCantCrit
         | BehaviourType::_100017IgnoreSkillConfigDamageRate)) => {
             misc::execute(fight, managers, mechanics, executor, rng, entity_uid, targets, raw, count, beh)
+        }
+        Some(beh @ BehaviourType::_60074CatapultBuff) => {
+            catapult::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_20021AddBuffRanId | BehaviourType::_20022AddBuffRanTypeId | BehaviourType::_20023AddBuffRanTypeGroup)) => {
+            random::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_50019AddMagicCircle | BehaviourType::_60163MagicCircleAddRound | BehaviourType::_60076MagicCircleAttr | BehaviourType::_50020RemoveAllMagicCircle | BehaviourType::_50021RemoveMagicCircleById | BehaviourType::_60270UpdateWangQiMagicCircle | BehaviourType::_60272ChangeElectricMagicCircleProgress)) => {
+            magic_circle::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ BehaviourType::_60209NuoDiKaDamage) => {
+            nuodika_damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
         }
         Some(other) => { tracing::warn!("unimplemented behaviour type: {:?}", other); vec![] }
         None => vec![],
