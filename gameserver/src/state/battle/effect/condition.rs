@@ -33,6 +33,7 @@ pub enum Hook {
     EvalBeingAttacked,
     UseExSkill,
     AfterAction,
+    AfterActiveAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

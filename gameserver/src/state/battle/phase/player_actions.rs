@@ -74,15 +74,15 @@ pub(crate) async fn run(
     for evt in std::mem::take(&mut state.player_events) {
         let oper = match &evt {
             Event::CardPlayed { card: _, oper } => {
-                steps.extend(events_to_steps(&ctx.on_use_card(&evt)));
+                steps.extend(events_to_steps(ctx.on_use_card(&evt)));
                 oper.clone()
             }
             Event::CardMoved { .. } => {
-                steps.extend(events_to_steps(&ctx.on_move_card(&evt)));
+                steps.extend(events_to_steps(ctx.on_move_card(&evt)));
                 continue;
             }
             Event::CardComposed { .. } => {
-                steps.extend(events_to_steps(&ctx.on_compose_card(&evt)));
+                steps.extend(events_to_steps(ctx.on_compose_card(&evt)));
                 continue;
             }
             Event::SimulateDissolveCard { oper } => {
@@ -339,7 +339,7 @@ pub(crate) async fn run(
     let (cards2, upgrades2) = deck_mgr.refill_player_hand(rng, 0, ctx.fight, &ctx.managers.entity_mgr);
     for _ in 0..upgrades2 {
         let evt = crate::state::battle::event::Event::CardComposed { card: sonettobuf::CardInfo::default() };
-        steps.extend(events_to_steps(&ctx.on_compose_card(&evt)));
+        steps.extend(events_to_steps(ctx.on_compose_card(&evt)));
     }
     state.team_a_cards2 = cards2;
 

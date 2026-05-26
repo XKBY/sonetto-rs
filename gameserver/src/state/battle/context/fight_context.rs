@@ -1,6 +1,5 @@
 use crate::state::battle::effect::condition::Hook;
 use crate::state::battle::event::Event;
-use crate::state::battle::event::apply::apply_event;
 use crate::state::battle::manager::{fight_data_mgr::Managers, traits::Manager};
 use crate::state::battle::mechanics::Mechanics;
 use super::hook_call;

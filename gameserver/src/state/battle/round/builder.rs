@@ -27,9 +27,9 @@ pub fn build_initial_round(fight_mgr: &mut FightDataMgr, battle_id: i32, seed: u
             .collect();
         for uid in initial_uids {
             let events = ctx.on_battle_start(uid);
-            steps.extend(events_to_steps(&events));
+            steps.extend(events_to_steps(events));
             let events = ctx.on_enter_fight(uid);
-            steps.extend(events_to_steps(&events));
+            steps.extend(events_to_steps(events));
         }
         steps
     };

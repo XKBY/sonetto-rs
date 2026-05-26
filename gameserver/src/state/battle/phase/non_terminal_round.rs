@@ -334,7 +334,7 @@ pub(crate) async fn run(
                 .build(),
         );
         if sub_uid != 0 {
-            steps.extend(crate::state::battle::event::apply::events_to_steps(&ctx.on_enter_fight(sub_uid)));
+            steps.extend(crate::state::battle::event::apply::events_to_steps(ctx.on_enter_fight(sub_uid)));
         }
     }
     if let Some(caster_uid) = first_alive_defender_uid(ctx.fight)

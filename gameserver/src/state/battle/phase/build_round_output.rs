@@ -26,11 +26,11 @@ pub(crate) fn build_round_output(
     let uids = EntityMgr::all_positioned_uids(ctx.fight);
     for uid in &uids {
         let evs = ctx.on_round_end(*uid);
-        open.steps.extend(events_to_steps(&evs));
+        open.steps.extend(events_to_steps(evs));
     }
     for uid in &uids {
         let evs = ctx.on_round_start(*uid);
-        open.steps.extend(events_to_steps(&evs));
+        open.steps.extend(events_to_steps(evs));
     }
     round_ctx.fight_ctx.on_round_end(0);
     let ctx = &mut *round_ctx.fight_ctx;
