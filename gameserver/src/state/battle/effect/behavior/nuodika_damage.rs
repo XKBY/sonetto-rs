@@ -40,13 +40,9 @@ pub fn execute(
     let self_loss = current_hp.saturating_mul((self_loss_param / 5).max(0)) / 100;
 
     let cfg = config::configs::get();
+    let _ = cfg;
     // TODO: skill_id unavailable in effect path; logic_target defaults to 204
-    let logic_target = cfg
-        .skill_effect
-        .iter()
-        .find(|s| s.id == resolve_skill_effect_id(0)) 
-        .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
-        .unwrap_or(204);
+    let logic_target = 204;
     let damage_targets = TargetResolver::new(fight, entity_uid, target)
         .behavior(logic_target)
         .resolve();

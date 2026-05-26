@@ -1,6 +1,6 @@
 mod action;
 mod add_buff;
-mod bloodtithe;
+pub(crate) mod bloodtithe;
 pub(crate) mod buff;
 mod buff_helper;
 mod catapult;

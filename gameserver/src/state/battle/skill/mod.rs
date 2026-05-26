@@ -17,6 +17,7 @@ pub mod sibling_coalesce;
 pub mod targets;
 
 pub(crate) use behavior::buff;
+pub(crate) use behavior::bloodtithe;
 pub(crate) use behavior::random;
 pub(crate) use behavior::{average_life, bloodlust, change_power};
 pub(crate) use executor::{PendingMonsterChange, PendingSummon};

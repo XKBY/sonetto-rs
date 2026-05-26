@@ -16,6 +16,12 @@ mod catapult;
 mod random;
 mod magic_circle;
 mod nuodika_damage;
+mod damage;
+mod heal;
+mod empathy;
+mod dot_settle;
+mod lost_life;
+mod bloodtithe;
 
 #[derive(Debug, Clone)]
 pub struct Behaviour {
@@ -115,9 +121,6 @@ pub fn execute(
         | BehaviourType::_60015Kill
         | BehaviourType::_60018Kill
         | BehaviourType::_60019KillTargets
-        | BehaviourType::_20012HealCantCrit
-        | BehaviourType::_20016HealCantCrit
-        | BehaviourType::_20018HealCantCrit
         | BehaviourType::_100017IgnoreSkillConfigDamageRate)) => {
             misc::execute(fight, managers, mechanics, executor, rng, entity_uid, targets, raw, count, beh)
         }
@@ -132,6 +135,47 @@ pub fn execute(
         }
         Some(beh @ BehaviourType::_60209NuoDiKaDamage) => {
             nuodika_damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_10006Damage
+        | BehaviourType::_10008Damage2
+        | BehaviourType::_20008Detonate
+        | BehaviourType::_20009Detonate2
+        | BehaviourType::_60237Detonate3
+        | BehaviourType::_30014OriginDamage
+        | BehaviourType::_60215InjurySaveDamage)) => {
+            damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_20001Heal
+        | BehaviourType::_90001Heal
+        | BehaviourType::_60232HealByTwoAttr
+        | BehaviourType::_20012HealCantCrit
+        | BehaviourType::_20016HealCantCrit
+        | BehaviourType::_20018HealCantCrit)) => {
+            heal::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_60038OriginDamageFromInjuryBankBuff
+        | BehaviourType::_60052OriginDamageFromInjuryBankBuff
+        | BehaviourType::_60039RealDamageSelfAndAddBuffToTarget
+        | BehaviourType::_60040ClearInjuryBankBuffOriginDamage)) => {
+            empathy::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ BehaviourType::_60073SettleDotAndCostDotDuration) => {
+            dot_settle::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_30005LostLife
+        | BehaviourType::_30006LostLife
+        | BehaviourType::_30010LostLifeNotFixed
+        | BehaviourType::_30018LostLife
+        | BehaviourType::_60226LostLife2
+        | BehaviourType::_60216DamageRealLostLife
+        | BehaviourType::_60213SurvivalHealth
+        | BehaviourType::_60146OriginDamageByTeamAttr)) => {
+            lost_life::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(beh @ (BehaviourType::_60190BloodPoolMaxChange
+        | BehaviourType::_60191BloodPoolValueChange
+        | BehaviourType::_60199ConsumeBloodPoolHeal)) => {
+            bloodtithe::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
         }
         Some(other) => { tracing::warn!("unimplemented behaviour type: {:?}", other); vec![] }
         None => vec![],
