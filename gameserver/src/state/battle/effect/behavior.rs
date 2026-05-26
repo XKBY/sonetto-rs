@@ -8,6 +8,10 @@ mod ex_point;
 mod add_buff;
 mod add_act;
 mod attr_modify;
+mod stats;
+mod disperse;
+mod skill_rate;
+mod misc;
 
 #[derive(Debug, Clone)]
 pub struct Behaviour {
@@ -51,13 +55,68 @@ pub fn parse(raw: &str, beh_target: i32) -> Vec<Behaviour> {
         .collect()
 }
 
-pub fn execute(fight: &Fight, managers: &mut Managers, entity_uid: i64, raw: &str, beh_target: i32, count: i32) -> Vec<Event> {
+pub fn execute(
+    fight: &Fight,
+    managers: &mut Managers,
+    mechanics: &mut crate::state::battle::mechanics::Mechanics,
+    executor: &mut crate::state::battle::skill::SkillExecutor,
+    rng: &mut rand::rngs::StdRng,
+    entity_uid: i64,
+    raw: &str,
+    beh_target: i32,
+    count: i32,
+) -> Vec<Event> {
     let targets = Target::from_id(beh_target).entities(fight, entity_uid);
     let id: i32 = raw.split('#').next().and_then(|v| v.parse().ok()).unwrap_or(0);
     match behaviour_type(id) {
-        Some(BehaviourType::_20002AddExPoint) => ex_point::execute(managers, targets, raw, count),
-        Some(BehaviourType::_1AddBuff) => add_buff::execute(fight, managers, targets, raw, count),
+        Some(BehaviourType::_20002AddExPoint) => ex_point::execute(managers, mechanics, executor, rng, targets, raw, count),
+        Some(BehaviourType::_1AddBuff) => add_buff::execute(fight, managers, mechanics, executor, rng, targets, raw, count),
         Some(BehaviourType::_40003AddAct) | Some(BehaviourType::_50006AddActHero) => add_act::execute(managers, targets, raw, count),
+        Some(BehaviourType::_20010Bloodlust)
+        | Some(BehaviourType::_20011AverageLife)
+        | Some(BehaviourType::_50017ChangePower)
+        | Some(BehaviourType::_50037ChangePower) => {
+            stats::execute(fight, managers, mechanics, executor, rng, targets, raw, count, behaviour_type(id).unwrap())
+        }
+        Some(BehaviourType::_30003Disperse1)
+        | Some(BehaviourType::_30004Disperse2)
+        | Some(BehaviourType::_30008Disperse1)
+        | Some(BehaviourType::_30009Disperse2)
+        | Some(BehaviourType::_30016Disperse3)
+        | Some(BehaviourType::_30017Disperse4)
+        | Some(BehaviourType::_90002Disperse2)
+        | Some(BehaviourType::_60010DisperseForce2)
+        | Some(BehaviourType::_60011DisperseForce1)
+        | Some(BehaviourType::_20003Purify1)
+        | Some(BehaviourType::_20004Purify2)
+        | Some(BehaviourType::_20020PurifyX)
+        | Some(BehaviourType::_50014ConsumeBuffByTypeId)
+        | Some(BehaviourType::_50016ConsumeBuffByTypeId2) => {
+            disperse::execute(fight, managers, mechanics, executor, rng, targets, raw, count, behaviour_type(id).unwrap())
+        }
+        Some(BehaviourType::_10001SkillRateUp)
+        | Some(BehaviourType::_10002SkillRateUp1)
+        | Some(BehaviourType::_10003SkillRateUp2)
+        | Some(BehaviourType::_10009SkillRateUpExPoint)
+        | Some(BehaviourType::_10012SkillRateUpBuffType)
+        | Some(BehaviourType::_40015Rouge2MusicBlueBallSkillRateUp)
+        | Some(BehaviourType::_60028ConsumePowerSkillRateUp) => {
+            skill_rate::execute(fight, managers, mechanics, executor, rng, entity_uid, targets, raw, count, behaviour_type(id).unwrap())
+        }
+        Some(BehaviourType::_60008Summon)
+        | Some(BehaviourType::_60013SummonSp)
+        | Some(BehaviourType::_60056SummonSp2)
+        | Some(BehaviourType::_40006MonsterChange)
+        | Some(BehaviourType::_40008MonsterChangeClearSelfCard)
+        | Some(BehaviourType::_60015Kill)
+        | Some(BehaviourType::_60018Kill)
+        | Some(BehaviourType::_60019KillTargets)
+        | Some(BehaviourType::_20012HealCantCrit)
+        | Some(BehaviourType::_20016HealCantCrit)
+        | Some(BehaviourType::_20018HealCantCrit)
+        | Some(BehaviourType::_100017IgnoreSkillConfigDamageRate) => {
+            misc::execute(fight, managers, mechanics, executor, rng, entity_uid, targets, raw, count, behaviour_type(id).unwrap())
+        }
         Some(other) => { tracing::warn!("unimplemented behaviour type: {:?}", other); vec![] }
         None => vec![],
     }

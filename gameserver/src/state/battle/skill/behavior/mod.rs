@@ -16,10 +16,10 @@ mod magic_circle;
 mod misc;
 mod nuodika_damage;
 mod poison_priority;
-pub(crate) mod precast;
 mod random;
 mod skill_rate;
 mod stats;
+pub(crate) use stats::{average_life, bloodlust, change_power};
 
 use self::action::{ActionCtx, BEHAVIOR_REGISTRY};
 

@@ -3,7 +3,7 @@ use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
 use crate::state::battle::context::hook_call::on_buff_add;
 
-pub fn execute(fight: &Fight, managers: &mut Managers, targets: Vec<i64>, raw: &str, count: i32) -> Vec<Event> {
+pub fn execute(fight: &Fight, managers: &mut Managers, _mechanics: &mut crate::state::battle::mechanics::Mechanics, _executor: &mut crate::state::battle::skill::SkillExecutor, _rng: &mut rand::rngs::StdRng, targets: Vec<i64>, raw: &str, count: i32) -> Vec<Event> {
     let buff_id: i32 = raw.split('#').nth(1).and_then(|v| v.parse().ok()).unwrap_or(0);
     targets.iter()
         .flat_map(|&t| {
