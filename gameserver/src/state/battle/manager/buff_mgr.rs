@@ -108,7 +108,7 @@ impl BuffMgr {
     }
 
     pub fn add_buff(&mut self, target_uid: i64, buff_id: i32) -> Vec<Event> {
-        use crate::state::battle::buff::buff_action::BuffAction;
+        use crate::state::battle::buff::buff_act::BuffAction;
         use sonettobuf::BuffInfo;
         let cfg = config::configs::get();
         let buff_cfg = cfg.skill_buff.iter().find(|b| b.id == buff_id);

@@ -27,6 +27,7 @@ pub struct EntityMgr {
     recent_decr_ex_point: HashMap<i64, i32>,
     pub action_points: HashMap<i64, i32>,
     pub attr_bonus: HashMap<(i64, i32), Vec<i32>>,
+    pub shields: HashMap<i64, Vec<i32>>,
 }
 
 impl EntityMgr {

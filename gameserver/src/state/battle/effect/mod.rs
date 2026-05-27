@@ -116,12 +116,12 @@ impl SkillEffect {
             let within_limits = slot.within_limits();
             let cond_count = slot.check_conditions(owner_uid, eval);
             let cond_eval_pass = cond_count.is_some();
-            tracing::info!(
+            tracing::debug!(
                 "effect hooked: hook={:?} owner_uid={} target_uid={} slot_idx={} cond_eval_pass={} within_limits={} behaviours={} use_count={} round_use_count={}",
                 hook, owner_uid, target_uid, slot_idx, cond_eval_pass, within_limits,
                 slot.behaviours.len(), slot.use_count, slot.round_use_count
             );
-            tracing::info!("effect slot detail: slot_idx={} slot={:?}", slot_idx, slot);
+            tracing::debug!("effect slot detail: slot_idx={} slot={:?}", slot_idx, slot);
             if !within_limits || !cond_eval_pass { continue; }
             let count = cond_count.unwrap();
             slot.use_count += 1;
