@@ -6,7 +6,7 @@ use crate::state::battle::{
     mechanics::{Mechanics, bloodtithe::bloodtithe_add_to_pool},
     skill::{SkillExecutor, buff},
 };
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 
 pub fn execute(
     fight: &Fight, managers: &mut Managers, mechanics: &mut Mechanics,

@@ -1,7 +1,8 @@
 use sonettobuf::Fight;
 use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
-use super::behaviour_type::{behaviour_type, BehaviourType};
+mod r#type;
+use r#type::{behaviour_type, BehaviourType};
 use super::target::Target;
 
 mod ex_point;

@@ -10,7 +10,7 @@ use crate::state::battle::{
     skill::{SkillExecutor, buff},
     types::effects::EffectType as LocalEffectType,
 };
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use super::bloodtithe;
 
 #[allow(clippy::too_many_arguments)]

@@ -1,4 +1,4 @@
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::{
     event::Event,
     manager::fight_data_mgr::Managers,

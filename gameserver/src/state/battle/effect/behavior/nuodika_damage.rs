@@ -8,7 +8,7 @@
 //! `current_hp × (self_loss_param/5) %` self-damage, then targets
 //! resolved through `TargetResolver` each take
 //! `max_hp × total_permille / 1000`.
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::{
     buff_actions::attr_replace::buff_get_attr_replace_permille,

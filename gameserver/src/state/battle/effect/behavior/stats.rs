@@ -11,7 +11,7 @@
 //! `ConsumeExPointAddAttr`) live in `ex_point.rs` because they all
 //! key off the per-entity ExPoint counter (Moxie / Faith). Skill-rate
 //! buffs (`SkillRateUp*`) live inline in the dispatcher for now.
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::{
     event::Event,
     fight_step::ActEffectBuilder,

@@ -19,7 +19,7 @@
 //!   the parsed `modifiers` data structure so the future implementation
 //!   can pick it up without re-deriving from raw parts.
 
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::{
     buff_actions::EffectContext, event::Event, manager::fight_data_mgr::Managers,
     mechanics::Mechanics, mechanics::magic_circle as magic_circle_mechanic, skill::SkillExecutor,

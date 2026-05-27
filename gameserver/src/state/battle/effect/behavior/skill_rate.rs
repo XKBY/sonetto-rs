@@ -11,7 +11,7 @@
 //! * `SkillRateUpByBuffType { rate, buff_types }` — bonus of `rate`
 //!   if the target carries any buff matching one of the listed
 //!   types. Returns empty if no match or `rate == 0`.
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::{
     event::Event,
     manager::fight_data_mgr::Managers,

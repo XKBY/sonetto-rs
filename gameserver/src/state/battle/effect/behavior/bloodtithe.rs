@@ -1,7 +1,7 @@
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, Fight, FightHurtInfo, fight_hurt_info::DamageFromType};
 
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::manager::{
     buff_mgr::BuffMgr as EventBuffMgr, entity_mgr::EntityMgr as EventExPointMgr,
 };

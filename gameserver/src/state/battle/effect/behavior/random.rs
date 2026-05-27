@@ -8,7 +8,7 @@ use crate::state::battle::{
     mechanics::Mechanics,
     skill::{SkillExecutor, buff},
 };
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 
 /// Pick `count` buffs from the meta-buff pool keyed by `pool_buff_id`,
 /// biased toward buffs the target does not already have. The bias is the

@@ -7,7 +7,7 @@ use crate::state::battle::{
     mechanics::Mechanics,
     skill::{SkillExecutor, cache::resolve_skill_effect_id},
 };
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 
 pub fn execute(
     _fight: &Fight, managers: &mut Managers, _mechanics: &mut Mechanics,

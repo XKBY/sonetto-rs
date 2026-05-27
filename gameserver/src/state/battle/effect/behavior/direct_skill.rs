@@ -26,7 +26,7 @@ use anyhow::Result;
 use rand::rngs::StdRng;
 use sonettobuf::{ActEffect, Fight, FightStep, effect_type_enum::EffectType, fight_step};
 
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::event::Event;
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::manager::fight_data_mgr::Managers;

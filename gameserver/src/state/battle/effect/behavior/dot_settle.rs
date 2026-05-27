@@ -31,7 +31,7 @@
 //! handles duration decrement. So this handler doesn't decrement at all —
 //! the regular tick path is the source of truth for buff lifetime, and the
 //! lock prevents that path from firing on locked carriers.
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::{
     event::Event,
     fight_step::ActEffectBuilder,

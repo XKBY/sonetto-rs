@@ -11,9 +11,10 @@ mod per_buff_id_count;
 mod teammate_dead;
 mod use_ex_skill;
 mod use_skill_effect_tag;
+mod r#type;
 
 use super::condition_eval::ConditionEval;
-use super::condition_type::{ConditionType, condition_type};
+use r#type::{ConditionType, condition_type};
 use super::target::Target;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

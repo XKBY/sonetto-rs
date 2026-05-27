@@ -1,8 +1,6 @@
 pub mod behavior;
-pub mod behaviour_type;
 pub mod condition;
 pub mod condition_eval;
-pub mod condition_type;
 pub mod parser;
 pub mod target;
 

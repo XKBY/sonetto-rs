@@ -10,7 +10,7 @@ use sonettobuf::{ActEffect, Fight};
 use std::collections::HashMap;
 
 use crate::state::battle::buff_actions::{EffectContext, lost_life};
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::effect::behavior::r#type::BehaviourType;
 use crate::state::battle::event::Event;
 use crate::state::battle::event_queue::{BattleEvent, serialize_leaf_event};
 use crate::state::battle::fight_step::ActEffectBuilder;
