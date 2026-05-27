@@ -1,4 +1,3 @@
-mod active_use_skill;
 mod be_attacked;
 mod buff_id_add;
 mod buff_id_del;
@@ -33,7 +32,6 @@ pub enum Hook {
     EvalBeingAttacked,
     UseExSkill,
     AfterAction,
-    AfterActiveAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

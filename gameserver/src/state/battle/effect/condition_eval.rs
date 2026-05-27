@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use crate::state::battle::{
     manager::{buff_mgr::BuffMgr, entity_mgr::EntityMgr},
     mechanics::bloodtithe::BloodtitheState,
+    skill::classification_kind::SkillEmitContext,
 };
 
 #[derive(Clone, Copy)]
@@ -17,4 +18,5 @@ pub struct ConditionEval<'a> {
     pub has_trigger_state: bool,
     pub active_card_cast_uids: Option<&'a HashSet<i64>>,
     pub lost_buff_id: Option<i32>,
+    pub emit_context: Option<SkillEmitContext>,
 }

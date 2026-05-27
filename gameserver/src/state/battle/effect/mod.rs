@@ -107,6 +107,7 @@ impl SkillEffect {
             has_trigger_state: false,
             active_card_cast_uids: None,
             lost_buff_id: None,
+            emit_context: None,
         };
         let owner_uid = self.owner_uid;
         let mut matching = Vec::new();
@@ -130,7 +131,22 @@ impl SkillEffect {
         matching
             .into_iter()
             .filter(|(raw, _, _)| !behavior::is_attr_fix(raw))
-            .flat_map(|(raw, target, count)| behavior::execute(fight, managers, owner_uid, &raw, target, count))
+            .flat_map(|(raw, target, count)| {
+                let mut _stub_mechanics = crate::state::battle::mechanics::Mechanics::default();
+                let mut _stub_executor = crate::state::battle::skill::SkillExecutor::default();
+                let mut _stub_rng = <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(0);
+                behavior::execute(
+                    fight,
+                    managers,
+                    &mut _stub_mechanics,
+                    &mut _stub_executor,
+                    &mut _stub_rng,
+                    owner_uid,
+                    &raw,
+                    target,
+                    count,
+                )
+            })
             .collect()
     }
 
@@ -155,6 +171,7 @@ impl SkillEffect {
             has_trigger_state: false,
             active_card_cast_uids: None,
             lost_buff_id: None,
+            emit_context: None,
         };
         let owner_uid = self.owner_uid;
         let mut acc: std::collections::HashMap<(i64, i32), Vec<i32>> = std::collections::HashMap::new();

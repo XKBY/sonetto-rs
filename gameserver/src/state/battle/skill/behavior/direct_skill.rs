@@ -28,7 +28,7 @@ use sonettobuf::{ActEffect, FightStep, effect_type_enum::EffectType, fight_step}
 use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
 use super::action::{ActionCtx, BehaviorAction};
 use super::damage;
-use super::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
+use crate::state::battle::skill::precast::{collect_precast_skills_for_caster, infer_precast_per_decr_seed_cap};
 use super::random;
 use crate::state::battle::fight_step::ActEffectBuilder;
 use crate::state::battle::skill::PhaseFilter;

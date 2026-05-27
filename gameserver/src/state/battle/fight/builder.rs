@@ -1,5 +1,4 @@
 use super::super::BattleContext;
-use super::super::passives::collector::{collect_battle_passives, inject_battle_passives};
 use super::attacker::Attacker;
 use super::defender::Defender;
 use anyhow::Result;

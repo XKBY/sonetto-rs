@@ -247,7 +247,7 @@ impl SkillExecutor {
             .unwrap_or_else(|| crate::state::battle::effect::SkillEffect::empty(caster_uid));
         let mgr_ptr: *mut crate::state::battle::manager::active_effect_mgr::ActiveEffectMgr =
             &mut managers.active_effect_mgr;
-        let prev_active_idx = managers.active_effect_mgr.active_idx;
+        let prev_active_idx: Option<usize> = managers.active_effect_mgr.active_idx;
         let active_idx = managers.active_effect_mgr.push(vec![parsed_effect]);
         managers.active_effect_mgr.active_idx = Some(active_idx);
         let _active_guard = ActiveEffectGuard {
