@@ -36,10 +36,9 @@ pub enum Event {
         children: Vec<Event>, kind: SkillEmitKind,
     },
     EffectMarker { effect_type: i32 },
-
     CardPlayed           { card: CardInfo, oper: BeginRoundOper },
     CardMoved            { card: CardInfo },
-    CardComposed         { card: CardInfo },
+    CardUpgrade          { card: CardInfo },
     SimulateDissolveCard { oper: BeginRoundOper },
     EnterBattle          { entity_uid: i64 },
     Dead                 { entity_uid: i64 },
@@ -143,7 +142,7 @@ fn event_to_act_effects(e: Event) -> Vec<ActEffect> {
         Event::EffectMarker { .. }
         | Event::CardPlayed { .. }
         | Event::CardMoved { .. }
-        | Event::CardComposed { .. }
+        | Event::CardUpgrade { .. }
         | Event::SimulateDissolveCard { .. }
         | Event::EnterBattle { .. }
         | Event::BuffAdd { .. }

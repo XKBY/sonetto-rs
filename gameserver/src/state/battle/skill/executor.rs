@@ -23,7 +23,6 @@ use super::super::{
 };
 
 use super::{
-    behavior::execute_behavior,
     cache::{SKILL_CACHE, resolve_skill_effect_id},
     condition::{self, ConditionEval, eval::{BehaviorConditionCtx, eval_behavior_condition}},
     damage::{calculate_damage, should_crit_hit},

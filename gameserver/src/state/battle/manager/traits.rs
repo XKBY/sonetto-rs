@@ -9,6 +9,6 @@ pub trait Manager {
     fn on_enter_fight(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
     fn on_use_card(&mut self, _fight: &Fight, events: Vec<Event>) -> Vec<Event> { events }
     fn on_move_card(&mut self, _fight: &Fight, events: Vec<Event>) -> Vec<Event> { events }
-    fn on_compose_card(&mut self, _fight: &Fight, events: Vec<Event>) -> Vec<Event> { events }
+    fn on_card_upgrade(&mut self, _fight: &Fight, events: Vec<Event>) -> Vec<Event> { events }
     fn on_dead(&mut self, _fight: &Fight, _entity_uid: i64) -> Vec<Event> { vec![] }
 }

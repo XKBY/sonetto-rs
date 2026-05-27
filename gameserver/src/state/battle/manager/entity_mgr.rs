@@ -167,7 +167,7 @@ impl EntityMgr {
         Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
     }
 
-    pub fn on_compose_card(&mut self, uid: i64) -> Option<FightStep> {
+    pub fn on_card_upgrade(&mut self, uid: i64) -> Option<FightStep> {
         self.add_ex_point(uid, 1);
         Some(FightStepBuilder::effect().with(ActEffectBuilder::ex_point_change(uid, 1)).build())
     }

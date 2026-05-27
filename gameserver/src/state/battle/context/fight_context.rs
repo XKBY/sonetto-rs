@@ -119,12 +119,12 @@ impl<'a> FightContext<'a> {
         events
     }
 
-    pub fn on_compose_card(&mut self, event: &Event) -> Vec<Event> {
-        let Event::CardComposed { card } = event else { return vec![]; };
+    pub fn on_card_upgrade(&mut self, event: &Event) -> Vec<Event> {
+        let Event::CardUpgrade { card } = event else { return vec![]; };
         let uid = card.uid.unwrap_or(0);
-        let mut events = self.managers.cloth_mgr.on_compose_card(self.fight,
+        let mut events = self.managers.cloth_mgr.on_card_upgrade(self.fight,
             vec![Event::ExPointChange { target: uid, delta: 1, emit_step: false }]);
-        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::ComposeCard, uid));
+        events.extend(hook_call::fire_hook(self.managers, self.fight, Hook::CardUpgrade, uid));
         events
     }
 

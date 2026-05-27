@@ -25,7 +25,7 @@ pub enum Hook {
     BattleStart,
     UseCard,
     MoveCard,
-    ComposeCard,
+    CardUpgrade,
     BuffAdd,
     BuffLost,
     EvalActiveSkill,

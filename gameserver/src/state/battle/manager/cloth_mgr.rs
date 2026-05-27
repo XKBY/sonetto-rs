@@ -94,7 +94,7 @@ impl Manager for ClothMgr {
         events
     }
 
-    fn on_compose_card(&mut self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
+    fn on_card_upgrade(&mut self, fight: &Fight, mut events: Vec<Event>) -> Vec<Event> {
         let delta = active_cloth_level(fight).map_or(0, |c| c.compose.max(0));
         if delta != 0 { events.push(Event::PowerChange { delta }); }
         events

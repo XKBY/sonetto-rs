@@ -1,7 +1,7 @@
-use sonettobuf::Fight;
-use std::collections::HashMap;
 use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
+use sonettobuf::Fight;
+use std::collections::HashMap;
 
 /// Compute the attr-bonus contribution this behaviour would add for `entity_uid`.
 /// Returns a map keyed by `(uid, attr_id) -> amount`. The merge into
@@ -32,6 +32,14 @@ pub fn calculate_bonus(
             }
         }
         // _60033AttrFixByLoseHp "60033#<step_permille>#<attr_id>#<bonus_per_stack>#<max_stacks>"
+        // `AttrFixByLoseHp` (skill_behavior id 60033) is encoded as
+        // `60033#<step_permille>#<attr_id>#<bonus_per_stack>#<max_stacks>`.
+        // Semmelweis Insight III 308801821 slot 6 carries
+        // `60033#100#205#75#8` — i.e. for each 10% of MaxHP missing
+        // on the caster, grant +7.5% AddDmg (attr 205), capped at 8
+        // stacks (60% total). The `AttrFix` wildcard below would catch
+        // this by name and only read the first two args, so we route
+        // by id before the wildcard.
         60033 => {
             let step_permille: i32 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
             let attr_id: i32 = parts.next().and_then(|v| v.parse().ok()).unwrap_or(0);
@@ -46,7 +54,9 @@ pub fn calculate_bonus(
                 .chain(fight.defender.iter())
                 .flat_map(|s| s.entitys.iter().chain(s.sub_entitys.iter()))
                 .find(|e| e.uid == Some(entity_uid));
-            let Some(entity) = entity else { return out; };
+            let Some(entity) = entity else {
+                return out;
+            };
             let max_hp = entity.attr.as_ref().and_then(|a| a.hp).unwrap_or(0);
             if max_hp <= 0 {
                 return out;

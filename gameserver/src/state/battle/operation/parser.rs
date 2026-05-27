@@ -31,7 +31,7 @@ pub fn parse_round_open_ops(
                     deck_mgr.player_hand.insert(to, moved);
                     let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
                     for _ in 0..upgrades {
-                        player_events.push(Event::CardComposed { card: card.clone() });
+                        player_events.push(Event::CardUpgrade { card: card.clone() });
                     }
                 }
             }
@@ -52,7 +52,7 @@ pub fn parse_round_open_ops(
                     selected_pairs.push((selected_pairs.len(), card.clone()));
                     let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
                     for _ in 0..upgrades {
-                        player_events.push(Event::CardComposed { card: card.clone() });
+                        player_events.push(Event::CardUpgrade { card: card.clone() });
                     }
                 } else {
                     tracing::warn!("  -> idx {} OUT OF RANGE (deck size {})", idx, deck_mgr.player_hand.len());

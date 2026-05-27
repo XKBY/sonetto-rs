@@ -142,6 +142,7 @@ impl SkillEffect {
                     &mut _stub_executor,
                     &mut _stub_rng,
                     owner_uid,
+                    0,
                     &raw,
                     target,
                     count,

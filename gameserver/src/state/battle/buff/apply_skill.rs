@@ -1,10 +1,10 @@
-use super::super::cache::{SKILL_CACHE, resolve_skill_effect_id};
-use super::super::executor::SkillExecutor;
-use super::buff_helper::{has_include_type, uses_slave_uid};
+use crate::state::battle::skill::cache::{SKILL_CACHE, resolve_skill_effect_id};
+use crate::state::battle::skill::executor::SkillExecutor;
+use crate::state::battle::buff::helper::{has_include_type, uses_slave_uid};
 use crate::state::battle::buff_actions::ban_lost_life::buff_get_ban_lost_life_floor;
 use sonettobuf::{ActEffect, Fight};
 
-use super::super::super::{
+use crate::state::battle::{
     buff::{apply_buff_effects, pre_buff_effects, utils as buff_utils, RefreshPolicy},
     context::buff_context::BuffContext,
     event_queue::{BattleEvent, EventContext, EventQueue, drain_to_fight_steps},
@@ -983,7 +983,7 @@ pub fn consume_by_type(
     });
     if !has_matching
         && let Some(seed_layer) =
-            super::infer_enter_fight_seed_layer(skill_id, type_id).filter(|v| *v > 0)
+            infer_enter_fight_seed_layer(skill_id, type_id).filter(|v| *v > 0)
     {
         with_buff_ctx(fight, managers, |buff_ctx| {
             buff_ctx.add(target, type_id, target, 0, 0, seed_layer);
@@ -1227,4 +1227,27 @@ mod tests {
                 .any(|e| e.effect_num == Some(good_buff))
         );
     }
+}
+
+fn infer_enter_fight_seed_layer(skill_id: i32, buff_or_type_id: i32) -> Option<i32> {
+    let effect_id = resolve_skill_effect_id(skill_id);
+    let rows = SKILL_CACHE.get(&effect_id)?;
+    rows.iter().find_map(|row| {
+        let BehaviorType::AddBuff { buff_id, count } = row.behavior else {
+            return None;
+        };
+        if buff_id != buff_or_type_id {
+            return None;
+        }
+        let is_enter_fight_seed = matches!(
+            row.condition,
+            ConditionType::EnterFight { .. }
+                | ConditionType::EnterFightAnd(_)
+                | ConditionType::EnterFightOr(_)
+        );
+        if !is_enter_fight_seed {
+            return None;
+        }
+        Some(count.max(1))
+    })
 }

@@ -5,7 +5,7 @@ use super::super::{
     manager::fight_data_mgr::Managers,
     types::effects::EffectType,
 };
-use super::behavior::damage::{
+use super::super::effect::behavior::damage::{
     CURE_TYPE_ID, DUALITY_POTION_BUFF_ID, build_sotheby_holder_consume_steps,
 };
 

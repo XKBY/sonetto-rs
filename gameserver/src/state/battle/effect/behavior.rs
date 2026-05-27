@@ -8,20 +8,22 @@ mod ex_point;
 mod add_buff;
 mod add_act;
 mod attr_modify;
-mod stats;
+pub(crate) mod stats;
 mod disperse;
 mod skill_rate;
 mod misc;
 mod catapult;
-mod random;
+pub(crate) mod random;
 mod magic_circle;
 mod nuodika_damage;
-mod damage;
+mod poison_priority;
+pub(crate) mod damage;
 mod heal;
 mod empathy;
 mod dot_settle;
 mod lost_life;
 mod bloodtithe;
+mod direct_skill;
 
 #[derive(Debug, Clone)]
 pub struct Behaviour {
@@ -72,6 +74,7 @@ pub fn execute(
     executor: &mut crate::state::battle::skill::SkillExecutor,
     rng: &mut rand::rngs::StdRng,
     entity_uid: i64,
+    skill_id: i32,
     raw: &str,
     beh_target: i32,
     count: i32,
@@ -79,8 +82,13 @@ pub fn execute(
     let targets = Target::from_id(beh_target).entities(fight, entity_uid);
     let id: i32 = raw.split('#').next().and_then(|v| v.parse().ok()).unwrap_or(0);
     match behaviour_type(id) {
-        Some(BehaviourType::_20002AddExPoint) => ex_point::execute(managers, mechanics, executor, rng, targets, raw, count),
-        Some(BehaviourType::_1AddBuff) => add_buff::execute(fight, managers, mechanics, executor, rng, targets, raw, count),
+        Some(beh @ (BehaviourType::_20002AddExPoint
+        | BehaviourType::_60174ConsumeExPointAddAttr)) => ex_point::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh, skill_id),
+        Some(beh @ (BehaviourType::_1AddBuff
+        | BehaviourType::_20005AddBuffRound
+        | BehaviourType::_20017AddBuffRound2
+        | BehaviourType::_60210ConsumeBloodAddBuff
+        | BehaviourType::_60211ConsumeBloodAddBuff2)) => add_buff::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh, skill_id),
         Some(BehaviourType::_40003AddAct) | Some(BehaviourType::_50006AddActHero) => add_act::execute(managers, targets, raw, count),
         Some(beh @ (BehaviourType::_20010Bloodlust
         | BehaviourType::_20011AverageLife
@@ -101,8 +109,9 @@ pub fn execute(
         | BehaviourType::_20004Purify2
         | BehaviourType::_20020PurifyX
         | BehaviourType::_50014ConsumeBuffByTypeId
-        | BehaviourType::_50016ConsumeBuffByTypeId2)) => {
-            disperse::execute(fight, managers, mechanics, executor, rng, targets, raw, count, beh)
+        | BehaviourType::_50016ConsumeBuffByTypeId2
+        | BehaviourType::_60176ReplaceBuff2)) => {
+            disperse::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh, skill_id)
         }
         Some(beh @ (BehaviourType::_10001SkillRateUp
         | BehaviourType::_10002SkillRateUp1
@@ -128,13 +137,13 @@ pub fn execute(
             catapult::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
         }
         Some(beh @ (BehaviourType::_20021AddBuffRanId | BehaviourType::_20022AddBuffRanTypeId | BehaviourType::_20023AddBuffRanTypeGroup)) => {
-            random::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+            random::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, beh)
         }
         Some(beh @ (BehaviourType::_50019AddMagicCircle | BehaviourType::_60163MagicCircleAddRound | BehaviourType::_60076MagicCircleAttr | BehaviourType::_50020RemoveAllMagicCircle | BehaviourType::_50021RemoveMagicCircleById | BehaviourType::_60270UpdateWangQiMagicCircle | BehaviourType::_60272ChangeElectricMagicCircleProgress)) => {
             magic_circle::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
         }
         Some(beh @ BehaviourType::_60209NuoDiKaDamage) => {
-            nuodika_damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+            nuodika_damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, skill_id, raw, count, beh)
         }
         Some(beh @ (BehaviourType::_10006Damage
         | BehaviourType::_10008Damage2
@@ -142,8 +151,9 @@ pub fn execute(
         | BehaviourType::_20009Detonate2
         | BehaviourType::_60237Detonate3
         | BehaviourType::_30014OriginDamage
-        | BehaviourType::_60215InjurySaveDamage)) => {
-            damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        | BehaviourType::_60215InjurySaveDamage
+        | BehaviourType::_60127OriginDamageByAttrAndBuffGroupSize)) => {
+            damage::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, skill_id, raw, count, beh)
         }
         Some(beh @ (BehaviourType::_20001Heal
         | BehaviourType::_90001Heal
@@ -157,7 +167,7 @@ pub fn execute(
         | BehaviourType::_60052OriginDamageFromInjuryBankBuff
         | BehaviourType::_60039RealDamageSelfAndAddBuffToTarget
         | BehaviourType::_60040ClearInjuryBankBuffOriginDamage)) => {
-            empathy::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+            empathy::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh, skill_id)
         }
         Some(beh @ BehaviourType::_60073SettleDotAndCostDotDuration) => {
             dot_settle::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
@@ -170,12 +180,34 @@ pub fn execute(
         | BehaviourType::_60216DamageRealLostLife
         | BehaviourType::_60213SurvivalHealth
         | BehaviourType::_60146OriginDamageByTeamAttr)) => {
-            lost_life::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+            lost_life::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, skill_id, raw, count, beh)
         }
         Some(beh @ (BehaviourType::_60190BloodPoolMaxChange
         | BehaviourType::_60191BloodPoolValueChange
         | BehaviourType::_60199ConsumeBloodPoolHeal)) => {
             bloodtithe::execute(fight, managers, mechanics, executor, rng, targets, entity_uid, raw, count, beh)
+        }
+        Some(BehaviourType::_60112AddTargetBuffByPoison) => {
+            poison_priority::execute(fight, managers, mechanics, executor, rng, entity_uid, skill_id, raw)
+        }
+        Some(beh @ (BehaviourType::_50008DirectUseSkill
+        | BehaviourType::_60053DirectUseSkill2
+        | BehaviourType::_60014DirectUseSkillPrev
+        | BehaviourType::_50012DirectUseSkillNoAct
+        | BehaviourType::_50038DirectUseSkillNoAct2
+        | BehaviourType::_60223DirectUseSkillNotExtra
+        | BehaviourType::_50039DirectUseSkillCard
+        | BehaviourType::_60156DirectUseSkillByBuff
+        | BehaviourType::_60175DirectUseBigSkill
+        | BehaviourType::_50010DirectUseGroupAndStarSkill
+        | BehaviourType::_50036ConsumePowerDirectUseSkill
+        | BehaviourType::_60188ConsumePowerUseSkill
+        | BehaviourType::_60196DirectUseExSkillNoConsumeExPoint
+        | BehaviourType::_60262PerConsumeExPointDirectUseSkill
+        | BehaviourType::_100021ConsumeBloodPoolDirectUseSkill
+        | BehaviourType::_60225RandomUseSkill
+        | BehaviourType::_60239RandomUseSkillWithDice)) => {
+            direct_skill::execute(fight, managers, mechanics, executor, rng, entity_uid, skill_id, targets, raw, beh)
         }
         Some(other) => { tracing::warn!("unimplemented behaviour type: {:?}", other); vec![] }
         None => vec![],

@@ -1,3 +1,14 @@
+//! Heal action — handles the two heal-shaped skill_behavior variants:
+//! `BehaviorType::Heal { rate }` (covers `Heal` and `HealCantCrit` in
+//! the parser) and `BehaviorType::HealByTwoAttr { missing_percent,
+//! caster_hp_percent }` (the `HealByTwoAttr` variant which scales by
+//! the caster's max HP and the target's missing HP).
+//!
+//! Both delegate to one-shot helpers in `buff_actions::heal`. The
+//! action module owns the dispatch wiring and the effect-context
+//! construction; the per-formula math lives in the buff_actions
+//! handler so it can also be invoked from non-skill paths (e.g. cure
+//! features on buff apply).
 use rand::rngs::StdRng;
 use sonettobuf::Fight;
 use crate::state::battle::{

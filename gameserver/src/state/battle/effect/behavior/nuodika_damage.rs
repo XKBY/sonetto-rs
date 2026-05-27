@@ -1,19 +1,41 @@
-use rand::rngs::StdRng;
-use sonettobuf::Fight;
+//! NuoDiKaDamage action — Nautika's Dual Faith damage variant.
+//!
+//! The variant carries `(primary_buff_id, primary_rate,
+//! secondary_buff_id, secondary_rate, self_loss_param)`. The buff
+//! ids are looked up in `buff_actions::attr_replace` to produce
+//! per-buff permille values; the two are combined with their rates
+//! into a `total_permille` of caster max HP. The caster takes
+//! `current_hp × (self_loss_param/5) %` self-damage, then targets
+//! resolved through `TargetResolver` each take
+//! `max_hp × total_permille / 1000`.
+use crate::state::battle::effect::behaviour_type::BehaviourType;
+use crate::state::battle::skill::cache::resolve_skill_effect_id;
 use crate::state::battle::{
+    buff_actions::attr_replace::buff_get_attr_replace_permille,
     event::Event,
+    fight_step::ActEffectBuilder,
     manager::fight_data_mgr::Managers,
     mechanics::Mechanics,
-    skill::{SkillExecutor, targets::{TargetResolver, get_entity}},
-    buff_actions::attr_replace::buff_get_attr_replace_permille,
-    fight_step::ActEffectBuilder,
+    skill::{
+        SkillExecutor,
+        targets::{TargetResolver, get_entity},
+    },
 };
-use crate::state::battle::effect::behaviour_type::BehaviourType;
+use rand::rngs::StdRng;
+use sonettobuf::Fight;
 
 pub fn execute(
-    fight: &Fight, managers: &mut Managers, mechanics: &mut Mechanics,
-    _executor: &mut SkillExecutor, _rng: &mut StdRng,
-    targets: Vec<i64>, entity_uid: i64, raw: &str, _count: i32, _beh_type: BehaviourType,
+    fight: &Fight,
+    managers: &mut Managers,
+    mechanics: &mut Mechanics,
+    _executor: &mut SkillExecutor,
+    _rng: &mut StdRng,
+    targets: Vec<i64>,
+    entity_uid: i64,
+    skill_id: i32,
+    raw: &str,
+    _count: i32,
+    _beh_type: BehaviourType,
 ) -> Vec<Event> {
     let _ = managers;
     let _ = mechanics;
@@ -30,7 +52,13 @@ pub fn execute(
         return vec![];
     };
     let current_hp = caster.current_hp.unwrap_or(0);
-    let max_hp = caster.attr.as_ref().and_then(|a| a.hp).unwrap_or(current_hp).max(current_hp).max(0);
+    let max_hp = caster
+        .attr
+        .as_ref()
+        .and_then(|a| a.hp)
+        .unwrap_or(current_hp)
+        .max(current_hp)
+        .max(0);
 
     let primary_permille = buff_get_attr_replace_permille(primary_buff_id).unwrap_or(0);
     let secondary_permille = buff_get_attr_replace_permille(secondary_buff_id).unwrap_or(0);
@@ -41,8 +69,12 @@ pub fn execute(
 
     let cfg = config::configs::get();
     let _ = cfg;
-    // TODO: skill_id unavailable in effect path; logic_target defaults to 204
-    let logic_target = 204;
+    let logic_target = cfg
+        .skill_effect
+        .iter()
+        .find(|s| s.id == resolve_skill_effect_id(skill_id))
+        .and_then(|s| s.logic_target.trim().parse::<i32>().ok())
+        .unwrap_or(0);
     let damage_targets = TargetResolver::new(fight, entity_uid, target)
         .behavior(logic_target)
         .resolve();
