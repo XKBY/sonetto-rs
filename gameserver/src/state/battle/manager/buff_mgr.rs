@@ -186,6 +186,24 @@ impl BuffMgr {
         vec![]
     }
 
+    pub fn set_shield_value(&mut self, target_uid: i64, buff_id: i32, value: i32) {
+        if let Some(buffs) = self.active_buff.get_mut(&target_uid) {
+            if let Some(b) = buffs.iter_mut().find(|b| b.buff_id == buff_id) {
+                b.shield_value = value;
+            }
+        }
+    }
+
+    pub fn reduce_shield_value(&mut self, target_uid: i64, amount: i32) {
+        if let Some(buffs) = self.active_buff.get_mut(&target_uid) {
+            if let Some(b) = buffs.iter_mut().find(|b| {
+                b.buff_type.as_ref().map(|t| t.r#type) == Some(7)
+            }) {
+                b.shield_value = (b.shield_value - amount).max(0);
+            }
+        }
+    }
+
     #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.active.is_empty()
