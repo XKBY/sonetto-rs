@@ -29,7 +29,7 @@ pub struct ShieldAct;
 impl BuffActExecutor for ShieldAct {
     const HOOKS: &'static [Hook] = &[Hook::BuffAdd];
 
-    fn execute(fight: &Fight, managers: &mut Managers, entity_uid: i64, params: &str, _carrier_buff_id: i32) -> (Vec<Event>, Vec<(i64, i32, i32)>) {
+    fn execute(fight: &Fight, managers: &mut Managers, entity_uid: i64, params: &str, carrier_buff_id: i32) -> (Vec<Event>, Vec<(i64, i32, i32)>) {
         let mut parts = params.split('#');
         let _id = parts.next();
         let use_missing: i32 = parts.next().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
@@ -56,9 +56,9 @@ impl BuffActExecutor for ShieldAct {
         let amount = base * permille / 1000;
         if amount <= 0 { return (vec![], vec![]); }
 
-        managers.entity_mgr.shields.entry(entity_uid).or_default().push(amount);
+        managers.buff_mgr.set_shield_value(entity_uid, carrier_buff_id, amount);
 
-        let effect = ActEffectBuilder::shield(entity_uid, amount);
+        let effect = ActEffectBuilder::shield_change(entity_uid, amount);
         (vec![Event::SerializedActEffect { effect }], vec![])
     }
 }
