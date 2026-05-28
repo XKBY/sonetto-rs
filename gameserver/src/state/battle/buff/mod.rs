@@ -46,6 +46,7 @@ pub struct Buff {
     pub exclude_rules: Vec<ExcludeRule>,
     pub take_stage: Option<TakeStage>,
     pub take_act: Option<TakeActBase>,
+    pub shield_value: i32,
 }
 
 impl Buff {

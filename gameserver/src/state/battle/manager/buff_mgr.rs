@@ -156,7 +156,7 @@ impl BuffMgr {
                 .and_then(|v| TakeActBase::from(v))
         });
 
-        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy, attr_bonus_refs: Vec::new(), include_type, include_max_stacks, exclude_rules, take_stage, take_act };
+        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy, attr_bonus_refs: Vec::new(), include_type, include_max_stacks, exclude_rules, take_stage, take_act, shield_value: 0 };
         let buffs = self.active_buff.entry(target_uid).or_default();
         //TODO: correct refresh logic
         match refresh_policy {
