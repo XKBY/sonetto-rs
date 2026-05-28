@@ -2,6 +2,7 @@ use super::traits::Manager;
 use crate::state::battle::buff::{utils, Buff, RefreshPolicy};
 use crate::state::battle::event::Event;
 use crate::state::battle::manager::fight_data_mgr::Managers;
+use crate::state::battle::types::buff::{ExcludeRule, IncludeType, TakeActBase, TakeStage};
 use sonettobuf::Fight;
 #[cfg(test)]
 use std::cell::Cell;
@@ -135,7 +136,27 @@ impl BuffMgr {
             ..Default::default()
         };
 
-        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy, attr_bonus_refs: Vec::new() };
+        let include_type = buff_type.as_ref().and_then(|bt| {
+            bt.include_types.split('#').next()
+                .and_then(|s| s.trim().parse::<i32>().ok())
+                .and_then(IncludeType::from)
+        });
+        let include_max_stacks = buff_type.as_ref().and_then(|bt| {
+            let mut parts = bt.include_types.split('#');
+            parts.next();
+            parts.next().and_then(|s| s.trim().parse::<i32>().ok())
+        });
+        let exclude_rules = buff_type.as_ref()
+            .map(|bt| ExcludeRule::parse(&bt.exclude_types))
+            .unwrap_or_default();
+        let take_stage = buff_type.as_ref().and_then(|bt| TakeStage::from(bt.take_stage));
+        let take_act = buff_type.as_ref().and_then(|bt| {
+            bt.take_act.split('#').next()
+                .and_then(|s| s.trim().parse::<i32>().ok())
+                .and_then(|v| TakeActBase::from(v))
+        });
+
+        let new_buff = Buff { buff_id, duration, stacks, actions, proto_buff, buff_type, layer: 0, refresh_policy, attr_bonus_refs: Vec::new(), include_type, include_max_stacks, exclude_rules, take_stage, take_act };
         let buffs = self.active_buff.entry(target_uid).or_default();
         //TODO: correct refresh logic
         match refresh_policy {

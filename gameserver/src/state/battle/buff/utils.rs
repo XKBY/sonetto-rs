@@ -1,20 +1,21 @@
 use super::RefreshPolicy;
+use crate::state::battle::types::buff::IncludeType;
 
 pub fn derive_refresh_policy(bt: Option<&config::skill_bufftype::SkillBufftype>) -> RefreshPolicy {
     let Some(bt) = bt else {
         return RefreshPolicy::UpdateInPlace;
     };
-    let has_include_type_10 = bt
+    let include_base: i32 = bt
         .include_types
         .split('#')
         .next()
-        .map(|s| s == "10")
-        .unwrap_or(false);
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(-1);
     let has_exclude_types = !bt.exclude_types.is_empty();
-    if has_include_type_10 && has_exclude_types {
-        RefreshPolicy::ReplaceOnExcludedOverlap
-    } else {
-        RefreshPolicy::UpdateInPlace
+    match IncludeType::from(include_base) {
+        Some(IncludeType::Unique) => RefreshPolicy::ReplaceOnSelfRefresh,
+        Some(IncludeType::Stacked) if has_exclude_types => RefreshPolicy::ReplaceOnExcludedOverlap,
+        _ => RefreshPolicy::UpdateInPlace,
     }
 }
 

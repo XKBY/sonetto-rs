@@ -1,3 +1,19 @@
+// Act 791 — Shield
+//
+// Computes a shield amount from a stat and applies it to the carrier on BuffAdd.
+// params: `791#<use_missing>#<attr_id>#<permille>#...`
+//   use_missing: 1 = base is (max_hp - current_hp), 0 = use attr directly
+//   attr_id:     100=current_hp, 101=max_hp, 102=atk, 103=def
+//   permille:    multiplier in 1/1000 units (e.g. 200 = 20%)
+//
+// Real shield buffs (e.g. buff 30940121, typeId=5001) use excludeTypes "1#7" so applying
+// one removes all existing type-7 buffs first. The two type-7 bufftypes with empty
+// excludeTypes (72000005, 30940121) are either internal/unnamed or dead — no real buff
+// uses bufftype 30940121, and buff 72000005 is an unnamed internal buff.
+//
+// `Buff.shield_value` is the live remaining shield amount and is the single source of
+// truth. It is set here via `buff_mgr.set_shield_value` and decremented during damage
+// absorption. `entity.shield_value` mirrors the aggregate for fast lookup during combat.
 use sonettobuf::Fight;
 use crate::state::battle::{
     effect::condition::Hook,
