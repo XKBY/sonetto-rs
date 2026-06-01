@@ -81,14 +81,14 @@ impl EntityMgr {
         .find_map(|e| e.uid)
     }
 
-    pub fn all_positioned_uids(fight: &Fight) -> Vec<i64> {
-        [fight.attacker.as_ref(), fight.defender.as_ref()]
-            .into_iter()
-            .flatten()
-            .flat_map(|s| s.entitys.iter().chain(s.sub_entitys.iter()))
-            .filter_map(|e| e.uid.filter(|_| e.position.unwrap_or(-1) > 0))
-            .collect()
-    }
+pub fn all_positioned_uids(fight: &Fight) -> Vec<i64> {
+    [fight.attacker.as_ref(), fight.defender.as_ref()]
+        .into_iter()
+        .flatten()
+        .flat_map(|s| s.entitys.iter().chain(s.sub_entitys.iter()))
+        .filter_map(|e| {e.uid.filter(|_| {e.position.unwrap_or(-1) > 0 && e.current_hp.unwrap_or(0) > 0})})
+        .collect()
+}
 
     pub fn alive_hero_uids(&self) -> HashSet<i64> {
         self.entity_cache

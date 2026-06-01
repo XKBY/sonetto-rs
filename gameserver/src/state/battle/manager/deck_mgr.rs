@@ -6,6 +6,7 @@ use crate::state::battle::manager::entity_mgr::EntityMgr;
 use crate::state::battle::deck::cleanup::{purge_dead_entity_cards, purge_and_maybe_rebuild_deck};
 use crate::state::battle::deck::hand::{generate_initial_hand, refill_hand};
 use crate::state::battle::deck::pool::build_deck;
+use rand::SeedableRng;
 
 #[derive(Default, Debug, Clone)]
 pub struct DeckManager {
@@ -16,6 +17,7 @@ pub struct DeckManager {
     pub enemy_deck: Vec<CardInfo>,
     pub enemy_ex_deck: Vec<CardInfo>,
     pub next_ai_use_cards: Vec<CardInfo>,
+	pub refill_seq: u64, // monotonically incrementing refill counter for deterministic RNG
 }
 
 impl DeckManager {
@@ -65,11 +67,14 @@ impl DeckManager {
         purge_and_maybe_rebuild_deck(&mut self.enemy_deck, &alive_uids, || build_deck(&entities));
     }
 
-    pub fn refill_player_hand(&mut self, rng: &mut impl Rng, extra: usize, fight: &Fight, entity_mgr: &EntityMgr) -> (Vec<CardInfo>, usize) {
+    pub fn refill_player_hand(&mut self, _rng: &mut impl Rng, extra: usize, fight: &Fight, entity_mgr: &EntityMgr) -> (Vec<CardInfo>, usize) {
         let alive_uids = entity_mgr.alive_hero_uids();
         let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.clone()).unwrap_or_default();
         tracing::info!("player refill: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
-        let result = refill_hand(rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, &alive_uids, extra, fight, || build_deck(&entities));
+        let seed = 0xCAFE_0000_u64 ^ self.refill_seq;
+        self.refill_seq += 1;
+        let mut refill_rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let result = refill_hand(&mut refill_rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, &alive_uids, extra, fight, || build_deck(&entities));
         tracing::info!("player refill done: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
         result
     }
@@ -78,11 +83,14 @@ impl DeckManager {
         crate::state::battle::card::ex_card::accumulate_enemy_ex_cards(self, fight, entity_mgr);
     }
 
-    pub fn refill_enemy_hand(&mut self, rng: &mut impl Rng, fight: &Fight, entity_mgr: &EntityMgr) -> Vec<CardInfo> {
+    pub fn refill_enemy_hand(&mut self, _rng: &mut impl Rng, fight: &Fight, entity_mgr: &EntityMgr) -> Vec<CardInfo> {
         let alive_uids = entity_mgr.alive_enemy_uids();
         let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.clone()).unwrap_or_default();
         tracing::info!("enemy refill: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
-        let (result, _) = refill_hand(rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));
+        let seed = 0xDEAD_0000_u64 ^ self.refill_seq;
+        self.refill_seq += 1;
+        let mut refill_rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let (result, _) = refill_hand(&mut refill_rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));
         tracing::info!("enemy refill done: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
         result
     }

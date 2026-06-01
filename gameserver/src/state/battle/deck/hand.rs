@@ -1,4 +1,4 @@
-use rand::{Rng, thread_rng};
+use rand::{Rng, SeedableRng};
 use sonettobuf::{CardInfo, Fight, FightEntityInfo};
 use std::collections::HashSet;
 
@@ -11,7 +11,7 @@ pub fn generate_initial_hand(entities: &[FightEntityInfo], has_support: bool) ->
     let candidate_pool = build_pool(entities);
     let active_uids: Vec<i64> = entities.iter().filter_map(|e| e.uid).collect();
     let opening_hand_size = card_limit(entities.len(), has_support);
-    let mut rng = thread_rng();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(0x19990305_u64);
     draw_deck_guaranteed_by_uid_with_rng(&candidate_pool, &active_uids, opening_hand_size, &mut rng)
 }
 

@@ -85,7 +85,8 @@ pub(crate) fn build_round_output(
 
     let attacker_ac = ctx.managers.entity_mgr.get_ac_point(ctx.fight, true);
 
-    let mut rng_for_ai = StdRng::from_entropy();
+    let cur_round = ctx.fight.cur_round.unwrap_or(1);
+    let mut rng_for_ai = StdRng::seed_from_u64(cur_round as u64 ^ 0xA1_0000);
     deck_mgr.next_ai_use_cards = ai::select_enemy_cards(
         deck_mgr,
         ctx.fight,

@@ -192,6 +192,23 @@ async fn execute_ai_operations_live(
         };
         tracing::info!("enemy card[{}]: uid={} skill_id={}", i, caster_uid, skill_id);
 
+        // Skip cards from dead entities — they may have been killed in a
+        // previous step this round, or were dead when selected last round.
+        let caster_alive = preview_fight
+            .defender
+            .as_ref()
+            .map(|d| {
+                d.entitys.iter().chain(d.sub_entitys.iter())
+                    .find(|e| e.uid == Some(caster_uid))
+                    .map(|e| e.current_hp.unwrap_or(0) > 0)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        if !caster_alive {
+            tracing::info!("enemy card[{}]: uid={} skill_id={} — caster dead, skipping", i, caster_uid, skill_id);
+            continue;
+        }
+
         preview_managers.buff_mgr.clear_step_deleted_buff_ids();
 
         let target_uid = resolve_target_fallback(preview_fight, state.ai_use_cards[i].target_uid.unwrap_or(0));
