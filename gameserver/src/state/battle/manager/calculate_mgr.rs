@@ -475,6 +475,7 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
         entity.current_hp = Some(0);
+        entity.position = entity.position.map(|p| if p > 0 { -p } else { p });
         self.buff_mgr.clear(target_id);
 
         tracing::trace!("Entity died: target={}", target_id);
@@ -492,6 +493,7 @@ impl FightCalculateDataMgr {
             .ok_or_else(|| format!("Failed to get entity {} mutably", target_id))?;
 
         entity.current_hp = Some(0);
+        entity.position = entity.position.map(|p| if p > 0 { -p } else { p });
         self.buff_mgr.clear(target_id);
 
         tracing::trace!("Entity killed: target={}", target_id);

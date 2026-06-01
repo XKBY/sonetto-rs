@@ -23,6 +23,17 @@ pub(crate) fn build_round_output(
     open.state.is_finish = check_battle_end(ctx.fight);
 
     crate::state::battle::manager::entity_mgr::sync_to_fight(ctx.fight, &ctx.managers.entity_mgr);
+    // Debug: print defender state right after sync_to_fight
+    if let Some(def) = ctx.fight.defender.as_ref() {
+        for e in def.entitys.iter().chain(def.sub_entitys.iter()) {
+            let uid = e.uid.unwrap_or(0);
+            let mgr_hp = ctx.managers.entity_mgr.get_hp(uid);
+            tracing::warn!(
+                "round_output_debug: post-sync_to_fight uid={} fight_hp={:?} pos={:?} mgr_hp={}",
+                uid, e.current_hp, e.position, mgr_hp
+            );
+        }
+    }
     let uids = EntityMgr::all_positioned_uids(ctx.fight);
     for uid in &uids {
         let evs = ctx.on_round_end(*uid);

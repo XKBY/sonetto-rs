@@ -84,6 +84,20 @@ impl WaveMgr {
         sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
         seed_ex_point_required_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
 
+        // Debug: verify new wave entities have correct HP in both fight and entity_mgr
+        if let Some(def) = ctx.fight.defender.as_ref() {
+            for e in &def.entitys {
+                let uid = e.uid.unwrap_or(0);
+                let mgr_hp = ctx.managers.entity_mgr.get_hp(uid);
+                if let Some(uid) = e.uid {
+                    ctx.managers.entity_mgr.action_points.entry(uid).or_insert(1);
+                tracing::warn!(
+                    "wave_debug: advance_wave entity uid={} fight_hp={:?} pos={:?} mgr_hp={}",
+                    uid, e.current_hp, e.position, mgr_hp
+                );}
+            }
+        }
+
         let fight = ctx.fight.clone();
         let new_entity_uids: Vec<i64> = fight
             .defender

@@ -67,6 +67,19 @@ impl EntityMgr {
     pub fn get_location(&self, entity_id: i64) -> Option<EntityLocation> {
         self.entity_cache.get(&entity_id).copied()
     }
+	
+	pub fn first_alive_defender_uid(&self, fight: &Fight) -> Option<i64> {
+    fight.defender.as_ref()?.entitys.iter()
+        .chain(fight.defender.as_ref()?.sub_entitys.iter())
+        .filter(|e| {
+            e.position.unwrap_or(-1) > 0
+                && e.uid.map_or(false, |uid| {
+                    self.current_hp.get(&uid).copied().unwrap_or(0) > 0
+                        || e.current_hp.map_or(false, |hp| hp > 0)
+                })
+        })
+        .find_map(|e| e.uid)
+    }
 
     pub fn all_positioned_uids(fight: &Fight) -> Vec<i64> {
         [fight.attacker.as_ref(), fight.defender.as_ref()]
@@ -361,6 +374,8 @@ pub fn build_ex_point_info(fight: &Fight, mgr: &EntityMgr) -> Vec<FightExPointIn
         })
         .collect()
 }
+
+
 
 pub fn sync_to_fight(fight: &mut Fight, mgr: &EntityMgr) {
     for e in fight

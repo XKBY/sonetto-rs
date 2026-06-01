@@ -123,17 +123,36 @@ pub(crate) async fn play_card(
     let target_uid = if raw_target_uid != 0 {
         resolve_target_fallback(ctx.fight, raw_target_uid)
     } else {
-        let skill_target_type = crate::state::init_skill_cache::SKILL_CACHE
+        let skill_target_type = crate::state::battle::skill::cache::SKILL_CACHE
             .get(&resolved_skill_id)
-            .and_then(|behaviors| behaviors.first())
-            .map(|b| b.target)
+            .and_then(|behaviors: &Vec<_>| behaviors.first())
+            .map(|b| b.logic_target)
             .unwrap_or(0);
         // target types 100-199: self or ally side; 200+: enemy side
         let is_ally_skill = (100..200).contains(&skill_target_type);
         if is_ally_skill {
             first_alive_on_side(ctx.fight, true).unwrap_or(exec_caster_uid)
         } else {
-            first_alive_on_side(ctx.fight, false).unwrap_or(raw_target_uid)
+            // Debug: dump defender entitys state when no target was provided
+            if let Some(def) = ctx.fight.defender.as_ref() {
+                for e in def.entitys.iter().chain(def.sub_entitys.iter()) {
+                    tracing::warn!(
+                        "target_debug: defender uid={:?} pos={:?} hp={:?}",
+                        e.uid, e.position, e.current_hp
+                    );
+                }
+                if def.entitys.is_empty() {
+                    tracing::warn!("target_debug: defender.entitys is EMPTY");
+                }
+            } else {
+                tracing::warn!("target_debug: fight.defender is None");
+            }
+            let found = first_alive_on_side(ctx.fight, false);
+            tracing::warn!(
+                "target_debug: skill={} caster={} raw_target=0 skill_target_type={} first_alive_defender={:?}",
+                resolved_skill_id, exec_caster_uid, skill_target_type, found
+            );
+            found.unwrap_or(raw_target_uid)
         }
     };
     let is_direct_ex_card = !is_temp_card

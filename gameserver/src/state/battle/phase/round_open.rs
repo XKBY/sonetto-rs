@@ -105,6 +105,17 @@ pub(crate) fn run(
             );
         }
     }
+    // Debug: also print defender state at round start
+    if let Some(def) = ctx.fight.defender.as_ref() {
+        for e in def.entitys.iter().chain(def.sub_entitys.iter()) {
+            let uid = e.uid.unwrap_or(0);
+            let mgr_hp = ctx.managers.entity_mgr.get_hp(uid);
+            tracing::warn!(
+                "round_open_debug: defender uid={} fight_hp={:?} pos={:?} mgr_hp={}",
+                uid, e.current_hp, e.position, mgr_hp
+            );
+        }
+    }
 
     let mut state = RoundState::new(ctx.fight);
     let attacker_uid_checkpoint = attacker_buff_uid_checkpoint();

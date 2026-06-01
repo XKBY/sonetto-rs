@@ -379,8 +379,9 @@ pub(crate) async fn run(
         let wave_steps = wave_mgr.advance_wave(ctx, &mut wave_executor)?;
         ctx.managers.wave_mgr = wave_mgr;
         sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
-        for uid in old_defender_uids {
-            ctx.managers.buff_mgr.clear(uid);
+        for uid in &old_defender_uids {
+            ctx.managers.buff_mgr.clear(*uid);
+			ctx.managers.entity_mgr.action_points.remove(uid);
         }
         seed_entry_max_hp_from_fight(ctx.fight);
         ctx.sync();

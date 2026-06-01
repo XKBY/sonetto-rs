@@ -58,7 +58,7 @@ impl BuffActExecutor for ShieldAct {
 
         managers.buff_mgr.set_shield_value(entity_uid, carrier_buff_id, amount);
 
-        let effect = ActEffectBuilder::shield_change(entity_uid, amount);
+        let effect = ActEffectBuilder::shield(entity_uid, amount);
         (vec![Event::SerializedActEffect { effect }], vec![])
     }
 }

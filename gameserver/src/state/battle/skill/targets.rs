@@ -415,10 +415,11 @@ fn entity_is_on_attacker_side(fight: &Fight, uid: i64) -> bool {
             .any(|e| e.uid == Some(uid));
         if in_defender { return false; }
     }
-    // Unknown entity: fall back to uid sign (positive = attacker, negative = ?)
-    // For enemies we use 10001+ range, for trial heroes -1/-2.
-    // If not found in either team, treat large positives as attacker.
-    uid >= 0
+    // Entity not found in either team — most likely a previous wave's enemy uid
+    // that has been replaced. Enemy uids use the 10_001+ range; trial hero uids
+    // use negative values (-1, -2). Treat as defender side so the fallback looks
+    // for a live defender rather than a live attacker, preventing friendly fire.
+    uid < 0
 }
 
 pub fn resolve_target_fallback(fight: &Fight, requested_uid: i64) -> i64 {
