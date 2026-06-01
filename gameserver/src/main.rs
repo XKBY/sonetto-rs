@@ -20,6 +20,20 @@ mod util;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Install a panic hook that writes panic info to tracing before the process dies.
+    // Without this, panics are silently printed to stderr which the user may not see.
+    std::panic::set_hook(Box::new(|info| {
+        let location = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_else(|| "unknown".into());
+        let message = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic payload".into()
+        };
+        tracing::error!("PANIC at {}: {}", location, message);
+        eprintln!("PANIC at {}: {}", location, message);
+    }));
     init_tracing();
 
     let config_path = std::env::current_exe()

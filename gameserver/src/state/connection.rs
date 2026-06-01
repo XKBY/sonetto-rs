@@ -46,6 +46,9 @@ pub struct ActiveBattle {
     pub replay_episode_id: Option<i32>,
     pub multiplication: Option<i32>,
     pub fight_data_mgr: Option<FightDataMgr>,
+    /// Pre-loaded round operations for replay mode (popped one-by-one each BeginRoundCmd).
+    /// Populated by start_dungeon when use_record=true.
+    pub replay_opers: std::collections::VecDeque<Vec<sonettobuf::BeginRoundOper>>,
 }
 
 #[allow(dead_code)]

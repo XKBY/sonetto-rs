@@ -388,13 +388,44 @@ pub fn first_alive_on_side(fight: &Fight, attacker_side: bool) -> Option<i64> {
     team.entitys
         .iter()
         .chain(team.sub_entitys.iter())
-        .find(|e| e.position.unwrap_or(-1) > 0 && e.current_hp.unwrap_or(0) > 0)
+        .find(|e| {
+            e.position.unwrap_or(-1) > 0
+                // current_hp=None means newly-joined entity (hp not yet synced from entity_mgr).
+                // Treat as alive. Only skip if hp is explicitly set to 0 or below.
+                && e.current_hp.map_or(true, |hp| hp > 0)
+        })
         .and_then(|e| e.uid)
+}
+
+/// Determine which side an entity is on by looking at team_type in the fight proto.
+/// This is more reliable than checking uid sign, because trial hero UIDs are
+/// negative (-1, -2) but belong to the attacker side (team_type=1).
+fn entity_is_on_attacker_side(fight: &Fight, uid: i64) -> bool {
+    // Check attacker team first
+    if let Some(attacker) = fight.attacker.as_ref() {
+        let in_attacker = attacker.entitys.iter()
+            .chain(attacker.sub_entitys.iter())
+            .any(|e| e.uid == Some(uid));
+        if in_attacker { return true; }
+    }
+    // Check defender team
+    if let Some(defender) = fight.defender.as_ref() {
+        let in_defender = defender.entitys.iter()
+            .chain(defender.sub_entitys.iter())
+            .any(|e| e.uid == Some(uid));
+        if in_defender { return false; }
+    }
+    // Unknown entity: fall back to uid sign (positive = attacker, negative = ?)
+    // For enemies we use 10001+ range, for trial heroes -1/-2.
+    // If not found in either team, treat large positives as attacker.
+    uid >= 0
 }
 
 pub fn resolve_target_fallback(fight: &Fight, requested_uid: i64) -> i64 {
     if requested_uid == 0 || is_alive(fight, requested_uid) {
         return requested_uid;
     }
-    first_alive_on_side(fight, requested_uid > 0).unwrap_or(requested_uid)
+    // Use team membership lookup instead of uid sign to handle trial hero UIDs correctly.
+    let on_attacker = entity_is_on_attacker_side(fight, requested_uid);
+    first_alive_on_side(fight, on_attacker).unwrap_or(requested_uid)
 }

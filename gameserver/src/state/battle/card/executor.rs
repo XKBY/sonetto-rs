@@ -112,10 +112,29 @@ pub(crate) async fn play_card(
     };
     let resolved_skill_id =
         resolve_with_euphoria(ctx.fight, exec_caster_uid, resolved_skill_id);
+
+    // Determine target.
+    // to_id == 0 means "use default target for this skill type".
+    // We must NOT blindly default to defender side — some skills (buffs, heals)
+    // target the caster's own side.  Look at the skill config's target_type:
+    //   target_type 1xx = self/ally → attacker side
+    //   target_type 2xx = enemy → defender side
+    // If skill data is unavailable, fall back to defender side (attack skill default).
     let target_uid = if raw_target_uid != 0 {
         resolve_target_fallback(ctx.fight, raw_target_uid)
     } else {
-        first_alive_on_side(ctx.fight, false).unwrap_or(raw_target_uid)
+        let skill_target_type = crate::state::init_skill_cache::SKILL_CACHE
+            .get(&resolved_skill_id)
+            .and_then(|behaviors| behaviors.first())
+            .map(|b| b.target)
+            .unwrap_or(0);
+        // target types 100-199: self or ally side; 200+: enemy side
+        let is_ally_skill = (100..200).contains(&skill_target_type);
+        if is_ally_skill {
+            first_alive_on_side(ctx.fight, true).unwrap_or(exec_caster_uid)
+        } else {
+            first_alive_on_side(ctx.fight, false).unwrap_or(raw_target_uid)
+        }
     };
     let is_direct_ex_card = !is_temp_card
         && ctx

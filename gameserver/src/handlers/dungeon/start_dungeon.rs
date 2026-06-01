@@ -4,9 +4,11 @@ use crate::state::{
     ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
 };
 use config::configs;
+use database::db::game::battle::load_battle_replay;
 use database::db::game::dungeons::{get_user_dungeon, update_dungeon_progress};
 use prost::Message;
 use sonettobuf::{CmdId, DungeonUpdatePush, StartDungeonReply, StartDungeonRequest, UserDungeon};
+use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -67,6 +69,27 @@ pub async fn on_start_dungeon(
     let fight_snapshot = fight_data_mgr.pre_fight.clone()
         .unwrap_or_else(|| fight_data_mgr.fight().clone());
 
+    // Load stored round operations for replay mode.
+    // The client receives these via GetFightOperCmd but may not re-send them for rounds 2+,
+    // so we pre-load them server-side and pop one per BeginRoundCmd in replay mode.
+    let replay_opers: VecDeque<Vec<sonettobuf::BeginRoundOper>> = if use_record {
+        match load_battle_replay(&pool, player_id, episode_id).await {
+            Ok(records) => {
+                tracing::info!(
+                    "start_dungeon: loaded {} replay round(s) for episode={}",
+                    records.len(), episode_id
+                );
+                records.into_iter().map(|r| r.opers).collect()
+            }
+            Err(e) => {
+                tracing::warn!("start_dungeon: failed to load replay opers: {} — replay will use empty ops", e);
+                VecDeque::new()
+            }
+        }
+    } else {
+        VecDeque::new()
+    };
+
     {
         let mut conn: tokio::sync::MutexGuard<'_, ConnectionContext> = ctx.lock().await;
         conn.active_battle = Some(ActiveBattle {
@@ -83,6 +106,7 @@ pub async fn on_start_dungeon(
             fight_id: Some(chrono::Utc::now().timestamp_millis()),
             multiplication: Some(multiplication),
             fight_data_mgr: Some(fight_data_mgr),
+            replay_opers,
         });
     }
 

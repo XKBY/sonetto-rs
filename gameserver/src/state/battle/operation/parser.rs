@@ -15,32 +15,35 @@ pub fn parse_round_open_ops(
     deck_mgr: &mut DeckManager,
     fight: &Fight,
 ) -> ParsedOps {
-    let mut selected_pairs: Vec<(usize, CardInfo)> = Vec::new();
+    let mut selected_cards: Vec<CardInfo> = Vec::new();
     let mut player_events: Vec<Event> = Vec::new();
 
     for op in operations {
         match CardOpType::try_from(op.oper_type.unwrap_or(0)) {
+            // ── MoveCard with to_id==0: reorder in hand, then check for combines ─
             Ok(CardOpType::MoveCard) if op.to_id.unwrap_or(0) == 0 => {
-                let from = (op.param1.unwrap_or(1) - 1) as usize;
-                let to   = (op.param2.unwrap_or(1) - 1) as usize;
+                let from = (op.param1.unwrap_or(1).saturating_sub(1)) as usize;
+                let to   = (op.param2.unwrap_or(1).saturating_sub(1)) as usize;
                 tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, deck_mgr.player_hand.len());
                 if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
                     let card = deck_mgr.player_hand[from].clone();
                     player_events.push(Event::CardMoved { card: card.clone() });
                     let moved = deck_mgr.player_hand.remove(from);
                     deck_mgr.player_hand.insert(to, moved);
+                    // Card combines are triggered by moving cards next to matching ones.
                     let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
                     for _ in 0..upgrades {
                         player_events.push(Event::CardUpgrade { card: card.clone() });
                     }
                 }
             }
+            // ── PlayCard / MoveCard (to_id != 0) / combat operations ──────────────
             Ok(CardOpType::PlayCard)
             | Ok(CardOpType::MoveCard)
             | Ok(CardOpType::AssistBoss)
             | Ok(CardOpType::PlayerFinisherSkill)
             | Ok(CardOpType::BloodPool) => {
-                let idx = (op.param1.unwrap_or(1) - 1) as usize;
+                let idx = (op.param1.unwrap_or(1).saturating_sub(1)) as usize;
                 tracing::warn!("  pick idx={} from deck of {} cards:", idx, deck_mgr.player_hand.len());
                 for (i, c) in deck_mgr.player_hand.iter().enumerate() {
                     tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);
@@ -49,18 +52,20 @@ pub fn parse_round_open_ops(
                     let card = deck_mgr.player_hand.remove(idx);
                     tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                     player_events.push(Event::CardPlayed { card: card.clone(), oper: op.clone() });
-                    selected_pairs.push((selected_pairs.len(), card.clone()));
-                    let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
-                    for _ in 0..upgrades {
-                        player_events.push(Event::CardUpgrade { card: card.clone() });
-                    }
+                    selected_cards.push(card);
+                    // DO NOT call apply_card_upgrades here.
+                    // Combines are handled by the MoveCard ops the client sends
+                    // BEFORE each PlayCard.  Triggering combines here shifts hand
+                    // indices mid-sequence and causes OUT-OF-RANGE on subsequent
+                    // PlayCard ops.
                 } else {
                     tracing::warn!("  -> idx {} OUT OF RANGE (deck size {})", idx, deck_mgr.player_hand.len());
                 }
             }
+            // ── Use universal wildcard card ────────────────────────────────────────
             Ok(CardOpType::MoveUniversal) => {
-                let universal_idx = (op.param1.unwrap_or(1) - 1) as usize;
-                let target_idx    = (op.param2.unwrap_or(1) - 1) as usize;
+                let universal_idx = (op.param1.unwrap_or(1).saturating_sub(1)) as usize;
+                let target_idx    = (op.param2.unwrap_or(1).saturating_sub(1)) as usize;
                 let is_universal  = deck_mgr.player_hand.get(universal_idx)
                     .and_then(|c| c.skill_id)
                     .map_or(false, |id| id == 30000001);
@@ -79,8 +84,5 @@ pub fn parse_round_open_ops(
         }
     }
 
-    ParsedOps {
-        selected_cards: selected_pairs.into_iter().map(|(_, c)| c).collect(),
-        player_events,
-    }
+    ParsedOps { selected_cards, player_events }
 }

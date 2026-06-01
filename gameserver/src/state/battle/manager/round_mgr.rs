@@ -429,11 +429,22 @@ pub(crate) fn inject_be_attacked_reactives_onto_player_host(
                 entity_mgr: &mut ctx.managers.entity_mgr,
                 bloodtithe: &mut mechanics.bloodtithe,
             };
-            drain_to_fight_steps(queue.drain(), &mut event_ctx)
+            let step_opt = drain_to_fight_steps(queue.drain(), &mut event_ctx)
                 .into_iter()
-                .next()
-                .expect("event-triggered be_attacked graft should serialize to a single ActEffect")
+                .next();
+            if step_opt.is_none() {
+                tracing::warn!(
+                    "inject_be_attacked_reactives: drain produced no step for \
+                     target_uid={target_uid}, reactive_caster={reactive_caster_uid} — skipping"
+                );
+            }
+            step_opt.unwrap_or_default()
         })
+        .collect::<Vec<_>>();
+    // Filter out any default/empty effects inserted above to keep the step list clean.
+    let wrappers: Vec<ActEffect> = wrappers
+        .into_iter()
+        .filter(|e| e != &ActEffect::default())
         .collect();
 
     let insert_at = host_step

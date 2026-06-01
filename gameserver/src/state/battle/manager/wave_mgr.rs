@@ -76,6 +76,14 @@ impl WaveMgr {
     ) -> Result<Vec<FightStep>> {
         self.advance_wave_state(ctx)?;
 
+        // Populate entity_mgr with the new wave entities' max-HP values so that
+        // sync_to_fight (called at round-end) doesn't overwrite current_hp with 0.
+        // Without this, first_alive_on_side returns None in the next round and
+        // player skills fall through to the attacker-side fallback, causing
+        // friendly fire.
+        sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
+        seed_ex_point_required_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
+
         let fight = ctx.fight.clone();
         let new_entity_uids: Vec<i64> = fight
             .defender

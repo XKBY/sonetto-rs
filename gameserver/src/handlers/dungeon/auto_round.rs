@@ -74,6 +74,8 @@ pub async fn on_auto_round(
         generate_auto_opers(&hand)
     };
 
+    tracing::info!("AutoRound: processing round for episode={} battle_id={}", episode_id, battle_id);
+
     let mut fight_data_mgr = fight_data_mgr;
     let mut round = fight_data_mgr.process_round(auto_opers.clone(), None).await?;
     round.is_finish = Some(true);
@@ -104,47 +106,65 @@ pub async fn on_auto_round(
         conn.send_reply(CmdId::AutoRoundCmd, reply, 0, req.up_tag)
             .await?;
     }
+    tracing::info!("AutoRound: reply sent");
 
     if !is_replay {
-        save_round_operations(
+        tracing::info!("AutoRound: saving round operations player={} episode={} battle_id={} round={}", player_id, episode_id, battle_id, round_num);
+        if let Err(e) = save_round_operations(
             &pool,
             player_id,
             episode_id,
             battle_id,
             round_num,
-            vec![], // cloth ops (future)
-            auto_opers,
-        )
-        .await?;
+            vec![],
+            auto_opers.clone(),
+        ).await {
+            tracing::warn!("AutoRound: save_round_operations failed (non-fatal): {}", e);
+        }
 
-        let stars_earned = 2; // TODO real calc
-        update_dungeon_progress(&pool, player_id, chapter_id, episode_id, stars_earned).await?;
+        tracing::info!("AutoRound: updating dungeon progress");
+        if let Err(e) = update_dungeon_progress(&pool, player_id, chapter_id, episode_id, 2).await {
+            tracing::warn!("AutoRound: update_dungeon_progress failed (non-fatal): {}", e);
+        }
 
-        let should_save_record =
-            should_update_dungeon_record(&pool, player_id, episode_id, record_round, &fight_group)
-                .await?;
+        tracing::info!("AutoRound: checking dungeon record");
+        let should_save_record = should_update_dungeon_record(
+            &pool, player_id, episode_id, record_round, &fight_group
+        ).await.unwrap_or(false);
 
         if should_save_record {
-            let equips = build_equip_records(&pool, player_id, &fight_group).await?;
-            save_dungeon_record(
+            tracing::info!("AutoRound: saving dungeon record");
+            // Build equip records only for real player heroes (non-negative UIDs)
+            let real_fight_group = fight_group.as_ref().map(|fg| {
+                let mut fg = fg.clone();
+                fg.hero_list.retain(|uid| *uid > 0);
+                fg
+            });
+            let equips = if let Some(ref fg) = real_fight_group {
+                build_equip_records(&pool, player_id, &Some(fg.clone())).await.unwrap_or_default()
+            } else {
+                vec![]
+            };
+            if let Err(e) = save_dungeon_record(
                 &pool,
                 player_id,
                 episode_id,
                 record_round,
                 &fight_group.clone().unwrap_or_default(),
                 equips,
-            )
-            .await?;
+                vec![], // auto-round battles never use trial heroes
+            ).await {
+                tracing::warn!("AutoRound: save_dungeon_record failed (non-fatal): {}", e);
+            }
         }
 
         tracing::info!(
             "Auto battle completed: episode={}, round={}, record_saved={}",
-            episode_id,
-            record_round,
-            should_save_record
+            episode_id, record_round, should_save_record
         );
     }
 
+    tracing::info!("AutoRound: sending end_fight_push");
     send_end_fight_push(
         ctx.clone(),
         battle_id,
@@ -153,8 +173,7 @@ pub async fn on_auto_round(
         vec![],
         vec![],
         !is_replay,
-    )
-    .await?;
+    ).await?;
 
     send_push!(
         ctx,
@@ -163,6 +182,7 @@ pub async fn on_auto_round(
         "dungeon/instruction_dungeon_info.json"
     );
 
+    tracing::info!("AutoRound: getting updated dungeon");
     let updated_dungeon = get_user_dungeon(&pool, player_id, chapter_id, episode_id).await?;
 
     let game_data = config::configs::get();
@@ -173,6 +193,7 @@ pub async fn on_auto_round(
         .map(|c| c.r#type)
         .unwrap_or(6);
 
+    tracing::info!("AutoRound: sending dungeon_update_push");
     send_dungeon_update_push(
         ctx.clone(),
         chapter_id,
@@ -183,8 +204,7 @@ pub async fn on_auto_round(
         chapter_type,
         2,
         2,
-    )
-    .await?;
+    ).await?;
 
     let is_first_clear = updated_dungeon.challenge_count == 1;
     let rewards = generate_dungeon_rewards(episode_id, is_first_clear, multiplication);
@@ -193,8 +213,10 @@ pub async fn on_auto_round(
     all_rewards.extend(rewards.first_bonus);
     all_rewards.extend(rewards.free_bonus);
 
+    tracing::info!("AutoRound: sending end_dungeon_push with {} rewards", all_rewards.len());
     send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards).await?;
     send_red_dot_push(ctx.clone(), player_id, Some(vec![1027, 1047])).await?;
 
+    tracing::info!("AutoRound: complete");
     Ok(())
 }

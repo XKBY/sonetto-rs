@@ -97,7 +97,7 @@ impl Defender {
             .enumerate()
             .map(|(idx, monster_id)| {
                 let position = (idx + 1) as i32;
-                let uid = -((2 * (wave as i64 - 1)) + position as i64);
+                let uid = 10_001 + ((wave as i64 - 1) * 100) + position as i64;
                 Self::build_enemy_with_uid(monster_id, uid, position, team_type)
             })
             .collect()
@@ -134,8 +134,11 @@ impl Defender {
             .filter_map(|s| s.parse::<i32>().ok())
             .collect();
 
-        let initial: Vec<i32> = monster_ids.iter().copied().take(monster_max).collect();
-        let queued: Vec<i32> = monster_ids.iter().copied().skip(monster_max).collect();
+        // monster_max=0 means "no limit — spawn everything initially".
+        // take(0) would incorrectly put all monsters into the queued list.
+        let effective_max = if monster_max == 0 { monster_ids.len() } else { monster_max };
+        let initial: Vec<i32> = monster_ids.iter().copied().take(effective_max).collect();
+        let queued: Vec<i32> = monster_ids.iter().copied().skip(effective_max).collect();
 
         tracing::debug!(
             "Defender: group={} total={} initial={} queued={}",
@@ -171,7 +174,10 @@ impl Defender {
         position: i32,
         team_type: i32,
     ) -> Result<FightEntityInfo> {
-        let uid = -((idx + 1) as i64);
+        // Enemy UIDs use the 10_001+ range to avoid colliding with:
+        //   - trial hero UIDs (-1, -2, ... sent by client)
+        //   - player hero UIDs (small positive auto-increment from DB)
+        let uid = 10_001 + idx as i64;
         Self::build_enemy_with_uid(monster_id, uid, position, team_type)
     }
 
@@ -192,8 +198,8 @@ impl Defender {
         let template = game_data
             .monster_template
             .iter()
-            .find(|t| t.template == monster.id)
-            .ok_or_else(|| anyhow::anyhow!("Monster template {} not found", monster.id))?;
+            .find(|t| t.template == monster.template)
+            .ok_or_else(|| anyhow::anyhow!("Monster template {} not found (monster_id={}, template_field={})", monster.template, monster.id, monster.template))?;
 
         let skill_template = game_data
             .monster_skill_template

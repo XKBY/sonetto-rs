@@ -20,6 +20,28 @@ pub(crate) fn select_enemy_cards(
             .filter(|e| e.current_hp.unwrap_or(0) > 0)
             .cloned()
             .collect();
+
+        // Collect UIDs of alive enemies so we can purge dead enemies' cards from hand.
+        // Without this, cards pre-selected for enemies that died this round remain in
+        // enemy_hand and get played the following round even though those enemies are dead.
+        let alive_uids: std::collections::HashSet<i64> = entities.iter()
+            .filter_map(|e| e.uid)
+            .collect();
+
+        // Remove cards from enemy hand that belong to dead enemies.
+        // card.uid on enemy cards stores the model_id, not the entity uid, so we need
+        // to resolve: keep a card if its model_id maps to at least one alive entity.
+        let alive_model_ids: std::collections::HashSet<i32> = entities.iter()
+            .filter_map(|e| e.model_id)
+            .collect();
+        deck_mgr.enemy_hand.retain(|c| {
+            let card_uid = c.uid.unwrap_or(0) as i32;
+            // card.uid may be a model_id (positive) or an entity uid.
+            // Keep if it maps to an alive model_id, OR is directly an alive entity uid.
+            alive_model_ids.contains(&card_uid)
+                || alive_uids.contains(&(card_uid as i64))
+        });
+
         let ex_skill_ids: std::collections::HashSet<i32> = entities.iter()
             .filter_map(|e| e.ex_skill)
             .filter(|&id| id != 0)

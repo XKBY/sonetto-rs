@@ -104,6 +104,11 @@ pub async fn sync_banner_schedule_from_config(
     summon_pool_ids: &std::collections::HashSet<i32>,
 ) -> anyhow::Result<()> {
     let now = Utc::now().timestamp() as i32;
+    // Set all pools as currently active: started 1 day ago, expires 2 years from now.
+    // The original config timestamps are from the game's release era (2023-2024) and
+    // would appear expired to the client. Overriding them keeps every pool visible.
+    let forced_online  = now - 86_400;          // 1 day ago
+    let forced_offline = now + 2 * 365 * 86_400; // 2 years from now
 
     for rec in store_recommends {
         if rec.is_offline != 0 {
@@ -113,11 +118,12 @@ pub async fn sync_banner_schedule_from_config(
             Some(id) if summon_pool_ids.contains(&id) => id,
             _ => continue,
         };
-        let (online_time, offline_time) = match (
+        // Validate that config timestamps are parseable, but don't use them.
+        match (
             parse_ts_seconds(&rec.online_time),
             parse_ts_seconds(&rec.offline_time),
         ) {
-            (Some(on), Some(off)) => (on, off),
+            (Some(_), Some(_)) => {}
             _ => continue,
         };
 
@@ -132,8 +138,8 @@ pub async fn sync_banner_schedule_from_config(
             "#,
         )
         .bind(pool_id)
-        .bind(online_time)
-        .bind(offline_time)
+        .bind(forced_online)
+        .bind(forced_offline)
         .bind(now)
         .bind(now)
         .execute(db)

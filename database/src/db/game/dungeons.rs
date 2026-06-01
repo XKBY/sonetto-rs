@@ -227,6 +227,7 @@ pub async fn load_dungeon_record(
         record_round: i32,
         hero_list: String,
         sub_hero_list: String,
+        trial_hero_list: Option<String>,
         cloth_id: i32,
         equips: String,
         version: i32,
@@ -234,7 +235,7 @@ pub async fn load_dungeon_record(
 
     let row: Option<RecordRow> = sqlx::query_as(
         r#"
-        SELECT record_round, hero_list, sub_hero_list, cloth_id, equips, version
+        SELECT record_round, hero_list, sub_hero_list, trial_hero_list, cloth_id, equips, version
         FROM dungeon_records
         WHERE user_id = ? AND episode_id = ?
         "#,
@@ -284,6 +285,25 @@ pub async fn load_dungeon_record(
         }
     }
 
+    // Build trial hero records from saved trial_id list.
+    // trial_ids are the actual hero_trial config IDs (e.g. [3121004, 3122032]).
+    // pos = slot index (0-based).
+    let trial_hero_list: Vec<sonettobuf::TrialHeroRecord> = row
+        .trial_hero_list
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<Vec<i32>>(s).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .enumerate()
+        .filter(|(_, id)| *id != 0)
+        .map(|(pos, trial_id)| sonettobuf::TrialHeroRecord {
+            trial_id: Some(trial_id),
+            pos: Some(pos as i32),
+            equip_records: vec![],
+            activity104_equip_records: vec![],
+        })
+        .collect();
+
     // Parse equipment data and filter zeros
     let all_equips: Vec<sonettobuf::FightEquipRecord> = serde_json::from_str(&row.equips)?;
     let equips: Vec<sonettobuf::FightEquipRecord> = all_equips
@@ -296,7 +316,7 @@ pub async fn load_dungeon_record(
         sub_hero_list,
         cloth_id: Some(row.cloth_id),
         equips,
-        trial_hero_list: vec![],
+        trial_hero_list,
         activity104_equips: vec![],
         ex_infos: vec![],
         version: Some(row.version),
@@ -315,20 +335,34 @@ pub async fn save_dungeon_record(
     record_round: i32,
     fight_group: &sonettobuf::FightGroup,
     equips: Vec<sonettobuf::FightEquipRecord>,
+    trial_ids: Vec<i32>,  // resolved trial hero config IDs (e.g. [3121004, 3122032])
 ) -> Result<()> {
-    let hero_list = serde_json::to_string(&fight_group.hero_list)?;
-    let sub_hero_list = serde_json::to_string(&fight_group.sub_hero_list)?;
+    // Separate normal heroes (positive UIDs) from trial hero slots (negative UIDs).
+    let real_heroes: Vec<i64> = fight_group.hero_list.iter()
+        .filter(|&&uid| uid > 0)
+        .copied()
+        .collect();
+    let real_sub: Vec<i64> = fight_group.sub_hero_list.iter()
+        .filter(|&&uid| uid > 0)
+        .copied()
+        .collect();
+
+    // Store resolved trial hero IDs as JSON so load can reconstruct TrialHeroRecord.
+    let trial_hero_list_json = serde_json::to_string(&trial_ids)?;
+    let hero_list = serde_json::to_string(&real_heroes)?;
+    let sub_hero_list = serde_json::to_string(&real_sub)?;
     let equips_json = serde_json::to_string(&equips)?;
     let cloth_id = fight_group.cloth_id.unwrap_or(1);
 
     sqlx::query(
         r#"
-        INSERT INTO dungeon_records (user_id, episode_id, record_round, hero_list, sub_hero_list, cloth_id, equips, version, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 5, ?)
+        INSERT INTO dungeon_records (user_id, episode_id, record_round, hero_list, sub_hero_list, trial_hero_list, cloth_id, equips, version, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 5, ?)
         ON CONFLICT(user_id, episode_id) DO UPDATE SET
             record_round = excluded.record_round,
             hero_list = excluded.hero_list,
             sub_hero_list = excluded.sub_hero_list,
+            trial_hero_list = excluded.trial_hero_list,
             cloth_id = excluded.cloth_id,
             equips = excluded.equips,
             created_at = excluded.created_at
@@ -339,6 +373,7 @@ pub async fn save_dungeon_record(
     .bind(record_round)
     .bind(hero_list)
     .bind(sub_hero_list)
+    .bind(trial_hero_list_json)
     .bind(cloth_id)
     .bind(equips_json)
     .bind(chrono::Utc::now().timestamp())

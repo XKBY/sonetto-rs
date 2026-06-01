@@ -1,13 +1,17 @@
 use sonettobuf::{CardInfo, FightEntityInfo};
 
-pub fn make_card(hero_id: i32, skill_id: i32, uid: i64, is_trial: bool) -> CardInfo {
+pub fn make_card(hero_id: i32, skill_id: i32, uid: i64, _is_trial: bool) -> CardInfo {
     CardInfo {
         uid: Some(uid),
         hero_id: Some(hero_id),
         skill_id: Some(skill_id),
         card_type: Some(0),
         status: Some(0),
-        temp_card: Some(is_trial),
+        // temp_card marks one-time buff-granted cards that are consumed on use.
+        // Trial hero cards are normal action cards and must NOT be marked temp,
+        // otherwise refill_hand's non_temp counter never reaches target_size
+        // and the refill loop runs forever, flooding the hand with hundreds of cards.
+        temp_card: Some(false),
         enchants: vec![],
         target_uid: Some(0),
         energy: Some(0),

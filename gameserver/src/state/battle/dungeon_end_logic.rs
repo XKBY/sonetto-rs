@@ -42,6 +42,46 @@ pub async fn handle_dungeon_end(
 
         if should_save_record {
             let equips = build_equip_records(pool, player_id, fight_group).await?;
+
+            // Resolve the actual trial hero IDs for any negative-uid slots.
+            // Negative UIDs (-1, -2, ...) are slot indices that map to a battle's
+            // trialHeros config field (e.g. "3121004|3122032"). We resolve those IDs
+            // here (gameserver has config access) so the replay client can render the
+            // correct hero models.
+            let trial_ids: Vec<i32> = {
+                let fg = fight_group.as_ref().map(|f| &f.hero_list[..]).unwrap_or(&[]);
+                let mut ids = Vec::new();
+                if fg.iter().any(|&uid| uid < 0) {
+                    let game_data = config::configs::get();
+                    // Look up battle_id from episode config
+                    let battle_id = game_data.episode.iter()
+                        .find(|e| e.id == episode_id)
+                        .map(|e| e.battle_id)
+                        .unwrap_or(0);
+                    let trial_heros_str = game_data.battle.iter()
+                        .find(|b| b.id == battle_id)
+                        .map(|b| b.trial_heros.as_str())
+                        .unwrap_or("");
+
+                    // Parse the trialHeros field: "3121004|3122032" -> [3121004, 3122032]
+                    let trial_hero_ids: Vec<i32> = trial_heros_str
+                        .split('|')
+                        .filter_map(|entry| entry.split('#').next()?.trim().parse::<i32>().ok())
+                        .collect();
+
+                    // For each negative-uid slot (-1=slot0, -2=slot1), take the corresponding id
+                    let mut sorted_negative: Vec<i64> = fg.iter().filter(|&&u| u < 0).copied().collect();
+                    sorted_negative.sort_by_key(|&u| -u); // -1 first, -2 second, ...
+                    for slot_uid in sorted_negative {
+                        let slot = ((-slot_uid) - 1) as usize;
+                        if let Some(&tid) = trial_hero_ids.get(slot) {
+                            ids.push(tid);
+                        }
+                    }
+                }
+                ids
+            };
+
             save_dungeon_record(
                 pool,
                 player_id,
@@ -49,6 +89,7 @@ pub async fn handle_dungeon_end(
                 record_round,
                 &fight_group.clone().unwrap_or_default(),
                 equips,
+                trial_ids,
             )
             .await?;
         }

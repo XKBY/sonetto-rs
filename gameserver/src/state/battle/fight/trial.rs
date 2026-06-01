@@ -1,52 +1,145 @@
 use super::super::entity::skill::parse_skill_group;
 use anyhow::Result;
 use config::{configs, hero_trial::HeroTrial};
-use once_cell::sync::Lazy;
 use sonettobuf::{EquipRecord, FightEntityInfo, HeroAttribute};
-use std::collections::HashMap;
 
-#[allow(dead_code)]
-static TRIAL_UID_MAP: Lazy<HashMap<i64, i32>> = Lazy::new(|| {
-    let game_data = config::configs::get();
-    let mut map = HashMap::new();
-
-    for (index, trial) in game_data.hero_trial.iter().enumerate() {
-        let uid = -((index + 1) as i64);
-        map.insert(uid, trial.id);
-    }
-
-    map
-});
-
-#[allow(dead_code)]
 pub struct Trial;
 
-#[allow(dead_code)]
 impl Trial {
-    pub fn get(hero_uid: i64, position: i32, team_type: i32) -> Result<FightEntityInfo> {
+    /// Build a trial hero entity.
+    ///
+    /// `hero_uid` is the negative slot index from the client (-1 = slot 0, -2 = slot 1, …).
+    /// `battle_id` is used to look up `battle.trial_heros` to pick the correct trial config.
+    pub fn get(hero_uid: i64, battle_id: i32, position: i32, team_type: i32) -> Result<FightEntityInfo> {
         let game_data = configs::get();
+        let slot = ((-hero_uid) - 1) as usize;
 
-        let trial_id = TRIAL_UID_MAP
-            .get(&hero_uid)
-            .ok_or_else(|| anyhow::anyhow!("Unknown trial hero UID: {}", hero_uid))?;
+        // ── Step 1: log what the battle config says about trial heroes ──────────
+        let battle_trial_heros = game_data
+            .battle
+            .iter()
+            .find(|b| b.id == battle_id)
+            .map(|b| b.trial_heros.clone())
+            .unwrap_or_else(|| "<battle not found>".into());
+        tracing::info!(
+            "Trial::get uid={} battle_id={} slot={} battle.trial_heros={:?}",
+            hero_uid, battle_id, slot, battle_trial_heros
+        );
 
-        let trial_data = game_data
-            .hero_trial
-            .get(*trial_id)
-            .ok_or_else(|| anyhow::anyhow!("Trial data not found for ID {}", trial_id))?;
+        // ── Step 2: resolve trial config ID from battle.trial_heros ─────────────
+        let trial_id: i32 = if battle_id > 0 {
+            game_data
+                .battle
+                .iter()
+                .find(|b| b.id == battle_id)
+                .and_then(|b| {
+                    b.trial_heros
+                        .split('|')
+                        .filter_map(|entry| {
+                            // Each entry is either just an ID ("1001") or
+                            // ID#extra#position ("3122011#0#1") — take only the first token.
+                            entry.split('#').next().and_then(|s| s.trim().parse::<i32>().ok())
+                        })
+                        .nth(slot)
+                })
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        tracing::info!(
+            "Trial::get uid={} slot={} → trial_id={}  ({})",
+            hero_uid, slot, trial_id,
+            if trial_id > 0 { "from battle.trial_heros" } else { "will use global fallback" }
+        );
 
+        // ── Step 3: load trial config by id, then by hero_id, then by index ─────
+        let trial_data: &HeroTrial = if trial_id > 0 {
+            // Primary: look up by trial config id
+            if let Some(td) = game_data.hero_trial.get(trial_id) {
+                tracing::info!(
+                    "Trial::get uid={} found trial by id={} → hero_id={} level={}",
+                    hero_uid, trial_id, td.hero_id, td.level
+                );
+                td
+            } else {
+                // Secondary: maybe trial_heros contains hero model IDs, not config IDs
+                tracing::warn!(
+                    "Trial::get uid={} hero_trial.get({}) returned None; \
+                     trying lookup by hero_id instead",
+                    hero_uid, trial_id
+                );
+                let by_hero = game_data
+                    .hero_trial
+                    .iter()
+                    .find(|t| t.hero_id == trial_id);
+                if let Some(td) = by_hero {
+                    tracing::info!(
+                        "Trial::get uid={} found trial by hero_id={} → config id={} level={}",
+                        hero_uid, trial_id, td.id, td.level
+                    );
+                    td
+                } else {
+                    tracing::warn!(
+                        "Trial::get uid={} no hero_trial id={} or hero_id={}; \
+                         using unique-hero_id fallback for slot {}",
+                        hero_uid, trial_id, trial_id, slot
+                    );
+                    let unique_trial: Option<&config::hero_trial::HeroTrial> = {
+                        let mut seen = std::collections::HashSet::new();
+                        game_data.hero_trial.iter().filter(|t| seen.insert(t.hero_id)).nth(slot)
+                    };
+                    unique_trial.ok_or_else(|| anyhow::anyhow!(
+                        "No unique trial hero for slot {} (battle {})", slot, battle_id
+                    ))?
+                }
+            }
+        } else {
+            // battle.trial_heros is empty — pick the N-th UNIQUE hero_id.
+            // Plain .nth(slot) is wrong when the table has multiple entries for
+            // the same character (Sonetto at level 100 AND 120 occupy slots 0+1,
+            // so slot 1 would also return Sonetto instead of Apple).
+            tracing::warn!(
+                "Trial::get uid={} battle.trial_heros empty for slot {}; \
+                 using unique-hero_id fallback (slot {})",
+                hero_uid, slot, slot
+            );
+            for (i, t) in game_data.hero_trial.iter().take(6).enumerate() {
+                tracing::info!(
+                    "Trial::get  global hero_trial[{}]: id={} hero_id={} level={}",
+                    i, t.id, t.hero_id, t.level
+                );
+            }
+            let unique_trial: Option<&config::hero_trial::HeroTrial> = {
+                let mut seen = std::collections::HashSet::new();
+                game_data.hero_trial.iter().filter(|t| seen.insert(t.hero_id)).nth(slot)
+            };
+            unique_trial.ok_or_else(|| anyhow::anyhow!(
+                "No unique trial hero for slot {} (battle {})", slot, battle_id
+            ))?
+        };
+
+        // ── Step 4: load character config ────────────────────────────────────────
         let hero_config = game_data
             .character
             .iter()
             .find(|h| h.id == trial_data.hero_id)
             .ok_or_else(|| {
-                anyhow::anyhow!("Hero config not found for hero_id {}", trial_data.hero_id)
+                anyhow::anyhow!(
+                    "No character config for hero_id {} (trial id={})",
+                    trial_data.hero_id, trial_data.id
+                )
             })?;
 
+        // ── Step 5: get stats (with max-level fallback) ──────────────────────────
         let (hp, attack, defense, mdefense, technic) = Self::get_stats(trial_data)?;
 
         let skill_group1 = parse_skill_group(&hero_config.skill, 1);
         let skill_group2 = parse_skill_group(&hero_config.skill, 2);
+
+        tracing::info!(
+            "Trial::get uid={} → entity model_id={} level={} hp={} atk={} def={}",
+            hero_uid, trial_data.hero_id, trial_data.level, hp, attack, defense
+        );
 
         let attr = HeroAttribute {
             hp: Some(hp),
@@ -114,29 +207,34 @@ impl Trial {
     fn get_stats(trial_data: &HeroTrial) -> Result<(i32, i32, i32, i32, i32)> {
         let game_data = configs::get();
 
-        let level_data = game_data
+        // ── Prefer exact level match ─────────────────────────────────────────────
+        if let Some(ld) = game_data
             .character_level
             .iter()
             .find(|c| c.hero_id == trial_data.hero_id && c.level == trial_data.level)
-            .or_else(|| {
-                tracing::warn!(
-                    "Level {} not found for hero {}, falling back to level 1",
-                    trial_data.level,
-                    trial_data.hero_id
-                );
-                game_data
-                    .character_level
-                    .iter()
-                    .find(|c| c.hero_id == trial_data.hero_id && c.level == 1)
-            })
-            .ok_or_else(|| anyhow::anyhow!("No level data for hero_id {}", trial_data.hero_id))?;
+        {
+            return Ok((ld.hp, ld.atk, ld.def, ld.mdef, ld.technic));
+        }
 
-        Ok((
-            level_data.hp,
-            level_data.atk,
-            level_data.def,
-            level_data.mdef,
-            level_data.technic,
+        // ── Fall back to MAX available level (much better than falling to level 1)
+        let max_ld = game_data
+            .character_level
+            .iter()
+            .filter(|c| c.hero_id == trial_data.hero_id)
+            .max_by_key(|c| c.level);
+
+        if let Some(ld) = max_ld {
+            tracing::warn!(
+                "Trial get_stats: level {} not found for hero {}, \
+                 using max available level {} (hp={})",
+                trial_data.level, trial_data.hero_id, ld.level, ld.hp
+            );
+            return Ok((ld.hp, ld.atk, ld.def, ld.mdef, ld.technic));
+        }
+
+        Err(anyhow::anyhow!(
+            "No character_level data at all for hero_id {}",
+            trial_data.hero_id
         ))
     }
 }

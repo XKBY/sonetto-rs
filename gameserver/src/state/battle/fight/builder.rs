@@ -14,7 +14,7 @@ pub async fn build_fight(
     ctx: &BattleContext,
     fight_group: &FightGroup,
 ) -> Result<BuiltFight> {
-    let attacker = Attacker::get(pool, ctx.player_id, fight_group).await?;
+    let attacker = Attacker::get(pool, ctx.player_id, ctx.battle_id, fight_group).await?;
     let defender = Defender::get(ctx.episode_id).await?;
 
     let mut fight = Fight {

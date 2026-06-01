@@ -103,6 +103,7 @@ pub async fn on_start_tower_battle(
             fight_id: Some(chrono::Utc::now().timestamp_millis()),
             multiplication: None,
             fight_data_mgr: Some(fight_data_mgr),
+            replay_opers: std::collections::VecDeque::new(),
         });
     }
 

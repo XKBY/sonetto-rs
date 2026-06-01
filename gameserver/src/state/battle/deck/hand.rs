@@ -29,9 +29,14 @@ pub(crate) fn refill_hand(
         a.sub_entitys.iter().any(|e| e.uid.unwrap_or(0) > 0)
     });
     let target_size = card_limit(alive_uids.len(), has_support) + extra;
+    tracing::debug!(
+        "refill_hand: alive={} has_support={} target_size={} hand={} deck={} ex_deck={}",
+        alive_uids.len(), has_support, target_size, hand.len(), deck.len(), ex_deck.len()
+    );
     let mut pulled_raw: Vec<CardInfo> = Vec::new();
     let mut upgrades: usize = 0;
     let non_temp = |h: &Vec<CardInfo>| h.iter().filter(|c| !c.temp_card.unwrap_or(false)).count();
+    let mut iteration = 0usize;
     while non_temp(hand) < target_size && !ex_deck.is_empty() {
         let card = ex_deck.remove(0);
         pulled_raw.push(card.clone());
@@ -39,14 +44,30 @@ pub(crate) fn refill_hand(
         upgrades += apply_card_upgrades(hand, fight);
     }
     while non_temp(hand) < target_size && !deck.is_empty() {
+        iteration += 1;
+        if iteration > 200 {
+            tracing::error!(
+                "refill_hand: iteration limit hit! non_temp={} target={} deck={} hand={} — breaking",
+                non_temp(hand), target_size, deck.len(), hand.len()
+            );
+            break;
+        }
+        tracing::trace!("refill_hand iter={} non_temp={} deck={}", iteration, non_temp(hand), deck.len());
         let idx = rng.gen_range(0..deck.len());
         let raw = deck.remove(idx);
         pulled_raw.push(raw.clone());
         hand.push(raw);
         upgrades += apply_card_upgrades(hand, fight);
         if deck.is_empty() {
+            tracing::debug!("refill_hand: deck exhausted at iter={}, rebuilding", iteration);
             *deck = rebuild_deck();
+            tracing::debug!("refill_hand: deck rebuilt, new size={}", deck.len());
+            if deck.is_empty() {
+                tracing::warn!("refill_hand: rebuild_deck returned empty! breaking");
+                break;
+            }
         }
     }
+    tracing::debug!("refill_hand: done non_temp={} target_size={} iters={}", non_temp(hand), target_size, iteration);
     (pulled_raw, upgrades)
 }
