@@ -1,9 +1,9 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
-use crate::state::ConnectionContext;
+use crate::state::{ConnectionContext, ReplayRoundData};
 use database::db::game::battle::save_round_operations;
 use prost::Message;
-use sonettobuf::{BeginRoundReply, BeginRoundRequest, CmdId};
+use sonettobuf::{BeginRoundReply, BeginRoundRequest, CardInfo, CmdId};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -13,7 +13,7 @@ pub async fn on_begin_round(
 ) -> Result<(), AppError> {
     let request = BeginRoundRequest::decode(&req.data[..])?;
 
-    let (is_replay, battle_id, episode_id, round_num, mut fight_data_mgr, replay_round_opers) = {
+    let (is_replay, battle_id, episode_id, round_num, mut fight_data_mgr, replay_round_data) = {
         let mut conn = ctx.lock().await;
         let battle = conn
             .active_battle
@@ -23,17 +23,16 @@ pub async fn on_begin_round(
             .fight_data_mgr
             .take()
             .ok_or(AppError::InvalidRequest)?;
-        // Pop pre-loaded replay ops for this round (server-side).
-        // This ensures each round gets its correct stored ops regardless of what the
-        // client sends — the client often sends empty opers for rounds 2+ during replay.
-        let stored_opers = battle.replay_opers.pop_front();
+        // Pop pre-loaded replay data for this round (server-side).
+        // Each entry carries both the original ops and the pre-round hand state.
+        let stored = battle.replay_opers.pop_front();
         (
             battle.is_replay.unwrap_or(false),
             battle.fight_id.unwrap_or_default(),
             battle.episode_id,
             mgr.fight().cur_round.unwrap_or(1),
             mgr,
-            stored_opers,
+            stored,
         )
     };
 
@@ -45,16 +44,34 @@ pub async fn on_begin_round(
         )
     };
 
+    // In normal mode: snapshot the hand BEFORE ops are applied — this is what we save.
+    // We do this before process_round mutates the deck manager.
+    let pre_round_hand: Vec<CardInfo> = if !is_replay {
+        fight_data_mgr.managers.deck_mgr.player_hand.clone()
+    } else {
+        vec![]
+    };
+
     // Choose which ops to use:
-    //   Replay mode: use pre-loaded stored ops (guaranteed correct for every round)
-    //   Normal mode: use what the client sent
+    //   Replay mode: use pre-loaded stored ops AND restore the original hand first.
+    //   Normal mode: use what the client sent.
     let effective_opers = if is_replay {
-        if let Some(opers) = replay_round_opers {
-            tracing::info!("begin_round: replay mode — using {} stored oper(s)", opers.len());
+        if let Some(ReplayRoundData { opers, pre_round_hand: saved_hand }) = replay_round_data {
+            tracing::info!(
+                "begin_round: replay mode — restoring hand ({} cards) and using {} stored oper(s)",
+                saved_hand.len(),
+                opers.len()
+            );
+            // Restore the exact hand the player had at the start of this round.
+            // This makes card indices in the ops refer to the correct cards
+            // regardless of any RNG divergence since the original battle.
+            if !saved_hand.is_empty() {
+                fight_data_mgr.managers.deck_mgr.player_hand = saved_hand;
+            }
             opers
         } else {
             tracing::warn!(
-                "begin_round: replay mode but no stored opers left for round {} — using client opers",
+                "begin_round: replay mode but no stored data for round {} — using client opers",
                 round_num
             );
             request.opers.clone()
@@ -109,6 +126,7 @@ pub async fn on_begin_round(
     }
     send_result?;
 
+    // Save round data for future replays (normal mode only).
     if !is_replay {
         if let Err(e) = save_round_operations(
             &pool,
@@ -118,6 +136,7 @@ pub async fn on_begin_round(
             round_num,
             vec![],
             effective_opers,
+            pre_round_hand,
         ).await {
             tracing::warn!(
                 "begin_round: save_round_operations failed (non-fatal): \

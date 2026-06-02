@@ -16,7 +16,7 @@ pub use battle::{
     end_fight::send_end_fight_push, generate_auto_opers, rewards::generate_dungeon_rewards,
     skill::cache::init_skill_cache,
 };
-pub use connection::{ActiveBattle, ConnectionContext};
+pub use connection::{ActiveBattle, ConnectionContext, ReplayRoundData};
 pub use gacha::{
     BannerType, GachaResult, GachaState, build_gacha, get_rewards, grant_dupe_rewards,
     load_gacha_state, parse_item, parse_store_product, save_gacha_state,

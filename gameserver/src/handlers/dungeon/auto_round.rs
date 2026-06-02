@@ -69,6 +69,8 @@ pub async fn on_auto_round(
         (conn.player_id.ok_or(AppError::NotLoggedIn)?, conn.state.db.clone())
     };
 
+    let pre_round_hand = fight_data_mgr.managers.deck_mgr.player_hand.clone();
+
     let auto_opers = {
         let hand = fight_data_mgr.managers.deck_mgr.player_hand.clone();
         generate_auto_opers(&hand)
@@ -118,6 +120,7 @@ pub async fn on_auto_round(
             round_num,
             vec![],
             auto_opers.clone(),
+            pre_round_hand,
         ).await {
             tracing::warn!("AutoRound: save_round_operations failed (non-fatal): {}", e);
         }

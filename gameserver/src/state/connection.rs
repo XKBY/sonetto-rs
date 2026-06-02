@@ -46,9 +46,18 @@ pub struct ActiveBattle {
     pub replay_episode_id: Option<i32>,
     pub multiplication: Option<i32>,
     pub fight_data_mgr: Option<FightDataMgr>,
-    /// Pre-loaded round operations for replay mode (popped one-by-one each BeginRoundCmd).
+    /// Pre-loaded round data for replay mode (popped one-by-one each BeginRoundCmd).
+    /// Each entry carries the ops AND the pre-round hand state so card indices stay valid.
     /// Populated by start_dungeon when use_record=true.
-    pub replay_opers: std::collections::VecDeque<Vec<sonettobuf::BeginRoundOper>>,
+    pub replay_opers: std::collections::VecDeque<ReplayRoundData>,
+}
+
+/// One round's worth of replay data: the ops to re-apply, plus the hand
+/// state the player had at the START of that round.
+#[derive(Debug, Clone)]
+pub struct ReplayRoundData {
+    pub opers: Vec<sonettobuf::BeginRoundOper>,
+    pub pre_round_hand: Vec<sonettobuf::CardInfo>,
 }
 
 #[allow(dead_code)]

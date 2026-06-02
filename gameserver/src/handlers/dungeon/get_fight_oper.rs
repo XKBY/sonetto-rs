@@ -3,7 +3,7 @@ use crate::network::packet::ClientPacket;
 use crate::state::ConnectionContext;
 use database::db::game::battle::load_battle_replay;
 use prost::Message;
-use sonettobuf::{CmdId, GetFightOperReply, GetFightOperRequest};
+use sonettobuf::{CmdId, FightRoundOperRecord, GetFightOperReply, GetFightOperRequest};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -28,8 +28,26 @@ pub async fn on_get_fight_oper(
         )
     };
 
-    let oper_records = if is_replay {
-        load_battle_replay(&pool, player_id, episode_id).await?
+    // Convert our internal ReplayRoundRecord into the proto FightRoundOperRecord
+    // for the client. pre_round_hand is server-side only; the client only needs
+    // cloth_skill_opers and opers.
+    let oper_records: Vec<FightRoundOperRecord> = if is_replay {
+        match load_battle_replay(&pool, player_id, episode_id).await {
+            Ok(records) => records
+                .into_iter()
+                .map(|r| FightRoundOperRecord {
+                    cloth_skill_opers: r.cloth_skill_opers,
+                    opers: r.opers,
+                })
+                .collect(),
+            Err(e) => {
+                tracing::warn!(
+                    "get_fight_oper: failed to load replay for episode={}: {} — sending empty records",
+                    episode_id, e
+                );
+                vec![]
+            }
+        }
     } else {
         vec![]
     };

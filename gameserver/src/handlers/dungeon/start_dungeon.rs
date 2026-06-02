@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::network::packet::ClientPacket;
 use crate::state::{
-    ActiveBattle, BattleContext, ConnectionContext, create_battle, default_max_ap,
+    ActiveBattle, BattleContext, ConnectionContext, ReplayRoundData, create_battle, default_max_ap,
 };
 use config::configs;
 use database::db::game::battle::load_battle_replay;
@@ -59,7 +59,10 @@ pub async fn on_start_dungeon(
         max_ap,
     };
 
-    let seed = (player_id as u64) ^ (episode_id as u64) ^ 0xA11C;
+    let seed = (player_id as u64)
+        .wrapping_mul(0x9E3779B97F4A7C15)
+        ^ (episode_id as u64)
+        ^ (chrono::Utc::now().timestamp_millis() as u64);
     let (initial_round, mut fight_data_mgr) =
         create_battle(&pool, battle_ctx, &fight_group, seed).await?;
 
@@ -72,14 +75,17 @@ pub async fn on_start_dungeon(
     // Load stored round operations for replay mode.
     // The client receives these via GetFightOperCmd but may not re-send them for rounds 2+,
     // so we pre-load them server-side and pop one per BeginRoundCmd in replay mode.
-    let replay_opers: VecDeque<Vec<sonettobuf::BeginRoundOper>> = if use_record {
+    let replay_opers: VecDeque<ReplayRoundData> = if use_record {
         match load_battle_replay(&pool, player_id, episode_id).await {
             Ok(records) => {
                 tracing::info!(
                     "start_dungeon: loaded {} replay round(s) for episode={}",
                     records.len(), episode_id
                 );
-                records.into_iter().map(|r| r.opers).collect()
+                records.into_iter().map(|r| ReplayRoundData {
+                    opers: r.opers,
+                    pre_round_hand: r.pre_round_hand,
+                }).collect()
             }
             Err(e) => {
                 tracing::warn!("start_dungeon: failed to load replay opers: {} — replay will use empty ops", e);

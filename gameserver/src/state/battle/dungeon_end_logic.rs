@@ -103,48 +103,58 @@ pub async fn handle_dungeon_end(
     }
 
     if is_victory {
-        // Send dungeon completion pushes for victory
-        send_push!(
-            ctx,
-            CmdId::DungeonInstructionDungeonInfoPushCmd,
-            InstructionDungeonInfoPush,
-            "dungeon/instruction_dungeon_info.json"
-        );
+        if !is_replay {
+            // Send dungeon completion pushes for victory (normal play only).
+            // Replay is purely cosmetic — it must not re-award or re-trigger story.
+            send_push!(
+                ctx,
+                CmdId::DungeonInstructionDungeonInfoPushCmd,
+                InstructionDungeonInfoPush,
+                "dungeon/instruction_dungeon_info.json"
+            );
 
-        let updated_dungeon = get_user_dungeon(pool, player_id, chapter_id, episode_id).await?;
+            let updated_dungeon = get_user_dungeon(pool, player_id, chapter_id, episode_id).await?;
 
-        let game_data = config::configs::get();
-        let chapter_type = game_data
-            .chapter
-            .iter()
-            .find(|c| c.id == chapter_id)
-            .map(|c| c.r#type)
-            .unwrap_or(6);
+            let game_data = config::configs::get();
+            let chapter_type = game_data
+                .chapter
+                .iter()
+                .find(|c| c.id == chapter_id)
+                .map(|c| c.r#type)
+                .unwrap_or(6);
 
-        send_dungeon_update_push(
-            ctx.clone(),
-            chapter_id,
-            episode_id,
-            updated_dungeon.star,
-            updated_dungeon.challenge_count,
-            updated_dungeon.has_record,
-            chapter_type,
-            2, // TODO: Calculate today's chapter completions
-            2, // TODO: Calculate today's chapter attempts
-        )
-        .await?;
+            send_dungeon_update_push(
+                ctx.clone(),
+                chapter_id,
+                episode_id,
+                updated_dungeon.star,
+                updated_dungeon.challenge_count,
+                updated_dungeon.has_record,
+                chapter_type,
+                2, // TODO: Calculate today's chapter completions
+                2, // TODO: Calculate today's chapter attempts
+            )
+            .await?;
 
-        // Generate and send rewards
-        let is_first_clear = updated_dungeon.challenge_count == 1;
-        let rewards = generate_dungeon_rewards(episode_id, is_first_clear, multiplication);
+            // Generate and send rewards
+            let is_first_clear = updated_dungeon.challenge_count == 1;
+            let rewards = generate_dungeon_rewards(episode_id, is_first_clear, multiplication);
 
-        let mut all_rewards = rewards.normal_bonus.clone();
-        all_rewards.extend(rewards.first_bonus);
-        all_rewards.extend(rewards.free_bonus);
+            let mut all_rewards = rewards.normal_bonus.clone();
+            all_rewards.extend(rewards.first_bonus);
+            all_rewards.extend(rewards.free_bonus);
 
-        send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards).await?;
+            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards).await?;
 
-        send_red_dot_push(Arc::clone(&ctx), player_id, Some(vec![1027, 1047])).await?;
+            send_red_dot_push(Arc::clone(&ctx), player_id, Some(vec![1027, 1047])).await?;
+        } else {
+            tracing::info!(
+                "handle_dungeon_end: is_replay=true, skipping victory pushes/rewards for episode={}",
+                episode_id
+            );
+            // Still send an empty EndDungeonPush so the client can exit the replay screen cleanly.
+            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![]).await?;
+        }
     } else {
         // Send empty end dungeon push for loss/abort
         send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![]).await?;

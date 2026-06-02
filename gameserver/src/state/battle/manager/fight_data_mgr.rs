@@ -72,7 +72,11 @@ pub struct FightDataMgr {
 
 impl FightDataMgr {
     pub fn new(fight: Fight, max_ap: i32) -> Self {
-        tracing::info!("FightDataMgr::new battle_id={:?}", fight.battle_id);
+        Self::new_with_seed(fight, max_ap, 0)
+    }
+
+    pub fn new_with_seed(fight: Fight, max_ap: i32, battle_seed: u64) -> Self {
+        tracing::info!("FightDataMgr::new battle_id={:?} battle_seed={:#x}", fight.battle_id, battle_seed);
         seed_entry_max_hp_from_fight(&fight);
         let mechanics = Mechanics::new();
         let pre_fight = Some(fight.clone());
@@ -84,6 +88,7 @@ impl FightDataMgr {
             last_round: None,
             initial_card_push: None,
         };
+        fight_mgr.managers.deck_mgr.battle_seed = battle_seed;
         fight_mgr.managers.entity_mgr.init(&fight_mgr.fight);
         let card_push = fight_mgr.managers.deck_mgr.init_player(&fight_mgr.fight, max_ap);
         fight_mgr.managers.deck_mgr.init_enemy(&fight_mgr.fight);

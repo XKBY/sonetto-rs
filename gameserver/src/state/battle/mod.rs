@@ -66,7 +66,7 @@ pub async fn create_battle(
     seed: u64,
 ) -> Result<(FightRound, FightDataMgr)> {
     let built_fight = fight::builder::build_fight(pool, &ctx, fight_group).await?;
-    let mut fight_data_mgr = FightDataMgr::new(built_fight.fight, ctx.max_ap);
+    let mut fight_data_mgr = FightDataMgr::new_with_seed(built_fight.fight, ctx.max_ap, seed);
     let initial_round = round::build_initial_round(&mut fight_data_mgr, ctx.battle_id, seed)?;
     Ok((initial_round, fight_data_mgr))
 }

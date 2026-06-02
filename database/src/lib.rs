@@ -22,6 +22,36 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), migrate::MigrateErr
     info!("Running database migrations...");
     migrate!("./migrations").run(pool).await?;
     info!("Migrations completed successfully");
+
+    // Guard: ensure pre_round_hand column exists in battle_replays.
+    // This handles the case where the DB was created before migration 044 was added,
+    // and the binary was built with a stale cache that didn't embed the new file.
+    let _ = ensure_battle_replays_columns(pool).await;
+
+    Ok(())
+}
+
+/// Adds any missing columns to battle_replays that may not have been applied
+/// by migration 044 due to build caching or a pre-existing DB.
+async fn ensure_battle_replays_columns(pool: &SqlitePool) -> anyhow::Result<()> {
+    // Check if pre_round_hand column already exists
+    let cols: Vec<(i32, String, String, i32, Option<String>, i32)> =
+        sqlx::query_as("PRAGMA table_info(battle_replays)")
+            .fetch_all(pool)
+            .await?;
+
+    let has_pre_round_hand = cols.iter().any(|(_, name, _, _, _, _)| name == "pre_round_hand");
+
+    if !has_pre_round_hand {
+        info!("battle_replays.pre_round_hand column missing — adding it now");
+        sqlx::query(
+            "ALTER TABLE battle_replays ADD COLUMN pre_round_hand TEXT NOT NULL DEFAULT '[]'",
+        )
+        .execute(pool)
+        .await?;
+        info!("battle_replays.pre_round_hand column added successfully");
+    }
+
     Ok(())
 }
 

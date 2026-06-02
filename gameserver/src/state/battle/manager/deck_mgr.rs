@@ -18,6 +18,8 @@ pub struct DeckManager {
     pub enemy_ex_deck: Vec<CardInfo>,
     pub next_ai_use_cards: Vec<CardInfo>,
 	pub refill_seq: u64, // monotonically incrementing refill counter for deterministic RNG
+    /// Battle-unique seed mixed into every refill to prevent identical draws across battles.
+    pub battle_seed: u64,
 }
 
 impl DeckManager {
@@ -71,7 +73,7 @@ impl DeckManager {
         let alive_uids = entity_mgr.alive_hero_uids();
         let entities: Vec<_> = fight.attacker.as_ref().map(|a| a.entitys.clone()).unwrap_or_default();
         tracing::info!("player refill: hand={} deck={}", self.player_hand.len(), self.player_deck.len());
-        let seed = 0xCAFE_0000_u64 ^ self.refill_seq;
+        let seed = 0xCAFE_0000_u64 ^ self.refill_seq ^ self.battle_seed;
         self.refill_seq += 1;
         let mut refill_rng = rand::rngs::StdRng::seed_from_u64(seed);
         let result = refill_hand(&mut refill_rng, &mut self.player_hand, &mut self.player_deck, &mut self.player_ex_deck, &alive_uids, extra, fight, || build_deck(&entities));
@@ -87,7 +89,7 @@ impl DeckManager {
         let alive_uids = entity_mgr.alive_enemy_uids();
         let entities: Vec<_> = fight.defender.as_ref().map(|d| d.entitys.clone()).unwrap_or_default();
         tracing::info!("enemy refill: hand={} deck={}", self.enemy_hand.len(), self.enemy_deck.len());
-        let seed = 0xDEAD_0000_u64 ^ self.refill_seq;
+        let seed = 0xDEAD_0000_u64 ^ self.refill_seq ^ self.battle_seed;
         self.refill_seq += 1;
         let mut refill_rng = rand::rngs::StdRng::seed_from_u64(seed);
         let (result, _) = refill_hand(&mut refill_rng, &mut self.enemy_hand, &mut self.enemy_deck, &mut self.enemy_ex_deck, &alive_uids, 0, fight, || build_deck(&entities));
