@@ -22,8 +22,14 @@ pub fn parse_round_open_ops(
         match CardOpType::try_from(op.oper_type.unwrap_or(0)) {
             // ── MoveCard with to_id==0: reorder in hand, then check for combines ─
             Ok(CardOpType::MoveCard) if op.to_id.unwrap_or(0) == 0 => {
-                let from = (op.param1.unwrap_or(1).saturating_sub(1)) as usize;
-                let to   = (op.param2.unwrap_or(1).saturating_sub(1)) as usize;
+            let raw1 = op.param1.unwrap_or(1);
+            let raw2 = op.param2.unwrap_or(1);
+            if raw1 <= 0 || raw2 <= 0 {
+                tracing::warn!("  move param1={} param2={} invalid, skipping", raw1, raw2);
+                continue;
+            }
+            let from = (raw1 - 1) as usize;
+            let to   = (raw2 - 1) as usize;
                 tracing::warn!("  move idx={} -> idx={} (deck size {})", from, to, deck_mgr.player_hand.len());
                 if from < deck_mgr.player_hand.len() && to < deck_mgr.player_hand.len() {
                     let card = deck_mgr.player_hand[from].clone();
@@ -43,7 +49,13 @@ pub fn parse_round_open_ops(
             | Ok(CardOpType::AssistBoss)
             | Ok(CardOpType::PlayerFinisherSkill)
             | Ok(CardOpType::BloodPool) => {
-                let idx = (op.param1.unwrap_or(1).saturating_sub(1)) as usize;
+                let raw = op.param1.unwrap_or(1);
+                let idx = if raw <= 0 {
+                    tracing::warn!("  pick param1={} is invalid (0 or negative), skipping op", raw);
+                    continue;
+                } else {
+                    (raw - 1) as usize
+                };
                 tracing::warn!("  pick idx={} from deck of {} cards:", idx, deck_mgr.player_hand.len());
                 for (i, c) in deck_mgr.player_hand.iter().enumerate() {
                     tracing::warn!("    [{}] uid={:?} skill={:?}", i, c.uid, c.skill_id);

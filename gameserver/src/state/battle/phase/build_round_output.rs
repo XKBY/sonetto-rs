@@ -94,7 +94,9 @@ pub(crate) fn build_round_output(
         &mut rng_for_ai,
     );
     let next_ai_use_cards = deck_mgr.next_ai_use_cards.clone();
-
+    let next_round = ctx.fight.cur_round.unwrap_or(1) + 1;
+    // Persist the incremented round so next process_round uses the right seed.
+    ctx.fight.cur_round = Some(next_round);
     let result = FightRound {
             fight_step: open.steps,
             act_point: Some(if open.state.is_finish { 0 } else { attacker_ac }),
@@ -110,7 +112,7 @@ pub(crate) fn build_round_output(
             team_a_cards2: open.state.team_a_cards2,
             next_round_begin_step,
             use_card_list: vec![],
-            cur_round: Some(ctx.fight.cur_round.unwrap_or(1) + 1),
+            cur_round: Some(next_round),
             hero_sp_attributes,
             last_change_hero_uid: Some(0),
         };
