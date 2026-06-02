@@ -65,11 +65,13 @@ pub fn parse_round_open_ops(
                     tracing::warn!("  -> selected uid={:?} skill={:?}", card.uid, card.skill_id);
                     player_events.push(Event::CardPlayed { card: card.clone(), oper: op.clone() });
                     selected_cards.push(card);
-                    // DO NOT call apply_card_upgrades here.
-                    // Combines are handled by the MoveCard ops the client sends
-                    // BEFORE each PlayCard.  Triggering combines here shifts hand
-                    // indices mid-sequence and causes OUT-OF-RANGE on subsequent
-                    // PlayCard ops.
+                    // The client may not send MoveCard combine ops before PlayCard —
+                    // it just sends PlayCard with the post-combine hand index.
+                    // Apply upgrades now so the server hand matches the client's view.
+                    let upgrades = apply_card_upgrades(&mut deck_mgr.player_hand, fight);
+                    for _ in 0..upgrades {
+                        player_events.push(Event::CardUpgrade { card: CardInfo::default() });
+                    }
                 } else {
                     tracing::warn!("  -> idx {} OUT OF RANGE (deck size {})", idx, deck_mgr.player_hand.len());
                 }

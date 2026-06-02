@@ -12,7 +12,19 @@ pub async fn save_round_operations(
 ) -> Result<()> {
     let cloth_json = serde_json::to_string(&cloth_skill_opers)?;
     let opers_json = serde_json::to_string(&opers)?;
-
+    // On the first round of a new battle, delete all previous battle records
+    // for this episode so they don't accumulate indefinitely and can't
+    // corrupt future replay loads.
+    if round_number == 1 {
+        sqlx::query(
+            "DELETE FROM battle_replays WHERE user_id = ? AND episode_id = ? AND battle_id != ?",
+        )
+        .bind(user_id)
+        .bind(episode_id)
+        .bind(battle_id)
+        .execute(pool)
+        .await?;
+    }
     sqlx::query(
         "INSERT OR REPLACE INTO battle_replays
          (user_id, episode_id, battle_id, round_number, cloth_skill_opers, opers, created_at)
@@ -48,6 +60,11 @@ pub async fn load_battle_replay(
         "SELECT round_number, cloth_skill_opers, opers
          FROM battle_replays
          WHERE user_id = ? AND episode_id = ?
+		 AND battle_id = (
+		 SELECT battle_id FROM battle_replays 
+		 WHERE user_id = ? AND episode_id = ? 
+		 ORDER BY created_at DESC LIMIT 1
+ 		  )
          ORDER BY round_number",
     )
     .bind(user_id)
