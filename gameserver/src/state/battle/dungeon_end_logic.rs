@@ -28,6 +28,14 @@ pub async fn handle_dungeon_end(
     if chapter_id <= 0 || episode_id <= 0 {
         return Ok(false);
     }
+    // Trial hero battles (all hero UIDs negative) never produce a replayable record.
+    let is_trial_fight = fight_group
+        .as_ref()
+        .map(|fg| {
+            let non_zero: Vec<i64> = fg.hero_list.iter().filter(|&&u| u != 0).copied().collect();
+            !non_zero.is_empty() && non_zero.iter().all(|&u| u < 0)
+        })
+        .unwrap_or(false);
 
     if is_victory && !is_replay {
         // Update player's dungeon progress
@@ -36,10 +44,12 @@ pub async fn handle_dungeon_end(
 
         // TODO: Get actual round count from battle state
         let record_round = 1;
-        let should_save_record =
+        let should_save_record = if is_trial_fight {
+            false
+        } else {
             should_update_dungeon_record(pool, player_id, episode_id, record_round, fight_group)
-                .await?;
-
+            .await?
+        };
         if should_save_record {
             let equips = build_equip_records(pool, player_id, fight_group).await?;
 

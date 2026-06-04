@@ -47,6 +47,16 @@ pub async fn on_fight_end_fight(
 
     tracing::info!("Fight ended with result: {} (0=lose, 1=win, 2=turn_exhausted)", result);
 
+    // Trial hero battles (all hero UIDs are negative) must not expose a replay:
+    // the client replay screen cannot render negative-UID heroes and will hang.
+    let is_trial_fight = fight_group
+        .as_ref()
+        .map(|fg| {
+            let non_zero: Vec<i64> = fg.hero_list.iter().filter(|&&u| u != 0).copied().collect();
+            !non_zero.is_empty() && non_zero.iter().all(|&u| u < 0)
+        })
+        .unwrap_or(false);
+
     // Send EndFightPush with proper result
     // TODO: Populate FightRecord with actual battle stats (damage, turns, etc.)
     send_end_fight_push(
@@ -56,9 +66,9 @@ pub async fn on_fight_end_fight(
         fight_group.clone().unwrap_or_default(),
         vec![],     // TODO: Actual battle stats for fight_group_a
         vec![],     // TODO: Defender stats
-        !is_replay,
+        !is_replay && !is_trial_fight,
     )
-    .await?;
+        .await?;
 
     // Handle dungeon end logic if this is a dungeon battle
     let is_victory = result == 1;
@@ -73,7 +83,7 @@ pub async fn on_fight_end_fight(
         is_replay,
         is_victory,
     )
-    .await?;
+        .await?;
 
     // Clear battle if we handled dungeon logic
     if handled_dungeon {

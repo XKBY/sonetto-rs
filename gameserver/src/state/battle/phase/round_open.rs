@@ -136,8 +136,8 @@ pub(crate) fn run(
             state.replay_silent_ops = Some(ops.to_vec());
         }
     }
-
-    deck_mgr.player_hand.retain(|c| c.uid.unwrap_or(0) > 0 || c.temp_card.unwrap_or(false));
+    
+    deck_mgr.player_hand.retain(|c| c.uid.unwrap_or(0) != 0 || c.temp_card.unwrap_or(false));
 
     let parsed = parse_round_open_ops(operations, deck_mgr, ctx.fight);
     state.selected_cards = parsed.selected_cards.clone();
