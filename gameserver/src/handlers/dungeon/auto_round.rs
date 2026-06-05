@@ -196,6 +196,13 @@ pub async fn on_auto_round(
         .map(|c| c.r#type)
         .unwrap_or(6);
 
+    let story_str = game_data
+        .episode
+        .iter()
+        .find(|e| e.id == episode_id)
+        .map(|e| e.story.clone())
+        .unwrap_or_default();
+
     tracing::info!("AutoRound: sending dungeon_update_push");
     send_dungeon_update_push(
         ctx.clone(),
@@ -217,7 +224,7 @@ pub async fn on_auto_round(
     all_rewards.extend(rewards.free_bonus);
 
     tracing::info!("AutoRound: sending end_dungeon_push with {} rewards", all_rewards.len());
-    send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards).await?;
+    send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards, is_first_clear, story_str).await?;
     send_red_dot_push(ctx.clone(), player_id, Some(vec![1027, 1047])).await?;
 
     tracing::info!("AutoRound: complete");

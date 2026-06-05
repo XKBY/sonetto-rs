@@ -198,6 +198,8 @@ pub async fn send_end_dungeon_push(
     chapter_id: i32,
     episode_id: i32,
     normal_bonus: Vec<(u32, u32, i32)>,
+    first_pass: bool,
+    story_str: String,
 ) -> Result<(), AppError> {
     let normal_bonus = normal_bonus
         .into_iter()
@@ -226,9 +228,11 @@ pub async fn send_end_dungeon_push(
         can_update_dungeon_record: Some(false),
         old_record_round: Some(0),
         new_record_round: Some(0),
-        first_pass: Some(false),
+        first_pass: Some(first_pass),
 
-        extra_str: Some(String::new()),
+        // episode.story ("type#sceneId#storyId") tells the client to play a special
+        // live2D/cinematic story sequence after battle. Empty string = no special story.
+        extra_str: Some(story_str),
         assist_user_id: Some(0),
         assist_nickname: Some(String::new()),
         total_round: Some(0),

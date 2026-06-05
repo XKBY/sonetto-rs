@@ -132,6 +132,16 @@ pub async fn handle_dungeon_end(
                 .find(|c| c.id == chapter_id)
                 .map(|c| c.r#type)
                 .unwrap_or(6);
+            // The episode.story field ("type#sceneId#storyId") references a special
+            // live2D/cinematic story sequence. Passing it via extra_str tells the client
+            // to play this sequence before showing the result screen.
+            let story_str = game_data
+                .episode
+                .iter()
+                .find(|e| e.id == episode_id)
+                .map(|e| e.story.clone())
+                .unwrap_or_default();
+
 
             send_dungeon_update_push(
                 ctx.clone(),
@@ -144,7 +154,7 @@ pub async fn handle_dungeon_end(
                 2, // TODO: Calculate today's chapter completions
                 2, // TODO: Calculate today's chapter attempts
             )
-            .await?;
+                .await?;
 
             // Generate and send rewards
             let is_first_clear = updated_dungeon.challenge_count == 1;
@@ -154,7 +164,7 @@ pub async fn handle_dungeon_end(
             all_rewards.extend(rewards.first_bonus);
             all_rewards.extend(rewards.free_bonus);
 
-            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards).await?;
+            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, all_rewards, is_first_clear, story_str).await?;
 
             send_red_dot_push(Arc::clone(&ctx), player_id, Some(vec![1027, 1047])).await?;
         } else {
@@ -163,11 +173,11 @@ pub async fn handle_dungeon_end(
                 episode_id
             );
             // Still send an empty EndDungeonPush so the client can exit the replay screen cleanly.
-            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![]).await?;
+            send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![], false, String::new()).await?;
         }
     } else {
         // Send empty end dungeon push for loss/abort
-        send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![]).await?;
+        send_end_dungeon_push(ctx.clone(), chapter_id, episode_id, vec![], false, String::new()).await?;
     }
 
     Ok(true)
