@@ -216,14 +216,13 @@ pub async fn load_hero_list(
 
     let mut rarity_counts = vec![0i32; 6];
 
-    // Get all characters (filter out NPCs)
+    // Only generate starter heroes for these specific IDs
+    const STARTER_HERO_IDS: &[i32] = &[3023, 3025, 3028, 3095];
+
     let characters: Vec<_> = game_data
         .character
         .iter()
-        //.filter(|c| c.rare >= 1 && c.rare <= 5) // Valid rarity (1-5 stars)
-        .filter(|c| c.id != 3029)
-        .filter(|c| c.id != 9998)
-        .filter(|c| c.id != 3125) // testing leveling logic
+        .filter(|c| STARTER_HERO_IDS.contains(&c.id))
         .collect();
 
     for character in characters.clone() {
@@ -236,17 +235,25 @@ pub async fn load_hero_list(
             rarity_counts[rare] += 1;
         }
 
-        // Get MAX LEVEL stats (highest level available for this hero)
-        let max_stats = game_data
+        // Get level 10 stats; fall back to lowest available level if 10 is missing
+        const STARTER_LEVEL: i32 = 10;
+        let level10_stats = game_data
             .character_level
             .iter()
-            .filter(|s| s.hero_id == hero_id)
-            .max_by_key(|s| s.level); // Get the highest level entry
+            .filter(|s| s.hero_id == hero_id && s.level == STARTER_LEVEL)
+            .next()
+            .or_else(|| {
+                game_data
+                    .character_level
+                    .iter()
+                    .filter(|s| s.hero_id == hero_id)
+                    .min_by_key(|s| s.level)
+            });
 
         let (level, hp, atk, def, mdef, technic, cri, recri, cri_dmg, cri_def, add_dmg, drop_dmg) =
-            if let Some(stats) = max_stats {
+            if let Some(stats) = level10_stats {
                 (
-                    stats.level,
+                    STARTER_LEVEL,
                     stats.hp,
                     stats.atk,
                     stats.def,
@@ -261,7 +268,7 @@ pub async fn load_hero_list(
                 )
             } else {
                 // Fallback values if no stats found
-                (1, 1000, 100, 100, 100, 100, 0, 0, 1300, 0, 0, 0)
+                (STARTER_LEVEL, 1000, 100, 100, 100, 100, 0, 0, 1300, 0, 0, 0)
             };
 
         let max_ranks = game_data
@@ -401,7 +408,7 @@ pub async fn load_hero_list(
         .bind(uid)
         .bind(hero_id)
         .bind(now)
-        .bind(level) // MAX level (e.g., 180)
+        .bind(level) // Starter level (10)
         .bind(0) // exp (maxed out, no exp needed)
         .bind(max_rank) // MAX rank based on rarity
         .bind(0) // breakthrough
@@ -4251,7 +4258,7 @@ pub async fn load_all_starter_data(pool: &SqlitePool, uid: i64) -> sqlx::Result<
     load_starter_hero_groups(&mut tx, uid).await?;
     load_hero_group_snapshots(&mut tx, uid).await?;
     load_dungeon_info(&mut tx, uid).await?;
-    load_dungeon_infos(&mut tx, uid).await?;
+    // load_dungeon_infos intentionally omitted: new players start with no dungeon progress
     load_story_data(&mut tx, uid).await?;
     load_charge_info(&mut tx, uid).await?;
     load_block_package_info(&mut tx, uid).await?;
