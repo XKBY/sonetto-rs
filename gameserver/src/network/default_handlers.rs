@@ -6,7 +6,7 @@ use crate::network::packet::ClientPacket;
 use crate::state::ConnectionContext;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use sonettobuf::CmdId;
+use sonettobuf::{CmdId, GetServerTimeReply};
 
 pub async fn send_default_reply(
     ctx: Arc<Mutex<ConnectionContext>>,
@@ -1187,7 +1187,31 @@ pub async fn send_default_reply(
         CmdId::WeekwalkVer2GetInfoCmd => conn.send_reply(cmd_id, WeekwalkVer2GetInfoReply::default(), 0, req.up_tag).await?,
         CmdId::WeekwalkVer2MarkPopRuleCmd => conn.send_reply(cmd_id, WeekwalkVer2MarkPopRuleReply::default(), 0, req.up_tag).await?,
         CmdId::WeekwalkVer2GetSettleInfoCmd => conn.send_reply(cmd_id, WeekwalkVer2GetSettleInfoReply::default(), 0, req.up_tag).await?,
-        _ => return Err(AppError::Cmd(CmdError::UnhandledCmd(cmd_id))),
+        _ => {
+            // Unknown/unimplemented command — log it with hex payload for debugging
+            // and send an empty reply so the client doesn't hang or disconnect.
+            let payload_hex: String = req.data.iter()
+                .take(64)
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let truncated = if req.data.len() > 64 {
+                format!(" ... ({} bytes total)", req.data.len())
+            } else {
+                String::new()
+            };
+            tracing::warn!(
+                "UNHANDLED cmd={:?} ({}), payload[0..{}]: {}{}",
+                cmd_id,
+                cmd_id as i32,
+                req.data.len().min(64),
+                payload_hex,
+                truncated
+            );
+            // Send an empty reply using GetServerTimeReply (zero bytes when default) as a
+            // stand-in, keyed to the actual cmd_id so the client isn't left waiting.
+            conn.send_reply(cmd_id, GetServerTimeReply::default(), 0, req.up_tag).await?;
+        }
     }
 
     Ok(())

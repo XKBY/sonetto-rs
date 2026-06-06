@@ -30,8 +30,17 @@ pub async fn handle_client(ctx: Arc<Mutex<ConnectionContext>>) -> anyhow::Result
         };
 
         if let Err(e) = handler::dispatch_command(ctx.clone(), &packet[..]).await {
-            tracing::error!("Dispatch error: {e}");
-            break;
+            // Check if this is a fatal error (decode failure, auth) or just an unhandled cmd.
+            // For unhandled/unknown commands, log and continue so the session stays alive
+            // and we can observe what the client sends next.
+            use crate::error::{AppError, CmdError};
+            let is_fatal = !matches!(&e, AppError::Cmd(CmdError::UnhandledCmd(_)) | AppError::Cmd(CmdError::UnregisteredCmd(_)));
+            if is_fatal {
+                tracing::error!("Dispatch error (fatal): {e}");
+                break;
+            } else {
+                tracing::warn!("Dispatch error (non-fatal, continuing): {e}");
+            }
         }
 
         {

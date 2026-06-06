@@ -28,8 +28,21 @@ pub async fn dispatch_command(
     req: &[u8],
 ) -> Result<(), AppError> {
     let req = ClientPacket::decode(req)?;
-    let cmd_id = TryInto::<CmdId>::try_into(req.cmd_id as i32)
-        .map_err(|_| AppError::Cmd(CmdError::UnregisteredCmd(req.cmd_id)))?;
+    let cmd_id = match TryInto::<CmdId>::try_into(req.cmd_id as i32) {
+        Ok(id) => id,
+        Err(_) => {
+            let payload_hex: String = req.data.iter()
+                .take(32)
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<_>>()
+                .join(" ");
+            tracing::warn!(
+                "UNREGISTERED cmd_id={} (not in CmdId enum), payload[..32]: {}",
+                req.cmd_id, payload_hex
+            );
+            return Ok(());
+        }
+    };
 
     tracing::info!("Received Cmd: {:?}", cmd_id);
 

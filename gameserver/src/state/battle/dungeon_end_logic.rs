@@ -141,7 +141,10 @@ pub async fn handle_dungeon_end(
                 .find(|e| e.id == episode_id)
                 .map(|e| e.story.clone())
                 .unwrap_or_default();
-
+            tracing::info!(
+    "dungeon_end: episode={} story_str={:?} is_first_clear={}",
+    episode_id, story_str, updated_dungeon.challenge_count == 1
+);
 
             send_dungeon_update_push(
                 ctx.clone(),

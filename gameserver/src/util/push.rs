@@ -238,6 +238,12 @@ pub async fn send_end_dungeon_push(
         total_round: Some(0),
     };
 
+    tracing::info!(
+        "EndDungeonPush: episode={} first_pass={} extra_str={:?}",
+        episode_id,
+        first_pass,
+        push.extra_str
+    );
     let mut conn = ctx.lock().await;
     conn.notify(CmdId::DungeonEndDungeonPushCmd, push).await?;
 

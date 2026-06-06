@@ -32,7 +32,14 @@ use crate::state::battle::{
         BattleEvent, HostEventAccumulator, HostLane, HostSide, check_host_lane_membership,
         register_round_host,
     },
-    manager::round_mgr::{apply_step_and_maybe_sync, check_battle_end, deleted_buff_ids_from_delta, expand_trigger_chain, inject_be_attacked_reactives_onto_player_host},
+    manager::{
+        entity_mgr::sync_from_fight,
+        round_mgr::{
+            BattleEndState, apply_step_and_maybe_sync, check_battle_end, check_battle_state,
+            deleted_buff_ids_from_delta, expand_trigger_chain, get_max_wave,
+            inject_be_attacked_reactives_onto_player_host, seed_entry_max_hp_from_fight,
+        },
+    },
     mechanics::{channel as channel_mechanics, injury_counter, magic_circle},
     passives::collector::CollectedPassives,
     round::RoundState,
@@ -56,6 +63,50 @@ fn push_host_accumulator_lane(
     match lane {
         HostAccumulatorLane::TriggerLane => accumulator.push_trigger_lane(event),
     }
+}
+
+/// After each card resolves, check whether all enemies in the current wave are
+/// dead.  If so, and if a next wave exists, advance the wave immediately so
+/// that any remaining cards in this round target the new wave's monsters instead
+/// of the already-dead ones.
+fn try_advance_wave_mid_round(
+    ctx: &mut FightContext<'_>,
+    steps: &mut Vec<FightStep>,
+) -> Result<()> {
+    let cur_wave = ctx.fight.cur_wave.unwrap_or(1);
+    let max_wave = get_max_wave(ctx.fight);
+    if !matches!(
+        check_battle_state(ctx.fight, cur_wave, max_wave),
+        BattleEndState::WaveCleared
+    ) {
+        return Ok(());
+    }
+    let old_defender_uids: Vec<i64> = ctx
+        .fight
+        .defender
+        .as_ref()
+        .into_iter()
+        .flat_map(|d| d.entitys.iter().chain(d.sub_entitys.iter()))
+        .filter_map(|e| e.uid)
+        .collect();
+    let mut wave_executor = SkillExecutor::new();
+    let mut wave_mgr = std::mem::take(&mut ctx.managers.wave_mgr);
+    let wave_steps = wave_mgr.advance_wave(ctx, &mut wave_executor)?;
+    ctx.managers.wave_mgr = wave_mgr;
+    sync_from_fight(ctx.fight, &mut ctx.managers.entity_mgr);
+    for uid in &old_defender_uids {
+        ctx.managers.buff_mgr.clear(*uid);
+        ctx.managers.entity_mgr.action_points.remove(uid);
+    }
+    seed_entry_max_hp_from_fight(ctx.fight);
+    ctx.sync();
+    tracing::info!(
+        "mid-round wave advance: {} -> {}",
+        cur_wave,
+        ctx.fight.cur_wave.unwrap_or(0)
+    );
+    steps.extend(wave_steps);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -125,6 +176,7 @@ pub(crate) async fn run(
             if state.is_finish {
                 break;
             }
+            try_advance_wave_mid_round(ctx, steps)?;
             continue;
         }
 
@@ -333,6 +385,7 @@ pub(crate) async fn run(
         if state.is_finish {
             break;
         }
+        try_advance_wave_mid_round(ctx, steps)?;
     }
 
     state.before_cards2 = deck_mgr.player_hand.clone();
