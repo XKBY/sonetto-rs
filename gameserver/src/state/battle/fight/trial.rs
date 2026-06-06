@@ -154,7 +154,11 @@ impl Trial {
         Ok(FightEntityInfo {
             uid: Some(hero_uid),
             model_id: Some(trial_data.hero_id),
-            skin: Some(trial_data.skin),
+            skin: Some(if trial_data.skin != 0 {
+                trial_data.skin
+            } else {
+                hero_config.skin_id
+            }),
             position: Some(position),
             entity_type: Some(1),
             user_id: Some(0),

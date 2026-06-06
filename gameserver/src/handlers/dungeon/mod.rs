@@ -9,6 +9,7 @@ mod get_fight_record_group;
 mod instruction_dungeon_info;
 mod start_dungeon;
 mod use_cloth_skill;
+mod map_element;
 
 pub use auto_round::on_auto_round;
 pub use begin_round::on_begin_round;
@@ -21,3 +22,4 @@ pub use get_fight_record_group::on_get_fight_record_group;
 pub use instruction_dungeon_info::on_instruction_dungeon_info;
 pub use start_dungeon::on_start_dungeon;
 pub use use_cloth_skill::on_use_cloth_skill;
+pub use map_element::on_map_element;

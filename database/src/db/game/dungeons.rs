@@ -179,6 +179,19 @@ pub async fn get_finished_puzzles(pool: &SqlitePool, user_id: i64) -> Result<Vec
     Ok(puzzles)
 }
 
+pub async fn finish_element(pool: &SqlitePool, user_id: i64, element_id: i32) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO user_dungeon_elements (user_id, element_id, is_finished)
+         VALUES (?, ?, 1)
+         ON CONFLICT (user_id, element_id) DO UPDATE SET is_finished = 1",
+    )
+        .bind(user_id)
+        .bind(element_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn update_dungeon_progress(
     pool: &SqlitePool,
     user_id: i64,
