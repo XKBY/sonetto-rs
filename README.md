@@ -1,6 +1,6 @@
 # Sonetto-rs
 
-### Current supported version: **3.1 (non-steam)**
+### Current supported version: **3.4 (non-steam)**
 
 [![Build and Release](https://github.com/Luotianyi-0712/sonetto-rs-build/actions/workflows/rust.yml/badge.svg)](https://github.com/Luotianyi-0712/sonetto-rs-build/actions/workflows/rust.yml)
 
@@ -94,10 +94,10 @@ Create a `data/` folder next to those binaries and copy `excel2json` and the `st
 ## Features (what works now)
 
 * Self-contained: uses SQLite (no external DB hosting required)
-* All skins, heroes and psychubes unlocked by default
+* New players start with a relatively clean slate.
 * Starter currency (3,000,000)
-* Battles and auto-battle (basic)
-* Battle replay support
+* Full battle flow: standard battles, auto-battle, and battle replay
+* Trial hero battles support
 * Battle teams: save and load team configurations
 * Username changes
 * Profile hero selection and psychube assignment
@@ -124,15 +124,17 @@ Create a `data/` folder next to those binaries and copy `excel2json` and the `st
 
 ## Known limitations / Not working (confirmed)
 
-* Tower battles
-* Trial heroes (buggy: replay/load not saved), not fully implemented
+* Tower battles (basic entry works; mop-up, talent resets, deep mode and most sub-commands are stubs)
+* ~~Trial heroes (buggy: replay/load not saved), not fully implemented~~
 * ~~Hero talents aren't persisted or applied correctly~~
-* Achievements system
+* Achievements system (read-only; no unlock progression)
 * Tasks / quest systems
 * Battle pass
+* Survival / roguelite mode (GetRougeOutsideInfo works; all battle and progression logic is stubbed)
+* Activity / seasonal event system (100+ event commands are stubs; no event progression or rewards)
 * ~~Full currency logic (some gacha/currency flows are incomplete)~~
 * Profile picture upload/management
-* Real-time battle logic: currently battles may be fast-forwarded/skipped to the end
+* ~~Real-time battle logic: currently battles may be fast-forwarded/skipped to the end~~
 * Drop rates and reward balancing need comprehensive testing
 
 ---
@@ -168,7 +170,7 @@ Please follow existing code style and keep changes focused per PR.
 
 * **Ezio moxie display**: Ezio sometimes shows an incorrect (very large) moxie value; (its part of the battle mechanics. since we only have bare minimum passives aren't implemented yet)
 * **Month card daily sign-in** sometimes ui pops up twice during sign in
-
+* **Post-battle story**: a small number of episodes that use special-story triggers may not fire the story cutscene after battle
 If you encounter other bugs, please open an issue with reproduction steps and relevant logs.
 
 ---
@@ -180,7 +182,7 @@ Short-term:
 * Fix confirmed broken handlers and persistence bugs
 * Implement a proper account & progress management system (replace current hardcoded/maxed defaults)
 * Finish ~~currency~~ gacha logic and balance drops
-* Improve battle logic to match the official game behavior
+* ~~Improve battle logic to match the official game behavior~~
 
 ---
 
